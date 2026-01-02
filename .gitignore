@@ -1,0 +1,43 @@
+############## backend ##############
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+replay_pid*
+
+
+############## infra ##############
+
+# 1. 테라폼 바이너리/플러그인 폴더 
+**/.terraform/*
+
+# 2. 테라폼 상태 파일 
+*.tfstate
+*.tfstate.*
+
+# 3. 변수 파일 (비밀번호)
+*.tfvars
+# 예외: 예시 파일은 올려도 됨
+!example.tfvars  
+
+# 4. 크래시 로그
+crash.log

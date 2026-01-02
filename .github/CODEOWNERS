@@ -1,0 +1,11 @@
+# 문법: [폴더경로] [소유팀_또는_아이디]
+
+# 1. 백엔드 폴더(/backend)는 백엔드 팀만 승인 가능
+/backend/   @Team-Dailo/backend
+
+# 2. 프론트 폴더(/frontend)는 프론트 팀만 승인 가능
+/frontend/  @Team-Dailo/frontend
+
+# 3. 인프라 폴더(/infra)는 인프라 팀만 승인 가능
+/infra/  @Team-Dailo/infra
+
