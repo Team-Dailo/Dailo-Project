@@ -44,3 +44,26 @@ replay_pid*
 
 # 4. 크래시 로그
 crash.log
+
+### Custom - 개인 정보 보호 ###
+application-local.properties
+**/application-local.yml
+*.env
+.env
+
+### OS / IDE / Build artifacts ###
+.DS_Store
+**/.DS_Store
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Gradle caches & build outputs
+**/.gradle/
+**/build/
+**/out/
+
+# Logs
+**/logs/
+
