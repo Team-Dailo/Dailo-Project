@@ -55,7 +55,7 @@ export default function BoardHistoryScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#ffffff",
   },
   container: {
     flex: 1,
