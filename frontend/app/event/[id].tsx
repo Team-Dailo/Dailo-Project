@@ -1,5 +1,4 @@
 // frontend/app/event/[id].tsx
-
 import React, { useState, useRef } from "react";
 import { ScrollView, View, StyleSheet } from "react-native";
 import { useLocalSearchParams } from "expo-router";
