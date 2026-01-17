@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  LayoutChangeEvent,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +29,8 @@ import {
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+type SheetMode = 'collapsed' | 'expanded';
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -36,6 +39,12 @@ export default function MapScreen() {
   const [activeFilter, setActiveFilter] = useState<
     'date' | 'category' | 'popular' | 'region' | 'scale' | null
   >(null);
+
+  // 작은 카드 / 큰 카드 상태
+  const [sheetMode, setSheetMode] = useState<SheetMode>('collapsed');
+
+  // 필터 칩 영역의 "아래 y좌표" (큰 카드 top 위치 계산용)
+  const [filterBottomY, setFilterBottomY] = useState(0);
 
   const {
     region,
@@ -55,6 +64,12 @@ export default function MapScreen() {
     // TODO: 북마크한 축제 목록 화면으로 이동
   };
 
+  // 필터 칩 영역 레이아웃 측정
+  const handleFilterLayout = (e: LayoutChangeEvent) => {
+    const { y, height } = e.nativeEvent.layout;
+    setFilterBottomY(y + height); // 컨테이너 기준 "아래쪽" 좌표
+  };
+
   const renderMarker = (event: Event) => (
     <Marker
       key={event.id}
@@ -62,7 +77,10 @@ export default function MapScreen() {
         latitude: event.latitude,
         longitude: event.longitude,
       }}
-      onPress={() => handleMarkerPress(event)}
+      onPress={() => {
+        handleMarkerPress(event);
+        setSheetMode('collapsed'); // 마커 눌렀을 때는 항상 작은 카드부터
+      }}
     >
       {/* TODO: 피그마 마커 스타일로 커스터마이징 */}
       <View style={styles.marker}>
@@ -70,18 +88,14 @@ export default function MapScreen() {
       </View>
     </Marker>
   );
-  console.log({
-  FilterChips,
-  FloatingButtons,
-  MapBottomSheet,
-  SideMenu,
-  DateFilterModal,
-  CategoryFilterModal,
-  PopularFilterModal,
-  RegionFilterModal,
-  ScaleFilterModal,
-});
 
+  // 파란 "축제 목록 보기" 버튼 클릭
+  const onPressFestivalList = () => {
+    if (!events || events.length === 0) return;
+    const first = events[0];
+    handleMarkerPress(first);   // useMap 안에서 시트 open + selectedEvent 설정
+    setSheetMode('collapsed');  // 작은 카드 모드
+  };
 
   return (
     <View style={styles.container}>
@@ -106,14 +120,16 @@ export default function MapScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 필터 칩들 */}
-      <FilterChips
-        onPressDate={() => setActiveFilter('date')}
-        onPressCategory={() => setActiveFilter('category')}
-        onPressPopular={() => setActiveFilter('popular')}
-        onPressRegion={() => setActiveFilter('region')}
-        onPressScale={() => setActiveFilter('scale')}
-      />
+      {/* 필터 칩들 (여기 높이를 재서 큰 카드 위치 계산) */}
+      <View onLayout={handleFilterLayout}>
+        <FilterChips
+          onPressDate={() => setActiveFilter('date')}
+          onPressCategory={() => setActiveFilter('category')}
+          onPressPopular={() => setActiveFilter('popular')}
+          onPressRegion={() => setActiveFilter('region')}
+          onPressScale={() => setActiveFilter('scale')}
+        />
+      </View>
 
       {/* 지도 영역 */}
       <View style={styles.mapContainer}>
@@ -135,26 +151,36 @@ export default function MapScreen() {
           onPressCurrentLocation={focusCurrentLocation}
         />
 
-        {/* 하단 축제 목록 버튼 */}
-        <View style={styles.listButtonWrapper}>
-          <TouchableOpacity style={styles.listButton} activeOpacity={0.85}>
-            <Text style={styles.listButtonText}>축제 목록 보기</Text>
-          </TouchableOpacity>
-        </View>
+        {/* 초기 상태에서만 보이는 하단 "축제 목록 보기" 버튼 */}
+        {!isBottomSheetOpen && (
+          <View style={styles.listButtonWrapper}>
+            <TouchableOpacity
+              style={styles.listButton}
+              activeOpacity={0.85}
+              onPress={onPressFestivalList}
+            >
+              <Text style={styles.listButtonText}>축제 목록 보기</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
-      {/* 마커 클릭 시 바텀 시트 */}
+      {/* 마커 클릭 / 축제 목록 클릭 시 바텀 시트 */}
       <MapBottomSheet
         visible={isBottomSheetOpen}
         event={selectedEvent}
-        onClose={closeBottomSheet}
+        mode={sheetMode}
+        filterBottomY={filterBottomY}
+        onClose={() => {
+          setSheetMode('collapsed');
+          closeBottomSheet();
+        }}
+        onPressMore={() => setSheetMode('expanded')}
+        onPressDirection={onPressDirection}
       />
 
       {/* 왼쪽 햄버거 사이드 메뉴 */}
-      <SideMenu
-        visible={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-      />
+      <SideMenu visible={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
       {/* 필터 모달들 */}
       <DateFilterModal
