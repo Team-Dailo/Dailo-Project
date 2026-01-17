@@ -1,6 +1,7 @@
 import { View, Pressable, Text } from "react-native";
 
-type TabKey = "news" | "timeline" | "booths";
+// 🔹 외부에서 import할 수 있도록 export 추가!
+export type TabKey = "news" | "timeline" | "booths";
 
 interface Props {
   value: TabKey;
@@ -20,6 +21,7 @@ export default function EventDetailTabs({ value, onChange }: Props) {
         flexDirection: "row",
         borderBottomWidth: 1,
         borderColor: "#eee",
+        backgroundColor: "#ffffff",
       }}
     >
       {tabs.map((t) => (
@@ -30,13 +32,14 @@ export default function EventDetailTabs({ value, onChange }: Props) {
             flex: 1,
             paddingVertical: 12,
             borderBottomWidth: value === t.key ? 2 : 0,
-            borderColor: "#007bff",
+            borderColor: "#2563EB", // 피그마 블루 느낌
           }}
         >
           <Text
             style={{
               textAlign: "center",
-              fontWeight: value === t.key ? "bold" as const : "normal",
+              fontWeight: value === t.key ? "600" : "400",
+              color: value === t.key ? "#111" : "#666",
             }}
           >
             {t.label}
