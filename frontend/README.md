@@ -27,3 +27,9 @@ frontend/
 ├── services/                    # API 통신 모듈
 ├── types/                       # 타입 정의
 └── utils/                       # 공통 유틸 함수
+
+## Development Environment
+
+- Node.js: v20.12.2
+- npm: v10.x
+- Use `nvm use` before development
