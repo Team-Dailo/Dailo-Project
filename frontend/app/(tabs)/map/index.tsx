@@ -5,16 +5,14 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
   LayoutChangeEvent,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
+// ✅ 지도 데이터/선택 상태는 그대로 사용
 import { useMap } from '../../../hooks/useMap';
-import type { Event } from '../../../types/event';
 import { FilterChips } from './_components/FilterChips';
 import { FloatingButtons } from './_components/FloatingButtons';
 import { MapBottomSheet } from './_components/MapBottomSheet';
@@ -27,7 +25,8 @@ import {
   ScaleFilterModal,
 } from './_components/FilterModals';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+// ❌ 여기 있었던 react-native-maps import 는 완전히 제거했습니다
+// import MapView, { Marker } from 'react-native-maps';
 
 type SheetMode = 'collapsed' | 'expanded';
 
@@ -40,14 +39,14 @@ export default function MapScreen() {
     'date' | 'category' | 'popular' | 'region' | 'scale' | null
   >(null);
 
-  // 작은 카드 / 큰 카드 상태
+  // 작은 카드 / 큰 카드 모드
   const [sheetMode, setSheetMode] = useState<SheetMode>('collapsed');
 
   // 필터 칩 영역의 "아래 y좌표" (큰 카드 top 위치 계산용)
   const [filterBottomY, setFilterBottomY] = useState(0);
 
   const {
-    region,
+    // region,        // 👉 지금은 안 써도 상관 없음
     events,
     selectedEvent,
     isBottomSheetOpen,
@@ -69,25 +68,6 @@ export default function MapScreen() {
     const { y, height } = e.nativeEvent.layout;
     setFilterBottomY(y + height); // 컨테이너 기준 "아래쪽" 좌표
   };
-
-  const renderMarker = (event: Event) => (
-    <Marker
-      key={event.id}
-      coordinate={{
-        latitude: event.latitude,
-        longitude: event.longitude,
-      }}
-      onPress={() => {
-        handleMarkerPress(event);
-        setSheetMode('collapsed'); // 마커 눌렀을 때는 항상 작은 카드부터
-      }}
-    >
-      {/* TODO: 피그마 마커 스타일로 커스터마이징 */}
-      <View style={styles.marker}>
-        <Text style={styles.markerText}>5</Text>
-      </View>
-    </Marker>
-  );
 
   // 파란 "축제 목록 보기" 버튼 클릭
   const onPressFestivalList = () => {
@@ -133,16 +113,12 @@ export default function MapScreen() {
 
       {/* 지도 영역 */}
       <View style={styles.mapContainer}>
-        {region && (
-          <MapView
-            style={styles.map}
-            region={region}
-            showsUserLocation
-            showsMyLocationButton={false}
-          >
-            {events.map(renderMarker)}
-          </MapView>
-        )}
+        {/* ✅ 진짜 MapView 대신 임시 회색 박스 */}
+        <View style={styles.fakeMap}>
+          <Text style={styles.fakeMapText}>
+            (임시) 여기 지도 들어갈 자리입니다.
+          </Text>
+        </View>
 
         {/* 오른쪽 플로팅 버튼 */}
         <FloatingButtons
@@ -249,22 +225,16 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
   },
-  map: {
-    width: '100%',
-    height: SCREEN_HEIGHT,
-  },
-  marker: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#2563eb',
+  // ✅ 임시 지도 박스
+  fakeMap: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F3F4F6',
   },
-  markerText: {
-    color: '#ffffff',
+  fakeMapText: {
     fontSize: 13,
-    fontWeight: '600',
+    color: '#9CA3AF',
   },
   listButtonWrapper: {
     position: 'absolute',
