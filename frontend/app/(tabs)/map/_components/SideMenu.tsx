@@ -1,3 +1,4 @@
+// app/(tabs)/map/_components/SideMenu.tsx
 import React, { useEffect, useRef } from 'react';
 import {
   Modal,
@@ -6,7 +7,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Pressable,
-  SafeAreaView,
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,11 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /** 🔹 파란 "참여 중인 축제" 카드 눌렀을 때 */
+  onPressActiveFestival: () => void;
 };
 
 const DRAWER_WIDTH = 280;
 
-export function SideMenu({ visible, onClose }: Props) {
+export function SideMenu({ visible, onClose, onPressActiveFestival }: Props) {
   const isLoggedIn = false; // TODO: 나중에 실제 로그인 상태 연동
 
   // 왼쪽에서 슬라이드 인/아웃
@@ -36,7 +38,7 @@ export function SideMenu({ visible, onClose }: Props) {
     <Modal
       visible={visible}
       transparent
-      animationType="none" // 아래에서 위로 올라오는 기본 애니메이션 제거
+      animationType="none"
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
@@ -75,14 +77,18 @@ export function SideMenu({ visible, onClose }: Props) {
             </View>
           )}
 
-          {/* 참여 중인 축제 카드 */}
+          {/* 🔹 참여 중인 축제 카드 (터치 가능) */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>참여 중인 축제</Text>
-            <View style={styles.currentFestivalCard}>
+            <TouchableOpacity
+              style={styles.currentFestivalCard}
+              activeOpacity={0.9}
+              onPress={onPressActiveFestival}
+            >
               <Text style={styles.festivalBadge}>참여 중인 축제</Text>
               <Text style={styles.festivalTitle}>한국교통대 대동제</Text>
               <Text style={styles.festivalTimer}>00:16:13</Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* MY FESTIVAL */}
@@ -126,7 +132,7 @@ export function SideMenu({ visible, onClose }: Props) {
           </View>
         </Animated.View>
 
-        {/* 오른쪽은 반투명 백드롭 */}
+        {/* 오른쪽 반투명 백드롭 */}
         <Pressable style={styles.backdrop} onPress={onClose} />
       </View>
     </Modal>
@@ -154,7 +160,7 @@ function MenuItem({ label, icon, onPress }: MenuItemProps) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    flexDirection: 'row', // 왼쪽 drawer, 오른쪽 backdrop
+    flexDirection: 'row',
   },
   drawer: {
     width: DRAWER_WIDTH,
