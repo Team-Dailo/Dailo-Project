@@ -8,6 +8,14 @@ terraform {
     }
   }
 
+  backend "s3" {
+    bucket         = "dailo-terraform-state" 
+    key            = "terraform.tfstate"     
+    region         = "ap-northeast-2"
+    encrypt        = true                    
+    dynamodb_table = "terraform-lock-table"  
+  }
+
 
 }
 
@@ -26,7 +34,7 @@ resource "aws_s3_bucket" "tf_state" {
 
   lifecycle {
     # 실수로 버킷을 삭제하는 것을 방지
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
