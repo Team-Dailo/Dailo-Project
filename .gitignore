@@ -15,6 +15,7 @@
 
 # Package Files #
 *.jar
+!gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -66,6 +67,3 @@ application-local.properties
 
 # Logs
 **/logs/
-
-
-
