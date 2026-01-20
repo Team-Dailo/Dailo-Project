@@ -119,7 +119,7 @@ export default function HomeScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>행사 리스트</Text>
             {/* ✅ 여기서 행사 리스트 전체 화면으로 이동 */}
-            <Pressable onPress={() => router.push("/home/event-list")}>
+            <Pressable onPress={() => router.push("./home/event-list")}>
               <Text style={styles.sectionMore}>더 보기 &gt;</Text>
             </Pressable>
           </View>
