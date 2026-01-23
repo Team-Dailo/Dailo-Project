@@ -44,3 +44,4 @@ replay_pid*
 
 # 4. 크래시 로그
 crash.log
+node_modules
