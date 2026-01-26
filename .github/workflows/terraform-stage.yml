@@ -4,12 +4,12 @@ on:
   push:
     branches: ["stage"]
     paths:
-      - "infra/terraform/live/prod/**"
+      - "infra/terraform/live/stage/**"
       - "infra/terraform/global/**"
   pull_request:
     branches: ["stage"]
     paths:
-      - "infra/terraform/live/prod/**"
+      - "infra/terraform/live/stage/**"
       - "infra/terraform/global/**"
 
 permissions:
@@ -22,7 +22,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./infra/terraform/live/prod/
+        working-directory: ./infra/terraform/live/stage/
 
     steps:
       - name: Checkout
