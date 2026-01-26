@@ -26,7 +26,7 @@ resource "aws_ecr_lifecycle_policy" "main" {
 
   policy = jsonencode({
     rules = [
-      # [규칙 1] 'dev-'로 시작하는 태그는 14일 지나면 삭제 (개발용)
+      # 'dev-'로 시작하는 태그는 14일 지나면 삭제 (개발용)
       {
         rulePriority = 1
         description  = "Expire dev images older than 14 days"
@@ -41,7 +41,7 @@ resource "aws_ecr_lifecycle_policy" "main" {
           type = "expire"
         }
       },
-      # [규칙 2] 태그가 없는(Untagged) 이미지는 7일 뒤 삭제
+      # 태그가 없는 이미지7일 뒤 삭제
       {
         rulePriority = 2
         description  = "Remove untagged images immediately"
