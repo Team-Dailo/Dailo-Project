@@ -12,6 +12,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { Event } from '../../../../types/event';
+import { formatDateTimeRange } from '../../../../utils/formatDate';
+import { formatTimeRange } from '../../../../utils/formatTime';
 
 type SheetMode = 'collapsed' | 'expanded';
 
@@ -46,8 +48,12 @@ export function MapBottomSheet({
     onClose();
   };
 
-  const dateText = `${event.startAt} ~ ${event.endAt}`;
-  const timeText = 'PM 19:00 ~ 21:00'; // TODO: 실제 시간 파싱
+  // ✅ ISO 문자열 그대로 출력하지 않도록 포맷 적용
+  const dateText = formatDateTimeRange(event.startAt, event.endAt);
+
+  // ✅ 하드코딩 제거: 실제 시간으로 표시
+  const timeText = formatTimeRange(event.startAt, event.endAt);
+
   const placeText = event.address || event.placeName;
 
   // 큰 카드 상단 위치: 필터 칩 아래 + 8px 정도 여백
@@ -121,7 +127,7 @@ export function MapBottomSheet({
               left: 16,
               right: 16,
               top: expandedTop,
-              bottom: insets.bottom ,
+              bottom: insets.bottom,
             },
           ]}
         >
