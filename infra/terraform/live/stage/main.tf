@@ -11,7 +11,7 @@ provider "aws" {
   region = "ap-northeast-2"
   default_tags {
     tags = {
-      Environment = "prod"
+      Environment = "stage"
       Project     = "Dailo"
       ManagedBy   = "Terraform"
     }
@@ -23,15 +23,13 @@ provider "aws" {
   region = "us-east-1"
 }
 
-
 # ------------------------------------------------------------------------------
-# 1. Global & Base Resources
+# 1. Global & Base Resources 
 # ------------------------------------------------------------------------------
-
 locals {
-  static_bucket_name = "dailo-prod-static-2026"
-  db_name     = "dailo"
-  db_username     = "dailo"
+  static_bucket_name = "dailo-stage-static-2026" 
+  db_name            = "dailo_stage"
+  db_username        = "admin"
 }
 
 data "aws_route53_zone" "selected" {
@@ -42,19 +40,13 @@ data "aws_ecr_repository" "dailo" {
   name = "dailo" 
 }
 
-# module "ecr" {
-#   source = "../../global/ecr"
-#   name   = "dailo" 
-# }
-
- 
 # ------------------------------------------------------------------------------
-# 1. VPC 모듈
+# 2. VPC 모듈
 # ------------------------------------------------------------------------------
 module "vpc" {
   source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/vpc?ref=main"
 
-  name     = "dailo-prod"
+  name     = "dailo-stage"
   region   = "ap-northeast-2"
   vpc_cidr = "10.0.0.0/16"
 
@@ -69,42 +61,37 @@ module "vpc" {
 }
 
 # ------------------------------------------------------------------------------
-# 2. ecs 모듈
+# 3. ECS 모듈 
 # ------------------------------------------------------------------------------
 module "ecs" {
   source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/ecs?ref=main"
 
-  name   = "dailo-prod"
-  region = "ap-northeast-2" # CloudWatch 로그 등을 위해 사용
+  name   = "dailo-stage"
+  region = "ap-northeast-2"
 
-  ami_id = "ami-0291c43558f414816"
+  ami_id = "ami-0291c43558f414816" 
 
   vpc_id             = module.vpc.vpc_id
   public_subnet_ids  = module.vpc.public_subnet_ids
-  private_subnet_ids = module.vpc.was_subnet_ids # ECS 노드가 배치될 Private Subnet
+  private_subnet_ids = module.vpc.was_subnet_ids
 
-  # [도메인 및 인증서]
-  domain_name     = "api.dailoapp.com" # 실제 연결할 서브도메인
+  domain_name     = "stage-api.dailoapp.com"
   route53_zone_id = data.aws_route53_zone.selected.zone_id
 
-  bucket_name        = local.static_bucket_name # IAM 정책 연결용
-  ecr_repository_url = data.aws_ecr_repository.dailo.repository_url # 이미지 Pull용
-  # ecr_repository_url = module.ecr.repository_url # 이미지 Pull용
+  bucket_name        = local.static_bucket_name
+  ecr_repository_url = data.aws_ecr_repository.dailo.repository_url
 
-  # [EC2 설정]
-  key_name      = "prod_key" 
-  instance_type = "t3.small" 
+  key_name      = "stage_key" 
+  instance_type = "t3.micro"  
 
-  # [Auto Scaling 설정]
-  asg_min     = 2
-  asg_max     = 4
-  asg_desired = 2
+  asg_min     = 1
+  asg_max     = 2
+  asg_desired = 1
 
-  # 테스크 값
-  #desired_count = 2
-  cpu = 512
-  memory = 1024
+  cpu    = 256
+  memory = 512
   container_port = 8080
+
   container_env = [
     {
       name  = "SPRING_DATASOURCE_URL"
@@ -127,7 +114,7 @@ module "ecs" {
       value = local.static_bucket_name  
     }
   ]
-    container_secrets = [
+  container_secrets = [
     {
       name      = "SPRING_DATASOURCE_PASSWORD"
       valueFrom = module.rds.ssm_db_password_arn
@@ -135,34 +122,32 @@ module "ecs" {
   ]
 }
 
-
 # ------------------------------------------------------------------------------
-# 3. RDS 모듈
+# 4. RDS 모듈
 # ------------------------------------------------------------------------------
 module "rds" {
   source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/rds?ref=main"
 
-  name   = "dailo-prod"
+  name   = "dailo-stage"
   vpc_id = module.vpc.vpc_id
   
   db_subnet_ids = module.vpc.db_subnet_ids
-  was_sg_id = module.ecs.ecs_node_security_group_id
+  was_sg_id     = module.ecs.ecs_node_security_group_id
 
-  # DB 설정
   db_engine            = "mysql"
   db_engine_version    = "8.0"
   db_instance_class    = "db.t3.micro"
   db_allocated_storage = 20
-  db_multi_az          = true 
+  
+  db_multi_az          = false 
 
-  # 계정 정보
   db_name     = local.db_name
-  db_username = "admin"
+  db_username = local.db_username
   db_password = var.db_password 
 }
 
 # ------------------------------------------------------------------------------
-# 4. cdn 모듈
+# 5. CDN 모듈
 # ------------------------------------------------------------------------------
 module "cdn" {
   source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=main"
@@ -171,10 +156,10 @@ module "cdn" {
     aws.virginia = aws.virginia
   }
 
-  name        = "dailo-cdn"
+  name        = "dailo-stage-cdn"
   bucket_name = local.static_bucket_name
 
-  domain_name     = "dailoapp.com"
+  domain_name     = "stage.dailoapp.com"
   route53_zone_id = data.aws_route53_zone.selected.zone_id
 
   alb_dns_name = module.ecs.alb_dns_name
