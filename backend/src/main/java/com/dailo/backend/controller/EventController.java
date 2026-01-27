@@ -1,68 +1,76 @@
 package com.dailo.backend.controller;
 
-import com.dailo.backend.entity.Event;
-import com.dailo.backend.repository.EventRepository;
+import com.dailo.backend.dto.EventDetailResponse;
+import com.dailo.backend.dto.EventListRequest;
+import com.dailo.backend.dto.EventListResponse;
+import com.dailo.backend.service.EventService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/events")
+@RequiredArgsConstructor // final 필드 생성자 자동 생성 (DI)
 public class EventController {
 
-    private final EventRepository eventRepository;
+    private final EventService eventService;
 
-    // 생성자 주입 (DI)
-    public EventController(EventRepository eventRepository) {
-        this.eventRepository = eventRepository;
-    }
+    // ==========================================
+    // [Issue 1] 이벤트 조회 API 구현 (Service 연결)
+    // ==========================================
 
-    // 1. 전체 조회 (GET /api/events)
+    /**
+     * 1. 이벤트 리스트 조회 (페이징 + 필터링)
+     * [GET] /api/events?page=1&size=20&categories=FESTIVAL
+     */
     @GetMapping
-    public List<Event> getAllEvents() {
-        return eventRepository.findAll();
+    public ResponseEntity<Page<EventListResponse>> getEventList(
+            @ModelAttribute EventListRequest request
+    ) {
+        // DTO의 page, size를 이용하여 Pageable 객체 생성
+        Pageable pageable = PageRequest.of(request.page() - 1, request.size());
+
+        Page<EventListResponse> response = eventService.getEventList(request);
+        return ResponseEntity.ok(response);
     }
 
-    // 2. 단건 조회 (GET /api/events/{id})
+    /**
+     * 2. 이벤트 상세 조회
+     * [GET] /api/events/{id}
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<Event> getEventById(@PathVariable Long id) {
-        return eventRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<EventDetailResponse> getEventDetail(@PathVariable Long id) {
+        EventDetailResponse response = eventService.getEventDetail(id);
+        return ResponseEntity.ok(response);
     }
 
-    // 3. 생성 (POST /api/events)
+    // ==========================================
+    // [TODO] 생성/수정/삭제 API 리팩토링 필요
+    // Entity 구조가 변경(위치 분리, 카테고리 리스트 등)되어 기존 코드는 동작하지 않습니다.
+    // 추후 '이벤트 등록/수정 API' 구현 시점에 맞춰 재작성해야 합니다.
+    // ==========================================
+
+    /*
     @PostMapping
-    public Event createEvent(@RequestBody Event event) {
-        return eventRepository.save(event);
+    public ResponseEntity<Event> createEvent(@RequestBody Event event) {
+        // TODO: DTO를 통해 입력받고 Service에서 Entity로 변환하여 저장하도록 수정 필요
+        return ResponseEntity.ok(eventRepository.save(event));
     }
 
-    // 4. 수정 (PUT /api/events/{id})
     @PutMapping("/{id}")
     public ResponseEntity<Event> updateEvent(@PathVariable Long id, @RequestBody Event eventDetails) {
-        return eventRepository.findById(id)
-                .map(event -> {
-                    event.setTitle(eventDetails.getTitle());
-                    event.setLocation(eventDetails.getLocation());
-                    event.setStartDate(eventDetails.getStartDate());
-                    event.setEndDate(eventDetails.getEndDate());
-                    event.setCategory(eventDetails.getCategory());
-                    event.setDescription(eventDetails.getDescription());
-                    Event updatedEvent = eventRepository.save(event);
-                    return ResponseEntity.ok(updatedEvent);
-                })
-                .orElse(ResponseEntity.notFound().build());
+        // TODO: 변경된 Entity 필드(placeName, latitude, categories 등)에 맞춰 수정 로직 변경 필요
+        // 기존 코드(setLocation 등)는 필드가 없어져서 컴파일 에러 발생함
+        return ResponseEntity.notFound().build();
     }
 
-    // 5. 삭제 (DELETE /api/events/{id})
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteEvent(@PathVariable Long id) {
-        return eventRepository.findById(id)
-                .map(event -> {
-                    eventRepository.delete(event);
-                    return ResponseEntity.ok().<Void>build();
-                })
-                .orElse(ResponseEntity.notFound().build());
+        // TODO: Service를 통해 삭제하도록 수정 필요
+        return ResponseEntity.ok().build();
     }
+    */
 }
