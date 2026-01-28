@@ -21,7 +21,7 @@ export default function TabsLayout() {
     >
       {/* 홈 */}
       <Tabs.Screen
-        name="home/index"
+        name="home"
         options={{
           title: "홈",
           tabBarIcon: ({ color, size }) => (
@@ -65,7 +65,7 @@ export default function TabsLayout() {
 
       {/* 마이페이지 */}
       <Tabs.Screen
-        name="mypage/index"
+        name="mypage"   // ✅ 여기!  "mypage/index" → "mypage"
         options={{
           title: "마이페이지",
           tabBarIcon: ({ color, size }) => (
