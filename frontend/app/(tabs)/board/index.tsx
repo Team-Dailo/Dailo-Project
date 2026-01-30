@@ -1,389 +1,124 @@
-// app/(tabs)/board/index.tsx
-import React, { useState } from "react";
-import {
-  SafeAreaView,
-} from "react-native-safe-area-context";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  FlatList,
-} from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Text, StyleSheet, FlatList, Pressable } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-type Post = {
-  id: string;
-  author: string;
-  time: string;
-  tag?: string;
-  content: string;
-  likes: number;
-  comments: number;
-  scraps: number;
-};
+import type { BoardCategory, BoardSort, BoardPost } from "../../../types/board";
+import { mockBoardNotice, mockBoardPosts } from "../../../constants/mockBoardPosts";
 
-const MOCK_POSTS: Post[] = [
-  {
-    id: "1",
-    author: "dog_dog",
-    time: "15분전",
-    tag: "후기",
-    content:
-      "이번 축제 푸드존 진짜 대박이었어요... 😆\n특히 감자버터구이랑 타코야끼 라인은 줄이 길었는데 기다린 가치 있었음!\n분위기도 너무 좋고 친구들이랑 사진도 많이 찍어서 행복했어요.",
-    likes: 45,
-    comments: 12,
-    scraps: 4,
-  },
-  {
-    id: "2",
-    author: "cat",
-    time: "1시간전",
-    tag: "후기",
-    content:
-      "저녁 공연 무대 연출 미쳤어요.\n조명 + 사운드 + 날씨 삼박자가 완벽해서\n가수 나오자마자 관객들이랑 다 같이 떼창한 거 아직도 소름...\n영원히 기억에 남을 하루였습니다!",
-    likes: 39,
-    comments: 8,
-    scraps: 3,
-  },
-];
+import BoardNoticeCard from "./_components/BoardNoticeCard";
+import BoardCategoryChips from "./_components/BoardCategoryChips";
+import BoardSortTabs from "./_components/BoardSortTabs";
+import BoardPostCard from "./_components/BoardPostCard";
+import FloatingWriteButton from "./_components/FloatingWriteButton";
 
-const CATEGORIES = ["전체", "후기", "질문", "자유"] as const;
-type Category = (typeof CATEGORIES)[number];
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.max(1, Math.floor(diff / 60000));
+  if (m < 60) return `${m}분전`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}시간전`;
+  const d = Math.floor(h / 24);
+  return `${d}일전`;
+}
 
-export default function BoardScreen() {
-  const [selectedCategory, setSelectedCategory] = useState<Category>("전체");
-  const [sortType, setSortType] = useState<"latest" | "popular">("latest");
+export default function BoardTabScreen() {
+  const router = useRouter();
 
-  const renderPost = ({ item }: { item: Post }) => {
-    return (
-      <Pressable style={styles.postCard}>
-        {/* 상단 프로필 / 시간 / 더보기 */}
-        <View style={styles.postHeader}>
-          <View style={styles.postHeaderLeft}>
-            <View style={styles.profileCircle} />
-            <View>
-              <View style={styles.authorRow}>
-                <Text style={styles.author}>{item.author}</Text>
-                {item.tag && (
-                  <View style={styles.tagBadge}>
-                    <Text style={styles.tagText}>{item.tag}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.timeText}>{item.time}</Text>
-            </View>
-          </View>
-          <Ionicons name="ellipsis-vertical" size={18} color="#9CA3AF" />
-        </View>
+  const [category, setCategory] = useState<BoardCategory>("전체");
+  const [sort, setSort] = useState<BoardSort>("최신글");
 
-        {/* 내용 */}
-        <Text style={styles.postContent}>{item.content}</Text>
+  const posts = useMemo(() => {
+    let list: BoardPost[] = [...mockBoardPosts];
 
-        {/* 하단 액션 아이콘 */}
-        <View style={styles.postFooter}>
-          <View style={styles.footerItem}>
-            <Ionicons name="heart-outline" size={18} color="#4B5563" />
-            <Text style={styles.footerText}>{item.likes}</Text>
-          </View>
-          <View style={styles.footerItem}>
-            <Ionicons name="chatbubble-ellipses-outline" size={18} color="#4B5563" />
-            <Text style={styles.footerText}>{item.comments}</Text>
-          </View>
-          <View style={styles.footerItem}>
-            <Ionicons name="bookmark-outline" size={18} color="#4B5563" />
-            <Text style={styles.footerText}>{item.scraps}</Text>
-          </View>
-        </View>
-      </Pressable>
-    );
+    if (category !== "전체") list = list.filter((p) => p.category === category);
+
+    if (sort === "최신글") {
+      list.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    } else {
+      list.sort((a, b) => b.likeCount - a.likeCount);
+    }
+
+    return list;
+  }, [category, sort]);
+
+  const goChatList = () => {
+    // ✅ 탭 밖 라우트는 객체 pathname으로 (꼬임 방지)
+    router.push({ pathname: "/board/chat" });
+  };
+
+  const goWrite = () => {
+    router.push({ pathname: "/board/write" });
+  };
+
+  const goDetail = (postId: string) => {
+    router.push({ pathname: "/board/[id]", params: { id: postId } });
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        {/* 헤더 */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>게시판</Text>
-          <View style={styles.headerRight}>
-            <Ionicons name="notifications-outline" size={22} color="#111827" />
-          </View>
+          <Text style={styles.title}>게시판</Text>
+
+          <Pressable onPress={goChatList} hitSlop={10} style={styles.headerIconBtn}>
+            <Ionicons name="chatbubble-outline" size={22} color="#111" />
+          </Pressable>
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+        <BoardNoticeCard
+          title={mockBoardNotice.title}
+          preview={mockBoardNotice.preview}
+          onPress={() => {
+            // 공지 상세가 생기면 연결
+          }}
+        />
+
+        <BoardCategoryChips value={category} onChange={setCategory} />
+        <BoardSortTabs value={sort} onChange={setSort} />
+
+        <FlatList
+          data={posts}
+          keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-        >
-          {/* 공지 카드 */}
-          <View style={styles.noticeCard}>
-            <View style={styles.noticeRow}>
-              <Text style={styles.noticeTitle}>공지사항</Text>
-              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-            </View>
-            <Text style={styles.noticeText}>
-              [공지사항] 이번 주 서버 점검 안내드립니다...
-            </Text>
-          </View>
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <BoardPostCard
+              post={item}
+              timeLabel={timeAgo(item.createdAt)}
+              onPress={() => goDetail(item.id)}
+              onMorePress={() => goDetail(item.id)}
+            />
+          )}
+        />
 
-          {/* 카테고리 탭 */}
-          <View style={styles.categoryRow}>
-            {CATEGORIES.map((cat) => {
-              const selected = selectedCategory === cat;
-              return (
-                <Pressable
-                  key={cat}
-                  onPress={() => setSelectedCategory(cat)}
-                  style={[
-                    styles.categoryChip,
-                    selected && styles.categoryChipSelected,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.categoryChipText,
-                      selected && styles.categoryChipTextSelected,
-                    ]}
-                  >
-                    {cat}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* 정렬 탭 */}
-          <View style={styles.sortRow}>
-            <Pressable onPress={() => setSortType("latest")}>
-              <Text
-                style={[
-                  styles.sortText,
-                  sortType === "latest" && styles.sortTextSelected,
-                ]}
-              >
-                최신글
-              </Text>
-            </Pressable>
-            <Pressable onPress={() => setSortType("popular")}>
-              <Text
-                style={[
-                  styles.sortText,
-                  sortType === "popular" && styles.sortTextSelected,
-                ]}
-              >
-                인기글
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* 게시글 리스트 */}
-          <FlatList
-            data={MOCK_POSTS}
-            keyExtractor={(item) => item.id}
-            renderItem={renderPost}
-            scrollEnabled={false} // ScrollView 안이라 false
-            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          />
-        </ScrollView>
-
-        {/* 글쓰기 플로팅 버튼 */}
-        <Pressable style={styles.fab}>
-          <Ionicons name="add" size={28} color="#FFFFFF" />
-        </Pressable>
+        <FloatingWriteButton onPress={goWrite} />
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-  },
+  safe: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 8,
     justifyContent: "space-between",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  noticeCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 16,
-    shadowColor: "#000000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  noticeRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  noticeTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  noticeText: {
-    fontSize: 13,
-    color: "#6B7280",
-  },
-  categoryRow: {
-    flexDirection: "row",
-    gap: 8,
     marginBottom: 12,
   },
-  categoryChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
-  },
-  categoryChipSelected: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
-  },
-  categoryChipText: {
-    fontSize: 13,
-    color: "#4B5563",
-    fontWeight: "500",
-  },
-  categoryChipTextSelected: {
-    color: "#FFFFFF",
-  },
-  sortRow: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 12,
-  },
-  sortText: {
-    fontSize: 13,
-    color: "#9CA3AF",
-  },
-  sortTextSelected: {
-    color: "#111827",
-    fontWeight: "600",
-  },
-  postCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    shadowColor: "#000000",
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  postHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  title: { fontSize: 22, fontWeight: "900", color: "#111" },
+  headerIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
-    marginBottom: 8,
-  },
-  postHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  profileCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#F3F4F6",
-  },
-  authorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  author: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  tagBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: "#F3F4FF",
-  },
-  tagText: {
-    fontSize: 11,
-    color: "#4F46E5",
-    fontWeight: "500",
-  },
-  timeText: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    marginTop: 2,
-  },
-  postContent: {
-    fontSize: 13,
-    color: "#374151",
-    lineHeight: 18,
-    marginBottom: 10,
-  },
-  postFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  footerItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  footerText: {
-    fontSize: 12,
-    color: "#4B5563",
-  },
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 28,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#2563EB",
     justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000000",
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
   },
+
+  listContent: { paddingBottom: 120 },
 });
