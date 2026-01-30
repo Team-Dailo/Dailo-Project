@@ -14,13 +14,26 @@ import { Ionicons } from '@expo/vector-icons';
 type Props = {
   visible: boolean;
   onClose: () => void;
+
   /** 🔹 파란 "참여 중인 축제" 카드 눌렀을 때 */
   onPressActiveFestival: () => void;
+
+  /** ✅ 마이페이지 연결 */
+  onPressSavedFestivals: () => void; // 저장한 축제
+  onPressMyActivities: () => void;   // 내 활동 기록
+  onPressSettings: () => void;       // 앱 설정
 };
 
 const DRAWER_WIDTH = 280;
 
-export function SideMenu({ visible, onClose, onPressActiveFestival }: Props) {
+export function SideMenu({
+  visible,
+  onClose,
+  onPressActiveFestival,
+  onPressSavedFestivals,
+  onPressMyActivities,
+  onPressSettings,
+}: Props) {
   const isLoggedIn = false; // TODO: 나중에 실제 로그인 상태 연동
 
   // 왼쪽에서 슬라이드 인/아웃
@@ -77,13 +90,16 @@ export function SideMenu({ visible, onClose, onPressActiveFestival }: Props) {
             </View>
           )}
 
-          {/* 🔹 참여 중인 축제 카드 (터치 가능) */}
+          {/* 🔹 참여 중인 축제 카드 */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>참여 중인 축제</Text>
             <TouchableOpacity
               style={styles.currentFestivalCard}
               activeOpacity={0.9}
-              onPress={onPressActiveFestival}
+              onPress={() => {
+                onClose();            // ✅ 사이드메뉴 닫고
+                onPressActiveFestival(); // ✅ 기존 동작 실행
+              }}
             >
               <Text style={styles.festivalBadge}>참여 중인 축제</Text>
               <Text style={styles.festivalTitle}>한국교통대 대동제</Text>
@@ -94,33 +110,56 @@ export function SideMenu({ visible, onClose, onPressActiveFestival }: Props) {
           {/* MY FESTIVAL */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>MY FESTIVAL</Text>
-            <MenuItem label="저장한 축제" icon="star-outline" onPress={onClose} />
+
+            <MenuItem
+              label="저장한 축제"
+              icon="star-outline"
+              onPress={() => {
+                onClose();
+                onPressSavedFestivals();
+              }}
+            />
+
             <MenuItem
               label="내 활동 기록"
               icon="time-outline"
-              onPress={onClose}
+              onPress={() => {
+                onClose();
+                onPressMyActivities();
+              }}
             />
+
             <MenuItem
               label="축제 길찾기"
               icon="navigate-outline"
-              onPress={onClose}
+              onPress={onClose} // TODO: 길찾기 화면 생기면 라우팅 연결
             />
           </View>
 
           {/* SERVICE */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>SERVICE</Text>
+
             <MenuItem
               label="공지사항"
               icon="notifications-outline"
-              onPress={onClose}
+              onPress={onClose} // TODO: 공지사항 화면 연결
             />
+
             <MenuItem
               label="이용 안내"
               icon="help-circle-outline"
-              onPress={onClose}
+              onPress={onClose} // TODO: 이용안내 화면 연결
             />
-            <MenuItem label="앱 설정" icon="settings-outline" onPress={onClose} />
+
+            <MenuItem
+              label="앱 설정"
+              icon="settings-outline"
+              onPress={() => {
+                onClose();
+                onPressSettings();
+              }}
+            />
           </View>
 
           {/* 하단 로그아웃 */}

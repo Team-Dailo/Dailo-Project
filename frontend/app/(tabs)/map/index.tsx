@@ -1,5 +1,5 @@
 // app/(tabs)/map/index.tsx
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,14 @@ import {
   TouchableOpacity,
   LayoutChangeEvent,
   Modal,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-// 지도 데이터/선택 상태
 import { useMap } from '../../../hooks/useMap';
 import { FilterChips } from './_components/FilterChips';
-import { FloatingButtons } from './_components/FloatingButtons';
 import { MapBottomSheet } from './_components/MapBottomSheet';
 import { SideMenu } from './_components/SideMenu';
 import {
@@ -25,9 +24,6 @@ import {
   RegionFilterModal,
   ScaleFilterModal,
 } from './_components/FilterModals';
-
-// react-native-maps 는 지금 안씀
-// import MapView, { Marker } from 'react-native-maps';
 
 type SheetMode = 'collapsed' | 'expanded';
 
@@ -43,8 +39,16 @@ export default function MapScreen() {
   const [sheetMode, setSheetMode] = useState<SheetMode>('collapsed');
   const [filterBottomY, setFilterBottomY] = useState(0);
 
-  // 🔹 축제 참여 상태 / 전체 화면 모달
+  // 축제 참여 배너
   const [isFestivalActive, setIsFestivalActive] = useState(false);
+  const [festivalChipHeight, setFestivalChipHeight] = useState(0);
+
+  // 범례(규모 설명)
+  const [isScaleLegendVisible, setIsScaleLegendVisible] = useState(false);
+  const [mapHeight, setMapHeight] = useState(0);
+  const [legendHeight, setLegendHeight] = useState(0);
+
+  // 전체화면 진입 모달 (기존)
   const [isEntryModalVisible, setIsEntryModalVisible] = useState(false);
 
   const {
@@ -56,34 +60,62 @@ export default function MapScreen() {
     focusCurrentLocation,
   } = useMap();
 
-  const onPressDirection = () => {
-    // TODO: 네이버/카카오 길찾기 연동
-  };
-
   const onPressBookmarkList = () => {
-    // TODO: 북마크한 축제 목록 화면으로 이동
+    router.push('/(tabs)/mypage/saved-festivals');
   };
 
-  // 🔹 사이드 메뉴에서 "참여 중인 축제" 카드 눌렀을 때
   const handlePressActiveFestivalFromMenu = () => {
     setIsMenuOpen(false);
-    setIsFestivalActive(true);        // 지도 위 칩 ON
-    setIsEntryModalVisible(true);     // 전체 화면 모달 ON
+    setIsFestivalActive(true);
+    setIsEntryModalVisible(true);
   };
 
-  // 필터 칩 영역 레이아웃 측정
-  const handleFilterLayout = (e: LayoutChangeEvent) => {
-    const { y, height } = e.nativeEvent.layout;
-    setFilterBottomY(y + height);
-  };
-
-  // 파란 "축제 목록 보기" 버튼
   const onPressFestivalList = () => {
     if (!events || events.length === 0) return;
-    const first = events[0];
-    handleMarkerPress(first);
+    handleMarkerPress(events[0]);
     setSheetMode('collapsed');
   };
+
+  // ✅ 위치 값들 (mapContainer 기준)
+  const BUTTON_SIZE = 56;
+  const overlayTopBase = 12;
+
+  // 참여칩이 있을 때 규모 버튼이 아래로 내려가야 함
+  const chipPush = isFestivalActive ? (festivalChipHeight || 60) + 10 : 0;
+
+  const scaleTopRaw = overlayTopBase + chipPush;
+  const scaleTop = Math.max(scaleTopRaw, 8);
+  const scaleLeft = 16;
+
+  const bookmarkTop = overlayTopBase;
+  const bookmarkRight = 16;
+
+  // ✅ 범례 카드: 규모 버튼 오른쪽에 딱 붙이기
+  const legendLeft = scaleLeft + BUTTON_SIZE + 8;
+
+  // top clamp: 최소 8, 최대 mapHeight - legendHeight - 8
+  const legendTop = (() => {
+    const minTop = 8;
+    const maxTop = Math.max(8, mapHeight - legendHeight - 8);
+
+    // 🔥 범례가 카테고리 칩 영역 침범하면 안 되므로 "scaleTop" 근처에서만 뜨게
+    // (윤아님이 +98 넣으셔서 아래로 내려간 상태였는데, 옆으로 딱 붙게 하려면 scaleTop 그대로가 자연스러워요)
+    const t = scaleTop + 98;
+
+    return Math.min(Math.max(t, minTop), maxTop);
+  })();
+
+  const legendItems = useMemo(
+    () => [
+      { color: '#FF5A5A', label: '시·군·구' },
+      { color: '#FF8A00', label: '대학교' },
+      { color: '#FFC107', label: '단과대/학생회' },
+      { color: '#00C853', label: '동아리/소모임' },
+      { color: '#2979FF', label: '개인' },
+      { color: '#8E24AA', label: '기타' },
+    ],
+    []
+  );
 
   return (
     <View style={styles.container}>
@@ -109,7 +141,12 @@ export default function MapScreen() {
       </View>
 
       {/* 필터 칩들 */}
-      <View onLayout={handleFilterLayout}>
+      <View
+        onLayout={(e: LayoutChangeEvent) => {
+          const { y, height } = e.nativeEvent.layout;
+          setFilterBottomY(y + height);
+        }}
+      >
         <FilterChips
           onPressDate={() => setActiveFilter('date')}
           onPressCategory={() => setActiveFilter('category')}
@@ -120,36 +157,126 @@ export default function MapScreen() {
       </View>
 
       {/* 지도 영역 */}
-      <View style={styles.mapContainer}>
-        {/* 임시 지도 박스 */}
+      <View
+        style={styles.mapContainer}
+        onLayout={(e) => setMapHeight(e.nativeEvent.layout.height)}
+      >
+        {/* 임시 지도 */}
         <View style={styles.fakeMap}>
-          <Text style={styles.fakeMapText}>
-            (임시) 여기 지도 들어갈 자리입니다.
-          </Text>
+          <Text style={styles.fakeMapText}>(임시) 여기 지도 들어갈 자리입니다.</Text>
         </View>
 
-        {/* 🔹 지도 위 상단 칩: "축제 참여 중" */}
-        {isFestivalActive && (
-          <View style={styles.festivalChip}>
-            <View style={styles.festivalChipLeft}>
-              <Ionicons name="ribbon-outline" size={18} color="#1D4ED8" />
-              <View style={{ marginLeft: 8 }}>
-                <Text style={styles.festivalChipLabel}>축제 참여 중</Text>
-                <Text style={styles.festivalChipTitle}>한국교통대 대동제</Text>
+        {/* ✅ 지도 위 UI 레이어(여기 안에 버튼/칩 넣어야 JSX가 안 깨짐) */}
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.mapOverlayLayer,
+            { zIndex: isBottomSheetOpen ? 0 : 10 },
+          ]}
+        >
+          {/* 축제 참여 배너(사진처럼) */}
+          {isFestivalActive && (
+            <View
+              style={styles.activeChip}
+              onLayout={(e) => setFestivalChipHeight(e.nativeEvent.layout.height)}
+            >
+              <View style={styles.activeChipLeft}>
+                <View style={styles.activeChipEmojiCircle}>
+                  <Text style={styles.activeChipEmoji}>🎉</Text>
+                </View>
+
+                <View style={styles.activeChipTextCol}>
+                  <Text style={styles.activeChipLabel}>축제 참여 중</Text>
+                  <Text style={styles.activeChipTimer}>00:17:37</Text>
+                </View>
               </View>
             </View>
-            <Text style={styles.festivalChipTimer}>00:16:13</Text>
-          </View>
-        )}
+          )}
 
-        {/* 오른쪽 플로팅 버튼 */}
-        <FloatingButtons
-          onPressDirection={onPressDirection}
-          onPressBookmarkList={onPressBookmarkList}
-          onPressCurrentLocation={focusCurrentLocation}
-        />
+          {/* 규모 버튼 */}
+          <TouchableOpacity
+            style={[
+              styles.squareButton,
+              {
+                width: BUTTON_SIZE,
+                height: BUTTON_SIZE,
+                borderRadius: 14,
+                left: scaleLeft,
+                top: scaleTop,
+              },
+            ]}
+            activeOpacity={0.85}
+            onPress={() => setIsScaleLegendVisible((v) => !v)}
+          >
+            <View style={styles.scaleIcon} />
+            <Text style={styles.squareButtonText}>규모</Text>
+          </TouchableOpacity>
 
-        {/* 초기 상태에서만 보이는 하단 "축제 목록 보기" 버튼 */}
+          {/* 북마크 버튼 */}
+          <TouchableOpacity
+            style={[
+              styles.squareButton,
+              {
+                width: BUTTON_SIZE,
+                height: BUTTON_SIZE,
+                borderRadius: 14,
+                right: bookmarkRight,
+                top: bookmarkTop,
+              },
+            ]}
+            activeOpacity={0.85}
+            onPress={onPressBookmarkList}
+          >
+            <Ionicons name="bookmark" size={18} color="#2563EB" />
+            <Text style={styles.squareButtonText}>북마크</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ✅ 규모 범례: 딤 없이, 규모 버튼 오른쪽에 고정 */}
+        <Modal
+          visible={isScaleLegendVisible}
+          transparent
+          animationType="none"
+          onRequestClose={() => setIsScaleLegendVisible(false)}
+        >
+          <Pressable
+            style={styles.legendOverlayTransparent}
+            onPress={() => setIsScaleLegendVisible(false)}
+          >
+            {/* 카드 자체는 클릭해도 닫히지 않게 */}
+            <Pressable
+              style={[
+                styles.legendCard,
+                {
+                  left: legendLeft,
+                  top: legendTop,
+                },
+              ]}
+              onLayout={(e) => setLegendHeight(e.nativeEvent.layout.height)}
+              onPress={() => {}}
+            >
+              {legendItems.map((it) => (
+                <View key={it.label} style={styles.legendRow}>
+                  <View
+                    style={[styles.legendDot, { backgroundColor: it.color }]}
+                  />
+                  <Text style={styles.legendLabel}>{it.label}</Text>
+                </View>
+              ))}
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* ✅ 현재 위치 버튼 */}
+        <TouchableOpacity
+          style={styles.currentLocationFab}
+          activeOpacity={0.85}
+          onPress={focusCurrentLocation}
+        >
+          <Ionicons name="locate" size={18} color="#2563EB" />
+        </TouchableOpacity>
+
+        {/* 하단 축제 목록 보기 */}
         {!isBottomSheetOpen && (
           <View style={styles.listButtonWrapper}>
             <TouchableOpacity
@@ -163,7 +290,7 @@ export default function MapScreen() {
         )}
       </View>
 
-      {/* 마커 클릭 / 축제 목록 클릭 시 바텀 시트 */}
+      {/* 바텀시트 */}
       <MapBottomSheet
         visible={isBottomSheetOpen}
         event={selectedEvent}
@@ -174,14 +301,26 @@ export default function MapScreen() {
           closeBottomSheet();
         }}
         onPressMore={() => setSheetMode('expanded')}
-        onPressDirection={onPressDirection}
+        onPressDirection={() => {}}
       />
 
-      {/* 왼쪽 햄버거 사이드 메뉴 */}
+      {/* 사이드 메뉴 */}
       <SideMenu
         visible={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
         onPressActiveFestival={handlePressActiveFestivalFromMenu}
+        onPressSavedFestivals={() => {
+          setIsMenuOpen(false);
+          router.push('/(tabs)/mypage/saved-festivals');
+        }}
+        onPressMyActivities={() => {
+          setIsMenuOpen(false);
+          router.push('/(tabs)/mypage/stay-mission-history');
+        }}
+        onPressSettings={() => {
+          setIsMenuOpen(false);
+          router.push('/(tabs)/mypage/settings');
+        }}
       />
 
       {/* 필터 모달들 */}
@@ -206,7 +345,7 @@ export default function MapScreen() {
         onClose={() => setActiveFilter(null)}
       />
 
-      {/* 🔹 전체 화면 "축제 구역에 진입했습니다!" 모달 */}
+      {/* 전체 화면 모달 */}
       <Modal
         visible={isEntryModalVisible}
         transparent
@@ -238,10 +377,8 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
+  container: { flex: 1, backgroundColor: '#ffffff' },
+
   header: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -271,30 +408,100 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 40,
   },
-  searchPlaceholder: {
-    marginLeft: 6,
-    fontSize: 13,
-    color: '#9ca3af',
-  },
-  mapContainer: {
-    flex: 1,
-  },
+  searchPlaceholder: { marginLeft: 6, fontSize: 13, color: '#9ca3af' },
+
+  mapContainer: { flex: 1 },
+
   fakeMap: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F3F4F6',
   },
-  fakeMapText: {
-    fontSize: 13,
-    color: '#9CA3AF',
+  fakeMapText: { fontSize: 13, color: '#9CA3AF' },
+
+  // ✅ 지도 위 UI 레이어
+  mapOverlayLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
+
+  squareButton: {
+    position: 'absolute',
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    gap: 4,
+  },
+  squareButtonText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  scaleIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    backgroundColor: '#60A5FA',
+  },
+
+  // ✅ 범례(딤 없음)
+  legendOverlayTransparent: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  legendCard: {
+    position: 'absolute',
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    minWidth: 180,
+    elevation: 4,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 12,
+  },
+  legendRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  legendDot: { width: 22, height: 22, borderRadius: 11, marginRight: 10 },
+  legendLabel: { fontSize: 13, fontWeight: '600', color: '#111827' },
+
+  // ✅ 현재 위치 버튼
+  currentLocationFab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    zIndex: 20,
+  },
+
+  // ✅ 하단 버튼
   listButtonWrapper: {
     position: 'absolute',
     bottom: 24,
     left: 0,
     right: 0,
     alignItems: 'center',
+    zIndex: 20,
   },
   listButton: {
     paddingHorizontal: 24,
@@ -304,44 +511,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  listButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-  },
+  listButtonText: { color: '#ffffff', fontWeight: '600' },
 
-  /* 지도 위 상단 칩 */
-  festivalChip: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#EEF2FF',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  festivalChipLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  festivalChipLabel: {
-    fontSize: 11,
-    color: '#4F46E5',
-  },
-  festivalChipTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  festivalChipTimer: {
-    fontSize: 12,
-    color: '#4B5563',
-  },
-
-  /* 전체 화면 모달 */
+  // 전체 화면 모달
   entryModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
@@ -354,7 +526,6 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     paddingHorizontal: 20,
     alignItems: 'center',
-    // 보라-블루 느낌 단색 (간단히)
     backgroundColor: '#6366F1',
   },
   entryEmojiCircle: {
@@ -385,9 +556,53 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
-  entryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4F46E5',
+  entryButtonText: { fontSize: 14, fontWeight: '600', color: '#4F46E5' },
+
+  /* ✅ 축제 참여중 칩(사진처럼) */
+  activeChip: {
+    position: 'absolute',
+    top: 12,
+    left: 16,
+    maxWidth: 230,
+    backgroundColor: '#2563EB',
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.16,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 10,
+  },
+  activeChipLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activeChipEmojiCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  activeChipEmoji: {
+    fontSize: 16,
+  },
+  activeChipTextCol: {
+    flexDirection: 'column',
+  },
+  activeChipLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#EAF2FF',
+    marginBottom: 2,
+  },
+  activeChipTimer: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
 });
