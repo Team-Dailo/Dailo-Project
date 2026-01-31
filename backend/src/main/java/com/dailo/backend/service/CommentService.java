@@ -12,6 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Set;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -19,13 +21,25 @@ public class CommentService {
 
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
+    private final BlockService blockService;
 
-    // 1. 댓글 목록 조회
-    public Page<CommentResponseDto> getCommentsByPostId(Long postId, Pageable pageable) {
+    // 1. 댓글 목록 조회 (차단 필터 적용)
+    public Page<CommentResponseDto> getCommentsByPostId(Long postId, Long userId, Pageable pageable) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found: " + postId));
 
-        return commentRepository.findByPost(post, pageable)
+        if (userId == null) {
+            return commentRepository.findByPost(post, pageable)
+                    .map(CommentResponseDto::from);
+        }
+
+        Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
+        if (invisibleIds.isEmpty()) {
+            return commentRepository.findByPost(post, pageable)
+                    .map(CommentResponseDto::from);
+        }
+
+        return commentRepository.findByPostExcludingAuthors(post, invisibleIds, pageable)
                 .map(CommentResponseDto::from);
     }
 
