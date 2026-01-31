@@ -22,6 +22,7 @@ public class PostController {
 
     @GetMapping
     public ResponseEntity<Page<PostListResponseDto>> getAllPosts(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sort,
@@ -30,12 +31,14 @@ public class PostController {
         Sort.Direction sortDirection = Sort.Direction.fromString(direction);
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sort));
 
-        return ResponseEntity.ok(postService.getAllPosts(pageable));
+        return ResponseEntity.ok(postService.getAllPosts(userId, pageable));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PostResponseDto> getPostById(@PathVariable Long id) {
-        return ResponseEntity.ok(postService.getPostById(id));
+    public ResponseEntity<PostResponseDto> getPostById(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        return ResponseEntity.ok(postService.getPostById(id, userId));
     }
 
     @PostMapping
@@ -68,20 +71,22 @@ public class PostController {
     @GetMapping("/category/{categoryType}")
     public ResponseEntity<Page<PostListResponseDto>> getPostsByCategory(
             @PathVariable String categoryType,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ResponseEntity.ok(postService.getPostsByCategory(categoryType, pageable));
+        return ResponseEntity.ok(postService.getPostsByCategory(categoryType, userId, pageable));
     }
 
     @GetMapping("/search")
     public ResponseEntity<Page<PostListResponseDto>> searchPosts(
             @RequestParam String keyword,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ResponseEntity.ok(postService.searchPosts(keyword, pageable));
+        return ResponseEntity.ok(postService.searchPosts(keyword, userId, pageable));
     }
 }
