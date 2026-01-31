@@ -22,11 +22,12 @@ public class CommentController {
     @GetMapping("/posts/{postId}/comments")
     public Page<CommentResponseDto> getComments(
             @PathVariable Long postId,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return commentService.getCommentsByPostId(postId, pageable);
+        return commentService.getCommentsByPostId(postId, userId, pageable);
     }
 
     // 2. 댓글 생성

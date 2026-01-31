@@ -11,28 +11,49 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Set;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PostService {
 
     private final PostRepository postRepository;
+    private final BlockService blockService;
 
-    public Page<PostListResponseDto> getAllPosts(Pageable pageable) {
-        return postRepository.findAll(pageable)
+    public Page<PostListResponseDto> getAllPosts(Long userId, Pageable pageable) {
+        // 비로그인 또는 차단 없으면 전체 조회
+        if (userId == null) {
+            return postRepository.findAll(pageable).map(PostListResponseDto::from);
+        }
+
+        Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
+        if (invisibleIds.isEmpty()) {
+            return postRepository.findAll(pageable).map(PostListResponseDto::from);
+        }
+
+        return postRepository.findAllExcludingAuthors(invisibleIds, pageable)
                 .map(PostListResponseDto::from);
     }
 
     @Transactional
-    public PostResponseDto getPostById(Long id) {
-        // 조회수 먼저 증가 (동시성 안전한 UPDATE 쿼리)
-        postRepository.increaseViewCount(id);
-
-        // 증가된 조회수 반영된 데이터 조회
+    public PostResponseDto getPostById(Long id, Long userId) {
         Post post = postRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Post not found: " + id));
 
+        validateVisible(post, userId);
+        postRepository.increaseViewCount(id);
+
         return PostResponseDto.from(post);
+    }
+
+    private void validateVisible(Post post, Long userId) {
+        if (userId == null) return;
+
+        Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
+        if (invisibleIds.contains(post.getAuthorId())) {
+            throw new RuntimeException("Post not found: " + post.getId());
+        }
     }
 
     @Transactional
@@ -67,13 +88,35 @@ public class PostService {
         postRepository.delete(post);
     }
 
-    public Page<PostListResponseDto> getPostsByCategory(String categoryType, Pageable pageable) {
-        return postRepository.findByCategoryType(categoryType, pageable)
+    public Page<PostListResponseDto> getPostsByCategory(String categoryType, Long userId, Pageable pageable) {
+        if (userId == null) {
+            return postRepository.findByCategoryType(categoryType, pageable)
+                    .map(PostListResponseDto::from);
+        }
+
+        Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
+        if (invisibleIds.isEmpty()) {
+            return postRepository.findByCategoryType(categoryType, pageable)
+                    .map(PostListResponseDto::from);
+        }
+
+        return postRepository.findByCategoryTypeExcludingAuthors(categoryType, invisibleIds, pageable)
                 .map(PostListResponseDto::from);
     }
 
-    public Page<PostListResponseDto> searchPosts(String keyword, Pageable pageable) {
-        return postRepository.findByTitleContaining(keyword, pageable)
+    public Page<PostListResponseDto> searchPosts(String keyword, Long userId, Pageable pageable) {
+        if (userId == null) {
+            return postRepository.findByTitleContaining(keyword, pageable)
+                    .map(PostListResponseDto::from);
+        }
+
+        Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
+        if (invisibleIds.isEmpty()) {
+            return postRepository.findByTitleContaining(keyword, pageable)
+                    .map(PostListResponseDto::from);
+        }
+
+        return postRepository.findByTitleContainingExcludingAuthors(keyword, invisibleIds, pageable)
                 .map(PostListResponseDto::from);
     }
 }
