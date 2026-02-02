@@ -1,5 +1,6 @@
 package com.dailo.backend.service;
 
+import com.dailo.backend.dto.EventMapResponse;
 import com.dailo.backend.entity.Event;
 import com.dailo.backend.domain.enums.EventStatus;
 import com.dailo.backend.repository.EventRepository;
@@ -16,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -95,5 +98,15 @@ public class EventService {
                 event.getDescription(),
                 event.getCategories()
         );
+    }
+
+    // 지도 마커 조회
+    // 현재 지도 화면 안에 포함되면서, ACTIVE 상태 행사만 반환
+    @Transactional(readOnly = true)
+    public List<EventMapResponse> getEventsInMap(Double swLat, Double neLat, Double swLng, Double neLng) {
+        return eventRepository.findEventsInBounds(swLat, neLat, swLng, neLng, EventStatus.ACTIVE)
+                .stream()
+                .map(EventMapResponse::from)
+                .collect(Collectors.toList());
     }
 }
