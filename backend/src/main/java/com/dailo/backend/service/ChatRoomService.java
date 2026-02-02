@@ -1,12 +1,12 @@
 package com.dailo.backend.service;
 
-import com.dailo.backend.domain.enums.RoomType;
 import com.dailo.backend.dto.ChatRoomResponseDto;
 import com.dailo.backend.entity.ChatMember;
 import com.dailo.backend.entity.ChatRoom;
 import com.dailo.backend.repository.ChatMemberRepository;
 import com.dailo.backend.repository.ChatRoomRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,9 +36,11 @@ public class ChatRoomService {
             throw new RuntimeException("Cannot create chat room with blocked user");
         }
 
-        // 3. 기존 1:1 채팅방 있으면 재사용 (상대가 나갔어도 방 자체는 찾음)
-        Optional<ChatRoom> existingRoom = chatRoomRepository.findDirectRoomBetweenUsers(
-                RoomType.DIRECT, userId, targetUserId);
+        // 3. directRoomKey 생성 (정렬하여 일관된 키)
+        String directRoomKey = generateDirectRoomKey(userId, targetUserId);
+
+        // 4. 기존 1:1 채팅방 있으면 재사용
+        Optional<ChatRoom> existingRoom = chatRoomRepository.findByDirectRoomKey(directRoomKey);
 
         if (existingRoom.isPresent()) {
             ChatRoom room = existingRoom.get();
@@ -48,24 +50,44 @@ public class ChatRoomService {
             return ChatRoomResponseDto.from(room);
         }
 
-        // 4. 새 채팅방 생성
-        ChatRoom room = ChatRoom.builder().build();
-        ChatRoom savedRoom = chatRoomRepository.save(room);
+        // 5. 새 채팅방 생성 시도
+        try {
+            ChatRoom room = ChatRoom.builder()
+                    .directRoomKey(directRoomKey)
+                    .build();
+            ChatRoom savedRoom = chatRoomRepository.save(room);
 
-        // 5. 멤버 추가
-        ChatMember member1 = ChatMember.builder()
-                .room(savedRoom)
-                .userId(userId)
-                .build();
-        ChatMember member2 = ChatMember.builder()
-                .room(savedRoom)
-                .userId(targetUserId)
-                .build();
+            // 6. 멤버 추가
+            ChatMember member1 = ChatMember.builder()
+                    .room(savedRoom)
+                    .userId(userId)
+                    .build();
+            ChatMember member2 = ChatMember.builder()
+                    .room(savedRoom)
+                    .userId(targetUserId)
+                    .build();
 
-        chatMemberRepository.save(member1);
-        chatMemberRepository.save(member2);
+            chatMemberRepository.save(member1);
+            chatMemberRepository.save(member2);
 
-        return ChatRoomResponseDto.from(savedRoom);
+            return ChatRoomResponseDto.from(savedRoom);
+        } catch (DataIntegrityViolationException e) {
+            // 동시 생성으로 인한 유니크 제약 위반 시 기존 방 반환
+            return chatRoomRepository.findByDirectRoomKey(directRoomKey)
+                    .map(room -> {
+                        rejoinIfNeeded(room, userId);
+                        rejoinIfNeeded(room, targetUserId);
+                        return ChatRoomResponseDto.from(room);
+                    })
+                    .orElseThrow(() -> new RuntimeException("Failed to create or find chat room"));
+        }
+    }
+
+    // directRoomKey 생성 (DIRECT:minUserId:maxUserId)
+    private String generateDirectRoomKey(Long userId1, Long userId2) {
+        long min = Math.min(userId1, userId2);
+        long max = Math.max(userId1, userId2);
+        return "DIRECT:" + min + ":" + max;
     }
 
     private void rejoinIfNeeded(ChatRoom room, Long userId) {
