@@ -3,74 +3,66 @@ package com.dailo.backend.controller;
 import com.dailo.backend.dto.EventDetailResponse;
 import com.dailo.backend.dto.EventListRequest;
 import com.dailo.backend.dto.EventListResponse;
+import com.dailo.backend.dto.EventMapResponse;
 import com.dailo.backend.service.EventService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/events")
-@RequiredArgsConstructor // final 필드 생성자 자동 생성 (DI)
+@RequiredArgsConstructor
+@Tag(name = "Event API", description = "이벤트 조회 (지도/리스트/상세) 관련 API")
 public class EventController {
 
     private final EventService eventService;
 
-    // ==========================================
-    // [Issue 1] 이벤트 조회 API 구현 (Service 연결)
-    // ==========================================
+    /**
+     * 1. 지도 마커 조회 (Bounds 기반)
+     * [GET] /api/events/map?swLat=...&neLat=...&swLng=...&neLng=...
+     * 현재 보고 있는 지도 화면(좌표 범위) 내의 행사 마커를 조회합니다.
+     */
+    @Operation(summary = "지도 마커 조회 (Bounds)", description = "현재 지도 화면(남서~북동 좌표) 내의 행사 마커 리스트를 반환합니다.")
+    @GetMapping("/map")
+    public ResponseEntity<List<EventMapResponse>> getEventsOnMap(
+            @Parameter(description = "남서쪽(좌하단) 위도", required = true, example = "37.1234") @RequestParam Double swLat,
+            @Parameter(description = "북동쪽(우상단) 위도", required = true, example = "37.5678") @RequestParam Double neLat,
+            @Parameter(description = "남서쪽(좌하단) 경도", required = true, example = "126.1234") @RequestParam Double swLng,
+            @Parameter(description = "북동쪽(우상단) 경도", required = true, example = "127.5678") @RequestParam Double neLng
+    ) {
+        return ResponseEntity.ok(eventService.getEventsInMap(swLat, neLat, swLng, neLng));
+    }
 
     /**
-     * 1. 이벤트 리스트 조회 (페이징 + 필터링)
+     * 2. 이벤트 리스트 조회 (페이징 + 필터링)
      * [GET] /api/events?page=1&size=20&categories=FESTIVAL
      */
+    @Operation(summary = "이벤트 리스트 조회", description = "필터 조건(카테고리, 날짜 등)에 맞는 이벤트 목록을 페이징하여 조회합니다.")
     @GetMapping
     public ResponseEntity<Page<EventListResponse>> getEventList(
             @ModelAttribute EventListRequest request
     ) {
-        // DTO의 page, size를 이용하여 Pageable 객체 생성
-        Pageable pageable = PageRequest.of(request.page() - 1, request.size());
-
+        // Service 내부에서 PageRequest 생성 및 로직 처리한다고 가정하고 호출
         Page<EventListResponse> response = eventService.getEventList(request);
         return ResponseEntity.ok(response);
     }
 
     /**
-     * 2. 이벤트 상세 조회
+     * 3. 이벤트 상세 조회
      * [GET] /api/events/{id}
      */
+    @Operation(summary = "이벤트 상세 조회", description = "특정 이벤트의 상세 정보를 조회합니다.")
     @GetMapping("/{id}")
-    public ResponseEntity<EventDetailResponse> getEventDetail(@PathVariable Long id) {
+    public ResponseEntity<EventDetailResponse> getEventDetail(
+            @Parameter(description = "이벤트 ID") @PathVariable Long id
+    ) {
         EventDetailResponse response = eventService.getEventDetail(id);
         return ResponseEntity.ok(response);
     }
-
-    // ==========================================
-    // [TODO] 생성/수정/삭제 API 리팩토링 필요
-    // Entity 구조가 변경(위치 분리, 카테고리 리스트 등)되어 기존 코드는 동작하지 않습니다.
-    // 추후 '이벤트 등록/수정 API' 구현 시점에 맞춰 재작성해야 합니다.
-    // ==========================================
-
-    /*
-    @PostMapping
-    public ResponseEntity<Event> createEvent(@RequestBody Event event) {
-        // TODO: DTO를 통해 입력받고 Service에서 Entity로 변환하여 저장하도록 수정 필요
-        return ResponseEntity.ok(eventRepository.save(event));
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<Event> updateEvent(@PathVariable Long id, @RequestBody Event eventDetails) {
-        // TODO: 변경된 Entity 필드(placeName, latitude, categories 등)에 맞춰 수정 로직 변경 필요
-        // 기존 코드(setLocation 등)는 필드가 없어져서 컴파일 에러 발생함
-        return ResponseEntity.notFound().build();
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteEvent(@PathVariable Long id) {
-        // TODO: Service를 통해 삭제하도록 수정 필요
-        return ResponseEntity.ok().build();
-    }
-    */
 }

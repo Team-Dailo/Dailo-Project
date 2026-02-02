@@ -111,12 +111,12 @@ public class Event {
         this.longitude = longitude;
         this.startAt = startAt;
         this.endAt = endAt;
-        this.categories = categories; // 리스트 교체
+        this.categories = categories;
         this.status = status;
         this.thumbnailUrl = thumbnailUrl;
-        this.posterUrls = posterUrls; // 리스트 교체
+        this.posterUrls = posterUrls;
         this.description = description;
         this.hostContact = hostContact;
-        this.isAdminManaged = true; // 관리자가 수정했으므로 true로 변경
+        this.isAdminManaged = true;
     }
 }
