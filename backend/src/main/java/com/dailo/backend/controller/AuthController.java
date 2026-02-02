@@ -1,38 +1,35 @@
 package com.dailo.backend.controller;
 
+import com.dailo.backend.dto.auth.LoginRequestDto;
+import com.dailo.backend.dto.auth.MemberRequestDto;
+import com.dailo.backend.dto.auth.MemberResponseDto;
+import com.dailo.backend.jwt.TokenDto;
 import com.dailo.backend.service.AuthService;
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Tag(name = "Auth API", description = "회원가입 및 로그인 (JWT 발급)")
 public class AuthController {
-
     private final AuthService authService;
 
+    @Operation(summary = "회원가입", description = "이메일, 비밀번호, 닉네임을 입력하여 회원가입을 진행합니다.")
     @PostMapping("/signup")
-    public String signup(@RequestBody SignupRequest request) {
-        authService.signup(request.email, request.password, request.nickname);
-        return "회원가입 성공";
+    public ResponseEntity<MemberResponseDto> signup(@RequestBody MemberRequestDto requestDto) {
+        return ResponseEntity.ok(authService.signup(requestDto));
     }
 
+    @Operation(summary = "로그인", description = "이메일과 비밀번호로 로그인하여 JWT 토큰(Access + Refresh)을 발급받습니다.")
     @PostMapping("/login")
-    public TokenResponse login(@RequestBody LoginRequest request) {
-        String token = authService.login(request.email, request.password);
-        return new TokenResponse(token);
+    public ResponseEntity<TokenDto> login(@RequestBody LoginRequestDto requestDto) {
+        return ResponseEntity.ok(authService.login(requestDto));
     }
-
-    // DTO 클래스들 (편의상 내부에 작성)
-    @Data
-    static class SignupRequest { private String email; private String password; private String nickname; }
-
-    @Data
-    static class LoginRequest { private String email; private String password; }
-
-    @Data
-    @AllArgsConstructor // 롬복 필요
-    static class TokenResponse { private String accessToken; }
 }
