@@ -16,13 +16,7 @@ import java.util.List;
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long> {
 
-
-    // 지도 뷰 - Bounds 기반 조회
-
-    /**
-     * 지도 화면(Viewport) 내의 행사 마커를 조회합니다.
-     * deleted_at IS NULL 조건은 Entity의 @Where 어노테이션에 의해 자동 적용됩니다.
-     */
+    // 지도 뷰
     @Query("SELECT e FROM Event e " +
             "WHERE e.latitude BETWEEN :swLat AND :neLat " +
             "AND e.longitude BETWEEN :swLng AND :neLng " +
@@ -34,39 +28,37 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     );
 
 
-    //  리스트 뷰
+
+    // 리스트 뷰 - 통합 검색 쿼리
 
 
-    // 관리자용 전체 조회
-    Page<Event> findAll(Pageable pageable);
-
-    // 상태만 필터링
-    Page<Event> findAllByStatus(EventStatus status, Pageable pageable);
-
-    // 상태 + 카테고리 필터링 (기간 X)
-    Page<Event> findDistinctByStatusAndCategoriesIn(EventStatus status, List<EventCategory> categories, Pageable pageable);
-
-    // 상태 + 기간 필터링 (카테고리 X)
-    @Query("SELECT e FROM Event e WHERE e.status = :status " +
-            "AND e.startAt <= :searchEnd " +
-            "AND e.endAt >= :searchStart")
-    Page<Event> findByStatusAndDate(
-            @Param("status") EventStatus status,
-            @Param("searchStart") LocalDateTime searchStart,
-            @Param("searchEnd") LocalDateTime searchEnd,
-            Pageable pageable);
-
-    // 상태 + 카테고리 + 기간 필터링 (풀 옵션)
+    /**
+     * [통합 검색]
+     * 키워드, 지역, 카테고리, 날짜 조건을 한 번에 처리합니다.
+     * 파라미터가 NULL이면 해당 조건은 무시(전체 조회)됩니다.
+     */
     @Query("SELECT DISTINCT e FROM Event e " +
-            "JOIN e.categories c " +
+            "LEFT JOIN e.categories c " + // 카테고리 조건을 위해 조인
             "WHERE e.status = :status " +
-            "AND c IN :categories " +
-            "AND e.startAt <= :searchEnd " +
-            "AND e.endAt >= :searchStart")
-    Page<Event> findByStatusAndCategoriesAndDate(
+            // 1. 날짜 범위 (교집합 검색: 행사가 검색 기간에 조금이라도 걸치면 조회)
+            "AND (:startAt IS NULL OR e.endAt >= :startAt) " +
+            "AND (:endAt IS NULL OR e.startAt <= :endAt) " +
+            // 2. 카테고리 (없으면 전체, 있으면 해당 카테고리 포함된 것만)
+            "AND (:categories IS NULL OR c IN :categories) " +
+            // 3. 지역 필터 (주소에 해당 지역명이 포함되는지)
+            "AND (:region IS NULL OR e.placeAddress LIKE %:region%) " +
+            // 4. 키워드 검색 (제목 또는 장소명에 키워드 포함)
+            "AND (:keyword IS NULL OR (e.title LIKE %:keyword% OR e.placeName LIKE %:keyword%))")
+    Page<Event> searchEvents(
             @Param("status") EventStatus status,
+            @Param("startAt") LocalDateTime startAt,
+            @Param("endAt") LocalDateTime endAt,
             @Param("categories") List<EventCategory> categories,
-            @Param("searchStart") LocalDateTime searchStart,
-            @Param("searchEnd") LocalDateTime searchEnd,
-            Pageable pageable);
+            @Param("region") String region,
+            @Param("keyword") String keyword,
+            Pageable pageable
+    );
+
+    // (관리자용 전체 조회는 필요하다면 남겨둡니다)
+    Page<Event> findAll(Pageable pageable);
 }
