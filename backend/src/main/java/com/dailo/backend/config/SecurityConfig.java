@@ -1,11 +1,12 @@
 package com.dailo.backend.config;
 
-import com.dailo.backend.auth.JwtAuthenticationFilter;
-import com.dailo.backend.auth.JwtTokenProvider;
+import com.dailo.backend.jwt.JwtFilter;
+import com.dailo.backend.jwt.TokenProvider;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -20,8 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    // 이제 import 경로가 맞으므로, 여기서 에러가 나지 않아야 합니다.
-    private final JwtTokenProvider jwtTokenProvider;
+    private final TokenProvider tokenProvider;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -31,16 +31,28 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable)                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .csrf(AbstractHttpConfigurer::disable)
+                // 세션 끄기 (JWT 필수 설정)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
                 .authorizeHttpRequests(auth -> auth
+                        //  Swagger 문서는 누구나 접근 가능
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**").permitAll()
 
-                        .requestMatchers("/api/auth/**").permitAll() // 로그인, 회원가입은 누구나 접근 가능
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN") // 관리자 페이지는 ADMIN 권한만
-                        .anyRequest().permitAll() // 그 외 요청은 일단 허용 (필요시 .authenticated()로 변경)
+                        // 로그인, 회원가입
+                        .requestMatchers("/api/auth/**").permitAll()
+
+                        // 행사 조회
+                        .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
+
+                        // 관리자 페이지 등 (필요하면 유지)
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                        // 그 외 모든 요청(스크랩, 마이페이지 등)은 '인증된 사용자'만 가능
+                        .anyRequest().authenticated()
                 )
-                // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 추가
-                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
+
+                .addFilterBefore(new JwtFilter(tokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

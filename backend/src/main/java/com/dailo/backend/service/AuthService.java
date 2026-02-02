@@ -1,11 +1,16 @@
-// 로그인 회원가입 로직
 package com.dailo.backend.service;
 
-import com.dailo.backend.domain.enums.Role;
+import com.dailo.backend.dto.auth.LoginRequestDto;
+import com.dailo.backend.dto.auth.MemberRequestDto;
+import com.dailo.backend.dto.auth.MemberResponseDto;
+import com.dailo.backend.jwt.TokenDto;
+import com.dailo.backend.jwt.TokenProvider;
 import com.dailo.backend.entity.Member;
-import com.dailo.backend.auth.JwtTokenProvider;
 import com.dailo.backend.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,36 +18,37 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-
+    private final AuthenticationManagerBuilder authenticationManagerBuilder;
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final TokenProvider tokenProvider;
 
-    // 회원가입
+    /**
+     * 회원가입
+     */
     @Transactional
-    public Long signup(String email, String password, String nickname) {
-        if (memberRepository.existsByEmail(email)) {
-            throw new RuntimeException("이미 가입된 이메일입니다.");
+    public MemberResponseDto signup(MemberRequestDto requestDto) {
+        if (memberRepository.existsByEmail(requestDto.getEmail())) {
+            throw new RuntimeException("이미 가입되어 있는 유저입니다");
         }
-        Member member = Member.builder()
-                .email(email)
-                .password(passwordEncoder.encode(password))
-                .nickname(nickname)
-                .role(Role.USER) // 기본은 USER
-                .build();
-        return memberRepository.save(member).getId();
+
+        Member member = requestDto.toMember(passwordEncoder);
+        return MemberResponseDto.of(memberRepository.save(member));
     }
 
-    // 로그인
-    @Transactional(readOnly = true)
-    public String login(String email, String password) {
-        Member member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("가입되지 않은 이메일입니다."));
+    /**
+     * 로그인
+     */
+    @Transactional
+    public TokenDto login(LoginRequestDto requestDto) {
+        // 1. Login ID/PW 를 기반으로 AuthenticationToken 생성
+        UsernamePasswordAuthenticationToken authenticationToken = requestDto.toAuthentication();
 
-        if (!passwordEncoder.matches(password, member.getPassword())) {
-            throw new RuntimeException("비밀번호가 일치하지 않습니다.");
-        }
+        // 2. 실제로 검증 (사용자 비밀번호 체크) 이 이루어지는 부분
+        //    authenticate 메서드가 실행이 될 때 CustomUserDetailsService 에서 만들었던 loadUserByUsername 메서드가 실행됨
+        Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
 
-        return jwtTokenProvider.createToken(member.getEmail(), member.getRole().name());
+        // 3. 인증 정보를 기반으로 JWT 토큰 생성
+        return tokenProvider.generateTokenDto(authentication);
     }
 }
