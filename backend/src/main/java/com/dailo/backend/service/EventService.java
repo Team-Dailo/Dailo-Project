@@ -1,9 +1,9 @@
 package com.dailo.backend.service;
 
-import com.dailo.backend.dto.EventDetailResponse;
-import com.dailo.backend.dto.EventListRequest;
-import com.dailo.backend.dto.EventListResponse;
-import com.dailo.backend.dto.EventMapResponse;
+import com.dailo.backend.dto.event.EventDetailResponse;
+import com.dailo.backend.dto.event.EventListRequest;
+import com.dailo.backend.dto.event.EventListResponse;
+import com.dailo.backend.dto.event.EventMapResponse;
 
 import com.dailo.backend.entity.Event;
 import com.dailo.backend.domain.enums.EventStatus;
