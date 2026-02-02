@@ -1,21 +1,49 @@
 package com.dailo.backend.dto;
 
+import com.dailo.backend.entity.Event;
 import com.dailo.backend.domain.enums.EventCategory;
-import java.time.LocalDate;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
-public record EventDetailResponse(
-        Long id,
-        String title,
-        List<String> posterUrls,
-        LocalDateTime startDateTime,
-        LocalDateTime endDateTime,
-        String placeName,
-        String placeAddress,
-        Double latitude,
-        Double longitude,
-        String description,
-        List<EventCategory> categories
-) {
+@Getter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class EventDetailResponse {
+    private Long id;
+    private String title;
+    private List<String> posterUrls;     // 포스터 이미지 리스트
+    private LocalDateTime startAt;       // 시작 일시
+    private LocalDateTime endAt;         // 종료 일시
+    private String placeName;            // 장소명
+    private String placeAddress;         // 상세 주소
+    private Double latitude;             // 위도
+    private Double longitude;            // 경도
+    private String description;          // 상세 설명 (본문)
+    private List<EventCategory> categories; // 카테고리 리스트
+    private String hostContact;          // 주최측 연락처
+    private String status;               // 행사 상태 (ACTIVE/DRAFT 등)
+
+    public static EventDetailResponse from(Event event) {
+        return EventDetailResponse.builder()
+                .id(event.getId())
+                .title(event.getTitle())
+                .posterUrls(event.getPosterUrls())
+                .startAt(event.getStartAt())
+                .endAt(event.getEndAt())
+                .placeName(event.getPlaceName())
+                .placeAddress(event.getPlaceAddress())
+                .latitude(event.getLatitude())
+                .longitude(event.getLongitude())
+                .description(event.getDescription())
+                .categories(event.getCategories())
+                .hostContact(event.getHostContact())
+                .status(event.getStatus().name())
+                .build();
+    }
 }

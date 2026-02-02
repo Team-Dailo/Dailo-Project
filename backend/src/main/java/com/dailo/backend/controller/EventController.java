@@ -57,12 +57,12 @@ public class EventController {
      * 3. 이벤트 상세 조회
      * [GET] /api/events/{id}
      */
-    @Operation(summary = "이벤트 상세 조회", description = "특정 이벤트의 상세 정보를 조회합니다.")
+    @Operation(summary = "이벤트 상세 조회", description = "특정 이벤트의 모든 상세 정보를 조회합니다.")
     @GetMapping("/{id}")
     public ResponseEntity<EventDetailResponse> getEventDetail(
-            @Parameter(description = "이벤트 ID") @PathVariable Long id
+            @Parameter(description = "조회할 이벤트 ID", required = true)
+            @PathVariable Long id
     ) {
-        EventDetailResponse response = eventService.getEventDetail(id);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(eventService.getEventDetail(id));
     }
 }
