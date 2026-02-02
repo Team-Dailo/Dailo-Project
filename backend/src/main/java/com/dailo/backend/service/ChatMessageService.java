@@ -56,6 +56,9 @@ public class ChatMessageService {
 
         ChatMessage savedMessage = chatMessageRepository.save(message);
 
+        // 4. 채팅방 타임스탬프 갱신 (목록 정렬용)
+        room.updateTimestamp();
+
         return ChatMessageResponseDto.from(savedMessage);
     }
 
