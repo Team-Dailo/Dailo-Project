@@ -1,6 +1,5 @@
 package com.dailo.backend.service;
 
-// 패키지 경로가 변경되었으므로 import 수정
 import com.dailo.backend.dto.EventDetailResponse;
 import com.dailo.backend.dto.EventListRequest;
 import com.dailo.backend.dto.EventListResponse;
@@ -33,11 +32,12 @@ public class EventService {
 
     public EventDetailResponse getEventDetail(Long eventId) {
         return eventRepository.findById(eventId)
-                .map(EventDetailResponse::from) // Entity -> DTO 변환 위임
+                .map(EventDetailResponse::from)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이벤트입니다. id=" + eventId));
     }
 
-    // 지도 마커 조회 (Bounds)
+    // 지도 마커 조회
+
     public List<EventMapResponse> getEventsInMap(Double swLat, Double neLat, Double swLng, Double neLng) {
         return eventRepository.findEventsInBounds(swLat, neLat, swLng, neLng, EventStatus.ACTIVE)
                 .stream()
@@ -45,36 +45,29 @@ public class EventService {
                 .collect(Collectors.toList());
     }
 
-    // 리스트 조회
+    // 리스트 조회 (검색/필터 통합)
+
     public Page<EventListResponse> getEventList(EventListRequest request) {
+        // startAt 오름차순
         Pageable pageable = PageRequest.of(request.page() - 1, request.size(), Sort.by(Sort.Direction.ASC, "startAt"));
 
-        Page<Event> events;
+        LocalDateTime searchStart = (request.startAt() != null) ? request.startAt().atStartOfDay() : null;
+        LocalDateTime searchEnd = (request.endAt() != null) ? request.endAt().atTime(LocalTime.MAX) : null;
 
-        LocalDateTime searchStart = (request.startDateTime() != null) ? request.startDateTime().atStartOfDay() : LocalDateTime.MIN;
-        LocalDateTime searchEnd = (request.endDateTime() != null) ? request.endDateTime().atTime(LocalTime.MAX) : LocalDateTime.MAX;
-
-        if (request.hasDateFilter()) {
-            if (request.hasCategory()) {
-                events = eventRepository.findByStatusAndCategoriesAndDate(
-                        EventStatus.ACTIVE, request.categories(), searchStart, searchEnd, pageable);
-            } else {
-                events = eventRepository.findByStatusAndDate(
-                        EventStatus.ACTIVE, searchStart, searchEnd, pageable);
-            }
-        } else {
-            if (request.hasCategory()) {
-                events = eventRepository.findDistinctByStatusAndCategoriesIn(
-                        EventStatus.ACTIVE, request.categories(), pageable);
-            } else {
-                events = eventRepository.findAllByStatus(EventStatus.ACTIVE, pageable);
-            }
-        }
+        // 통합 검색 쿼리 실행
+        Page<Event> events = eventRepository.searchEvents(
+                EventStatus.ACTIVE,
+                searchStart,
+                searchEnd,
+                request.categories(),
+                request.region(),
+                request.keyword(),
+                pageable
+        );
 
         return events.map(this::convertToEventListResponse);
     }
 
-    // 리스트 변환용 메서드
     private EventListResponse convertToEventListResponse(Event event) {
         return new EventListResponse(
                 event.getId(),
