@@ -1,6 +1,6 @@
 package com.dailo.backend.service;
 
-import com.dailo.backend.dto.EventListResponse;
+import com.dailo.backend.dto.event.EventListResponse;
 import com.dailo.backend.entity.Event;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.entity.Scrap;
