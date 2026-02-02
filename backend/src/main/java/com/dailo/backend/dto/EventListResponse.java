@@ -7,7 +7,7 @@ public record EventListResponse(
         Long id,
         String title,
         String thumbnailUrl,
-        LocalDateTime startDateTime,
-        LocalDateTime endDateTime,
+        LocalDateTime startAt,
+        LocalDateTime endAt,
         String placeName
 ) {}
