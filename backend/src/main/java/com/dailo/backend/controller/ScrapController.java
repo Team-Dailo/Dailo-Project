@@ -1,6 +1,6 @@
 package com.dailo.backend.controller;
 
-import com.dailo.backend.dto.EventListResponse;
+import com.dailo.backend.dto.event.EventListResponse;
 import com.dailo.backend.service.ScrapService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

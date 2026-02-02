@@ -1,4 +1,4 @@
-package com.dailo.backend.dto;
+package com.dailo.backend.dto.event;
 
 import com.dailo.backend.domain.enums.EventCategory;
 import org.springframework.format.annotation.DateTimeFormat;
