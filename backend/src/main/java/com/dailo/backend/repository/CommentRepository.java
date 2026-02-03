@@ -29,4 +29,24 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             @Param("post") Post post,
             @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds,
             Pageable pageable);
+
+    // 최상위 댓글만 조회 (parentComment가 null)
+    Page<Comment> findByPostAndParentCommentIsNull(Post post, Pageable pageable);
+
+    // 최상위 댓글 + 차단 필터
+    @Query("SELECT c FROM Comment c WHERE c.post = :post AND c.parentComment IS NULL AND c.authorId NOT IN :excludeAuthorIds")
+    Page<Comment> findByPostAndParentCommentIsNullExcludingAuthors(
+            @Param("post") Post post,
+            @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds,
+            Pageable pageable);
+
+    // 특정 댓글의 대댓글 조회
+    @Query("SELECT c FROM Comment c WHERE c.parentComment = :parentComment ORDER BY c.createdAt ASC")
+    java.util.List<Comment> findByParentComment(@Param("parentComment") Comment parentComment);
+
+    // 특정 댓글의 대댓글 + 차단 필터
+    @Query("SELECT c FROM Comment c WHERE c.parentComment = :parentComment AND c.authorId NOT IN :excludeAuthorIds ORDER BY c.createdAt ASC")
+    java.util.List<Comment> findByParentCommentExcludingAuthors(
+            @Param("parentComment") Comment parentComment,
+            @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds);
 }
