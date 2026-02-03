@@ -28,6 +28,7 @@ type Props = {
   onPressBack: () => void; // 한 단계씩 뒤로 (expanded→collapsed, collapsed→닫기)
   onCollapsedHeightChange?: (height: number) => void; // 작은 카드 영역 높이 (현재 위치 버튼 위치용)
   renderRightButton?: () => React.ReactNode; // 작은 카드 시 축제 목록 보기와 같은 줄 오른쪽 (현재 위치 등)
+  onPressCurrentLocation?: () => void; // 현재 위치 버튼 직접 콜백 (터치 보장용)
 };
 
 export function MapBottomSheet({
@@ -41,6 +42,7 @@ export function MapBottomSheet({
   onPressBack,
   onCollapsedHeightChange,
   renderRightButton,
+  onPressCurrentLocation,
 }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -85,7 +87,18 @@ export function MapBottomSheet({
                 <Text style={styles.listButtonText}>축제 목록 보기</Text>
               </TouchableOpacity>
             </View>
-            {renderRightButton?.()}
+            {onPressCurrentLocation != null ? (
+              <TouchableOpacity
+                style={styles.currentLocationButtonInSheet}
+                activeOpacity={0.85}
+                onPress={onPressCurrentLocation}
+                accessibilityLabel="현재 위치"
+              >
+                <Ionicons name="locate" size={22} color="#2563EB" />
+              </TouchableOpacity>
+            ) : (
+              renderRightButton?.()
+            )}
           </View>
 
           {/* 작은 카드 */}
@@ -270,6 +283,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  currentLocationButtonInSheet: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E5EDFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
   },
   listButton: {
     paddingHorizontal: 24,
