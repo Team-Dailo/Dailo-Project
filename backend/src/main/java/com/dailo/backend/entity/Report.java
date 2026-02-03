@@ -50,16 +50,24 @@ public class Report {
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
+    // 동시 처리 방지용 낙관적 락
+    @Version
+    private Long version;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
 
-    public void resolve(ReportStatus newStatus) {
-        if (newStatus == ReportStatus.PENDING) {
-            throw new IllegalArgumentException("Cannot resolve to PENDING status");
-        }
-        this.status = newStatus;
+    // 신고 처리 완료 (조치 수행됨)
+    public void resolveAsResolved() {
+        this.status = ReportStatus.RESOLVED;
+        this.resolvedAt = LocalDateTime.now();
+    }
+
+    // 신고 기각 (조치 불필요)
+    public void resolveAsDismissed() {
+        this.status = ReportStatus.DISMISSED;
         this.resolvedAt = LocalDateTime.now();
     }
 }
