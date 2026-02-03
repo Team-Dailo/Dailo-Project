@@ -41,7 +41,10 @@ export default function HomeScreen() {
                 color="#111827"
               />
             </Pressable>
-            <Pressable style={styles.headerIconBtn}>
+            <Pressable
+              style={styles.headerIconBtn}
+              onPress={() => router.push('/search')}
+            >
               <Ionicons name="search" size={20} color="#111827" />
             </Pressable>
           </View>

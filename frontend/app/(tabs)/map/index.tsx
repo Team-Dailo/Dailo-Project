@@ -1,5 +1,5 @@
 // app/(tabs)/map/index.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef, Component } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,23 @@ import {
   LayoutChangeEvent,
   Modal,
   Pressable,
+  Animated,
+  Easing,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
+import { MAP_UI } from '../../../constants/colors';
+import { SPACING } from '../../../constants/spacing';
 import { useMap } from '../../../hooks/useMap';
 import { FilterChips } from './_components/FilterChips';
+import { DirectionScreen } from './_components/DirectionScreen';
 import { MapBottomSheet } from './_components/MapBottomSheet';
+import { NaverMap } from './_components/NaverMap';
+import type { NaverMapCamera } from './_components/NaverMap';
+import { ScaleIcon } from './_components/ScaleIcon';
 import { SideMenu } from './_components/SideMenu';
 import {
   DateFilterModal,
@@ -26,6 +35,27 @@ import {
 } from './_components/FilterModals';
 
 type SheetMode = 'collapsed' | 'expanded';
+
+/** 지도 로드 실패 시 앱이 죽지 않도록 에러 바운더리 */
+class MapErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError = () => ({ hasError: true });
+  render() {
+    if (this.state.hasError)
+      return (
+        <View style={styles.mapFallback}>
+          <Text style={styles.mapFallbackText}>지도를 불러올 수 없습니다.</Text>
+          <Text style={styles.mapFallbackSub}>
+            네이버 클라우드 Client ID와 패키지명(com.app)을 확인하세요.
+          </Text>
+        </View>
+      );
+    return this.props.children;
+  }
+}
 
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
@@ -38,6 +68,9 @@ export default function MapScreen() {
 
   const [sheetMode, setSheetMode] = useState<SheetMode>('collapsed');
   const [filterBottomY, setFilterBottomY] = useState(0);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const [filterChipsHeight, setFilterChipsHeight] = useState(0);
+  const [collapsedSheetHeight, setCollapsedSheetHeight] = useState(0);
 
   // 축제 참여 배너
   const [isFestivalActive, setIsFestivalActive] = useState(false);
@@ -45,13 +78,17 @@ export default function MapScreen() {
 
   // 범례(규모 설명)
   const [isScaleLegendVisible, setIsScaleLegendVisible] = useState(false);
-  const [mapHeight, setMapHeight] = useState(0);
-  const [legendHeight, setLegendHeight] = useState(0);
 
   // 전체화면 진입 모달 (기존)
   const [isEntryModalVisible, setIsEntryModalVisible] = useState(false);
+  // 길찾기 화면 (큰 카드에서 길찾기 버튼)
+  const [isDirectionOpen, setIsDirectionOpen] = useState(false);
+
+  const mapRef = useRef<React.ComponentRef<typeof NaverMap> | null>(null);
 
   const {
+    region,
+    currentLocation,
     events,
     selectedEvent,
     isBottomSheetOpen,
@@ -59,6 +96,31 @@ export default function MapScreen() {
     closeBottomSheet,
     focusCurrentLocation,
   } = useMap();
+
+  const naverMapCamera = useMemo((): NaverMapCamera => {
+    if (!region) {
+      return { latitude: 37.5665, longitude: 126.978, zoom: 14 };
+    }
+    const zoom = 14 - Math.round(Math.log2(region.latitudeDelta / 0.01));
+    return {
+      latitude: region.latitude,
+      longitude: region.longitude,
+      zoom: Math.min(18, Math.max(10, zoom)),
+    };
+  }, [region?.latitude, region?.longitude, region?.latitudeDelta]);
+
+  const onFocusCurrentLocation = () => {
+    focusCurrentLocation();
+    if (currentLocation && mapRef.current) {
+      mapRef.current.animateCameraTo({
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        zoom: 15,
+        duration: 500,
+        easing: 'EaseOut',
+      });
+    }
+  };
 
   const onPressBookmarkList = () => {
     router.push('/(tabs)/mypage/saved-festivals');
@@ -76,232 +138,350 @@ export default function MapScreen() {
     setSheetMode('collapsed');
   };
 
-  // ✅ 위치 값들 (mapContainer 기준)
-  const BUTTON_SIZE = 56;
-  const overlayTopBase = 12;
-
-  // 참여칩이 있을 때 규모 버튼이 아래로 내려가야 함
+  // 규모·북마크: 필터 칩 줄 바로 아래 10dp, 같은 수평 라인 (축제 참여 칩 있으면 아래로 밀기)
   const chipPush = isFestivalActive ? (festivalChipHeight || 60) + 10 : 0;
+  const scaleTop = filterBottomY + 10 + chipPush;
+  const scaleLeft = SPACING.scaleButtonLeft;
+  const bookmarkTop = scaleTop;
+  const bookmarkRight = SPACING.base;
 
-  const scaleTopRaw = overlayTopBase + chipPush;
-  const scaleTop = Math.max(scaleTopRaw, 8);
-  const scaleLeft = 16;
+  // 규모 팝업: 규모 버튼 오른쪽 10dp, 팝업 상단은 버튼 상단보다 2dp 아래
+  const popupLeft = scaleLeft + SPACING.scaleButtonWidth + SPACING.popupGap;
+  const popupTop = scaleTop + 2;
 
-  const bookmarkTop = overlayTopBase;
-  const bookmarkRight = 16;
-
-  // ✅ 범례 카드: 규모 버튼 오른쪽에 딱 붙이기
-  const legendLeft = scaleLeft + BUTTON_SIZE + 8;
-
-  // top clamp: 최소 8, 최대 mapHeight - legendHeight - 8
-  const legendTop = (() => {
-    const minTop = 8;
-    const maxTop = Math.max(8, mapHeight - legendHeight - 8);
-
-    // 🔥 범례가 카테고리 칩 영역 침범하면 안 되므로 "scaleTop" 근처에서만 뜨게
-    // (윤아님이 +98 넣으셔서 아래로 내려간 상태였는데, 옆으로 딱 붙게 하려면 scaleTop 그대로가 자연스러워요)
-    const t = scaleTop + 98;
-
-    return Math.min(Math.max(t, minTop), maxTop);
-  })();
+  // 규모 설명 팝업 애니메이션
+  const scaleAnim = useRef(new Animated.Value(0.96)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (isScaleLegendVisible) {
+      scaleAnim.setValue(0.96);
+      opacityAnim.setValue(0);
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }),
+      ]).start();
+    }
+  }, [isScaleLegendVisible]);
+  const closeScalePopup = () => {
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 0.98,
+        duration: 140,
+        useNativeDriver: true,
+        easing: Easing.in(Easing.ease),
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 0,
+        duration: 140,
+        useNativeDriver: true,
+        easing: Easing.in(Easing.ease),
+      }),
+    ]).start(() => setIsScaleLegendVisible(false));
+  };
 
   const legendItems = useMemo(
     () => [
-      { color: '#FF5A5A', label: '시·군·구' },
-      { color: '#FF8A00', label: '대학교' },
-      { color: '#FFC107', label: '단과대/학생회' },
-      { color: '#00C853', label: '동아리/소모임' },
-      { color: '#2979FF', label: '개인' },
-      { color: '#8E24AA', label: '기타' },
+      { color: MAP_UI.scaleBadge[0], label: '시·군·구' },
+      { color: MAP_UI.scaleBadge[1], label: '대학교' },
+      { color: MAP_UI.scaleBadge[2], label: '단과대/학생회' },
+      { color: MAP_UI.scaleBadge[3], label: '동아리/소모임' },
+      { color: MAP_UI.scaleBadge[4], label: '개인' },
     ],
     []
   );
 
+  // 필터칩 위 여백: 검색창과 필터칩 사이 간격 (이전처럼 복원)
+  const headerBottomGap = 12;
+  useEffect(() => {
+    setFilterBottomY(headerHeight + headerBottomGap + filterChipsHeight);
+  }, [headerHeight, filterChipsHeight]);
+
+  // 폰 백버튼: 한 단계씩 (확장→작은카드, 작은카드→닫기)
+  useEffect(() => {
+    if (!isBottomSheetOpen) return;
+    const onBack = () => {
+      if (sheetMode === 'expanded') {
+        setSheetMode('collapsed');
+      } else {
+        setSheetMode('collapsed');
+        closeBottomSheet();
+      }
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+    return () => sub.remove();
+  }, [isBottomSheetOpen, sheetMode]);
+
   return (
     <View style={styles.container}>
-      {/* 상단: 햄버거 + 검색창 */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => setIsMenuOpen(true)}
-        >
-          <Ionicons name="menu" size={22} />
-        </TouchableOpacity>
+      {/* 지도 영역: 전체를 채우고, 그 위에 헤더·필터칩·버튼이 오버레이 */}
+      <View style={styles.mapArea}>
+        <View style={[styles.mapContainer, StyleSheet.absoluteFill]}>
+          <MapErrorBoundary>
+            <NaverMap
+              ref={mapRef}
+              style={StyleSheet.absoluteFill}
+              camera={naverMapCamera}
+              events={events ?? []}
+              onMarkerPress={handleMarkerPress}
+            />
+          </MapErrorBoundary>
 
-        <TouchableOpacity
-          style={styles.searchBox}
-          activeOpacity={0.8}
-          onPress={() => router.push('../search')}
+          {/* 지도 빈 영역 탭 시: 시트 닫기. 시트 영역은 덮지 않아서 더보기/시트 터치가 정상 동작 */}
+          {isBottomSheetOpen ? (
+            <Pressable
+              style={[
+                StyleSheet.absoluteFill,
+                { zIndex: 5, bottom: collapsedSheetHeight > 0 ? collapsedSheetHeight + 10 : 280 },
+              ]}
+              onPress={() => {
+                setSheetMode('collapsed');
+                closeBottomSheet();
+              }}
+            />
+          ) : null}
+          {/* 지도 위 UI 레이어 */}
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.mapOverlayLayer,
+              { zIndex: isBottomSheetOpen ? 10 : 10 },
+            ]}
+          >
+            {isFestivalActive && (
+              <View
+                style={styles.activeChip}
+                onLayout={(e) => setFestivalChipHeight(e.nativeEvent.layout.height)}
+              >
+                <View style={styles.activeChipLeft}>
+                  <View style={styles.activeChipEmojiCircle}>
+                    <Text style={styles.activeChipEmoji}>🎉</Text>
+                  </View>
+                  <View style={styles.activeChipTextCol}>
+                    <Text style={styles.activeChipLabel}>축제 참여 중</Text>
+                    <Text style={styles.activeChipTimer}>00:17:37</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* 규모·북마크: 필터 칩 아래 10dp, 같은 수평 라인 */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.scaleButton,
+                {
+                  left: scaleLeft,
+                  top: scaleTop,
+                  backgroundColor: pressed ? MAP_UI.scalePressed : MAP_UI.cardBg,
+                  borderWidth: isScaleLegendVisible ? 1.5 : 0,
+                  borderColor: isScaleLegendVisible ? MAP_UI.scaleActive : 'transparent',
+                },
+              ]}
+              onPress={() => setIsScaleLegendVisible((v) => !v)}
+              hitSlop={SPACING.hitSlop}
+            >
+              <View style={styles.scaleButtonIconArea}>
+                <ScaleIcon />
+              </View>
+              <Text style={styles.scaleButtonText}>규모</Text>
+            </Pressable>
+
+            <TouchableOpacity
+              style={[
+                styles.bookmarkButton,
+                { right: bookmarkRight, top: bookmarkTop },
+              ]}
+              activeOpacity={0.85}
+              onPress={onPressBookmarkList}
+            >
+              <View style={styles.bookmarkButtonIconArea}>
+                <Ionicons name="bookmark" size={28} color="#3B82F6" />
+              </View>
+              <Text style={styles.bookmarkButtonText}>북마크</Text>
+            </TouchableOpacity>
+
+            {isScaleLegendVisible && (
+              <>
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={closeScalePopup}
+                />
+                <Animated.View
+                  style={[
+                    styles.scalePopupCard,
+                    { left: popupLeft, top: popupTop, zIndex: 100 },
+                    {
+                      opacity: opacityAnim,
+                      transform: [{ scale: scaleAnim }],
+                    },
+                  ]}
+                  pointerEvents="box-none"
+                >
+                  <Pressable onPress={() => {}} style={styles.scalePopupInner}>
+                    {legendItems.map((it, i) => (
+                      <View
+                        key={it.label}
+                        style={[
+                          styles.scalePopupRow,
+                          i === legendItems.length - 1 && { marginBottom: 0 },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.scalePopupBadge,
+                            { backgroundColor: it.color },
+                          ]}
+                        />
+                        <Text style={styles.scalePopupLabel}>{it.label}</Text>
+                      </View>
+                    ))}
+                  </Pressable>
+                </Animated.View>
+              </>
+            )}
+          </View>
+
+          {/* 하단: 시트 닫을 때 = 축제 목록(가운데) + 현재 위치(오른쪽). 작은 카드일 때 = 시트 안에서 같은 줄. 큰 카드일 때 = 현재 위치만 위에 */}
+          <View
+              style={[
+                styles.listButtonWrapper,
+                {
+                  bottom: isBottomSheetOpen && sheetMode === 'expanded'
+                    ? 34
+                    : !isBottomSheetOpen
+                      ? 34
+                      : collapsedSheetHeight > 0
+                        ? collapsedSheetHeight + 10
+                        : 230,
+                },
+              ]}
+          >
+            {!isBottomSheetOpen && (
+              <View style={styles.listButtonCenterFull}>
+                <TouchableOpacity
+                  style={styles.listButton}
+                  activeOpacity={0.85}
+                  onPress={onPressFestivalList}
+                >
+                  <Text style={styles.listButtonText}>축제 목록 보기</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {(!isBottomSheetOpen || sheetMode === 'expanded') && (
+              <TouchableOpacity
+                style={styles.currentLocationButton}
+                activeOpacity={0.85}
+                onPress={onFocusCurrentLocation}
+                accessibilityLabel="현재 위치"
+              >
+                <Ionicons name="locate" size={22} color="#2563EB" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* 헤더: 지도 위 오버레이 */}
+        <View
+          style={[styles.header, { paddingTop: insets.top + 8 }]}
+          onLayout={(e: LayoutChangeEvent) =>
+            setHeaderHeight(e.nativeEvent.layout.height)
+          }
         >
-          <Ionicons name="search" size={18} color="#9ca3af" />
-          <Text style={styles.searchPlaceholder}>
-            지역 축제 / 대학교 행사 / 장소 입력
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => setIsMenuOpen(true)}
+          >
+            <Ionicons name="menu" size={22} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.searchBox}
+            activeOpacity={0.8}
+            onPress={() => router.push({ pathname: '/search', params: { from: 'map' } })}
+          >
+            <Ionicons name="search" size={18} color="#9ca3af" />
+            <Text style={styles.searchPlaceholder}>
+              지역 축제 / 대학교 행사 / 장소 입력
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 필터 칩: 지도 위 오버레이, 검색창 아래 여백 후 배치 */}
+        <View
+          style={[styles.filterChipsOverlay, { top: headerHeight + headerBottomGap }]}
+          onLayout={(e: LayoutChangeEvent) =>
+            setFilterChipsHeight(e.nativeEvent.layout.height)
+          }
+        >
+          <FilterChips
+            onPressDate={() => setActiveFilter('date')}
+            onPressCategory={() => setActiveFilter('category')}
+            onPressPopular={() => setActiveFilter('popular')}
+            onPressRegion={() => setActiveFilter('region')}
+            onPressScale={() => setActiveFilter('scale')}
+          />
+        </View>
       </View>
 
-      {/* 필터 칩들 */}
+      {/* 바텀시트: 큰 카드일 때 다른 버튼들보다 가장 위에 표시 */}
       <View
-        onLayout={(e: LayoutChangeEvent) => {
-          const { y, height } = e.nativeEvent.layout;
-          setFilterBottomY(y + height);
-        }}
+        style={[
+          styles.sheetWrapper,
+          isBottomSheetOpen && sheetMode === 'expanded' && styles.sheetWrapperOnTop,
+        ]}
+        pointerEvents="box-none"
       >
-        <FilterChips
-          onPressDate={() => setActiveFilter('date')}
-          onPressCategory={() => setActiveFilter('category')}
-          onPressPopular={() => setActiveFilter('popular')}
-          onPressRegion={() => setActiveFilter('region')}
-          onPressScale={() => setActiveFilter('scale')}
+        <MapBottomSheet
+          visible={isBottomSheetOpen}
+          event={selectedEvent}
+          mode={sheetMode}
+          filterBottomY={filterBottomY}
+          onClose={() => {
+            setSheetMode('collapsed');
+            closeBottomSheet();
+          }}
+          onPressMore={() => setSheetMode('expanded')}
+          onPressDirection={() => setIsDirectionOpen(true)}
+          onPressBack={() => {
+            if (sheetMode === 'expanded') {
+              setSheetMode('collapsed');
+            } else {
+              setSheetMode('collapsed');
+              closeBottomSheet();
+            }
+          }}
+          onCollapsedHeightChange={setCollapsedSheetHeight}
+          renderRightButton={
+            sheetMode === 'collapsed'
+              ? () => (
+                  <TouchableOpacity
+                    style={styles.currentLocationButton}
+                    activeOpacity={0.85}
+                    onPress={onFocusCurrentLocation}
+                    accessibilityLabel="현재 위치"
+                  >
+                    <Ionicons name="locate" size={22} color="#2563EB" />
+                  </TouchableOpacity>
+                )
+              : undefined
+          }
         />
       </View>
 
-      {/* 지도 영역 */}
-      <View
-        style={styles.mapContainer}
-        onLayout={(e) => setMapHeight(e.nativeEvent.layout.height)}
-      >
-        {/* 임시 지도 */}
-        <View style={styles.fakeMap}>
-          <Text style={styles.fakeMapText}>(임시) 여기 지도 들어갈 자리입니다.</Text>
-        </View>
-
-        {/* ✅ 지도 위 UI 레이어(여기 안에 버튼/칩 넣어야 JSX가 안 깨짐) */}
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.mapOverlayLayer,
-            { zIndex: isBottomSheetOpen ? 0 : 10 },
-          ]}
-        >
-          {/* 축제 참여 배너(사진처럼) */}
-          {isFestivalActive && (
-            <View
-              style={styles.activeChip}
-              onLayout={(e) => setFestivalChipHeight(e.nativeEvent.layout.height)}
-            >
-              <View style={styles.activeChipLeft}>
-                <View style={styles.activeChipEmojiCircle}>
-                  <Text style={styles.activeChipEmoji}>🎉</Text>
-                </View>
-
-                <View style={styles.activeChipTextCol}>
-                  <Text style={styles.activeChipLabel}>축제 참여 중</Text>
-                  <Text style={styles.activeChipTimer}>00:17:37</Text>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* 규모 버튼 */}
-          <TouchableOpacity
-            style={[
-              styles.squareButton,
-              {
-                width: BUTTON_SIZE,
-                height: BUTTON_SIZE,
-                borderRadius: 14,
-                left: scaleLeft,
-                top: scaleTop,
-              },
-            ]}
-            activeOpacity={0.85}
-            onPress={() => setIsScaleLegendVisible((v) => !v)}
-          >
-            <View style={styles.scaleIcon} />
-            <Text style={styles.squareButtonText}>규모</Text>
-          </TouchableOpacity>
-
-          {/* 북마크 버튼 */}
-          <TouchableOpacity
-            style={[
-              styles.squareButton,
-              {
-                width: BUTTON_SIZE,
-                height: BUTTON_SIZE,
-                borderRadius: 14,
-                right: bookmarkRight,
-                top: bookmarkTop,
-              },
-            ]}
-            activeOpacity={0.85}
-            onPress={onPressBookmarkList}
-          >
-            <Ionicons name="bookmark" size={18} color="#2563EB" />
-            <Text style={styles.squareButtonText}>북마크</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ✅ 규모 범례: 딤 없이, 규모 버튼 오른쪽에 고정 */}
-        <Modal
-          visible={isScaleLegendVisible}
-          transparent
-          animationType="none"
-          onRequestClose={() => setIsScaleLegendVisible(false)}
-        >
-          <Pressable
-            style={styles.legendOverlayTransparent}
-            onPress={() => setIsScaleLegendVisible(false)}
-          >
-            {/* 카드 자체는 클릭해도 닫히지 않게 */}
-            <Pressable
-              style={[
-                styles.legendCard,
-                {
-                  left: legendLeft,
-                  top: legendTop,
-                },
-              ]}
-              onLayout={(e) => setLegendHeight(e.nativeEvent.layout.height)}
-              onPress={() => {}}
-            >
-              {legendItems.map((it) => (
-                <View key={it.label} style={styles.legendRow}>
-                  <View
-                    style={[styles.legendDot, { backgroundColor: it.color }]}
-                  />
-                  <Text style={styles.legendLabel}>{it.label}</Text>
-                </View>
-              ))}
-            </Pressable>
-          </Pressable>
-        </Modal>
-
-        {/* ✅ 현재 위치 버튼 */}
-        <TouchableOpacity
-          style={styles.currentLocationFab}
-          activeOpacity={0.85}
-          onPress={focusCurrentLocation}
-        >
-          <Ionicons name="locate" size={18} color="#2563EB" />
-        </TouchableOpacity>
-
-        {/* 하단 축제 목록 보기 */}
-        {!isBottomSheetOpen && (
-          <View style={styles.listButtonWrapper}>
-            <TouchableOpacity
-              style={styles.listButton}
-              activeOpacity={0.85}
-              onPress={onPressFestivalList}
-            >
-              <Text style={styles.listButtonText}>축제 목록 보기</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* 바텀시트 */}
-      <MapBottomSheet
-        visible={isBottomSheetOpen}
+      {/* 길찾기 화면 (큰 카드 → 길찾기 버튼) */}
+      <DirectionScreen
+        visible={isDirectionOpen}
         event={selectedEvent}
-        mode={sheetMode}
-        filterBottomY={filterBottomY}
-        onClose={() => {
-          setSheetMode('collapsed');
-          closeBottomSheet();
-        }}
-        onPressMore={() => setSheetMode('expanded')}
-        onPressDirection={() => {}}
+        onClose={() => setIsDirectionOpen(false)}
       />
 
       {/* 사이드 메뉴 */}
@@ -379,11 +559,40 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
 
+  sheetWrapper: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  sheetWrapperOnTop: {
+    zIndex: 1000,
+  },
+
+  mapArea: {
+    flex: 1,
+    position: 'relative',
+  },
+  filterChipsOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: 'transparent',
+  },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     paddingHorizontal: 16,
+    paddingBottom: 12,
     alignItems: 'center',
-    zIndex: 3,
+    zIndex: 11,
+    backgroundColor: '#ffffff',
   },
   menuButton: {
     width: 36,
@@ -410,17 +619,28 @@ const styles = StyleSheet.create({
   },
   searchPlaceholder: { marginLeft: 6, fontSize: 13, color: '#9ca3af' },
 
-  mapContainer: { flex: 1 },
-
-  fakeMap: {
+  mapContainer: {},
+  mapFallback: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F3F4F6',
+    padding: 24,
   },
-  fakeMapText: { fontSize: 13, color: '#9CA3AF' },
+  mapFallbackText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  mapFallbackSub: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 8,
+    textAlign: 'center',
+  },
 
-  // ✅ 지도 위 UI 레이어
+  // 지도 위 UI 레이어
   mapOverlayLayer: {
     position: 'absolute',
     left: 0,
@@ -429,79 +649,116 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
 
-  squareButton: {
+  // 규모 버튼: 44x54, radius 12, 아이콘 영역 30dp·라벨 18dp·간격 2dp, elevation 8
+  scaleButton: {
     position: 'absolute',
-    backgroundColor: '#ffffff',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: SPACING.scaleButtonWidth,
+    height: SPACING.scaleButtonHeight,
+    borderRadius: SPACING.scaleButtonRadius,
+    paddingVertical: 2,
+    paddingHorizontal: 0,
+    gap: 2,
+    elevation: 8,
+    shadowColor: 'rgba(0,0,0,0.15)',
+    shadowOpacity: 1,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 18,
+  },
+  scaleButtonIconArea: {
+    height: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000000',
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-    gap: 4,
   },
-  squareButtonText: {
+  scaleButtonText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  scaleIcon: {
-    width: 18,
+    fontWeight: '500',
+    color: MAP_UI.textDark,
     height: 18,
-    borderRadius: 4,
-    backgroundColor: '#60A5FA',
+    lineHeight: 18,
+    textAlign: 'center',
   },
-
-  // ✅ 범례(딤 없음)
-  legendOverlayTransparent: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  legendCard: {
+  // 북마크 버튼: 56x72, radius 14, elevation 8, 아이콘 28dp
+  bookmarkButton: {
     position: 'absolute',
-    backgroundColor: '#ffffff',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 56,
+    height: 72,
     borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    minWidth: 180,
-    elevation: 4,
-    shadowColor: '#000000',
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 12,
+    backgroundColor: MAP_UI.cardBg,
+    paddingTop: 10,
+    paddingBottom: 8,
+    gap: 6,
+    elevation: 8,
+    shadowColor: 'rgba(0,0,0,0.15)',
+    shadowOpacity: 1,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 18,
   },
-  legendRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  legendDot: { width: 22, height: 22, borderRadius: 11, marginRight: 10 },
-  legendLabel: { fontSize: 13, fontWeight: '600', color: '#111827' },
-
-  // ✅ 현재 위치 버튼
-  currentLocationFab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 24,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#ffffff',
+  bookmarkButtonIconArea: {
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000000',
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-    zIndex: 20,
+  },
+  bookmarkButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: MAP_UI.textDark,
+    textAlign: 'center',
   },
 
-  // ✅ 하단 버튼
+  // 규모 설명 팝업: 170dp, radius 18, elevation 12, 핀 20dp
+  scalePopupCard: {
+    position: 'absolute',
+    width: SPACING.popupWidth,
+    backgroundColor: MAP_UI.cardBg,
+    borderRadius: SPACING.popupRadius,
+    paddingVertical: SPACING.popupPadding,
+    paddingHorizontal: SPACING.popupPadding,
+    elevation: 12,
+    shadowColor: 'rgba(0,0,0,0.18)',
+    shadowOpacity: 1,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 22,
+  },
+  scalePopupInner: { padding: 0 },
+  scalePopupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: SPACING.popupRowHeight,
+    marginBottom: SPACING.popupRowGap,
+  },
+  scalePopupBadge: {
+    width: SPACING.badgeSize,
+    height: SPACING.badgeSize,
+    borderRadius: 10,
+    marginRight: SPACING.badgeTextGap,
+  },
+  scalePopupLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: MAP_UI.textDark,
+  },
+
+  // 하단: 축제 목록 + 현재 위치. bottom은 동적(시트 열리면 collapsedSheetHeight+10)
   listButtonWrapper: {
     position: 'absolute',
-    bottom: 24,
     left: 0,
     right: 0,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 20,
+  },
+  listButtonCenterFull: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   listButton: {
     paddingHorizontal: 24,
@@ -512,6 +769,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listButtonText: { color: '#ffffff', fontWeight: '600' },
+  currentLocationButton: {
+    position: 'absolute',
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: MAP_UI.cardBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 16,
+  },
 
   // 전체 화면 모달
   entryModalOverlay: {

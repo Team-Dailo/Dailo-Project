@@ -25,6 +25,9 @@ type Props = {
   onClose: () => void;
   onPressMore: () => void;
   onPressDirection: () => void;
+  onPressBack: () => void; // 한 단계씩 뒤로 (expanded→collapsed, collapsed→닫기)
+  onCollapsedHeightChange?: (height: number) => void; // 작은 카드 영역 높이 (현재 위치 버튼 위치용)
+  renderRightButton?: () => React.ReactNode; // 작은 카드 시 축제 목록 보기와 같은 줄 오른쪽 (현재 위치 등)
 };
 
 export function MapBottomSheet({
@@ -35,6 +38,9 @@ export function MapBottomSheet({
   onClose,
   onPressMore,
   onPressDirection,
+  onPressBack,
+  onCollapsedHeightChange,
+  renderRightButton,
 }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -68,12 +74,18 @@ export function MapBottomSheet({
             styles.collapsedContainer,
             { paddingBottom: insets.bottom },
           ]}
+          onLayout={(e) =>
+            onCollapsedHeightChange?.(e.nativeEvent.layout.height)
+          }
         >
-          {/* 파란 축제 목록 버튼 (작은 카드 위쪽) */}
-          <View style={styles.listButtonWrapperOnSheet}>
-            <TouchableOpacity style={styles.listButton} activeOpacity={0.85}>
-              <Text style={styles.listButtonText}>축제 목록 보기</Text>
-            </TouchableOpacity>
+          {/* 축제 목록 보기(가운데) + 오른쪽 버튼(현재 위치 등) 같은 줄 */}
+          <View style={styles.listButtonRowOnSheet}>
+            <View style={styles.listButtonCenterOnSheet}>
+              <TouchableOpacity style={styles.listButton} activeOpacity={0.85}>
+                <Text style={styles.listButtonText}>축제 목록 보기</Text>
+              </TouchableOpacity>
+            </View>
+            {renderRightButton?.()}
           </View>
 
           {/* 작은 카드 */}
@@ -249,9 +261,15 @@ const styles = StyleSheet.create({
   collapsedContainer: {
     marginHorizontal: 16,
   },
-  listButtonWrapperOnSheet: {
+  listButtonRowOnSheet: {
+    flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10, // 파란 버튼과 카드 사이 간격
+  },
+  listButtonCenterOnSheet: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listButton: {
     paddingHorizontal: 24,
