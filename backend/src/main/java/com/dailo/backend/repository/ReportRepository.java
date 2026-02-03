@@ -22,4 +22,10 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
             Long reporterId,
             ReportType targetType,
             Long targetId);
+
+    // 타입별 신고 목록 (관리자용)
+    Page<Report> findByTargetType(ReportType targetType, Pageable pageable);
+
+    // 상태 + 타입별 신고 목록 (관리자용)
+    Page<Report> findByStatusAndTargetType(ReportStatus status, ReportType targetType, Pageable pageable);
 }
