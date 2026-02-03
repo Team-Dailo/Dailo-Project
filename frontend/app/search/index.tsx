@@ -10,9 +10,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ from?: string }>();
+  const fromMap = params.from === 'map';
+  const placeholder = fromMap
+    ? '지역 축제 / 대학교 행사 / 장소 입력'
+    : '글 제목, 내용, 키워드 검색';
 
   return (
     <KeyboardAvoidingView
@@ -25,7 +31,7 @@ export default function SearchScreen() {
           <Ionicons name="search" size={18} color="#9ca3af" />
           <TextInput
             style={styles.input}
-            placeholder="글 제목, 내용, 키워드 검색"
+            placeholder={placeholder}
             placeholderTextColor="#9ca3af"
             autoFocus
           />
