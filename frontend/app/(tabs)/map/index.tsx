@@ -11,10 +11,13 @@ import {
   Animated,
   Easing,
   BackHandler,
+  Alert,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 
 import { MAP_UI } from '../../../constants/colors';
 import { SPACING } from '../../../constants/spacing';
@@ -83,6 +86,12 @@ export default function MapScreen() {
   const [isEntryModalVisible, setIsEntryModalVisible] = useState(false);
   // 길찾기 화면 (큰 카드에서 길찾기 버튼)
   const [isDirectionOpen, setIsDirectionOpen] = useState(false);
+  // 현재 위치 버튼 눌렀을 때 파란 동그라미 표시 (fallback일 때도 동그라미 그리기 위해)
+  const [showMyLocationCircle, setShowMyLocationCircle] = useState(false);
+  const [myLocationCircleCoords, setMyLocationCircleCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   const mapRef = useRef<React.ComponentRef<typeof NaverMap> | null>(null);
 
@@ -95,6 +104,7 @@ export default function MapScreen() {
     handleMarkerPress,
     closeBottomSheet,
     focusCurrentLocation,
+    refreshCurrentLocation,
   } = useMap();
 
   const naverMapCamera = useMemo((): NaverMapCamera => {
@@ -109,12 +119,33 @@ export default function MapScreen() {
     };
   }, [region?.latitude, region?.longitude, region?.latitudeDelta]);
 
-  const onFocusCurrentLocation = () => {
+  // 에뮬/위치 못 받을 때 쓰는 기본 좌표 (서울 시청)
+  const FALLBACK_COORDS = { latitude: 37.5665, longitude: 126.978 };
+
+  const onFocusCurrentLocation = async () => {
+    setShowMyLocationCircle(true);
+    let coords =
+      currentLocation ?? (await refreshCurrentLocation());
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== Location.PermissionStatus.GRANTED) {
+      Alert.alert(
+        '위치 권한 필요',
+        '현재 위치를 쓰려면 설정에서 위치 권한을 허용해 주세요.',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '설정 열기', onPress: () => Linking.openSettings() },
+        ]
+      );
+      return;
+    }
+    // 권한은 있는데 위치 못 받음(에뮬 등) → 기본 좌표로라도 이동해서 버튼이 동작한 것처럼
+    if (!coords) coords = FALLBACK_COORDS;
+    setMyLocationCircleCoords(coords);
     focusCurrentLocation();
-    if (currentLocation && mapRef.current) {
+    if (mapRef.current) {
       mapRef.current.animateCameraTo({
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
         zoom: 15,
         duration: 500,
         easing: 'EaseOut',
@@ -234,6 +265,9 @@ export default function MapScreen() {
               camera={naverMapCamera}
               events={events ?? []}
               onMarkerPress={handleMarkerPress}
+              currentLocation={currentLocation ?? null}
+              circleCoords={myLocationCircleCoords}
+              showMyLocationCircle={showMyLocationCircle}
             />
           </MapErrorBoundary>
 
@@ -460,20 +494,7 @@ export default function MapScreen() {
             }
           }}
           onCollapsedHeightChange={setCollapsedSheetHeight}
-          renderRightButton={
-            sheetMode === 'collapsed'
-              ? () => (
-                  <TouchableOpacity
-                    style={styles.currentLocationButton}
-                    activeOpacity={0.85}
-                    onPress={onFocusCurrentLocation}
-                    accessibilityLabel="현재 위치"
-                  >
-                    <Ionicons name="locate" size={22} color="#2563EB" />
-                  </TouchableOpacity>
-                )
-              : undefined
-          }
+          onPressCurrentLocation={onFocusCurrentLocation}
         />
       </View>
 
