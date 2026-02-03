@@ -25,6 +25,11 @@ public class Comment {
     @JoinColumn(name = "post_id", nullable = false)
     private Post post;
 
+    // 대댓글용 부모 댓글 (null이면 최상위 댓글)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_comment_id")
+    private Comment parentComment;
+
     @Column(name = "author_id", nullable = false)
     private Long authorId;
 
