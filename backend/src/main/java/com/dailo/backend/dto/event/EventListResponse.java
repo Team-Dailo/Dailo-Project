@@ -1,6 +1,5 @@
-package com.dailo.backend.dto;
+package com.dailo.backend.dto.event;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public record EventListResponse(
