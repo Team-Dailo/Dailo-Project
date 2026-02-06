@@ -29,7 +29,7 @@ public class BlockService {
 
         // 이미 차단했는지 확인
         if (blockRepository.existsByBlockerIdAndBlockedId(blockerId, blockedId)) {
-            throw new IllegalStateException("Already blocked");
+            throw new com.dailo.backend.exception.ConflictException("Already blocked");
         }
 
         Block block = Block.builder()
