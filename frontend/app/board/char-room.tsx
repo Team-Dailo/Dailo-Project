@@ -24,7 +24,7 @@ export default function ChatRoomScreen() {
   const onSend = () => {
     const t = text.trim();
     if (!t) return;
-    setMessages((prev) => [{ id: String(Date.now()), mine: true, text: t }, ...prev]);
+    setMessages((prev) => [...prev,{id:String(Date.now()), mine:true, text: t}])
     setText("");
   };
 
@@ -50,7 +50,7 @@ export default function ChatRoomScreen() {
 
       {/* 메시지 */}
       <FlatList
-        data={[...messages].reverse()}
+        data={messages}
         keyExtractor={(i) => i.id}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
         renderItem={({ item }) => (

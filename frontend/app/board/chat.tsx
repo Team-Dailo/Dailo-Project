@@ -73,7 +73,9 @@ export default function BoardChatListScreen() {
             style={styles.row}
             onPress={() =>
               router.push(
-                `/board/chat-room?name=${encodeURIComponent(item.name)}`
+                `/board/char-room?chatId=${encodeURIComponent(
+                  item.id
+                )}&name=${encodeURIComponent(item.name)}`
               )
             }
           >
