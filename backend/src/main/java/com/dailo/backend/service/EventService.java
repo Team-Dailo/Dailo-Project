@@ -1,13 +1,12 @@
 package com.dailo.backend.service;
 
-import com.dailo.backend.dto.event.EventDetailResponse;
-import com.dailo.backend.dto.event.EventListRequest;
-import com.dailo.backend.dto.event.EventListResponse;
-import com.dailo.backend.dto.event.EventMapResponse;
+import com.dailo.backend.dto.event.*;
 
 import com.dailo.backend.entity.Event;
 import com.dailo.backend.domain.enums.EventStatus;
+import com.dailo.backend.domain.enums.EventCategory;
 import com.dailo.backend.repository.EventRepository;
+import com.dailo.backend.repository.ScrapRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +19,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Set;
+import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
 public class EventService {
 
     private final EventRepository eventRepository;
-
+    private final ScrapRepository scrapRepository;
     // 상세 조회
 
     public EventDetailResponse getEventDetail(Long eventId) {
@@ -78,4 +79,34 @@ public class EventService {
                 event.getPlaceName()
         );
     }
+
+    //  캘린더 월별 조회
+    public List<EventCalendarResponse> getCalendarEvents(int year, int month, Long memberId) {
+        // 1. 조회 범위 설정 (해당 월 1일 ~ 다음 달 1일)
+        LocalDateTime startOfMonth = LocalDateTime.of(year, month, 1, 0, 0);
+        LocalDateTime endOfMonth = startOfMonth.plusMonths(1);
+
+        // 2. 기간 겹침 이벤트 조회 (Repository 메소드 필요)
+        List<Event> events = eventRepository.findEventsForCalendar(startOfMonth, endOfMonth);
+
+        // 3. 로그인 유저의 스크랩 정보 조회 (한 번에 가져와서 N+1 방지)
+        // (ScrapRepository 주입 필요. 만약 없으면 Service 상단에 private final ScrapRepository scrapRepository; 추가하세요)
+        Set<Long> scrappedEventIds = (memberId != null)
+                ? scrapRepository.findScrappedEventIds(memberId)
+                : Collections.emptySet();
+
+        // 4. DTO 변환
+        return events.stream()
+                .map(event -> EventCalendarResponse.builder()
+                        .id(event.getId())
+                        .title(event.getTitle())
+                        // 카테고리가 여러 개면 첫 번째 것을 대표 색상으로 사용 (없으면 ETC)
+                        .category(event.getCategories().isEmpty() ? EventCategory.ETC : event.getCategories().get(0))
+                        .startAt(event.getStartAt())
+                        .endAt(event.getEndAt() != null ? event.getEndAt() : event.getStartAt())
+                        .isBookmarked(scrappedEventIds.contains(event.getId()))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
 }
