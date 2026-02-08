@@ -1,11 +1,12 @@
 package com.dailo.backend.service;
 
+import com.dailo.backend.dto.event.*;
+
 import com.dailo.backend.entity.Event;
 import com.dailo.backend.domain.enums.EventStatus;
+import com.dailo.backend.domain.enums.EventCategory;
 import com.dailo.backend.repository.EventRepository;
-import com.dailo.backend.dto.EventDetailResponse;
-import com.dailo.backend.dto.EventListRequest;
-import com.dailo.backend.dto.EventListResponse;
+import com.dailo.backend.repository.ScrapRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -14,64 +15,58 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.Set;
+import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true) // 최적화를 위한 읽기 전용
+@Transactional(readOnly = true)
 public class EventService {
 
     private final EventRepository eventRepository;
+    private final ScrapRepository scrapRepository;
+    // 상세 조회
 
-    /**
-     * 이벤트 리슽 조회 (필터링 + 페이징)
-     * - PUBLISHED 이벤트만 조회
-     * - 카테고리 필터가 있으면 해당 카테고리만, 없으면 전체 조회
-     * - 리스트용 경량 DTO(EventListReponse)로 변환하여 반환
-     */
-
-    public Page<EventListResponse> getEventList(EventListRequest request) {
-        // 정렬: 시작일 빠른 순 (캘린더나 리스트 보기 좋게)
-        Pageable pageable = PageRequest.of(request.page() - 1, request.size(), Sort.by(Sort.Direction.ASC, "startDateTime"));
-
-        Page<Event> events;
-
-        // LocalDate(2026-02-01) -> LocalDateTime(2026-02-01 00:00:00 ~ 2026-02-28 23:59:59) 변환
-        LocalDateTime searchStart = (request.startDateTime() != null) ? request.startDateTime().atStartOfDay() : LocalDateTime.MIN;
-        LocalDateTime searchEnd = (request.endDateTime() != null) ? request.endDateTime().atTime(LocalTime.MAX) : LocalDateTime.MAX;
-
-        // [로직 분기] 날짜 필터 유무에 따라 다른 메서드 호출
-        if (request.hasDateFilter()) {
-            if (request.hasCategory()) {
-                // 1. 기간 O + 카테고리 O
-                events = eventRepository.findByStatusAndCategoriesAndDate(
-                        EventStatus.PUBLISHED, request.categories(), searchStart, searchEnd, pageable);
-            } else {
-                // 2. 기간 O + 카테고리 X (캘린더 전체 조회 등)
-                events = eventRepository.findByStatusAndDate(
-                        EventStatus.PUBLISHED, searchStart, searchEnd, pageable);
-            }
-        } else {
-            if (request.hasCategory()) {
-                // 3. 기간 X + 카테고리 O
-                events = eventRepository.findDistinctByStatusAndCategoriesIn(
-                        EventStatus.PUBLISHED, request.categories(), pageable);
-            } else {
-                // 4. 기간 X + 카테고리 X (전체 목록)
-                events = eventRepository.findAllByStatus(EventStatus.PUBLISHED, pageable);
-            }
-        }
-
-        return events.map(this::convertToEventListResponse);
+    public EventDetailResponse getEventDetail(Long eventId) {
+        return eventRepository.findById(eventId)
+                .map(EventDetailResponse::from)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이벤트입니다. id=" + eventId));
     }
 
-    // 상세 조회, 변환 메서드 등은 기존과 동일...
-    public EventDetailResponse getEventDetail(Long eventId) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이벤트입니다. id=" + eventId));
-        return convertToEventDetailResponse(event);
+    // 지도 마커 조회
+
+    public List<EventMapResponse> getEventsInMap(Double swLat, Double neLat, Double swLng, Double neLng) {
+        return eventRepository.findEventsInBounds(swLat, neLat, swLng, neLng, EventStatus.ACTIVE)
+                .stream()
+                .map(EventMapResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    // 리스트 조회 (검색/필터 통합)
+
+    public Page<EventListResponse> getEventList(EventListRequest request) {
+        // startAt 오름차순
+        Pageable pageable = PageRequest.of(request.page() - 1, request.size(), Sort.by(Sort.Direction.ASC, "startAt"));
+
+        LocalDateTime searchStart = (request.startAt() != null) ? request.startAt().atStartOfDay() : null;
+        LocalDateTime searchEnd = (request.endAt() != null) ? request.endAt().atTime(LocalTime.MAX) : null;
+
+        // 통합 검색 쿼리 실행
+        Page<Event> events = eventRepository.searchEvents(
+                EventStatus.ACTIVE,
+                searchStart,
+                searchEnd,
+                request.categories(),
+                request.region(),
+                request.keyword(),
+                pageable
+        );
+
+        return events.map(this::convertToEventListResponse);
     }
 
     private EventListResponse convertToEventListResponse(Event event) {
@@ -79,25 +74,39 @@ public class EventService {
                 event.getId(),
                 event.getTitle(),
                 event.getThumbnailUrl(),
-                event.getStartDateTime(),
-                event.getEndDateTime(),
+                event.getStartAt(),
+                event.getEndAt(),
                 event.getPlaceName()
         );
     }
 
-    private EventDetailResponse convertToEventDetailResponse(Event event) {
-        return new EventDetailResponse(
-                event.getId(),
-                event.getTitle(),
-                event.getPosterUrls(),
-                event.getStartDateTime(),
-                event.getEndDateTime(),
-                event.getPlaceName(),
-                event.getPlaceAddress(),
-                event.getLatitude(),
-                event.getLongitude(),
-                event.getDescription(),
-                event.getCategories()
-        );
+    //  캘린더 월별 조회
+    public List<EventCalendarResponse> getCalendarEvents(int year, int month, Long memberId) {
+        // 1. 조회 범위 설정 (해당 월 1일 ~ 다음 달 1일)
+        LocalDateTime startOfMonth = LocalDateTime.of(year, month, 1, 0, 0);
+        LocalDateTime endOfMonth = startOfMonth.plusMonths(1);
+
+        // 2. 기간 겹침 이벤트 조회 (Repository 메소드 필요)
+        List<Event> events = eventRepository.findEventsForCalendar(startOfMonth, endOfMonth);
+
+        // 3. 로그인 유저의 스크랩 정보 조회 (한 번에 가져와서 N+1 방지)
+        // (ScrapRepository 주입 필요. 만약 없으면 Service 상단에 private final ScrapRepository scrapRepository; 추가하세요)
+        Set<Long> scrappedEventIds = (memberId != null)
+                ? scrapRepository.findScrappedEventIds(memberId)
+                : Collections.emptySet();
+
+        // 4. DTO 변환
+        return events.stream()
+                .map(event -> EventCalendarResponse.builder()
+                        .id(event.getId())
+                        .title(event.getTitle())
+                        // 카테고리가 여러 개면 첫 번째 것을 대표 색상으로 사용 (없으면 ETC)
+                        .category(event.getCategories().isEmpty() ? EventCategory.ETC : event.getCategories().get(0))
+                        .startAt(event.getStartAt())
+                        .endAt(event.getEndAt() != null ? event.getEndAt() : event.getStartAt())
+                        .isBookmarked(scrappedEventIds.contains(event.getId()))
+                        .build())
+                .collect(Collectors.toList());
     }
+
 }

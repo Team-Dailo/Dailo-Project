@@ -1,4 +1,4 @@
-package com.dailo.backend.dto;
+package com.dailo.backend.dto.event;
 
 import com.dailo.backend.domain.enums.EventCategory;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -10,27 +10,32 @@ public record EventListRequest(
         Integer size,
 
         @DateTimeFormat(pattern = "yyyy-MM-dd")
-        LocalDate startDateTime,
+        LocalDate startAt,
 
         @DateTimeFormat(pattern = "yyyy-MM-dd")
-        LocalDate endDateTime,
+        LocalDate endAt,
 
         List<EventCategory> categories,
-        String sort
+
+        String region,  // 지역 필터
+        String keyword, // 검색어
+        String sort     // 정렬
 ) {
-    // page, size가 null인 경우 기본값 설정
     public EventListRequest {
         if (page == null) page = 1;
         if (size == null) size = 20;
     }
 
-    // 리스트가 비어있지 않은지 확인
     public boolean hasCategory() {
         return categories != null && !categories.isEmpty();
     }
 
-    // 날짜 필터 여부 확인
+    // [수정] 변수명이 바뀌었으니 여기도 startAt, endAt으로 변경
     public boolean hasDateFilter() {
-        return startDateTime != null && endDateTime != null;
+        return startAt != null && endAt != null;
+    }
+
+    public boolean hasKeyword() {
+        return keyword != null && !keyword.isBlank();
     }
 }
