@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
+import Constants from 'expo-constants';
 
 import { MAP_UI } from '../../../constants/colors';
 import { SPACING } from '../../../constants/spacing';
@@ -38,6 +39,9 @@ import {
 } from './_components/FilterModals';
 
 type SheetMode = 'collapsed' | 'expanded';
+
+/** Expo Go에서는 네이버 지도 네이티브 모듈이 없어 크래시됨 → 안내만 표시 */
+const isExpoGo = Constants.appOwnership === 'expo';
 
 /** 지도 로드 실패 시 앱이 죽지 않도록 에러 바운더리 */
 class MapErrorBoundary extends Component<
@@ -258,18 +262,27 @@ export default function MapScreen() {
       {/* 지도 영역: 전체를 채우고, 그 위에 헤더·필터칩·버튼이 오버레이 */}
       <View style={styles.mapArea}>
         <View style={[styles.mapContainer, StyleSheet.absoluteFill]}>
-          <MapErrorBoundary>
-            <NaverMap
-              ref={mapRef}
-              style={StyleSheet.absoluteFill}
-              camera={naverMapCamera}
-              events={events ?? []}
-              onMarkerPress={handleMarkerPress}
-              currentLocation={currentLocation ?? null}
-              circleCoords={myLocationCircleCoords}
-              showMyLocationCircle={showMyLocationCircle}
-            />
-          </MapErrorBoundary>
+          {isExpoGo ? (
+            <View style={styles.mapFallback}>
+              <Text style={styles.mapFallbackText}>지도는 개발 빌드에서만 이용할 수 있습니다.</Text>
+              <Text style={styles.mapFallbackSub}>
+                터미널에서 {'npx expo run:android'} 로 실행해 주세요.
+              </Text>
+            </View>
+          ) : (
+            <MapErrorBoundary>
+              <NaverMap
+                ref={mapRef}
+                style={StyleSheet.absoluteFill}
+                camera={naverMapCamera}
+                events={events ?? []}
+                onMarkerPress={handleMarkerPress}
+                currentLocation={currentLocation ?? null}
+                circleCoords={myLocationCircleCoords}
+                showMyLocationCircle={showMyLocationCircle}
+              />
+            </MapErrorBoundary>
+          )}
 
           {/* 지도 빈 영역 탭 시: 시트 닫기. 시트 영역은 덮지 않아서 더보기/시트 터치가 정상 동작 */}
           {isBottomSheetOpen ? (
