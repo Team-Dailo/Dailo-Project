@@ -183,9 +183,6 @@ export default function BoardScreen() {
             <Pressable onPress={() => router.push("/board/chat")} style={styles.headerIconBtn}>
               <Ionicons name="chatbubble-outline" size={22} color="#111827" />
             </Pressable>
-            <Pressable style={styles.headerIconBtn}>
-              <Ionicons name="notifications-outline" size={22} color="#111827" />
-            </Pressable>
           </View>
         </View>
 
