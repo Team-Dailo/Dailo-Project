@@ -22,9 +22,11 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleLogin = async () => {
     const trimmed = email.trim();
+    setErrorMessage('');
     if (!trimmed || !password) {
       Alert.alert('입력 오류', '이메일과 비밀번호를 입력해 주세요.');
       return;
@@ -36,7 +38,7 @@ export default function LoginScreen() {
       router.back();
     } catch (e) {
       const message = e instanceof Error ? e.message : '로그인에 실패했습니다.';
-      Alert.alert('로그인 실패', message);
+      setErrorMessage(message);
     } finally {
       setLoading(false);
     }
@@ -62,7 +64,10 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(t) => {
+                setEmail(t);
+                if (errorMessage) setErrorMessage('');
+              }}
               placeholder="이메일을 입력하세요"
               placeholderTextColor="#9CA3AF"
               autoCapitalize="none"
@@ -73,14 +78,20 @@ export default function LoginScreen() {
           <View style={styles.inputWrap}>
             <Text style={styles.inputLabel}>비밀번호</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errorMessage ? styles.inputError : null]}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(t) => {
+                setPassword(t);
+                if (errorMessage) setErrorMessage('');
+              }}
               placeholder="비밀번호를 입력하세요"
               placeholderTextColor="#9CA3AF"
               secureTextEntry
               autoCapitalize="none"
             />
+            {errorMessage ? (
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            ) : null}
           </View>
 
           <Pressable
@@ -166,6 +177,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
     backgroundColor: '#F9FAFB',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 6,
+    marginLeft: 2,
   },
   loginButton: {
     flexDirection: 'row',

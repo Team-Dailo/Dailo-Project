@@ -4,7 +4,8 @@ import * as authService from '../services/auth.service';
 
 export type AuthUser = {
   name: string;
-  /** 나중에 id, email 등 확장 */
+  /** 회원 id (게시판 내 글 조회 등) */
+  id?: number;
 };
 
 type AuthContextValue = {
@@ -12,6 +13,8 @@ type AuthContextValue = {
   isLoggedIn: boolean;
   login: (user: AuthUser) => void;
   logout: () => void;
+  /** 토큰/이메일이 있으면 user 다시 채우기 (탭 전환 등에서 로그인 상태 동기화) */
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -24,9 +27,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const token = await authService.getAccessToken();
       const email = await authService.getStoredUserEmail();
       if (token && email) {
-        const nickname = await authService.getStoredNickname(email);
-        const name = nickname || email.split('@')[0] || email || '사용자';
-        setUser({ name });
+        const me = await authService.getMe();
+        const name = me?.nickname || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
+        const id = me?.id ?? (await authService.getStoredUserId()) ?? undefined;
+        if (me?.id != null) await authService.setStoredUserId(me.id);
+        setUser({ name, id });
+      } else {
+        setUser(null);
       }
     })();
   }, []);
@@ -40,11 +47,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const token = await authService.getAccessToken();
+    const email = await authService.getStoredUserEmail();
+    if (token && email) {
+      const me = await authService.getMe();
+      const name = me?.nickname || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
+      const id = me?.id ?? (await authService.getStoredUserId()) ?? undefined;
+      if (me?.id != null) await authService.setStoredUserId(me.id);
+      setUser({ name, id });
+    } else {
+      setUser(null);
+    }
+  }, []);
+
   const value: AuthContextValue = {
     user,
     isLoggedIn: user != null,
     login,
     logout,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

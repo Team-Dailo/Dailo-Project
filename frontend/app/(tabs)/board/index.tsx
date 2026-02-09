@@ -37,7 +37,7 @@ type Post = {
 const CATEGORIES = ["전체", "후기", "질문", "자유"] as const;
 type Category = (typeof CATEGORIES)[number];
 
-function toPost(item: { id: number; authorId: number; title: string; contentPreview?: string; content?: string; categoryType?: string; likeCount: number; commentCount: number; createdAt: string }): Post {
+function toPost(item: { id: number; authorId: number; authorNickname?: string; title: string; contentPreview?: string; content?: string; categoryType?: string; likeCount: number; commentCount: number; createdAt: string }): Post {
   const raw = item as Record<string, unknown>;
   const preview = (
     raw.contentPreview ??
@@ -48,9 +48,10 @@ function toPost(item: { id: number; authorId: number; title: string; contentPrev
   ) as string | undefined;
   let contentStr = typeof preview === "string" ? preview.trim() : "";
   if (contentStr.length > 120) contentStr = contentStr.slice(0, 120) + "…";
+  const authorName = item.authorNickname ?? (raw.authorNickname as string) ?? `user_${item.authorId}`;
   return {
     id: String(item.id),
-    author: `user_${item.authorId}`,
+    author: authorName,
     title: item.title,
     time: formatRelativeTime(item.createdAt),
     tag: item.categoryType ?? "",

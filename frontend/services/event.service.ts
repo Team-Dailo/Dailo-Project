@@ -91,3 +91,28 @@ export async function getEventsForMap(params?: {
       Number.isFinite(e.longitude)
   );
 }
+
+/** 캘린더 월별 API 응답 (EventCalendarResponse) */
+export type CalendarEventItem = {
+  id: number;
+  title: string;
+  category: string;
+  startAt: string;
+  endAt: string;
+  isBookmarked: boolean;
+};
+
+/**
+ * 캘린더 월별 이벤트 조회
+ * GET /api/events/calendar?year=2025&month=5
+ */
+export async function getCalendarEvents(
+  year: number,
+  month: number
+): Promise<CalendarEventItem[]> {
+  const url = `${API_BASE_URL}/api/events/calendar?year=${year}&month=${month}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`calendar events failed: ${res.status}`);
+  const data: CalendarEventItem[] = await res.json();
+  return data ?? [];
+}

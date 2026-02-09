@@ -198,7 +198,7 @@ export default function PostDetailScreen() {
                 <View style={styles.postHeader}>
                   <View style={styles.profileCircle} />
                   <View style={styles.postMeta}>
-                    <Text style={styles.author}>user_{post.authorId}</Text>
+                    <Text style={styles.author}>{post.authorNickname ?? `user_${post.authorId}`}</Text>
                     <Text style={styles.timeText}>{formatRelativeTime(post.createdAt)}</Text>
                   </View>
                 </View>

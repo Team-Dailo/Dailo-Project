@@ -1,31 +1,106 @@
 // app/(tabs)/mypage/board-history.tsx
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
   ScrollView,
+  FlatList,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuthContext } from "../../../contexts/AuthContext";
+import { useMyPostList } from "../../../hooks/useBoard";
+import { formatRelativeTime } from "../../../utils/formatDate";
+import type { PostListItem } from "../../../types/board";
 
+type PostRow = {
+  id: string;
+  author: string;
+  title?: string;
+  time: string;
+  tag?: string;
+  content: string;
+  likes: number;
+  comments: number;
+};
+
+function toPostRow(item: PostListItem): PostRow {
+  const raw = item as Record<string, unknown>;
+  const preview = (raw.contentPreview ?? raw.content_preview ?? item.contentPreview ?? item.title ?? "") as string;
+  let contentStr = typeof preview === "string" ? preview.trim() : "";
+  if (contentStr.length > 120) contentStr = contentStr.slice(0, 120) + "…";
+  const authorName = item.authorNickname ?? (raw.authorNickname as string) ?? `user_${item.authorId}`;
+  return {
+    id: String(item.id),
+    author: authorName,
+    title: item.title,
+    time: formatRelativeTime(item.createdAt),
+    tag: item.categoryType ?? "",
+    content: contentStr,
+    likes: item.likeCount ?? 0,
+    comments: item.commentCount ?? 0,
+  };
+}
 
 export default function BoardHistoryScreen() {
-  const dummyData = [
-    { id: 1, title: "축제 라인업 질문있습니다", likes: 12, comments: 5 },
-    { id: 2, title: "푸드트럭 추천해주세요", likes: 9, comments: 2 },
-    { id: 3, title: "오늘 공연 후기 남겨요!", likes: 21, comments: 7 },
-  ];
+  const { user, refreshUser } = useAuthContext();
+  const userId = user?.id ?? null;
+  const { posts, loading, error, refetch } = useMyPostList(userId);
+  const sortedPosts = useMemo(() => posts.map(toPostRow), [posts]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // 로그인됐는데 id가 없으면 한 번 더 동기화 (백엔드 재시작 후 /api/auth/me가 id 반환)
+      if (user && userId == null) {
+        refreshUser();
+      }
+      refetch();
+    }, [refetch, user, userId, refreshUser])
+  );
+
+  const renderPost = ({ item }: { item: PostRow }) => (
+    <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.id}`)}>
+      <View style={styles.postRowBody}>
+        <View style={styles.postRowTop}>
+          <Text style={styles.author}>{item.author}</Text>
+          {item.tag ? (
+            <View style={styles.tagBadge}>
+              <Text style={styles.tagText}>{item.tag}</Text>
+            </View>
+          ) : null}
+          <Text style={styles.timeText}>{item.time}</Text>
+        </View>
+        {item.title ? (
+          <Text style={styles.postTitle} numberOfLines={1} ellipsizeMode="tail">
+            {item.title}
+          </Text>
+        ) : null}
+        {item.content ? (
+          <Text style={styles.postPreview} numberOfLines={2} ellipsizeMode="tail">
+            {item.content}
+          </Text>
+        ) : null}
+        <View style={styles.postRowFooter}>
+          <View style={styles.footerItem}>
+            <Ionicons name="heart-outline" size={14} color="#9CA3AF" />
+            <Text style={styles.footerText}>{item.likes}</Text>
+          </View>
+          <View style={styles.footerItem}>
+            <Ionicons name="chatbubble-ellipses-outline" size={14} color="#9CA3AF" />
+            <Text style={styles.footerText}>{item.comments}</Text>
+          </View>
+        </View>
+      </View>
+    </Pressable>
+  );
 
   return (
-    <SafeAreaView
-    style={styles.safeArea}
-    edges={["top", "left", "right", "bottom"]}
-    >
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.container}>
-        {/* 상단 헤더 */}
         <View style={styles.header}>
           <Pressable onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
@@ -34,32 +109,65 @@ export default function BoardHistoryScreen() {
           <View style={{ width: 22 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.contents}>
-          {dummyData.map((item) => (
-            <View key={item.id} style={styles.card}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {item.title}
-              </Text>
-              <Text style={styles.cardSub}>
-                👍 {item.likes} · 💬 {item.comments}
-              </Text>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {!user ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyText}>로그인하면 내가 쓴 글이 표시됩니다.</Text>
+              <Pressable style={styles.loginBtn} onPress={() => router.push("/login")}>
+                <Text style={styles.loginBtnText}>로그인</Text>
+              </Pressable>
             </View>
-          ))}
+          ) : userId == null ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyText}>내 글 정보를 불러오는 중...</Text>
+              <Pressable style={styles.retryBtn} onPress={() => refreshUser()}>
+                <Text style={styles.retryText}>다시 시도</Text>
+              </Pressable>
+            </View>
+          ) : loading ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator size="large" color="#2563EB" />
+              <Text style={styles.loadingText}>불러오는 중...</Text>
+            </View>
+          ) : error ? (
+            <View style={styles.errorWrap}>
+              <Text style={styles.errorText}>목록을 불러올 수 없습니다.</Text>
+              <Pressable style={styles.retryBtn} onPress={() => refetch()}>
+                <Text style={styles.retryText}>다시 시도</Text>
+              </Pressable>
+            </View>
+          ) : sortedPosts.length === 0 ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyText}>아직 작성한 글이 없습니다.</Text>
+            </View>
+          ) : (
+            <View style={styles.listWrap}>
+              <FlatList
+                data={sortedPosts}
+                keyExtractor={(item) => item.id}
+                renderItem={renderPost}
+                scrollEnabled={false}
+              />
+            </View>
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>
   );
 }
 
-/** 스타일 */
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#F9FAFB",
   },
   container: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F9FAFB",
   },
   header: {
     flexDirection: "row",
@@ -77,23 +185,99 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
   },
-  contents: {
-    padding: 16,
+  scroll: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
   },
-  card: {
+  listWrap: {
+    marginHorizontal: -24,
+  },
+  loadingWrap: {
+    paddingVertical: 48,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
   },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "600",
+  loadingText: { marginTop: 12, fontSize: 14, color: "#6B7280" },
+  errorWrap: {
+    paddingVertical: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  errorText: { fontSize: 14, color: "#6B7280", marginBottom: 12 },
+  retryBtn: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#2563EB", borderRadius: 8 },
+  retryText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
+  emptyWrap: {
+    paddingVertical: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  emptyText: { fontSize: 14, color: "#6B7280", marginBottom: 16 },
+  loginBtn: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#2563EB", borderRadius: 8 },
+  loginBtnText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
+  postRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  postRowBody: { flex: 1, minWidth: 0 },
+  postRowTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     marginBottom: 4,
-    color: "#111827",
   },
-  cardSub: {
+  author: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: "#6B7280",
+  },
+  tagBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "#F3F4FF",
+  },
+  tagText: {
+    fontSize: 11,
+    color: "#4F46E5",
+    fontWeight: "500",
+  },
+  timeText: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    marginLeft: 6,
+  },
+  postTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  postPreview: {
     fontSize: 13,
     color: "#6B7280",
+    marginBottom: 6,
+  },
+  postRowFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  footerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  footerText: {
+    fontSize: 12,
+    color: "#9CA3AF",
   },
 });
