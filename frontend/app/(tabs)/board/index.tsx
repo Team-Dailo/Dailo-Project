@@ -12,9 +12,14 @@ import {
   Alert,
   Share,
   Image,
+  ActivityIndicator,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as Clipboard from "expo-clipboard";
+import { usePostList } from "../../../hooks/useBoard";
+import { formatRelativeTime } from "../../../utils/formatDate";
 
 type Post = {
   id: string;
@@ -29,58 +34,32 @@ type Post = {
   imageUri?: string;
 };
 
-const MOCK_POSTS: Post[] = [
-  {
-    id: "1",
-    author: "dog_dog",
-    title: "푸드존 후기 공유해요!",
-    time: "15분전",
-    tag: "후기",
-    content:
-      "이번 축제 푸드존 진짜 대박이었어요... 😆\n특히 감자버터구이랑 타코야끼 라인은 줄이 길었는데 기다린 가치 있었음!\n분위기도 너무 좋고 친구들이랑 사진도 많이 찍어서 행복했어요.",
-    likes: 45,
-    comments: 12,
-    scraps: 4,
-    imageUri: "https://picsum.photos/seed/dog1/200/200",
-  },
-  {
-    id: "2",
-    author: "cat",
-    title: "저녁 공연 진짜 대박",
-    time: "1시간전",
-    tag: "후기",
-    content:
-      "저녁 공연 무대 연출 미쳤어요.\n조명 + 사운드 + 날씨 삼박자가 완벽해서\n가수 나오자마자 관객들이랑 다 같이 떼창한 거 아직도 소름...\n영원히 기억에 남을 하루였습니다!",
-    likes: 39,
-    comments: 8,
-    scraps: 3,
-  },
-  {
-    id: "3",
-    author: "user_q",
-    title: "주차 가능한 곳 알려주세요",
-    time: "2시간전",
-    tag: "질문",
-    content: "이번 주말에 축제 갈 예정인데 차로 가려고 해요. 주차 가능한 곳이나 주차장 정보 알려주실 수 있을까요?",
-    likes: 5,
-    comments: 3,
-    scraps: 1,
-  },
-  {
-    id: "4",
-    author: "user_f",
-    title: "날씨 좋은 날 나들이 추천",
-    time: "3시간전",
-    tag: "자유",
-    content: "오늘 날씨가 너무 좋아서 뭐라도 하고 싶네요. 다들 주말에 뭐 하시나요?",
-    likes: 12,
-    comments: 7,
-    scraps: 2,
-  },
-];
-
 const CATEGORIES = ["전체", "후기", "질문", "자유"] as const;
 type Category = (typeof CATEGORIES)[number];
+
+function toPost(item: { id: number; authorId: number; title: string; contentPreview?: string; content?: string; categoryType?: string; likeCount: number; commentCount: number; createdAt: string }): Post {
+  const raw = item as Record<string, unknown>;
+  const preview = (
+    raw.contentPreview ??
+    raw.content_preview ??
+    raw.content ??
+    item.contentPreview ??
+    item.content
+  ) as string | undefined;
+  let contentStr = typeof preview === "string" ? preview.trim() : "";
+  if (contentStr.length > 120) contentStr = contentStr.slice(0, 120) + "…";
+  return {
+    id: String(item.id),
+    author: `user_${item.authorId}`,
+    title: item.title,
+    time: formatRelativeTime(item.createdAt),
+    tag: item.categoryType ?? "",
+    content: contentStr,
+    likes: item.likeCount ?? 0,
+    comments: item.commentCount ?? 0,
+    scraps: 0,
+  };
+}
 
 export default function BoardScreen() {
   const router = useRouter();
@@ -88,13 +67,41 @@ export default function BoardScreen() {
   const [sortType, setSortType] = useState<"latest" | "popular">("latest");
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
 
+  const { posts: apiPosts, loading, error, refetch } = usePostList(selectedCategory, sortType);
+  const sortedPosts = useMemo(() => apiPosts.map(toPost), [apiPosts]);
+
+  // 게시글 작성/상세에서 돌아올 때 목록 새로고침
+  useFocusEffect(
+    React.useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
+
   const handleCopyLink = async (postId: string) => {
     setMenuPostId(null);
     const link = `https://dailo.app/board/${postId}`;
     try {
-      await Share.share({ message: link, title: "게시물 링크" });
+      const result = await Share.share({
+        message: link,
+        title: "게시물 링크",
+        url: link,
+      });
+      if (result?.action === Share.sharedAction) return;
     } catch {
-      Alert.alert("링크", link);
+      Alert.alert(
+        "링크 공유",
+        "공유할 수 없을 때는 링크를 복사해서 사용하세요.",
+        [
+          { text: "취소", style: "cancel" },
+          {
+            text: "링크 복사",
+            onPress: async () => {
+              await Clipboard.setStringAsync(link);
+              Alert.alert("복사됨", "링크가 클립보드에 복사되었습니다.");
+            },
+          },
+        ]
+      );
     }
   };
 
@@ -114,17 +121,6 @@ export default function BoardScreen() {
     ]);
   };
 
-  const sortedPosts = useMemo(() => {
-    const filtered =
-      selectedCategory === "전체"
-        ? MOCK_POSTS
-        : MOCK_POSTS.filter((p) => p.tag === selectedCategory);
-    if (sortType === "popular") {
-      return [...filtered].sort((a, b) => b.likes - a.likes);
-    }
-    return filtered;
-  }, [sortType, selectedCategory]);
-
   const renderPost = ({ item }: { item: Post }) => {
     return (
       <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.id}`)}>
@@ -143,9 +139,11 @@ export default function BoardScreen() {
               {item.title}
             </Text>
           ) : null}
-          <Text style={styles.postPreview} numberOfLines={2} ellipsizeMode="tail">
-            {item.content}
-          </Text>
+          {item.content ? (
+            <Text style={styles.postPreview} numberOfLines={2} ellipsizeMode="tail">
+              {item.content}
+            </Text>
+          ) : null}
           <View style={styles.postRowFooter}>
             <View style={styles.footerItem}>
               <Ionicons name="heart-outline" size={14} color="#9CA3AF" />
@@ -254,12 +252,26 @@ export default function BoardScreen() {
 
           {/* 게시글 리스트 - 좌우 여백 없이 전체 너비 */}
           <View style={styles.listWrap}>
-            <FlatList
-              data={sortedPosts}
-              keyExtractor={(item) => item.id}
-              renderItem={renderPost}
-              scrollEnabled={false}
-            />
+            {loading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="large" color="#2563EB" />
+                <Text style={styles.loadingText}>불러오는 중...</Text>
+              </View>
+            ) : error ? (
+              <View style={styles.errorWrap}>
+                <Text style={styles.errorText}>목록을 불러올 수 없습니다.</Text>
+                <Pressable style={styles.retryBtn} onPress={() => refetch()}>
+                  <Text style={styles.retryText}>다시 시도</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <FlatList
+                data={sortedPosts}
+                keyExtractor={(item) => item.id}
+                renderItem={renderPost}
+                scrollEnabled={false}
+              />
+            )}
           </View>
         </ScrollView>
 
@@ -308,6 +320,22 @@ const styles = StyleSheet.create({
   listWrap: {
     marginHorizontal: -24,
   },
+  loadingWrap: {
+    paddingVertical: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  loadingText: { marginTop: 12, fontSize: 14, color: "#6B7280" },
+  errorWrap: {
+    paddingVertical: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  errorText: { fontSize: 14, color: "#6B7280", marginBottom: 12 },
+  retryBtn: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#2563EB", borderRadius: 8 },
+  retryText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   header: {
     flexDirection: "row",
     alignItems: "center",

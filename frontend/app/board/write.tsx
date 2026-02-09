@@ -10,10 +10,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as boardService from "../../services/board.service";
+import { API_BASE_URL } from "../../constants/api";
 
 const CATEGORIES = ["후기", "질문", "자유"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -24,6 +28,7 @@ export default function PostWriteScreen() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const show = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -37,9 +42,34 @@ export default function PostWriteScreen() {
   }, []);
 
   const handleCancel = () => router.back();
-  const handleShare = () => {
-    // TODO: API 연동 후 게시물 등록
-    router.back();
+  const handleShare = async () => {
+    const trimmedTitle = title.trim();
+    const trimmedContent = content.trim();
+    if (!trimmedTitle || !trimmedContent) {
+      Alert.alert("알림", "제목과 내용을 입력해주세요.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const created = await boardService.createPost({
+        title: trimmedTitle,
+        content: trimmedContent,
+        categoryType: category,
+      });
+      router.replace(`/board/${created.id}`);
+    } catch (e) {
+      const isNetworkError =
+        e instanceof Error &&
+        (e.message?.includes("failed") ||
+          e.message?.includes("Network") ||
+          e.message?.includes("fetch"));
+      const msg = isNetworkError
+        ? `서버에 연결할 수 없습니다.\n\n연결 시도 주소: ${API_BASE_URL}\n\n• 백엔드 실행: backend 폴더에서\n  ./gradlew bootRun --args='--spring.profiles.active=local'\n• 에뮬레이터: .env에 http://10.0.2.2:8080\n• 실기기: .env의 EXPO_PUBLIC_API_URL을 PC IP로 (예: http://192.168.0.10:8080)\n• 설정 변경 후 앱 완전 종료 후 다시 실행`
+        : "게시물을 등록할 수 없습니다.";
+      Alert.alert("게시물 등록 실패", msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -55,8 +85,12 @@ export default function PostWriteScreen() {
             <Text style={styles.headerCancel}>취소</Text>
           </Pressable>
           <Text style={styles.headerTitle}>새 게시물</Text>
-          <Pressable onPress={handleShare} hitSlop={12}>
-            <Text style={styles.headerShare}>공유</Text>
+          <Pressable onPress={handleShare} hitSlop={12} disabled={submitting}>
+            {submitting ? (
+              <ActivityIndicator size="small" color="#2563EB" />
+            ) : (
+              <Text style={styles.headerShare}>공유</Text>
+            )}
           </Pressable>
         </View>
 
