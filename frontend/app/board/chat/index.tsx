@@ -1,5 +1,5 @@
-// app/board/chat/index.tsx - 채팅 사람 목록
-import React, { useState } from "react";
+// app/board/chat/index.tsx - 채팅방 목록 (백엔드 연동)
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,41 +7,75 @@ import {
   FlatList,
   Pressable,
   TextInput,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as chatService from "../../../services/chat.service";
+import * as authService from "../../../services/auth.service";
 
-type ChatRoom = {
-  id: string;
-  name: string;
-  lastMessage: string;
-  avatarColor: string;
-  time?: string;
-  unreadCount?: number;
-};
+const AVATAR_COLORS = ["#E0E7FF", "#FCE7F3", "#D1FAE5", "#FEF3C7", "#E5E7EB", "#F3E8FF", "#DBEAFE"];
 
-const MOCK_CHATS: ChatRoom[] = [
-  { id: "1", name: "민수", lastMessage: "다음 주 축제 같이 갈래요?", avatarColor: "#E0E7FF", time: "15분 전", unreadCount: 2 },
-  { id: "2", name: "지은", lastMessage: "사진 보내주셔서 감사해요!", avatarColor: "#FCE7F3", time: "1시간 전", unreadCount: 1 },
-  { id: "3", name: "준호", lastMessage: "네, 그때 봐요", avatarColor: "#D1FAE5", time: "2시간 전" },
-  { id: "4", name: "수진", lastMessage: "맛집 추천해주세요 ㅎㅎ", avatarColor: "#FEF3C7", time: "어제" },
-  { id: "5", name: "태영", lastMessage: "공연 몇 시에 시작하나요?", avatarColor: "#E5E7EB", time: "어제", unreadCount: 3 },
-  { id: "6", name: "예린", lastMessage: "주차장 정보 알려주실 수 있나요?", avatarColor: "#F3E8FF", time: "2일 전" },
-  { id: "7", name: "현우", lastMessage: "좋은 하루 되세요!", avatarColor: "#DBEAFE", time: "3일 전" },
-];
+function formatRoomTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    if (diff < 60000) return "방금 전";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
+    if (diff < 172800000) return "어제";
+    return `${Math.floor(diff / 86400000)}일 전`;
+  } catch {
+    return "";
+  }
+}
 
 export default function ChatListScreen() {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [rooms, setRooms] = useState<chatService.ChatRoomResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [myUserId, setMyUserId] = useState<number | null>(null);
+
+  const fetchRooms = useCallback(async () => {
+    try {
+      const list = await chatService.getMyRooms();
+      setRooms(list);
+    } catch {
+      setRooms([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      authService.getStoredUserId().then((id) => setMyUserId(id ?? null));
+      fetchRooms();
+    }, [fetchRooms])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchRooms();
+  };
+
+  const getPartner = (room: chatService.ChatRoomResponse) => {
+    const other = room.members?.find((m) => m.userId !== myUserId);
+    return other ? `user_${other.userId}` : "알 수 없음";
+  };
 
   const filtered = search.trim()
-    ? MOCK_CHATS.filter(
-        (c) =>
-          c.name.toLowerCase().includes(search.toLowerCase()) ||
-          c.lastMessage.toLowerCase().includes(search.toLowerCase())
+    ? rooms.filter(
+        (r) =>
+          getPartner(r).toLowerCase().includes(search.toLowerCase())
       )
-    : MOCK_CHATS;
+    : rooms;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -70,39 +104,49 @@ export default function ChatListScreen() {
         </View>
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <Pressable
-            style={({ pressed }) => [styles.chatCard, pressed && styles.chatCardPressed]}
-            onPress={() => router.push(`/board/chat/${item.id}`)}
-          >
-            <View style={[styles.avatar, { backgroundColor: item.avatarColor }]} />
-            <View style={styles.chatBody}>
-              <View style={styles.chatRowTop}>
-                <Text style={styles.chatName} numberOfLines={1}>{item.name}</Text>
-                {item.time ? (
-                  <Text style={styles.chatTime}>  ·  {item.time}</Text>
-                ) : null}
-              </View>
-              <Text style={styles.chatPreview} numberOfLines={1}>
-                {item.lastMessage}
-              </Text>
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color="#6366F1" />
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#6366F1"]} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyText}>채팅방이 없습니다.</Text>
             </View>
-            {item.unreadCount != null && item.unreadCount > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadText}>
-                  {item.unreadCount > 99 ? "99+" : item.unreadCount}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        )}
-      />
+          }
+          renderItem={({ item }) => {
+            const partnerName = getPartner(item);
+            const timeStr = item.updatedAt ? formatRoomTime(item.updatedAt) : "";
+            const colorIndex = item.id % AVATAR_COLORS.length;
+            return (
+              <Pressable
+                style={({ pressed }) => [styles.chatCard, pressed && styles.chatCardPressed]}
+                onPress={() => router.push(`/board/chat/${item.id}`)}
+              >
+                <View style={[styles.avatar, { backgroundColor: AVATAR_COLORS[colorIndex] }]} />
+                <View style={styles.chatBody}>
+                  <View style={styles.chatRowTop}>
+                    <Text style={styles.chatName} numberOfLines={1}>{partnerName}</Text>
+                    {timeStr ? <Text style={styles.chatTime}>  ·  {timeStr}</Text> : null}
+                  </View>
+                  <Text style={styles.chatPreview} numberOfLines={1}>
+                    대화를 시작해 보세요
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -188,4 +232,7 @@ const styles = StyleSheet.create({
   },
   chatTime: { fontSize: 12, color: "#9CA3AF", fontWeight: "500" },
   chatPreview: { fontSize: 14, color: "#6B7280", lineHeight: 20 },
+  loadingWrap: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 48 },
+  emptyWrap: { paddingVertical: 48, alignItems: "center" },
+  emptyText: { fontSize: 14, color: "#9CA3AF" },
 });

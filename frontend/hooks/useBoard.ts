@@ -120,6 +120,49 @@ export function useMyPostList(userId: number | null | undefined) {
   return { posts, totalElements, loading, error, refetch: fetchList };
 }
 
+/** 홈 인기 게시물: 카테고리별 좋아요 최다 1개씩 (후기, 질문, 자유) */
+const HOME_CATEGORIES = ['후기', '질문', '자유'] as const;
+
+export function useHomePopularPosts() {
+  const [posts, setPosts] = useState<PostListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchList = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await boardService.getPostList({
+        page: 0,
+        size: 80,
+        sort: 'likeCount',
+        direction: 'DESC',
+      });
+      const content = data.content ?? [];
+      const byCategory: Record<string, PostListItem> = {};
+      for (const post of content) {
+        const cat = post.categoryType ?? '';
+        if (HOME_CATEGORIES.includes(cat as typeof HOME_CATEGORIES[number]) && !byCategory[cat]) {
+          byCategory[cat] = post;
+        }
+      }
+      const ordered = HOME_CATEGORIES.map((c) => byCategory[c]).filter(Boolean);
+      setPosts(ordered);
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchList();
+  }, [fetchList]);
+
+  return { posts, loading, error, refetch: fetchList };
+}
+
 /** 댓글 목록 */
 export function useComments(postId: string | undefined) {
   const [comments, setComments] = useState<CommentItem[]>([]);

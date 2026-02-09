@@ -1,5 +1,5 @@
-// app/board/chat/[id].tsx - 채팅화면 (1:1 대화)
-import React, { useState } from "react";
+// app/board/chat/[id].tsx - 채팅화면 (1:1 대화, 백엔드 메시지 히스토리 연동)
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,13 +8,16 @@ import {
   TextInput,
   Pressable,
   KeyboardAvoidingView,
-  Platform,
   Modal,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as chatService from "../../../services/chat.service";
+import * as blockService from "../../../services/block.service";
+import * as authService from "../../../services/auth.service";
 
 type Message = {
   id: string;
@@ -23,30 +26,71 @@ type Message = {
   time?: string;
 };
 
-function formatMessageTime(date?: Date): string {
-  const d = date ?? new Date();
-  const h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h < 12 ? "오전" : "오후";
-  const h12 = h % 12 || 12;
-  return `${ampm} ${h12}:${m.toString().padStart(2, "0")}`;
+function formatMessageTime(iso?: string): string {
+  try {
+    const d = iso ? new Date(iso) : new Date();
+    const h = d.getHours();
+    const m = d.getMinutes();
+    const ampm = h < 12 ? "오전" : "오후";
+    const h12 = h % 12 || 12;
+    return `${ampm} ${h12}:${m.toString().padStart(2, "0")}`;
+  } catch {
+    return "";
+  }
 }
-
-const MOCK_PARTNER = { id: "1", name: "민수", subId: "@minsu_daily" };
-const MOCK_MESSAGES: Message[] = [
-  { id: "m1", isMe: true, text: "안녕하세요! 축제 후기 글 보고 연락드렸어요.", time: "오전 10:12" },
-  { id: "m2", isMe: false, text: "네 안녕하세요 ㅎㅎ", time: "오전 10:14" },
-  { id: "m3", isMe: false, text: "다음 주 축제 같이 갈래요?", time: "오전 10:15" },
-  { id: "m4", isMe: true, text: "좋아요! 몇 시쯤 만날까요?", time: "오전 10:16" },
-];
 
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const roomId = id ? Number(id) : 0;
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
+  const [room, setRoom] = useState<chatService.ChatRoomResponse | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [myUserId, setMyUserId] = useState<number | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [notificationsOn, setNotificationsOn] = useState(true);
+
+  const partner = room?.members?.find((m) => m.userId !== myUserId);
+  const partnerName = partner ? `user_${partner.userId}` : "대화 상대";
+  const partnerUserId = partner?.userId ?? 0;
+
+  useEffect(() => {
+    authService.getStoredUserId().then((uid) => setMyUserId(uid ?? null));
+  }, []);
+
+  const fetchRoomAndMessages = useCallback(async () => {
+    if (!roomId || !Number.isFinite(roomId)) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const uid = await authService.getStoredUserId();
+      setMyUserId(uid ?? null);
+      const [roomData, msgData] = await Promise.all([
+        chatService.getRoom(roomId),
+        chatService.getMessages(roomId),
+      ]);
+      setRoom(roomData);
+      const myId = uid ?? 0;
+      const list: Message[] = (msgData.content ?? []).map((m) => ({
+        id: String(m.id),
+        isMe: m.senderId === myId,
+        text: m.content ?? "",
+        time: formatMessageTime(m.createdAt),
+      }));
+      setMessages(list);
+    } catch {
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [roomId]);
+
+  useEffect(() => {
+    fetchRoomAndMessages();
+  }, [fetchRoomAndMessages]);
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -55,6 +99,7 @@ export default function ChatRoomScreen() {
       { id: `m${Date.now()}`, isMe: true, text: input.trim(), time: formatMessageTime() },
     ]);
     setInput("");
+    // TODO: STOMP로 실제 전송 연동
   };
 
   const handleToggleNotification = () => {
@@ -64,9 +109,22 @@ export default function ChatRoomScreen() {
 
   const handleBlock = () => {
     setMenuVisible(false);
-    Alert.alert("차단하기", `${MOCK_PARTNER.name}님을 차단하시겠어요?`, [
+    if (!partnerUserId) return;
+    Alert.alert("차단하기", `${partnerName}님을 차단하시겠어요?`, [
       { text: "취소", style: "cancel" },
-      { text: "차단", style: "destructive", onPress: () => router.back() },
+      {
+        text: "차단",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await blockService.blockUser(partnerUserId);
+            Alert.alert("차단됨", "사용자를 차단했습니다.");
+            router.back();
+          } catch {
+            Alert.alert("오류", "차단에 실패했습니다.");
+          }
+        },
+      },
     ]);
   };
 
@@ -74,7 +132,18 @@ export default function ChatRoomScreen() {
     setMenuVisible(false);
     Alert.alert("채팅방 나가기", "채팅방을 나가시겠어요?", [
       { text: "취소", style: "cancel" },
-      { text: "나가기", style: "destructive", onPress: () => router.back() },
+      {
+        text: "나가기",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await chatService.leaveRoom(roomId);
+            router.back();
+          } catch {
+            Alert.alert("오류", "나가기에 실패했습니다.");
+          }
+        },
+      },
     ]);
   };
 
@@ -85,15 +154,14 @@ export default function ChatRoomScreen() {
         behavior="padding"
         keyboardVerticalOffset={0}
       >
-        {/* 헤더: 뒤로가기 | 프로필 | 닉네임 / 아이디 | ⋯ */}
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </Pressable>
           <View style={styles.profileCircle} />
           <View style={styles.headerCenter}>
-            <Text style={styles.partnerName}>{MOCK_PARTNER.name}님</Text>
-            <Text style={styles.partnerId}>{MOCK_PARTNER.subId}</Text>
+            <Text style={styles.partnerName}>{partnerName}님</Text>
+            <Text style={styles.partnerId}>@{partnerUserId || "—"}</Text>
           </View>
           <Pressable hitSlop={12} onPress={() => setMenuVisible(true)}>
             <Ionicons name="ellipsis-horizontal" size={22} color="#111827" />
@@ -131,12 +199,15 @@ export default function ChatRoomScreen() {
           </Pressable>
         </Modal>
 
-        {/* 날짜 구분 */}
         <View style={styles.dateWrap}>
           <Text style={styles.dateText}>오늘</Text>
         </View>
 
-        {/* 메시지 목록 */}
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color="#6366F1" />
+          </View>
+        ) : (
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -174,8 +245,9 @@ export default function ChatRoomScreen() {
             );
           })}
         </ScrollView>
+        )}
 
-        {/* 입력 영역: 사진 | 메시지 보내기.. | 마이크 | 전송 */}
+        {/* 입력 영역 */}
         <View style={styles.inputRow}>
           <Pressable style={styles.inputIcon}>
             <Ionicons name="image-outline" size={24} color="#2563EB" />
@@ -317,4 +389,5 @@ const styles = StyleSheet.create({
   menuItemText: { fontSize: 15, color: "#111827" },
   menuItemDanger: { borderTopWidth: 1, borderTopColor: "#F3F4F6" },
   menuItemTextDanger: { fontSize: 15, color: "#DC2626", fontWeight: "500" },
+  loadingWrap: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 48 },
 });

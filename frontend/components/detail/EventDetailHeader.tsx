@@ -12,42 +12,66 @@ import {
   Platform,
   ToastAndroid,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import type { EventDetail } from "../../types/event";
 
-const posterUri =
-  "https://images.unsplash.com/photo-1485550409059-9afb054cada4?w=800"; // 임시 포스터
+const DEFAULT_POSTER_URI =
+  "https://images.unsplash.com/photo-1485550409059-9afb054cada4?w=800";
+
+function formatEventDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = d.getDate();
+    const weekdays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+    const w = weekdays[d.getDay()];
+    return `${y}.${m}.${day} ${w}`;
+  } catch {
+    return "";
+  }
+}
+
+function formatEventTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const h = d.getHours();
+    const m = d.getMinutes();
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  } catch {
+    return "";
+  }
+}
 
 interface Props {
   id?: string;
-
-  // ✅ 바깥(상세 페이지)에서 넘겨줄 수도 있고, 없으면 헤더에서 기본 동작 수행
+  event?: EventDetail | null;
+  loading?: boolean;
+  error?: Error | null;
   onShare?: () => void;
   onSave?: () => void;
 }
 
-export default function EventDetailHeader({ id, onShare, onSave }: Props) {
+export default function EventDetailHeader({ id, event, loading, error, onShare, onSave }: Props) {
   const router = useRouter();
+  const posterUri = event?.posterUrls?.[0] ?? DEFAULT_POSTER_URI;
 
-  // ✅ 기본 공유 동작(부모에서 onShare 안 넘기면 이걸로 실행)
   const defaultShare = async () => {
     try {
-      // TODO: 실제 링크로 교체 (딥링크/웹 링크)
-      const url = `https://www.naver.com/`;
-
+      const url = event?.naverMapUrl ?? `https://dailo.app/event/${id ?? ""}`;
       await Share.share({
-        message: url, // Android는 message 중심
-        url,          // iOS 대응
-        title: "축제 공유하기",
+        message: url,
+        url,
+        title: event?.title ?? "축제 공유하기",
       });
     } catch (e) {
       console.log(e);
     }
   };
 
-  // ✅ 기본 저장 동작(부모에서 onSave 안 넘기면 이걸로 실행)
   const defaultSave = () => {
-    // TODO: 실제 저장 로직(API/상태관리)은 나중에 여기 또는 부모에서 처리
     if (Platform.OS === "android") {
       ToastAndroid.show("저장되었습니다", ToastAndroid.SHORT);
     } else {
@@ -65,38 +89,63 @@ export default function EventDetailHeader({ id, onShare, onSave }: Props) {
     return defaultSave();
   };
 
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.infoCard}>
+          <Text style={styles.errorText}>이벤트를 불러올 수 없습니다.</Text>
+          <Text style={styles.errorSub}>{error.message}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (loading || !event) {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.poster, styles.posterPlaceholder]}>
+          <ActivityIndicator size="large" color="#6366F1" />
+        </View>
+        <View style={styles.iconRow}>
+          <Pressable onPress={() => router.back()} style={styles.iconButton} hitSlop={10}>
+            <Text style={styles.iconText}>‹</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  const dateStr = formatEventDate(event.startAt);
+  const timeStr = formatEventTime(event.startAt);
+  const placeStr = event.placeName?.trim() || "장소 미정";
+  const hostStr = event.hostContact?.trim() || "";
+
   return (
     <View style={styles.container}>
-      {/* 포스터 이미지 */}
       <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" />
 
-      {/* 🔹 뒤로가기 / 공유 / 저장 버튼 */}
       <View style={styles.iconRow}>
         <Pressable onPress={() => router.back()} style={styles.iconButton} hitSlop={10}>
           <Text style={styles.iconText}>‹</Text>
         </Pressable>
 
         <View style={styles.rightGroup}>
-          {/* ✅ 공유하기 */}
           <Pressable onPress={handlePressShare} style={styles.iconButton} hitSlop={10}>
             <Text style={styles.iconText}>⤴</Text>
           </Pressable>
-
-          {/* ✅ 저장하기 */}
           <Pressable onPress={handlePressSave} style={styles.iconButton} hitSlop={10}>
             <Text style={styles.iconText}>★</Text>
           </Pressable>
         </View>
       </View>
 
-      {/* 정보 카드 */}
       <View style={styles.infoCard}>
-        <Text style={styles.dateText}>2025.11.18 TUE</Text>
-        <Text style={styles.titleText}>입동 - 시작과 끝</Text>
+        {dateStr ? <Text style={styles.dateText}>{dateStr}</Text> : null}
+        <Text style={styles.titleText}>{event.title}</Text>
         <View style={{ marginTop: 8 }}>
-          <Text style={styles.infoLine}>🕒 19:00 ~</Text>
-          <Text style={styles.infoLine}>📍 한국교통대 국원문화관</Text>
-          <Text style={styles.infoLine}>👤 신문고 동아리</Text>
+          {timeStr ? <Text style={styles.infoLine}>🕒 {timeStr} ~</Text> : null}
+          <Text style={styles.infoLine}>📍 {placeStr}</Text>
+          {hostStr ? <Text style={styles.infoLine}>👤 {hostStr}</Text> : null}
         </View>
       </View>
     </View>
@@ -172,5 +221,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 4,
     color: "#444",
+  },
+  posterPlaceholder: {
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#111827",
+    marginBottom: 4,
+  },
+  errorSub: {
+    fontSize: 14,
+    color: "#6B7280",
   },
 });

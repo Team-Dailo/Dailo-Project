@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../constants/api';
-import type { Event } from '../types/event';
+import type { Event, EventDetail } from '../types/event';
 
 /** 백엔드 이벤트 리스트 응답 (EventListResponse) */
 type EventListResponseItem = {
@@ -115,4 +115,93 @@ export async function getCalendarEvents(
   if (!res.ok) throw new Error(`calendar events failed: ${res.status}`);
   const data: CalendarEventItem[] = await res.json();
   return data ?? [];
+}
+
+/** 백엔드 지도 마커 응답 (EventMapResponse) */
+type EventMapResponseItem = {
+  id: number;
+  title: string;
+  latitude: number | null;
+  longitude: number | null;
+  category: string;
+  thumbnailUrl: string | null;
+  status?: string;
+};
+
+/**
+ * 지도 영역(bounds) 내 이벤트 마커 조회
+ * GET /api/events/map?swLat=&neLat=&swLng=&neLng=
+ */
+export async function getEventsOnMap(params: {
+  swLat: number;
+  neLat: number;
+  swLng: number;
+  neLng: number;
+}): Promise<Event[]> {
+  const { swLat, neLat, swLng, neLng } = params;
+  const url = `${API_BASE_URL}/api/events/map?swLat=${swLat}&neLat=${neLat}&swLng=${swLng}&neLng=${neLng}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`events map failed: ${res.status}`);
+  const data: EventMapResponseItem[] = await res.json();
+  const list = data ?? [];
+  if (__DEV__) console.log('[Event API] map ok, count:', list.length);
+  return list.map((item) => ({
+    id: String(item.id),
+    title: item.title,
+    category: mapCategory(item.category),
+    scale: 'UNIVERSITY',
+    startAt: '',
+    endAt: '',
+    latitude: item.latitude ?? 0,
+    longitude: item.longitude ?? 0,
+    address: '',
+    placeName: '',
+    thumbnailUrl: item.thumbnailUrl ?? undefined,
+    isBookmarked: false,
+  }));
+}
+
+/** 백엔드 상세 응답 (EventDetailResponse) - startAt/endAt ISO 문자열로 수신 */
+type EventDetailResponseRaw = {
+  id: number;
+  title: string;
+  posterUrls: string[] | null;
+  startAt: string;
+  endAt: string;
+  placeName: string | null;
+  placeAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  description: string | null;
+  categories: string[];
+  hostContact: string | null;
+  status: string;
+  naverMapUrl: string | null;
+};
+
+/**
+ * 이벤트 상세 조회
+ * GET /api/events/{id}
+ */
+export async function getEventDetail(id: string): Promise<EventDetail> {
+  const res = await fetch(`${API_BASE_URL}/api/events/${id}`);
+  if (!res.ok) throw new Error(`event detail failed: ${res.status}`);
+  const raw: EventDetailResponseRaw = await res.json();
+  if (__DEV__) console.log('[Event API] detail ok:', raw?.id ?? id);
+  return {
+    id: raw.id,
+    title: raw.title,
+    posterUrls: raw.posterUrls ?? [],
+    startAt: raw.startAt,
+    endAt: raw.endAt,
+    placeName: raw.placeName ?? null,
+    placeAddress: raw.placeAddress ?? null,
+    latitude: raw.latitude ?? null,
+    longitude: raw.longitude ?? null,
+    description: raw.description ?? null,
+    categories: raw.categories ?? [],
+    hostContact: raw.hostContact ?? null,
+    status: raw.status ?? '',
+    naverMapUrl: raw.naverMapUrl ?? null,
+  };
 }

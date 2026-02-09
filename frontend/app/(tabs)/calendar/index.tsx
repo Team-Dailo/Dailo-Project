@@ -453,7 +453,7 @@ export default function CalendarScreen() {
                     <Pressable
                       key={ev.id}
                       style={[styles.eventCard, { borderColor: color }]}
-                      onPress={() => router.push(`/event/${ev.id}`)}
+                      onPress={() => router.push(`/event/${ev.id}?source=calendar`)}
                     >
                       <View style={styles.eventLeft}>
                         <View
