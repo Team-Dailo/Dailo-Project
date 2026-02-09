@@ -88,7 +88,9 @@ export default function MyPageScreen() {
           <MenuItem
             icon="chatbubble-ellipses-outline"
             label="게시판 기록"
-            onPress={() => router.push("/(tabs)/mypage/board-history")}
+            onPress={() =>
+              router.push("/(tabs)/mypage/board-history")
+            }
           />
         </Section>
 
@@ -115,9 +117,7 @@ export default function MyPageScreen() {
           <MenuItem
             icon="star-outline"
             label="저장한 축제"
-            onPress={() =>
-              router.push("/(tabs)/mypage/saved-festivals")
-            }
+            onPress={() => router.push("/(tabs)/mypage/saved-festivals")}
           />
           <MenuItem
             icon="storefront-outline"

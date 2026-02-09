@@ -22,6 +22,7 @@ import Constants from 'expo-constants';
 
 import { MAP_UI } from '../../../constants/colors';
 import { SPACING } from '../../../constants/spacing';
+import { useAuth } from '../../../hooks/useAuth';
 import { useMap } from '../../../hooks/useMap';
 import { FilterChips } from './_components/FilterChips';
 import { DirectionScreen } from './_components/DirectionScreen';
@@ -79,9 +80,15 @@ export default function MapScreen() {
   const [filterChipsHeight, setFilterChipsHeight] = useState(0);
   const [collapsedSheetHeight, setCollapsedSheetHeight] = useState(0);
 
-  // 축제 참여 배너
+  // 축제 참여 배너 (로그인 + 축제 범위 진입 시 표시)
+  const { isLoggedIn } = useAuth();
   const [isFestivalActive, setIsFestivalActive] = useState(false);
   const [festivalChipHeight, setFestivalChipHeight] = useState(0);
+
+  // 로그인 상태에서 축제 범위로 들어온 것으로 간주 → 참여 중 칩·사이드메뉴 카드 표시 (mock)
+  useEffect(() => {
+    setIsFestivalActive(isLoggedIn);
+  }, [isLoggedIn]);
 
   // 범례(규모 설명)
   const [isScaleLegendVisible, setIsScaleLegendVisible] = useState(false);
@@ -181,7 +188,8 @@ export default function MapScreen() {
   const bookmarkRight = SPACING.base;
 
   // 규모 팝업: 규모 버튼 오른쪽 10dp, 팝업 상단은 버튼 상단보다 2dp 아래
-  const popupLeft = scaleLeft + SPACING.scaleButtonWidth + SPACING.popupGap;
+  const SCALE_BTN_WIDTH = 56;
+  const popupLeft = scaleLeft + SCALE_BTN_WIDTH + SPACING.popupGap;
   const popupTop = scaleTop + 2;
 
   // 규모 설명 팝업 애니메이션
@@ -305,13 +313,20 @@ export default function MapScreen() {
               { zIndex: isBottomSheetOpen ? 10 : 10 },
             ]}
           >
+            {/* 카테고리 아래·규모 버튼 위: 참여 중인 시간 칩 (로그인 + 축제 범위 시) */}
             {isFestivalActive && (
               <View
-                style={styles.activeChip}
+                style={[
+                  styles.activeChip,
+                  {
+                    top: filterBottomY + 10,
+                    left: SPACING.base,
+                  },
+                ]}
                 onLayout={(e) => setFestivalChipHeight(e.nativeEvent.layout.height)}
               >
                 <View style={styles.activeChipLeft}>
-                  <View style={styles.activeChipEmojiCircle}>
+                  <View style={styles.activeChipIconCircle}>
                     <Text style={styles.activeChipEmoji}>🎉</Text>
                   </View>
                   <View style={styles.activeChipTextCol}>
@@ -683,18 +698,18 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
 
-  // 규모 버튼: 44x54, radius 12, 아이콘 영역 30dp·라벨 18dp·간격 2dp, elevation 8
+  // 규모 버튼: 북마크와 동일 56x72, radius 14
   scaleButton: {
     position: 'absolute',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    width: SPACING.scaleButtonWidth,
-    height: SPACING.scaleButtonHeight,
-    borderRadius: SPACING.scaleButtonRadius,
+    width: 56,
+    height: 72,
+    borderRadius: 14,
     paddingVertical: 2,
     paddingHorizontal: 0,
-    gap: 2,
+    gap: 8,
     elevation: 8,
     shadowColor: 'rgba(0,0,0,0.15)',
     shadowOpacity: 1,
@@ -702,7 +717,6 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
   },
   scaleButtonIconArea: {
-    height: 30,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -864,16 +878,16 @@ const styles = StyleSheet.create({
   },
   entryButtonText: { fontSize: 14, fontWeight: '600', color: '#4F46E5' },
 
-  /* ✅ 축제 참여중 칩(사진처럼) */
+  /* ✅ 축제 참여 중 칩: 가로 123 : 세로 46 비율, 라벨 10 / 시간 13 */
   activeChip: {
     position: 'absolute',
-    top: 12,
-    left: 16,
-    maxWidth: 230,
+    width: 123,
+    height: 46,
     backgroundColor: '#2563EB',
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    borderRadius: 23,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
     elevation: 4,
     shadowColor: '#000',
     shadowOpacity: 0.16,
@@ -884,30 +898,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  activeChipEmojiCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+  activeChipIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E9E0F5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 8,
   },
   activeChipEmoji: {
-    fontSize: 16,
+    fontSize: 14,
   },
   activeChipTextCol: {
     flexDirection: 'column',
+    justifyContent: 'center',
   },
   activeChipLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
-    color: '#EAF2FF',
-    marginBottom: 2,
+    color: '#FFFFFF',
+    marginBottom: 1,
   },
   activeChipTimer: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.3,
   },

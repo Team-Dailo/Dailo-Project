@@ -16,11 +16,12 @@ const BAR_COLORS = [
   '#FB7185', // coral
 ] as const;
 
-// 버튼용 18x18dp: 막대 2.5dp, 간격 1.5dp
+// 버튼용: 막대 가로 길이 조금 더 길게, 막대 2.5dp, 간격 1.5dp
 const BAR_HEIGHT = 2.5;
 const BAR_GAP = 1.5;
 const BAR_RADIUS = 2;
 const ICON_SIZE = 18;
+const BAR_WIDTH = 28; // 가로선 길이
 const TOTAL_HEIGHT = 6 * BAR_HEIGHT + 5 * BAR_GAP;
 const PADDING_V = (ICON_SIZE - TOTAL_HEIGHT) / 2;
 
@@ -72,20 +73,20 @@ export function ScaleIconChip({ color = '#3B82F6' }: { color?: string }) {
 
 const styles = StyleSheet.create({
   container: {
-    width: ICON_SIZE,
+    width: BAR_WIDTH,
     height: ICON_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: PADDING_V,
   },
   stack: {
-    width: ICON_SIZE,
+    width: BAR_WIDTH,
     height: TOTAL_HEIGHT,
     justifyContent: 'flex-start',
     alignItems: 'center',
   },
   bar: {
-    width: ICON_SIZE,
+    width: BAR_WIDTH,
     height: BAR_HEIGHT,
     borderRadius: BAR_RADIUS,
   },
