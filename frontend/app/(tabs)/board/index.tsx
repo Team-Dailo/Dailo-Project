@@ -1,8 +1,6 @@
 // app/(tabs)/board/index.tsx
-import React, { useState } from "react";
-import {
-  SafeAreaView,
-} from "react-native-safe-area-context";
+import React, { useState, useMemo } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   View,
   Text,
@@ -10,24 +8,32 @@ import {
   ScrollView,
   Pressable,
   FlatList,
+  Modal,
+  Alert,
+  Share,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 type Post = {
   id: string;
   author: string;
+  title?: string;
   time: string;
   tag?: string;
   content: string;
   likes: number;
   comments: number;
   scraps: number;
+  imageUri?: string;
 };
 
 const MOCK_POSTS: Post[] = [
   {
     id: "1",
     author: "dog_dog",
+    title: "푸드존 후기 공유해요!",
     time: "15분전",
     tag: "후기",
     content:
@@ -35,10 +41,12 @@ const MOCK_POSTS: Post[] = [
     likes: 45,
     comments: 12,
     scraps: 4,
+    imageUri: "https://picsum.photos/seed/dog1/200/200",
   },
   {
     id: "2",
     author: "cat",
+    title: "저녁 공연 진짜 대박",
     time: "1시간전",
     tag: "후기",
     content:
@@ -47,55 +55,120 @@ const MOCK_POSTS: Post[] = [
     comments: 8,
     scraps: 3,
   },
+  {
+    id: "3",
+    author: "user_q",
+    title: "주차 가능한 곳 알려주세요",
+    time: "2시간전",
+    tag: "질문",
+    content: "이번 주말에 축제 갈 예정인데 차로 가려고 해요. 주차 가능한 곳이나 주차장 정보 알려주실 수 있을까요?",
+    likes: 5,
+    comments: 3,
+    scraps: 1,
+  },
+  {
+    id: "4",
+    author: "user_f",
+    title: "날씨 좋은 날 나들이 추천",
+    time: "3시간전",
+    tag: "자유",
+    content: "오늘 날씨가 너무 좋아서 뭐라도 하고 싶네요. 다들 주말에 뭐 하시나요?",
+    likes: 12,
+    comments: 7,
+    scraps: 2,
+  },
 ];
 
 const CATEGORIES = ["전체", "후기", "질문", "자유"] as const;
 type Category = (typeof CATEGORIES)[number];
 
 export default function BoardScreen() {
+  const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<Category>("전체");
   const [sortType, setSortType] = useState<"latest" | "popular">("latest");
+  const [menuPostId, setMenuPostId] = useState<string | null>(null);
+
+  const handleCopyLink = async (postId: string) => {
+    setMenuPostId(null);
+    const link = `https://dailo.app/board/${postId}`;
+    try {
+      await Share.share({ message: link, title: "게시물 링크" });
+    } catch {
+      Alert.alert("링크", link);
+    }
+  };
+
+  const handleReport = (postId: string) => {
+    setMenuPostId(null);
+    Alert.alert("신고", "해당 게시물을 신고하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      { text: "신고", style: "destructive", onPress: () => Alert.alert("완료", "신고 접수되었습니다.") },
+    ]);
+  };
+
+  const handleBlock = (postId: string) => {
+    setMenuPostId(null);
+    Alert.alert("차단", "이 사용자를 차단하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      { text: "차단", style: "destructive" },
+    ]);
+  };
+
+  const sortedPosts = useMemo(() => {
+    const filtered =
+      selectedCategory === "전체"
+        ? MOCK_POSTS
+        : MOCK_POSTS.filter((p) => p.tag === selectedCategory);
+    if (sortType === "popular") {
+      return [...filtered].sort((a, b) => b.likes - a.likes);
+    }
+    return filtered;
+  }, [sortType, selectedCategory]);
 
   const renderPost = ({ item }: { item: Post }) => {
     return (
-      <Pressable style={styles.postCard}>
-        {/* 상단 프로필 / 시간 / 더보기 */}
-        <View style={styles.postHeader}>
-          <View style={styles.postHeaderLeft}>
-            <View style={styles.profileCircle} />
-            <View>
-              <View style={styles.authorRow}>
-                <Text style={styles.author}>{item.author}</Text>
-                {item.tag && (
-                  <View style={styles.tagBadge}>
-                    <Text style={styles.tagText}>{item.tag}</Text>
-                  </View>
-                )}
+      <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.id}`)}>
+        <View style={styles.postRowBody}>
+          <View style={styles.postRowTop}>
+            <Text style={styles.author}>{item.author}</Text>
+            {item.tag && (
+              <View style={styles.tagBadge}>
+                <Text style={styles.tagText}>{item.tag}</Text>
               </View>
-              <Text style={styles.timeText}>{item.time}</Text>
+            )}
+            <Text style={styles.timeText}>{item.time}</Text>
+          </View>
+          {item.title ? (
+            <Text style={styles.postTitle} numberOfLines={1} ellipsizeMode="tail">
+              {item.title}
+            </Text>
+          ) : null}
+          <Text style={styles.postPreview} numberOfLines={2} ellipsizeMode="tail">
+            {item.content}
+          </Text>
+          <View style={styles.postRowFooter}>
+            <View style={styles.footerItem}>
+              <Ionicons name="heart-outline" size={14} color="#9CA3AF" />
+              <Text style={styles.footerText}>{item.likes}</Text>
+            </View>
+            <View style={styles.footerItem}>
+              <Ionicons name="chatbubble-ellipses-outline" size={14} color="#9CA3AF" />
+              <Text style={styles.footerText}>{item.comments}</Text>
             </View>
           </View>
+        </View>
+        {item.imageUri ? (
+          <Image source={{ uri: item.imageUri }} style={styles.postThumbnail} />
+        ) : null}
+        <Pressable
+          style={styles.dotsBtn}
+          onPress={(e) => {
+            e.stopPropagation();
+            setMenuPostId(item.id);
+          }}
+        >
           <Ionicons name="ellipsis-vertical" size={18} color="#9CA3AF" />
-        </View>
-
-        {/* 내용 */}
-        <Text style={styles.postContent}>{item.content}</Text>
-
-        {/* 하단 액션 아이콘 */}
-        <View style={styles.postFooter}>
-          <View style={styles.footerItem}>
-            <Ionicons name="heart-outline" size={18} color="#4B5563" />
-            <Text style={styles.footerText}>{item.likes}</Text>
-          </View>
-          <View style={styles.footerItem}>
-            <Ionicons name="chatbubble-ellipses-outline" size={18} color="#4B5563" />
-            <Text style={styles.footerText}>{item.comments}</Text>
-          </View>
-          <View style={styles.footerItem}>
-            <Ionicons name="bookmark-outline" size={18} color="#4B5563" />
-            <Text style={styles.footerText}>{item.scraps}</Text>
-          </View>
-        </View>
+        </Pressable>
       </Pressable>
     );
   };
@@ -107,7 +180,12 @@ export default function BoardScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>게시판</Text>
           <View style={styles.headerRight}>
-            <Ionicons name="notifications-outline" size={22} color="#111827" />
+            <Pressable onPress={() => router.push("/board/chat")} style={styles.headerIconBtn}>
+              <Ionicons name="chatbubble-outline" size={22} color="#111827" />
+            </Pressable>
+            <Pressable style={styles.headerIconBtn}>
+              <Ionicons name="notifications-outline" size={22} color="#111827" />
+            </Pressable>
           </View>
         </View>
 
@@ -117,15 +195,15 @@ export default function BoardScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* 공지 카드 */}
-          <View style={styles.noticeCard}>
+          <Pressable style={styles.noticeCard} onPress={() => router.push("/board/notice")}>
             <View style={styles.noticeRow}>
               <Text style={styles.noticeTitle}>공지사항</Text>
               <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
             </View>
-            <Text style={styles.noticeText}>
+            <Text style={styles.noticeText} numberOfLines={2} ellipsizeMode="tail">
               [공지사항] 이번 주 서버 점검 안내드립니다...
             </Text>
-          </View>
+          </Pressable>
 
           {/* 카테고리 탭 */}
           <View style={styles.categoryRow}>
@@ -177,21 +255,39 @@ export default function BoardScreen() {
             </Pressable>
           </View>
 
-          {/* 게시글 리스트 */}
-          <FlatList
-            data={MOCK_POSTS}
-            keyExtractor={(item) => item.id}
-            renderItem={renderPost}
-            scrollEnabled={false} // ScrollView 안이라 false
-            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          />
+          {/* 게시글 리스트 - 좌우 여백 없이 전체 너비 */}
+          <View style={styles.listWrap}>
+            <FlatList
+              data={sortedPosts}
+              keyExtractor={(item) => item.id}
+              renderItem={renderPost}
+              scrollEnabled={false}
+            />
+          </View>
         </ScrollView>
 
-        {/* 글쓰기 플로팅 버튼 */}
-        <Pressable style={styles.fab}>
+        {/* 글쓰기 플로팅 버튼 (파란 동그라미) */}
+        <Pressable style={styles.fab} onPress={() => router.push("/board/write")}>
           <Ionicons name="add" size={28} color="#FFFFFF" />
         </Pressable>
       </View>
+
+      {/* 게시글 ⋯ 메뉴: 신고, 차단, 링크 복사 */}
+      <Modal visible={!!menuPostId} transparent animationType="fade">
+        <Pressable style={styles.menuOverlay} onPress={() => setMenuPostId(null)}>
+          <View style={styles.menuCard}>
+            <Pressable style={styles.menuItem} onPress={() => menuPostId && handleReport(menuPostId)}>
+              <Text style={styles.menuText}>신고</Text>
+            </Pressable>
+            <Pressable style={styles.menuItem} onPress={() => menuPostId && handleBlock(menuPostId)}>
+              <Text style={styles.menuText}>차단</Text>
+            </Pressable>
+            <Pressable style={styles.menuItem} onPress={() => menuPostId && handleCopyLink(menuPostId)}>
+              <Text style={styles.menuText}>링크 복사</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -209,13 +305,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingBottom: 24,
+  },
+  listWrap: {
+    marginHorizontal: -24,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingTop: 4,
     paddingBottom: 8,
     justifyContent: "space-between",
@@ -228,7 +327,10 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 8,
+  },
+  headerIconBtn: {
+    padding: 6,
   },
   noticeCard: {
     backgroundColor: "#FFFFFF",
@@ -296,43 +398,33 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "600",
   },
-  postCard: {
+  postRow: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    shadowColor: "#000000",
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
   },
-  postHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  postHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  profileCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  postRowBody: { flex: 1, minWidth: 0, marginRight: 8 },
+  postThumbnail: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
     backgroundColor: "#F3F4F6",
+    marginRight: 8,
   },
-  authorRow: {
+  postRowTop: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    marginBottom: 4,
   },
   author: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
+    fontWeight: "400",
+    color: "#6B7280",
   },
   tagBadge: {
     paddingHorizontal: 6,
@@ -348,18 +440,23 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 11,
     color: "#9CA3AF",
-    marginTop: 2,
+    marginLeft: 6,
   },
-  postContent: {
+  postTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  postPreview: {
     fontSize: 13,
-    color: "#374151",
-    lineHeight: 18,
-    marginBottom: 10,
+    color: "#6B7280",
+    marginBottom: 6,
   },
-  postFooter: {
+  postRowFooter: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 12,
   },
   footerItem: {
     flexDirection: "row",
@@ -368,8 +465,27 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
-    color: "#4B5563",
+    color: "#9CA3AF",
   },
+  dotsBtn: { padding: 8, margin: -8 },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    minWidth: 200,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  menuItem: { paddingVertical: 14, paddingHorizontal: 20 },
+  menuText: { fontSize: 15, color: "#111827" },
   fab: {
     position: "absolute",
     right: 20,
