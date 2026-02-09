@@ -85,6 +85,41 @@ export function usePostDetail(id: string | undefined) {
   return { post, loading, error, refetch: fetchDetail };
 }
 
+/** 내가 쓴 글 목록 (게시판 기록) - userId가 있을 때만 조회 */
+export function useMyPostList(userId: number | null | undefined) {
+  const [posts, setPosts] = useState<PostListItem[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
+  const [loading, setLoading] = useState(!!userId);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchList = useCallback(async () => {
+    if (userId == null || userId <= 0) {
+      setPosts([]);
+      setTotalElements(0);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await boardService.getMyPosts(userId, { page: 0, size: 50 });
+      setPosts(data.content ?? []);
+      setTotalElements(data.totalElements ?? 0);
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    fetchList();
+  }, [fetchList]);
+
+  return { posts, totalElements, loading, error, refetch: fetchList };
+}
+
 /** 댓글 목록 */
 export function useComments(postId: string | undefined) {
   const [comments, setComments] = useState<CommentItem[]>([]);

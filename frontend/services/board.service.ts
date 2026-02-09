@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../constants/api';
+import * as authService from './auth.service';
 import type {
   PostListItem,
   PostDetail,
@@ -8,16 +9,19 @@ import type {
   PageResponse,
 } from '../types/board';
 
-const getUserId = (): number => {
+const getDefaultUserId = (): number => {
   const id = process.env.EXPO_PUBLIC_USER_ID;
   if (id != null && id !== '') return Number(id);
   return 1;
 };
 
-const getHeaders = (): HeadersInit => {
-  const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  headers['X-User-Id'] = String(getUserId());
-  return headers;
+/** 로그인한 사용자 id 우선, 없으면 저장된 id, 없으면 기본값 */
+const getHeaders = async (overrideUserId?: number): Promise<HeadersInit> => {
+  const id = overrideUserId ?? (await authService.getStoredUserId()) ?? getDefaultUserId();
+  return {
+    'Content-Type': 'application/json',
+    'X-User-Id': String(id),
+  };
 };
 
 /** 게시글 목록 (전체, 정렬: 최신/인기) */
@@ -32,7 +36,7 @@ export async function getPostList(params?: {
   const sort = params?.sort ?? 'createdAt';
   const direction = params?.direction ?? 'DESC';
   const url = `${API_BASE_URL}/api/posts?page=${page}&size=${size}&sort=${sort}&direction=${direction}`;
-  const res = await fetch(url, { headers: getHeaders() });
+  const res = await fetch(url, { headers: await getHeaders() });
   if (!res.ok) throw new Error(`getPostList failed: ${res.status}`);
   return res.json();
 }
@@ -45,7 +49,7 @@ export async function getPostListByCategory(
   const page = params?.page ?? 0;
   const size = params?.size ?? 20;
   const url = `${API_BASE_URL}/api/posts/category/${encodeURIComponent(categoryType)}?page=${page}&size=${size}`;
-  const res = await fetch(url, { headers: getHeaders() });
+  const res = await fetch(url, { headers: await getHeaders() });
   if (!res.ok) throw new Error(`getPostListByCategory failed: ${res.status}`);
   return res.json();
 }
@@ -58,15 +62,28 @@ export async function searchPosts(
   const page = params?.page ?? 0;
   const size = params?.size ?? 20;
   const url = `${API_BASE_URL}/api/posts/search?keyword=${encodeURIComponent(keyword)}&page=${page}&size=${size}`;
-  const res = await fetch(url, { headers: getHeaders() });
+  const res = await fetch(url, { headers: await getHeaders() });
   if (!res.ok) throw new Error(`searchPosts failed: ${res.status}`);
+  return res.json();
+}
+
+/** 내가 쓴 글 목록 (마이페이지 게시판 기록) - userId 필수 */
+export async function getMyPosts(
+  userId: number,
+  params?: { page?: number; size?: number }
+): Promise<PageResponse<PostListItem>> {
+  const page = params?.page ?? 0;
+  const size = params?.size ?? 20;
+  const url = `${API_BASE_URL}/api/posts/my?page=${page}&size=${size}`;
+  const res = await fetch(url, { headers: await getHeaders(userId) });
+  if (!res.ok) throw new Error(`getMyPosts failed: ${res.status}`);
   return res.json();
 }
 
 /** 게시글 상세 */
 export async function getPostById(id: number | string): Promise<PostDetail> {
   const url = `${API_BASE_URL}/api/posts/${id}`;
-  const res = await fetch(url, { headers: getHeaders() });
+  const res = await fetch(url, { headers: await getHeaders() });
   if (!res.ok) throw new Error(`getPostById failed: ${res.status}`);
   return res.json();
 }
@@ -76,7 +93,7 @@ export async function createPost(body: PostRequest): Promise<PostDetail> {
   const url = `${API_BASE_URL}/api/posts`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: getHeaders(),
+    headers: await getHeaders(),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`createPost failed: ${res.status}`);
@@ -91,7 +108,7 @@ export async function updatePost(
   const url = `${API_BASE_URL}/api/posts/${id}`;
   const res = await fetch(url, {
     method: 'PUT',
-    headers: getHeaders(),
+    headers: await getHeaders(),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`updatePost failed: ${res.status}`);
@@ -101,7 +118,7 @@ export async function updatePost(
 /** 게시글 삭제 */
 export async function deletePost(id: number | string): Promise<void> {
   const url = `${API_BASE_URL}/api/posts/${id}`;
-  const res = await fetch(url, { method: 'DELETE', headers: getHeaders() });
+  const res = await fetch(url, { method: 'DELETE', headers: await getHeaders() });
   if (!res.ok) throw new Error(`deletePost failed: ${res.status}`);
 }
 
@@ -113,7 +130,7 @@ export async function getComments(
   const page = params?.page ?? 0;
   const size = params?.size ?? 50;
   const url = `${API_BASE_URL}/api/posts/${postId}/comments?page=${page}&size=${size}`;
-  const res = await fetch(url, { headers: getHeaders() });
+  const res = await fetch(url, { headers: await getHeaders() });
   if (!res.ok) throw new Error(`getComments failed: ${res.status}`);
   return res.json();
 }
@@ -126,7 +143,7 @@ export async function createComment(
   const url = `${API_BASE_URL}/api/posts/${postId}/comments`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: getHeaders(),
+    headers: await getHeaders(),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`createComment failed: ${res.status}`);
@@ -141,7 +158,7 @@ export async function updateComment(
   const url = `${API_BASE_URL}/api/comments/${commentId}`;
   const res = await fetch(url, {
     method: 'PUT',
-    headers: getHeaders(),
+    headers: await getHeaders(),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`updateComment failed: ${res.status}`);
@@ -151,6 +168,6 @@ export async function updateComment(
 /** 댓글 삭제 */
 export async function deleteComment(commentId: number | string): Promise<void> {
   const url = `${API_BASE_URL}/api/comments/${commentId}`;
-  const res = await fetch(url, { method: 'DELETE', headers: getHeaders() });
+  const res = await fetch(url, { method: 'DELETE', headers: await getHeaders() });
   if (!res.ok) throw new Error(`deleteComment failed: ${res.status}`);
 }

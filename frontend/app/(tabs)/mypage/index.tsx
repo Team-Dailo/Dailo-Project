@@ -8,13 +8,20 @@ import {
   Image,
   Pressable,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../hooks/useAuth";
 
 export default function MyPageScreen() {
-  const { user, isLoggedIn, logout } = useAuth();
+  const { user, isLoggedIn, logout, refreshUser } = useAuth();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshUser();
+    }, [refreshUser])
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -42,7 +49,7 @@ export default function MyPageScreen() {
             />
             <View style={styles.profileText}>
               <Text style={styles.nickname}>
-                {isLoggedIn && user ? `${user.name} 님` : "게스트"}
+                {isLoggedIn && user ? `${user.name}님` : "게스트"}
               </Text>
               <Text style={styles.userId}>
                 {isLoggedIn
@@ -52,21 +59,22 @@ export default function MyPageScreen() {
             </View>
           </View>
 
-          {isLoggedIn ? (
-            <Pressable
-              style={styles.profileButton}
-              onPress={() => {}}
+          <Pressable
+            style={isLoggedIn ? styles.profileButton : styles.loginButton}
+            onPress={() =>
+              isLoggedIn ? router.push("/profile") : router.push("/login")
+            }
+          >
+            <Text
+              style={
+                isLoggedIn
+                  ? styles.profileButtonText
+                  : styles.loginButtonText
+              }
             >
-              <Text style={styles.profileButtonText}>프로필 보기</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={styles.loginButton}
-              onPress={() => router.push("/login")}
-            >
-              <Text style={styles.loginButtonText}>로그인</Text>
-            </Pressable>
-          )}
+              {isLoggedIn ? "프로필 보기" : "로그인"}
+            </Text>
+          </Pressable>
         </View>
 
         {/* 참여 중인 축제 카드: 로그인 시에만 표시 */}
