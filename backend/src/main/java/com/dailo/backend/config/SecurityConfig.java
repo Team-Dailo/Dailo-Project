@@ -39,11 +39,18 @@ public class SecurityConfig {
                         //  Swagger 문서는 누구나 접근 가능
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**").permitAll()
 
+                        // 백엔드 동작 확인용 (브라우저에서 http://localhost:8080/ 또는 /hello)
+                        .requestMatchers("/", "/hello").permitAll()
+
                         // 로그인, 회원가입
                         .requestMatchers("/api/auth/**").permitAll()
 
                         // 행사 조회
                         .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
+
+                        // 게시판·댓글 (비로그인 허용, X-User-Id로 작성자 구분)
+                        .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/posts", "/api/posts/*/comments").permitAll()
 
                         // 관리자 페이지 등 (필요하면 유지)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
