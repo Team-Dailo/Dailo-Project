@@ -1,4 +1,4 @@
-// app/login/index.tsx
+// app/signup/index.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -8,35 +8,42 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../hooks/useAuth';
 import * as authService from '../../services/auth.service';
 
-export default function LoginScreen() {
-  const { login } = useAuth();
+export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [nickname, setNickname] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    const trimmed = email.trim();
-    if (!trimmed || !password) {
-      Alert.alert('입력 오류', '이메일과 비밀번호를 입력해 주세요.');
+  const handleSignup = async () => {
+    const trimmedEmail = email.trim();
+    const trimmedNickname = nickname.trim();
+    if (!trimmedEmail || !password || !trimmedNickname) {
+      Alert.alert('입력 오류', '이메일, 비밀번호, 닉네임을 모두 입력해 주세요.');
       return;
     }
     setLoading(true);
     try {
-      const user = await authService.login(trimmed, password);
-      login(user);
-      router.back();
+      await authService.signupApi({
+        email: trimmedEmail,
+        password,
+        nickname: trimmedNickname,
+      });
+      await authService.saveNicknameForEmail(trimmedEmail, trimmedNickname);
+      Alert.alert('회원가입 완료', '로그인 화면에서 로그인해 주세요.', [
+        { text: '확인', onPress: () => router.replace('/login') },
+      ]);
     } catch (e) {
-      const message = e instanceof Error ? e.message : '로그인에 실패했습니다.';
-      Alert.alert('로그인 실패', message);
+      const message = e instanceof Error ? e.message : '회원가입에 실패했습니다.';
+      Alert.alert('회원가입 실패', message);
     } finally {
       setLoading(false);
     }
@@ -52,11 +59,15 @@ export default function LoginScreen() {
           <Pressable hitSlop={12} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color="#111827" />
           </Pressable>
-          <Text style={styles.headerTitle}>로그인</Text>
+          <Text style={styles.headerTitle}>회원가입</Text>
           <View style={styles.headerRight} />
         </View>
 
-        <View style={styles.body}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.body}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.inputWrap}>
             <Text style={styles.inputLabel}>이메일</Text>
             <TextInput
@@ -82,32 +93,43 @@ export default function LoginScreen() {
               autoCapitalize="none"
             />
           </View>
+          <View style={styles.inputWrap}>
+            <Text style={styles.inputLabel}>닉네임</Text>
+            <TextInput
+              style={styles.input}
+              value={nickname}
+              onChangeText={setNickname}
+              placeholder="닉네임을 입력하세요"
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="none"
+            />
+          </View>
 
           <Pressable
             style={({ pressed }) => [
-              styles.loginButton,
-              pressed && styles.loginButtonPressed,
+              styles.submitButton,
+              pressed && styles.submitButtonPressed,
             ]}
-            onPress={handleLogin}
+            onPress={handleSignup}
             disabled={loading}
           >
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
-                <Text style={styles.loginButtonText}>로그인</Text>
-                <Ionicons name="log-in-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.submitButtonText}>회원가입</Text>
+                <Ionicons name="person-add-outline" size={20} color="#FFFFFF" />
               </>
             )}
           </Pressable>
 
           <Pressable
-            style={styles.signupLink}
-            onPress={() => router.push('/signup')}
+            style={styles.loginLink}
+            onPress={() => router.replace('/login')}
           >
-            <Text style={styles.signupLinkText}>계정이 없으신가요? 회원가입</Text>
+            <Text style={styles.loginLinkText}>이미 계정이 있으신가요? 로그인</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -138,15 +160,13 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 24,
   },
-  body: {
+  scroll: {
     flex: 1,
+  },
+  body: {
     paddingHorizontal: 20,
     paddingTop: 32,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 24,
+    paddingBottom: 40,
   },
   inputWrap: {
     marginBottom: 20,
@@ -167,7 +187,7 @@ const styles = StyleSheet.create({
     color: '#111827',
     backgroundColor: '#F9FAFB',
   },
-  loginButton: {
+  submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -177,19 +197,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
     marginTop: 8,
   },
-  loginButtonPressed: {
+  submitButtonPressed: {
     opacity: 0.9,
   },
-  loginButtonText: {
+  submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  signupLink: {
+  loginLink: {
     marginTop: 24,
     alignItems: 'center',
   },
-  signupLinkText: {
+  loginLinkText: {
     fontSize: 14,
     color: '#2563EB',
     fontWeight: '500',

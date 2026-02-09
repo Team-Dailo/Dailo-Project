@@ -24,7 +24,8 @@ const mapCategory = (cat?: string | null): Event['category'] => {
     CONSTRUCTION: 'EXPERIENCE',
     ETC: 'EXHIBITION',
   };
-  return (cat && map[cat]) ?? 'EXHIBITION';
+  if (!cat || !(cat in map)) return 'EXHIBITION';
+  return map[cat];
 };
 
 /** 백엔드 응답 → 프론트 Event (지도/리스트 공통) */

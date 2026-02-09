@@ -11,9 +11,11 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-
+import { useAuth } from "../../../hooks/useAuth";
 
 export default function MyPageScreen() {
+  const { user, isLoggedIn, logout } = useAuth();
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -21,7 +23,6 @@ export default function MyPageScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>마이페이지</Text>
 
-          {/* 설정 아이콘 → 설정 페이지로 이동 */}
           <Pressable
             hitSlop={8}
             onPress={() => router.push("/(tabs)/mypage/settings")}
@@ -30,10 +31,9 @@ export default function MyPageScreen() {
           </Pressable>
         </View>
 
-        {/* 프로필 카드 */}
+        {/* 프로필 카드: 로그인 / 비로그인 분기 */}
         <View style={styles.profileCard}>
           <View style={styles.profileLeft}>
-            {/* 프로필 이미지 (임시) */}
             <Image
               source={{
                 uri: "https://via.placeholder.com/64x64.png?text=🐶",
@@ -41,55 +41,74 @@ export default function MyPageScreen() {
               style={styles.avatar}
             />
             <View style={styles.profileText}>
-              <Text style={styles.nickname}>축제참여자</Text>
-              <Text style={styles.userId}>@abcd_id</Text>
+              <Text style={styles.nickname}>
+                {isLoggedIn && user ? `${user.name} 님` : "게스트"}
+              </Text>
+              <Text style={styles.userId}>
+                {isLoggedIn
+                  ? "즐거운 축제 되세요!"
+                  : "로그인을 해주세요"}
+              </Text>
             </View>
           </View>
 
-          {/* 프로필 보기 – 나중에 프로필 상세 페이지 생기면 연결 */}
-          <Pressable
-            style={styles.profileButton}
-            onPress={() => {
-              // 아직 페이지 없으면 TODO로 남겨두기
-              // router.push("/profile");
-            }}
-          >
-            <Text style={styles.profileButtonText}>프로필 보기</Text>
-          </Pressable>
+          {isLoggedIn ? (
+            <Pressable
+              style={styles.profileButton}
+              onPress={() => {}}
+            >
+              <Text style={styles.profileButtonText}>프로필 보기</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={styles.loginButton}
+              onPress={() => router.push("/login")}
+            >
+              <Text style={styles.loginButtonText}>로그인</Text>
+            </Pressable>
+          )}
         </View>
 
-        {/* 참여 중인 축제 카드 (더미 데이터) */}
-        <View style={styles.activeFestivalCard}>
-          <View style={styles.badgeRow}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>참여 중인 축제</Text>
+        {/* 참여 중인 축제 카드: 로그인 시에만 표시 */}
+        {isLoggedIn && (
+          <View style={styles.activeFestivalCard}>
+            <View style={styles.badgeRow}>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>참여 중인 축제</Text>
+              </View>
+              <Text style={styles.timerText}>00:16:13</Text>
             </View>
-            <Text style={styles.timerText}>00:16:13</Text>
+            <Text style={styles.activeFestivalTitle}>한국교통대 대동제</Text>
           </View>
-          <Text style={styles.activeFestivalTitle}>한국교통대 대동제</Text>
-        </View>
+        )}
 
-        {/* 섹션: 활동 기록 */}
+        {/* 섹션: 활동 기록 (비로그인 시 로그인 화면으로) */}
         <Section title="활동 기록">
           <MenuItem
             icon="calendar-outline"
             label="참여한 축제"
             onPress={() =>
-              router.push("/(tabs)/mypage/participated-festivals")
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/participated-festivals")
+                : router.push("/login")
             }
           />
           <MenuItem
             icon="flag-outline"
             label="체류 미션 기록"
             onPress={() =>
-              router.push("/(tabs)/mypage/stay-mission-history")
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/stay-mission-history")
+                : router.push("/login")
             }
           />
           <MenuItem
             icon="chatbubble-ellipses-outline"
             label="게시판 기록"
             onPress={() =>
-              router.push("/(tabs)/mypage/board-history")
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/board-history")
+                : router.push("/login")
             }
           />
         </Section>
@@ -100,14 +119,18 @@ export default function MyPageScreen() {
             icon="ticket-outline"
             label="체류 이벤트 쿠폰 리스트"
             onPress={() =>
-              router.push("/(tabs)/mypage/stay-coupon-list")
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/stay-coupon-list")
+                : router.push("/login")
             }
           />
           <MenuItem
             icon="gift-outline"
             label="추첨권 리스트"
             onPress={() =>
-              router.push("/(tabs)/mypage/lottery-ticket-list")
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/lottery-ticket-list")
+                : router.push("/login")
             }
           />
         </Section>
@@ -117,14 +140,29 @@ export default function MyPageScreen() {
           <MenuItem
             icon="star-outline"
             label="저장한 축제"
-            onPress={() => router.push("/(tabs)/mypage/saved-festivals")}
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/saved-festivals")
+                : router.push("/login")
+            }
           />
           <MenuItem
             icon="storefront-outline"
             label="부스 즐겨찾기"
-            onPress={() => router.push("/(tabs)/mypage/saved-booths")}
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/saved-booths")
+                : router.push("/login")
+            }
           />
         </Section>
+
+        {/* 로그인 시 로그아웃 버튼 */}
+        {isLoggedIn && (
+          <Pressable style={styles.logoutButton} onPress={logout}>
+            <Text style={styles.logoutButtonText}>로그아웃</Text>
+          </Pressable>
+        )}
 
         {/* 아래 공간 여유 */}
         <View style={{ height: 32 }} />
@@ -238,6 +276,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#111827",
     fontWeight: "500",
+  },
+  loginButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#2563EB",
+  },
+  loginButtonText: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  logoutButton: {
+    marginTop: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 12,
+    backgroundColor: "#2563EB",
+  },
+  logoutButtonText: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 
   activeFestivalCard: {
