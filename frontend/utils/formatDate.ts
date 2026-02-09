@@ -20,6 +20,23 @@ export function formatDateTime(iso: string) {
   return `${yyyy}.${mm}.${dd} ${hh}:${min}`; // 2026.01.25 19:00
 }
 
+/** 상대 시간 (예: 15분 전, 1시간 전, 어제) */
+export function formatRelativeTime(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffMin < 1) return "방금 전";
+  if (diffMin < 60) return `${diffMin}분 전`;
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  if (diffDay === 1) return "어제";
+  if (diffDay < 7) return `${diffDay}일 전`;
+  return formatDate(iso);
+}
+
 export function formatDateTimeRange(startIso: string, endIso: string) {
   const start = new Date(startIso);
   const end = new Date(endIso);

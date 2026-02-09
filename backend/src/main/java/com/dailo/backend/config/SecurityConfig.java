@@ -52,8 +52,7 @@ public class SecurityConfig {
             )
 
             .authorizeHttpRequests(auth -> auth
-                // ✅ Swagger / OpenAPI 문서 경로 전부 허용 (403 해결)
-                // (순서 중요: 맨 위에 두는 게 안전합니다)
+                // Swagger / OpenAPI 문서 경로 전부 허용
                 .requestMatchers(
                     "/v3/api-docs",
                     "/v3/api-docs/**",
@@ -63,20 +62,26 @@ public class SecurityConfig {
                     "/webjars/**"
                 ).permitAll()
 
-                // ✅ 로그인, 회원가입
+                // 백엔드 동작 확인용 (브라우저에서 http://localhost:8080/ 또는 /hello)
+                .requestMatchers("/", "/hello").permitAll()
+
+                // 로그인, 회원가입
                 .requestMatchers("/api/auth/**").permitAll()
 
-                // ✅ 행사 조회(GET)
+                // 행사 조회(GET)
                 .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
 
-                // ✅ 관리자
+                // 게시판·댓글 (비로그인 허용, X-User-Id로 작성자 구분)
+                .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/posts", "/api/posts/*/comments").permitAll()
+
+                // 관리자 페이지 등
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
-                // ✅ 그 외는 인증 필요
+                // 그 외는 인증 필요
                 .anyRequest().authenticated()
             )
 
-            // ✅ JWT 필터 적용
             .addFilterBefore(new JwtFilter(tokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
