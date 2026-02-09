@@ -8,13 +8,18 @@ import {
   Image,
   Pressable,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
+import { useHomePopularPosts } from "../../../hooks/useBoard";
 
 export default function HomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const { posts: popularPosts, loading: popularLoading } = useHomePopularPosts();
 
   return (
     <SafeAreaView
@@ -85,35 +90,44 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>인기 게시물</Text>
-            <Pressable onPress={() => { /* TODO: 게시판 목록으로 이동 */ }}>
+            <Pressable
+              onPress={() => {
+                (navigation as { navigate: (name: string, params?: object) => void }).navigate(
+                  "board/index",
+                  { sort: "popular" }
+                );
+              }}
+            >
               <Text style={styles.sectionMore}>더 보기 &gt;</Text>
             </Pressable>
           </View>
 
           <View style={styles.postCard}>
-            {[
-              { type: "자유", text: "아니 근데 루시드 드림" },
-              { type: "질문", text: "총학생회 홈커밍 행사 언제쯤 열려요?" },
-              {
-                type: "친구",
-                text: "혹시 소리담 공연 같이 보러 가실 분 있으신가요?",
-              },
-            ].map((item, index) => (
-              <View
-                key={index}
-                style={[styles.postRow, index !== 0 && styles.postRowDivider]}
-              >
-                <View style={styles.postLeft}>
-                  <Text style={styles.postType}>{item.type} </Text>
-                  <Text style={styles.postText} numberOfLines={1}>
-                    {item.text}
-                  </Text>
-                </View>
-                <View style={styles.postBadgeNew}>
-                  <Text style={styles.postBadgeNewText}>N</Text>
-                </View>
+            {popularLoading ? (
+              <View style={styles.postCardLoading}>
+                <ActivityIndicator size="small" color="#6366F1" />
               </View>
-            ))}
+            ) : popularPosts.length === 0 ? (
+              <Text style={styles.postCardEmpty}>아직 게시글이 없어요</Text>
+            ) : (
+              popularPosts.map((post, index) => (
+                <Pressable
+                  key={post.id}
+                  style={[styles.postRow, index !== 0 && styles.postRowDivider]}
+                  onPress={() => router.push(`/board/${post.id}`)}
+                >
+                  <View style={styles.postLeft}>
+                    <Text style={styles.postType}>{post.categoryType ?? "자유"} </Text>
+                    <Text style={styles.postText} numberOfLines={1}>
+                      {post.title?.trim() || post.contentPreview?.trim() || ""}
+                    </Text>
+                  </View>
+                  <View style={styles.postBadgeNew}>
+                    <Text style={styles.postBadgeNewText}>N</Text>
+                  </View>
+                </Pressable>
+              ))
+            )}
           </View>
         </View>
 
@@ -156,7 +170,7 @@ export default function HomeScreen() {
 
                 <Pressable
                   style={styles.detailButton}
-                  onPress={() => router.push(`/event/${event.id}`)}
+                  onPress={() => router.push(`/event/${event.id}?source=list`)}
                 >
                   <Text style={styles.detailButtonText}>자세히 보기</Text>
                 </Pressable>
@@ -321,6 +335,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  postCardLoading: {
+    paddingVertical: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  postCardEmpty: {
+    paddingVertical: 24,
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
   postRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -340,6 +365,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#111827",
+    marginRight: 10,
   },
   postText: {
     fontSize: 13,

@@ -14,9 +14,9 @@ import {
   Image,
   ActivityIndicator,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useRoute, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { usePostList } from "../../../hooks/useBoard";
 import { formatRelativeTime } from "../../../utils/formatDate";
@@ -64,18 +64,30 @@ function toPost(item: { id: number; authorId: number; authorNickname?: string; t
 
 export default function BoardScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const searchParams = useLocalSearchParams<{ sort?: string }>();
+  const route = useRoute();
+  const routeParams = route.params as { sort?: string } | undefined;
+  const sortParam = searchParams.sort ?? routeParams?.sort;
+
   const [selectedCategory, setSelectedCategory] = useState<Category>("전체");
-  const [sortType, setSortType] = useState<"latest" | "popular">("latest");
+  const [sortType, setSortType] = useState<"latest" | "popular">(
+    () => (sortParam === "popular" ? "popular" : "latest")
+  );
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
 
   const { posts: apiPosts, loading, error, refetch } = usePostList(selectedCategory, sortType);
   const sortedPosts = useMemo(() => apiPosts.map(toPost), [apiPosts]);
 
-  // 게시글 작성/상세에서 돌아올 때 목록 새로고침
+  // 홈 인기 게시물 "더보기"로 진입 시에만 인기순 적용, 적용 후 파라미터 제거해 최신글 선택이 유지되도록
   useFocusEffect(
     React.useCallback(() => {
+      if (sortParam === "popular") {
+        setSortType("popular");
+        (navigation as { setParams: (p: object) => void }).setParams({ sort: undefined });
+      }
       refetch();
-    }, [refetch])
+    }, [refetch, sortParam, navigation])
   );
 
   const handleCopyLink = async (postId: string) => {

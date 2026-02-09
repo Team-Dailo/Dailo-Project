@@ -118,7 +118,7 @@ export default function SavedFestivalsScreen() {
               <View key={item.id} style={styles.card}>
                 <Pressable
                   style={styles.cardMain}
-                  onPress={() => router.push(`/event/${item.id}`)}
+                  onPress={() => router.push(`/event/${item.id}?source=list`)}
                 >
                   <Text style={styles.cardTitle}>{item.title}</Text>
                   <Text style={styles.cardSub}>

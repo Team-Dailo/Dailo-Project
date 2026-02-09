@@ -21,6 +21,9 @@ import { useAuthContext } from "../../contexts/AuthContext";
 import { usePostDetail, useComments } from "../../hooks/useBoard";
 import { formatRelativeTime } from "../../utils/formatDate";
 import * as boardService from "../../services/board.service";
+import * as reportService from "../../services/report.service";
+import * as blockService from "../../services/block.service";
+import * as chatService from "../../services/chat.service";
 
 type CommentDisplay = {
   id: string;
@@ -89,23 +92,68 @@ export default function PostDetailScreen() {
 
   const handleReport = () => {
     setMenuVisible(false);
-    Alert.alert("신고", "해당 게시물을 신고하시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      { text: "신고", style: "destructive", onPress: () => Alert.alert("완료", "신고 접수되었습니다.") },
-    ]);
+    const reasons: { title: string; reason: reportService.ReportReason }[] = [
+      { title: "스팸", reason: "SPAM" },
+      { title: "욕설/혐오", reason: "ABUSE" },
+      { title: "부적절한 내용", reason: "INAPPROPRIATE" },
+      { title: "기타", reason: "OTHER" },
+    ];
+    Alert.alert(
+      "신고",
+      "신고 사유를 선택해 주세요.",
+      [
+        { text: "취소", style: "cancel" },
+        ...reasons.map((r) => ({
+          text: r.title,
+          onPress: async () => {
+            try {
+              await reportService.createReport({
+                targetType: "POST",
+                targetId: Number(id),
+                reason: r.reason,
+              });
+              Alert.alert("완료", "신고가 접수되었습니다.");
+            } catch {
+              Alert.alert("오류", "신고 접수에 실패했습니다.");
+            }
+          },
+        })),
+      ]
+    );
   };
 
   const handleBlock = () => {
     setMenuVisible(false);
+    if (!post?.authorId) return;
     Alert.alert("차단", "이 사용자를 차단하시겠습니까?", [
       { text: "취소", style: "cancel" },
-      { text: "차단", style: "destructive", onPress: () => router.back() },
+      {
+        text: "차단",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await blockService.blockUser(post!.authorId);
+            Alert.alert("차단됨", "사용자를 차단했습니다.");
+            router.back();
+          } catch {
+            Alert.alert("오류", "차단에 실패했습니다.");
+          }
+        },
+      },
     ]);
   };
 
   const handleSendChat = () => {
     setMenuVisible(false);
-    router.push("/board/chat");
+    if (!post?.authorId) return;
+    (async () => {
+      try {
+        const room = await chatService.createRoom(post!.authorId);
+        router.push(`/board/chat/${room.id}`);
+      } catch {
+        Alert.alert("오류", "채팅방을 열 수 없습니다.");
+      }
+    })();
   };
 
   const handleSubmitComment = async () => {
@@ -299,7 +347,7 @@ export default function PostDetailScreen() {
         )}
       </KeyboardAvoidingView>
 
-      {/* 더보기 메뉴 모달: 채팅 보내기 - 링크 복사 - 신고 */}
+      {/* 더보기 메뉴: 채팅 보내기 - 링크 복사 - 신고 - 차단하기 */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
           <Pressable style={styles.menuCard} onPress={() => {}}>
@@ -311,6 +359,9 @@ export default function PostDetailScreen() {
             </Pressable>
             <Pressable style={styles.menuItem} onPress={handleReport}>
               <Text style={styles.menuText}>신고</Text>
+            </Pressable>
+            <Pressable style={styles.menuItem} onPress={handleBlock}>
+              <Text style={[styles.menuText, styles.menuTextDanger]}>차단하기</Text>
             </Pressable>
           </Pressable>
         </Pressable>

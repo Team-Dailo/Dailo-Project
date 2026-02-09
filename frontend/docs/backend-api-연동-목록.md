@@ -84,16 +84,17 @@
 ### 5) 로그 (검색/클릭) – 검색 탭, 통계 등
 
 - **LogController** (`/api/logs`)
-  - `POST /api/logs/search` – 검색 로그
-  - `GET /api/logs/search/top` – 인기 검색어
-  - `POST /api/logs/click` – 클릭 로그
-  - `GET /api/logs/click/count/{eventId}` – 이벤트별 클릭 수
-  - `GET /api/logs/click/top` – 인기 클릭 이벤트
+  - `POST /api/logs/search` – 검색 로그 → **연동됨** (검색 화면 제출 시 log.service)
+  - `GET /api/logs/search/top` – 인기 검색어 → **연동됨** (검색 화면 인기 검색어)
+  - `POST /api/logs/click` – 클릭 로그 → **연동됨** (이벤트 상세 진입 시 useEventDetail)
+  - `GET /api/logs/click/count/{eventId}` – 이벤트별 클릭 수 (log.service 제공, 필요 시 UI 연동)
+  - `GET /api/logs/click/top` – 인기 클릭 이벤트 (log.service 제공, 필요 시 UI 연동)
 
-### 6) 기타 (필요 시)
+### 6) 기타
 
-- **BlockController** (`/api/blocks`) – 차단 목록/추가/해제/확인 (채팅·게시판 등에서 사용)
-- **ReportController** (`/api/reports`) – 신고 생성, 내 신고 목록
+- **BlockController** (`/api/blocks`) – **연동됨** block.service, 게시물 더보기·채팅방 더보기에서 차단
+- **ReportController** (`/api/reports`) – **연동됨** report.service, 게시물 더보기에서 신고
+- **ChatRoomController, ChatMessageController** – **연동됨** chat.service, 채팅 목록/방/메시지 히스토리 (전송은 STOMP 별도 연동)
 
 ---
 
@@ -101,11 +102,11 @@
 
 | 구분 | 연결 대상 | 프론트 상태 |
 |------|-----------|-------------|
-| **게시판** | PostController, CommentController (필요 시 Report, Block) | board.service / useBoard 비어 있음, 전부 목업 |
-| **인증** | AuthController | auth.service 비어 있음 |
-| **이벤트** | EventController (리스트/지도/캘린더/상세) | event.service 일부만 사용, 나머지 목업 |
-| **채팅** | ChatRoomController, ChatMessageController, STOMP 채팅 | 전부 목업 |
-| **스크랩** | ScrapController | 미연동 |
-| **로그** | LogController | 미연동 |
+| **게시판** | PostController, CommentController, Report, Block | board.service 연동 완료 |
+| **인증** | AuthController | auth.service 연동 완료 |
+| **이벤트** | EventController (리스트/지도/캘린더/상세) | event.service 연동 완료 |
+| **채팅** | ChatRoomController, ChatMessageController (REST) | chat.service 연동 완료 (메시지 전송은 STOMP 별도) |
+| **스크랩** | ScrapController | scrap.service 연동 완료 |
+| **로그** | LogController | log.service 연동 완료 (검색 로그, 인기 검색어, 클릭 로그) |
 
 백엔드에는 위 API가 이미 구현되어 있으므로, 프론트에서는 `constants/api.ts`의 `API_BASE_URL`과 헤더(`X-User-Id` 또는 JWT)를 맞춘 뒤 각 서비스/훅에서 위 경로로 호출하면 됩니다.

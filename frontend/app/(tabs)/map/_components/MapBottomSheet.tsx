@@ -52,7 +52,7 @@ export function MapBottomSheet({
   const isCollapsed = mode === 'collapsed';
 
   const handlePressDetail = () => {
-    router.push(`/event/${event.id}`);
+    router.push(`/event/${event.id}?source=map`);
     onClose();
   };
 

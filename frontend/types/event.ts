@@ -26,3 +26,21 @@ export interface Event {
   thumbnailUrl?: string;
   isBookmarked?: boolean;
 }
+
+/** 이벤트 상세 (GET /api/events/{id} 응답) */
+export interface EventDetail {
+  id: number;
+  title: string;
+  posterUrls: string[];
+  startAt: string;
+  endAt: string;
+  placeName: string | null;
+  placeAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  description: string | null;
+  categories: string[];
+  hostContact: string | null;
+  status: string;
+  naverMapUrl: string | null;
+}
