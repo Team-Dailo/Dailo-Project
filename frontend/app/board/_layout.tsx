@@ -7,6 +7,7 @@ export default function BoardLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="[id]" />
       <Stack.Screen name="write" />
+      <Stack.Screen name="search" />
       <Stack.Screen name="chat" />
       <Stack.Screen name="notice" />
     </Stack>

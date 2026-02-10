@@ -20,9 +20,11 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { usePostList } from "../../../hooks/useBoard";
 import { formatRelativeTime } from "../../../utils/formatDate";
+import { useAuthContext, useMyUserId } from "../../../hooks/useAuth";
 
 type Post = {
   id: string;
+  authorId: number;
   author: string;
   title?: string;
   time: string;
@@ -37,8 +39,9 @@ type Post = {
 const CATEGORIES = ["전체", "후기", "질문", "자유"] as const;
 type Category = (typeof CATEGORIES)[number];
 
-function toPost(item: { id: number; authorId: number; authorNickname?: string; title: string; contentPreview?: string; content?: string; categoryType?: string; likeCount: number; commentCount: number; createdAt: string }): Post {
+function toPost(item: { id: number; authorId?: number; author_id?: number; authorNickname?: string; title: string; contentPreview?: string; content?: string; categoryType?: string; likeCount: number; commentCount: number; createdAt: string }): Post {
   const raw = item as Record<string, unknown>;
+  const authorId = Number(raw.author_id ?? item.authorId ?? raw.authorId ?? 0) || 0;
   const preview = (
     raw.contentPreview ??
     raw.content_preview ??
@@ -48,9 +51,12 @@ function toPost(item: { id: number; authorId: number; authorNickname?: string; t
   ) as string | undefined;
   let contentStr = typeof preview === "string" ? preview.trim() : "";
   if (contentStr.length > 120) contentStr = contentStr.slice(0, 120) + "…";
-  const authorName = item.authorNickname ?? (raw.authorNickname as string) ?? `user_${item.authorId}`;
+  // API 응답의 작성자 닉네임 (camelCase·snake_case 모두 처리)
+  const apiNickname = (raw.authorNickname ?? raw.author_nickname ?? item.authorNickname ?? "") as string;
+  const authorName = (typeof apiNickname === "string" ? apiNickname.trim() : "") || `user_${authorId}`;
   return {
     id: String(item.id),
+    authorId,
     author: authorName,
     title: item.title,
     time: formatRelativeTime(item.createdAt),
@@ -65,6 +71,8 @@ function toPost(item: { id: number; authorId: number; authorNickname?: string; t
 export default function BoardScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { user } = useAuthContext();
+  const myUserId = useMyUserId();
   const searchParams = useLocalSearchParams<{ sort?: string }>();
   const route = useRoute();
   const routeParams = route.params as { sort?: string } | undefined;
@@ -132,6 +140,11 @@ export default function BoardScreen() {
       { text: "취소", style: "cancel" },
       { text: "차단", style: "destructive" },
     ]);
+  };
+
+  const handleEdit = (postId: string) => {
+    setMenuPostId(null);
+    router.push({ pathname: "/board/write", params: { edit: postId } });
   };
 
   const renderPost = ({ item }: { item: Post }) => {
@@ -298,6 +311,13 @@ export default function BoardScreen() {
       <Modal visible={!!menuPostId} transparent animationType="fade">
         <Pressable style={styles.menuOverlay} onPress={() => setMenuPostId(null)}>
           <View style={styles.menuCard}>
+            {menuPostId &&
+              myUserId != null &&
+              sortedPosts.find((p) => p.id === menuPostId && p.authorId === myUserId) && (
+                <Pressable style={styles.menuItem} onPress={() => handleEdit(menuPostId)}>
+                  <Text style={styles.menuText}>수정</Text>
+                </Pressable>
+              )}
             <Pressable style={styles.menuItem} onPress={() => menuPostId && handleReport(menuPostId)}>
               <Text style={styles.menuText}>신고</Text>
             </Pressable>

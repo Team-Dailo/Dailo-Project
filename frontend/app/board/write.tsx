@@ -13,10 +13,12 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as boardService from "../../services/board.service";
+import * as authService from "../../services/auth.service";
+import { useMyUserId } from "../../hooks/useAuth";
 import { API_BASE_URL } from "../../constants/api";
 
 const CATEGORIES = ["후기", "질문", "자유"] as const;
@@ -24,11 +26,16 @@ type Category = (typeof CATEGORIES)[number];
 
 export default function PostWriteScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ edit?: string }>();
+  const editId = params.edit ? String(params.edit).trim() : undefined;
+  const userId = useMyUserId();
+
   const [category, setCategory] = useState<Category>("자유");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingEdit, setLoadingEdit] = useState(!!editId);
 
   useEffect(() => {
     const show = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -41,6 +48,30 @@ export default function PostWriteScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!editId) {
+      setLoadingEdit(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const post = await boardService.getPostById(editId);
+        if (!cancelled) {
+          setTitle(post.title ?? "");
+          setContent(post.content ?? "");
+          const cat = (post.categoryType ?? "자유") as Category;
+          setCategory(CATEGORIES.includes(cat) ? cat : "자유");
+        }
+      } catch {
+        if (!cancelled) Alert.alert("오류", "게시물을 불러올 수 없습니다.");
+      } finally {
+        if (!cancelled) setLoadingEdit(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editId]);
+
   const handleCancel = () => router.back();
   const handleShare = async () => {
     const trimmedTitle = title.trim();
@@ -51,12 +82,24 @@ export default function PostWriteScreen() {
     }
     setSubmitting(true);
     try {
-      const created = await boardService.createPost({
-        title: trimmedTitle,
-        content: trimmedContent,
-        categoryType: category,
-      });
-      router.replace(`/board/${created.id}`);
+      // 작성자 ID: getMe() → 저장값 → context. 없어도 토큰 있으면 백엔드가 JWT로 작성자 처리하므로 진행
+      const me = await authService.getMe();
+      let authorId: number | null =
+        me?.id != null && me.id > 0 ? me.id : (await authService.getStoredUserId()) ?? (userId ?? null);
+      const hasToken = !!(await authService.getAccessToken());
+      if ((authorId == null || authorId <= 0) && !hasToken) {
+        Alert.alert("로그인 필요", "글을 쓰려면 로그인해 주세요.");
+        setSubmitting(false);
+        return;
+      }
+      const authorIdOrUndefined = authorId != null && authorId > 0 ? authorId : undefined;
+      if (editId) {
+        await boardService.updatePost(editId, { title: trimmedTitle, content: trimmedContent, categoryType: category }, authorIdOrUndefined);
+        router.replace(`/board/${editId}`);
+      } else {
+        const created = await boardService.createPost({ title: trimmedTitle, content: trimmedContent, categoryType: category }, authorIdOrUndefined);
+        router.replace(`/board/${created.id}`);
+      }
     } catch (e) {
       const isNetworkError =
         e instanceof Error &&
@@ -65,8 +108,8 @@ export default function PostWriteScreen() {
           e.message?.includes("fetch"));
       const msg = isNetworkError
         ? `서버에 연결할 수 없습니다.\n\n연결 시도 주소: ${API_BASE_URL}\n\n• 백엔드 실행: backend 폴더에서\n  ./gradlew bootRun --args='--spring.profiles.active=local'\n• 에뮬레이터: .env에 http://10.0.2.2:8080\n• 실기기: .env의 EXPO_PUBLIC_API_URL을 PC IP로 (예: http://192.168.0.10:8080)\n• 설정 변경 후 앱 완전 종료 후 다시 실행`
-        : "게시물을 등록할 수 없습니다.";
-      Alert.alert("게시물 등록 실패", msg);
+        : editId ? "게시물 수정에 실패했습니다." : "게시물을 등록할 수 없습니다.";
+      Alert.alert(editId ? "수정 실패" : "게시물 등록 실패", msg);
     } finally {
       setSubmitting(false);
     }
@@ -84,12 +127,12 @@ export default function PostWriteScreen() {
           <Pressable onPress={handleCancel} hitSlop={12}>
             <Text style={styles.headerCancel}>취소</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>새 게시물</Text>
-          <Pressable onPress={handleShare} hitSlop={12} disabled={submitting}>
-            {submitting ? (
+          <Text style={styles.headerTitle}>{editId ? "게시물 수정" : "새 게시물"}</Text>
+          <Pressable onPress={handleShare} hitSlop={12} disabled={submitting || loadingEdit}>
+            {submitting || loadingEdit ? (
               <ActivityIndicator size="small" color="#2563EB" />
             ) : (
-              <Text style={styles.headerShare}>공유</Text>
+              <Text style={styles.headerShare}>{editId ? "저장" : "공유"}</Text>
             )}
           </Pressable>
         </View>

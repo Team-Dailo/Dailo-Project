@@ -1,5 +1,5 @@
 // app/(tabs)/mypage/board-history.tsx
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,14 +8,21 @@ import {
   ScrollView,
   FlatList,
   ActivityIndicator,
+  Modal,
+  Alert,
+  Share,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Clipboard from "expo-clipboard";
 import { useAuthContext } from "../../../contexts/AuthContext";
+import { useMyUserId } from "../../../hooks/useAuth";
 import { useMyPostList } from "../../../hooks/useBoard";
 import { formatRelativeTime } from "../../../utils/formatDate";
 import type { PostListItem } from "../../../types/board";
+import * as authService from "../../../services/auth.service";
+import * as boardService from "../../../services/board.service";
 
 type PostRow = {
   id: string;
@@ -33,7 +40,7 @@ function toPostRow(item: PostListItem): PostRow {
   const preview = (raw.contentPreview ?? raw.content_preview ?? item.contentPreview ?? item.title ?? "") as string;
   let contentStr = typeof preview === "string" ? preview.trim() : "";
   if (contentStr.length > 120) contentStr = contentStr.slice(0, 120) + "…";
-  const authorName = item.authorNickname ?? (raw.authorNickname as string) ?? `user_${item.authorId}`;
+  const authorName = (item.authorNickname ?? (raw.author_nickname as string) ?? (raw.authorNickname as string) ?? "").trim() || `user_${item.authorId}`;
   return {
     id: String(item.id),
     author: authorName,
@@ -48,25 +55,97 @@ function toPostRow(item: PostListItem): PostRow {
 
 export default function BoardHistoryScreen() {
   const { user, refreshUser } = useAuthContext();
-  const userId = user?.id ?? null;
+  const userIdFromHook = useMyUserId();
+  const [resolvedUserId, setResolvedUserId] = useState<number | null>(null);
+  const userId = resolvedUserId ?? userIdFromHook;
   const { posts, loading, error, refetch } = useMyPostList(userId);
   const sortedPosts = useMemo(() => posts.map(toPostRow), [posts]);
+  const [menuPostId, setMenuPostId] = useState<string | null>(null);
+
+  const handleEdit = (postId: string) => {
+    setMenuPostId(null);
+    router.push({ pathname: "/board/write", params: { edit: postId } });
+  };
+
+  const handleDelete = (postId: string) => {
+    setMenuPostId(null);
+    Alert.alert("삭제", "이 게시물을 삭제하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await boardService.deletePost(postId, userId ?? undefined);
+            refetch();
+          } catch {
+            Alert.alert("오류", "삭제에 실패했습니다.");
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleCopyLink = async (postId: string) => {
+    setMenuPostId(null);
+    const link = `https://dailo.app/board/${postId}`;
+    try {
+      const result = await Share.share({
+        message: link,
+        title: "게시물 링크",
+        url: link,
+      });
+      if (result?.action === Share.sharedAction) return;
+    } catch {
+      // ignore
+    }
+    try {
+      await Clipboard.setStringAsync(link);
+      Alert.alert("복사됨", "링크가 클립보드에 복사되었습니다.");
+    } catch {
+      Alert.alert("오류", "링크 복사에 실패했습니다.");
+    }
+  };
+
+  const handleHide = (postId: string) => {
+    setMenuPostId(null);
+    Alert.alert("숨기기(나만 보기)", "해당 기능은 준비 중입니다.");
+  };
 
   useFocusEffect(
     React.useCallback(() => {
-      // 로그인됐는데 id가 없으면 한 번 더 동기화 (백엔드 재시작 후 /api/auth/me가 id 반환)
-      if (user && userId == null) {
-        refreshUser();
-      }
-      refetch();
-    }, [refetch, user, userId, refreshUser])
+      let cancelled = false;
+      (async () => {
+        if (!user) {
+          if (!cancelled) setResolvedUserId(null);
+          return;
+        }
+        const me = await authService.getMe();
+        if (!cancelled && me?.id != null && me.id > 0) {
+          setResolvedUserId(me.id);
+          await authService.setStoredUserId(me.id);
+          return;
+        }
+        if (!cancelled && userIdFromHook != null && userIdFromHook > 0) {
+          setResolvedUserId(userIdFromHook);
+          return;
+        }
+        const stored = await authService.getStoredUserId();
+        if (!cancelled && stored != null && stored > 0) {
+          setResolvedUserId(stored);
+        } else if (!cancelled) {
+          setResolvedUserId(null);
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [user, userIdFromHook])
   );
 
   const renderPost = ({ item }: { item: PostRow }) => (
     <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.id}`)}>
       <View style={styles.postRowBody}>
         <View style={styles.postRowTop}>
-          <Text style={styles.author}>{item.author}</Text>
+          <Text style={styles.author}>{user?.name ?? item.author}</Text>
           {item.tag ? (
             <View style={styles.tagBadge}>
               <Text style={styles.tagText}>{item.tag}</Text>
@@ -95,6 +174,15 @@ export default function BoardHistoryScreen() {
           </View>
         </View>
       </View>
+      <Pressable
+        style={styles.dotsBtn}
+        onPress={(e) => {
+          e.stopPropagation();
+          setMenuPostId(item.id);
+        }}
+      >
+        <Ionicons name="ellipsis-vertical" size={18} color="#9CA3AF" />
+      </Pressable>
     </Pressable>
   );
 
@@ -156,6 +244,26 @@ export default function BoardHistoryScreen() {
           )}
         </ScrollView>
       </View>
+
+      {/* 더보기 메뉴: 수정, 삭제, 링크 복사, 숨기기(나만 보기) */}
+      <Modal visible={!!menuPostId} transparent animationType="fade">
+        <Pressable style={styles.menuOverlay} onPress={() => setMenuPostId(null)}>
+          <View style={styles.menuCard}>
+            <Pressable style={styles.menuItem} onPress={() => menuPostId && handleEdit(menuPostId)}>
+              <Text style={styles.menuText}>수정</Text>
+            </Pressable>
+            <Pressable style={styles.menuItem} onPress={() => menuPostId && handleDelete(menuPostId)}>
+              <Text style={[styles.menuText, styles.menuTextDanger]}>삭제</Text>
+            </Pressable>
+            <Pressable style={styles.menuItem} onPress={() => menuPostId && handleCopyLink(menuPostId)}>
+              <Text style={styles.menuText}>링크 복사</Text>
+            </Pressable>
+            <Pressable style={styles.menuItem} onPress={() => menuPostId && handleHide(menuPostId)}>
+              <Text style={styles.menuText}>숨기기(나만 보기)</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -227,7 +335,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
-  postRowBody: { flex: 1, minWidth: 0 },
+  postRowBody: { flex: 1, minWidth: 0, marginRight: 8 },
+  dotsBtn: { padding: 8, margin: -8 },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    minWidth: 200,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  menuItem: { paddingVertical: 14, paddingHorizontal: 20 },
+  menuText: { fontSize: 15, color: "#111827" },
+  menuTextDanger: { color: "#DC2626" },
   postRowTop: {
     flexDirection: "row",
     alignItems: "center",

@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../hooks/useAuth";
+import { ADMIN_EMAIL } from "../../../services/auth.service";
 
 export default function MyPageScreen() {
   const { user, isLoggedIn, logout, refreshUser } = useAuth();
@@ -164,6 +165,39 @@ export default function MyPageScreen() {
             }
           />
         </Section>
+
+        {/* 섹션: 신고/차단 */}
+        <Section title="신고·차단">
+          <MenuItem
+            icon="flag-outline"
+            label="내 신고 목록"
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/my-reports")
+                : router.push("/login")
+            }
+          />
+          <MenuItem
+            icon="ban-outline"
+            label="차단 목록"
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/block-list")
+                : router.push("/login")
+            }
+          />
+        </Section>
+
+        {/* 섹션: 관리자 (yunajo5858@gmail.com 로그인 시에만 표시, getMe 실패 시에도 이메일로 판별) */}
+        {isLoggedIn && (user?.role === "ADMIN" || user?.email === ADMIN_EMAIL) && (
+          <Section title="관리자">
+            <MenuItem
+              icon="shield-checkmark-outline"
+              label="관리자 메뉴"
+              onPress={() => router.push("/(tabs)/mypage/admin")}
+            />
+          </Section>
+        )}
 
         {/* 로그인 시 로그아웃 버튼 */}
         {isLoggedIn && (

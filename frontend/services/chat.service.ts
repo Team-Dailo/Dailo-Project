@@ -92,3 +92,17 @@ export async function getMessages(
   if (!res.ok) throw new Error(`get messages failed: ${res.status}`);
   return res.json();
 }
+
+/** 메시지 전송 - POST /api/chat/rooms/{roomId}/messages */
+export async function sendMessage(
+  roomId: number,
+  content: string
+): Promise<ChatMessageResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/messages`, {
+    method: 'POST',
+    headers: await getHeaders(),
+    body: JSON.stringify({ content, messageType: 'TEXT' }),
+  });
+  if (!res.ok) throw new Error(`send message failed: ${res.status}`);
+  return res.json();
+}

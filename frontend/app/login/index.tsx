@@ -18,7 +18,7 @@ import { useAuth } from '../../hooks/useAuth';
 import * as authService from '../../services/auth.service';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, refreshUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,6 +35,7 @@ export default function LoginScreen() {
     try {
       const user = await authService.login(trimmed, password);
       login(user);
+      await refreshUser();
       router.back();
     } catch (e) {
       const message = e instanceof Error ? e.message : '로그인에 실패했습니다.';

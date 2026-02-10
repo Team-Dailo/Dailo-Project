@@ -46,17 +46,27 @@ function toCommentDisplay(c: { id: number; authorId: number; content: string; li
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { isLoggedIn } = useAuthContext();
+  const { isLoggedIn, user } = useAuthContext();
   const [menuVisible, setMenuVisible] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likedCommentIds, setLikedCommentIds] = useState<Set<string>>(new Set());
+  const [commentMenuId, setCommentMenuId] = useState<string | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState("");
   const scrollViewRef = useRef<ScrollView>(null);
   const commentSectionY = useRef(0);
 
   const { post, loading: postLoading, error: postError, refetch: refetchPost } = usePostDetail(id);
   const { comments: apiComments, loading: commentsLoading, refetch: refetchComments } = useComments(id);
+
+  const postAuthorId = post ? Number((post as Record<string, unknown>).author_id ?? post.authorId ?? 0) : 0;
+  const isMyPost = Boolean(post && user?.id != null && postAuthorId !== 0 && Number(postAuthorId) === Number(user.id));
+  /** 항상 API에서 온 작성자 닉네임 표시 (백엔드가 실제 작성자 정보 반환) */
+  const authorDisplayName = post
+    ? (post.authorNickname ?? (post as Record<string, unknown>).author_nickname ?? `user_${postAuthorId}`)
+    : "";
 
   const comments = useMemo(() => apiComments.map(toCommentDisplay), [apiComments]);
   const likeCount = post ? (liked ? (post.likeCount ?? 0) + 1 : (post.likeCount ?? 0)) : 0;
@@ -156,6 +166,32 @@ export default function PostDetailScreen() {
     })();
   };
 
+  const handleEditPost = () => {
+    setMenuVisible(false);
+    if (!id) return;
+    router.push({ pathname: "/board/write", params: { edit: id } });
+  };
+
+  const handleDeletePost = () => {
+    setMenuVisible(false);
+    if (!id) return;
+    Alert.alert("삭제", "이 게시물을 삭제하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await boardService.deletePost(id);
+            router.back();
+          } catch {
+            Alert.alert("오류", "삭제에 실패했습니다.");
+          }
+        },
+      },
+    ]);
+  };
+
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !id) return;
     setSubmittingComment(true);
@@ -196,6 +232,55 @@ export default function PostDetailScreen() {
       else next.add(commentId);
       return next;
     });
+  };
+
+  const isMyComment = (commentId: string) => {
+    const full = apiComments.find((f) => String(f.id) === commentId);
+    return full && user?.id != null && full.authorId === user.id;
+  };
+
+  const handleDeleteComment = (commentId: string) => {
+    setCommentMenuId(null);
+    Alert.alert("삭제", "이 댓글을 삭제하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await boardService.deleteComment(commentId);
+            refetchComments();
+            refetchPost();
+          } catch {
+            Alert.alert("오류", "댓글 삭제에 실패했습니다.");
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleStartEditComment = (commentId: string, content: string) => {
+    setCommentMenuId(null);
+    setEditingCommentId(commentId);
+    setEditingCommentContent(content);
+  };
+
+  const handleSaveEditComment = async () => {
+    if (!editingCommentId || !editingCommentContent.trim()) {
+      setEditingCommentId(null);
+      return;
+    }
+    try {
+      await boardService.updateComment(editingCommentId, {
+        content: editingCommentContent.trim(),
+      });
+      refetchComments();
+      refetchPost();
+      setEditingCommentId(null);
+      setEditingCommentContent("");
+    } catch {
+      Alert.alert("오류", "댓글 수정에 실패했습니다.");
+    }
   };
 
   return (
@@ -246,7 +331,7 @@ export default function PostDetailScreen() {
                 <View style={styles.postHeader}>
                   <View style={styles.profileCircle} />
                   <View style={styles.postMeta}>
-                    <Text style={styles.author}>{post.authorNickname ?? `user_${post.authorId}`}</Text>
+                    <Text style={styles.author}>{authorDisplayName}</Text>
                     <Text style={styles.timeText}>{formatRelativeTime(post.createdAt)}</Text>
                   </View>
                 </View>
@@ -289,6 +374,7 @@ export default function PostDetailScreen() {
                   comments.map((c) => {
               const commentLiked = likedCommentIds.has(c.id);
               const commentLikeCount = c.likes + (commentLiked ? 1 : 0);
+              const isMine = isMyComment(c.id);
               return (
                 <View key={c.id} style={styles.commentRow}>
                   <View style={styles.commentAvatar} />
@@ -296,22 +382,42 @@ export default function PostDetailScreen() {
                     <View style={styles.commentHeader}>
                       <Text style={styles.commentAuthor}>{c.author}</Text>
                       <Text style={styles.commentTime}>{c.time}</Text>
+                      {isMine && (
+                        <Pressable
+                          style={styles.commentMenuBtn}
+                          onPress={() => setCommentMenuId(commentMenuId === c.id ? null : c.id)}
+                        >
+                          <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
+                        </Pressable>
+                      )}
                     </View>
                     <Text style={styles.commentContent}>{c.content}</Text>
                     <Pressable style={styles.replyBtn}>
                       <Text style={styles.replyText}>답글달기</Text>
                     </Pressable>
                   </View>
-                  <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(c.id)}>
-                    <Ionicons
-                      name={commentLiked ? "heart" : "heart-outline"}
-                      size={16}
-                      color={commentLiked ? "#EF4444" : "#9CA3AF"}
-                    />
-                    <Text style={[styles.commentLikeCount, commentLiked && styles.commentLikeCountLiked]}>
-                      {commentLikeCount}
-                    </Text>
-                  </Pressable>
+                  <View style={styles.commentRight}>
+                    {commentMenuId === c.id && (
+                      <View style={styles.commentDropdown}>
+                        <Pressable style={styles.commentDropdownItem} onPress={() => handleStartEditComment(c.id, c.content)}>
+                          <Text style={styles.commentDropdownText}>수정</Text>
+                        </Pressable>
+                        <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
+                          <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(c.id)}>
+                      <Ionicons
+                        name={commentLiked ? "heart" : "heart-outline"}
+                        size={16}
+                        color={commentLiked ? "#EF4444" : "#9CA3AF"}
+                      />
+                      <Text style={[styles.commentLikeCount, commentLiked && styles.commentLikeCountLiked]}>
+                        {commentLikeCount}
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
               );
             })
@@ -347,10 +453,49 @@ export default function PostDetailScreen() {
         )}
       </KeyboardAvoidingView>
 
-      {/* 더보기 메뉴: 채팅 보내기 - 링크 복사 - 신고 - 차단하기 */}
+      {/* 댓글 수정 모달 */}
+      <Modal visible={!!editingCommentId} transparent animationType="fade">
+        <Pressable style={styles.editCommentOverlay} onPress={() => setEditingCommentId(null)}>
+          <Pressable style={styles.editCommentCard} onPress={() => {}}>
+            <Text style={styles.editCommentTitle}>댓글 수정</Text>
+            <TextInput
+              style={styles.editCommentInput}
+              value={editingCommentContent}
+              onChangeText={setEditingCommentContent}
+              placeholder="댓글 내용"
+              placeholderTextColor="#9CA3AF"
+              multiline
+            />
+            <View style={styles.editCommentActions}>
+              <Pressable style={styles.editCommentCancel} onPress={() => setEditingCommentId(null)}>
+                <Text style={styles.editCommentCancelText}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.editCommentSave, !editingCommentContent.trim() && styles.editCommentSaveDisabled]}
+                onPress={handleSaveEditComment}
+                disabled={!editingCommentContent.trim()}
+              >
+                <Text style={styles.editCommentSaveText}>저장</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 더보기 메뉴: 수정/삭제(본인글) - 채팅 보내기 - 링크 복사 - 신고 - 차단하기 */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
           <Pressable style={styles.menuCard} onPress={() => {}}>
+            {isMyPost && (
+              <>
+                <Pressable style={styles.menuItem} onPress={handleEditPost}>
+                  <Text style={styles.menuText}>수정</Text>
+                </Pressable>
+                <Pressable style={styles.menuItem} onPress={handleDeletePost}>
+                  <Text style={[styles.menuText, styles.menuTextDanger]}>삭제</Text>
+                </Pressable>
+              </>
+            )}
             <Pressable style={styles.menuItem} onPress={handleSendChat}>
               <Text style={styles.menuText}>채팅 보내기</Text>
             </Pressable>
@@ -422,10 +567,69 @@ const styles = StyleSheet.create({
   commentContent: { fontSize: 13, color: "#374151", lineHeight: 18 },
   replyBtn: { marginTop: 6 },
   replyText: { fontSize: 12, color: "#6B7280" },
+  commentRight: { alignItems: "flex-end", gap: 4 },
+  commentMenuBtn: { padding: 4, marginLeft: 4 },
+  commentDropdown: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    minWidth: 100,
+  },
+  commentDropdownItem: { paddingVertical: 10, paddingHorizontal: 14 },
+  commentDropdownText: { fontSize: 14, color: "#111827" },
+  commentDropdownTextDanger: { color: "#DC2626" },
   commentLikeWrap: { alignItems: "center", padding: 4, minWidth: 28 },
   commentLikeCount: { fontSize: 11, color: "#9CA3AF", marginTop: 2 },
   commentLikeCountLiked: { color: "#EF4444" },
   footerTextLiked: { color: "#EF4444" },
+  editCommentOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  editCommentCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 20,
+    width: "100%",
+    maxWidth: 360,
+  },
+  editCommentTitle: { fontSize: 16, fontWeight: "600", color: "#111827", marginBottom: 12 },
+  editCommentInput: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#111827",
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  editCommentActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+    marginTop: 16,
+  },
+  editCommentCancel: { paddingVertical: 8, paddingHorizontal: 16 },
+  editCommentCancelText: { fontSize: 14, color: "#6B7280" },
+  editCommentSave: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "#2563EB",
+    borderRadius: 8,
+  },
+  editCommentSaveDisabled: { opacity: 0.5 },
+  editCommentSaveText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",

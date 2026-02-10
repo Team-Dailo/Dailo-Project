@@ -24,6 +24,20 @@ export function usePostList(selectedCategory: Category, sortType: SortType) {
           sort: sortType === 'popular' ? 'likeCount' : 'createdAt',
           direction: 'DESC',
         });
+        if (sortType === 'popular' && data.content?.length) {
+          data = {
+            ...data,
+            content: [...data.content].sort((a, b) => {
+              const la = a.likeCount ?? 0;
+              const lb = b.likeCount ?? 0;
+              if (lb !== la) return lb - la;
+              const ca = a.commentCount ?? 0;
+              const cb = b.commentCount ?? 0;
+              if (cb !== ca) return cb - ca;
+              return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+            }),
+          };
+        }
       } else {
         data = await boardService.getPostListByCategory(selectedCategory, {
           page: 0,
@@ -32,7 +46,15 @@ export function usePostList(selectedCategory: Category, sortType: SortType) {
         if (sortType === 'popular') {
           data = {
             ...data,
-            content: [...data.content].sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0)),
+            content: [...data.content].sort((a, b) => {
+              const la = a.likeCount ?? 0;
+              const lb = b.likeCount ?? 0;
+              if (lb !== la) return lb - la;
+              const ca = a.commentCount ?? 0;
+              const cb = b.commentCount ?? 0;
+              if (cb !== ca) return cb - ca;
+              return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+            }),
           };
         }
       }
@@ -139,6 +161,16 @@ export function useHomePopularPosts() {
         direction: 'DESC',
       });
       const content = data.content ?? [];
+      // 좋아요 많은 순, 같으면 댓글 많은 순
+      content.sort((a, b) => {
+        const la = a.likeCount ?? 0;
+        const lb = b.likeCount ?? 0;
+        if (lb !== la) return lb - la;
+        const ca = a.commentCount ?? 0;
+        const cb = b.commentCount ?? 0;
+        if (cb !== ca) return cb - ca;
+        return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+      });
       const byCategory: Record<string, PostListItem> = {};
       for (const post of content) {
         const cat = post.categoryType ?? '';
@@ -161,6 +193,42 @@ export function useHomePopularPosts() {
   }, [fetchList]);
 
   return { posts, loading, error, refetch: fetchList };
+}
+
+/** 게시글 검색 (GET /api/posts/search) */
+export function useSearchPosts(keyword: string | undefined) {
+  const [posts, setPosts] = useState<PostListItem[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
+  const [loading, setLoading] = useState(!!keyword);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchList = useCallback(async () => {
+    const k = keyword?.trim();
+    if (!k) {
+      setPosts([]);
+      setTotalElements(0);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await boardService.searchPosts(k, { page: 0, size: 50 });
+      setPosts(data.content ?? []);
+      setTotalElements(data.totalElements ?? 0);
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [keyword]);
+
+  useEffect(() => {
+    fetchList();
+  }, [fetchList]);
+
+  return { posts, totalElements, loading, error, refetch: fetchList };
 }
 
 /** 댓글 목록 */
