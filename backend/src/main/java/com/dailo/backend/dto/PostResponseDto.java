@@ -17,6 +17,7 @@ public class PostResponseDto {
 
     private Long id;
     private Long authorId;
+    private String authorNickname;
     private String title;
     private String content;
     private String categoryType;
@@ -27,10 +28,14 @@ public class PostResponseDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static PostResponseDto from(Post post) {
+    public static PostResponseDto from(Post post, String authorNickname) {
+        String name = authorNickname != null && !authorNickname.isBlank()
+                ? authorNickname
+                : ("user_" + post.getAuthorId());
         return PostResponseDto.builder()
                 .id(post.getId())
                 .authorId(post.getAuthorId())
+                .authorNickname(name)
                 .title(post.getTitle())
                 .content(post.getContent())
                 .categoryType(post.getCategoryType())

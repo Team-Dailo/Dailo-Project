@@ -86,6 +86,11 @@ public class Post {
         this.categoryType = categoryType;
     }
 
+    /** 관리자용: 작성자 변경 (기존 데이터 수정 시 사용) */
+    public void changeAuthor(Long authorId) {
+        this.authorId = authorId;
+    }
+
     public void increaseViewCount() {
         this.viewCount++;
     }

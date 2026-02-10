@@ -31,4 +31,17 @@ public class Member {
         this.nickname = nickname;
         this.role = role;
     }
+
+    /** 닉네임 변경 */
+    public void updateNickname(String nickname) {
+        if (nickname == null || nickname.isBlank()) {
+            throw new IllegalArgumentException("닉네임을 입력해 주세요.");
+        }
+        this.nickname = nickname.trim();
+    }
+
+    /** 관리자 지정 등 역할 변경 (시스템/초기화용) */
+    public void setRole(Role role) {
+        this.role = role != null ? role : Role.USER;
+    }
 }
