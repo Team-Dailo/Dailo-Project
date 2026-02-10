@@ -15,13 +15,18 @@ const getDefaultUserId = (): number => {
   return 1;
 };
 
-/** 로그인한 사용자 id 우선, 없으면 저장된 id, 없으면 기본값 */
+/** 로그인한 사용자 id 우선, 없으면 저장된 id, 없으면 기본값. JWT 있으면 함께 보냄(백엔드에서 작성자 확정용) */
 const getHeaders = async (overrideUserId?: number): Promise<HeadersInit> => {
   const id = overrideUserId ?? (await authService.getStoredUserId()) ?? getDefaultUserId();
-  return {
+  const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-User-Id': String(id),
   };
+  const token = await authService.getAccessToken();
+  if (token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
 };
 
 /** 게시글 목록 (전체, 정렬: 최신/인기) */
@@ -88,37 +93,41 @@ export async function getPostById(id: number | string): Promise<PostDetail> {
   return res.json();
 }
 
-/** 게시글 작성 */
-export async function createPost(body: PostRequest): Promise<PostDetail> {
+/** 게시글 작성 (userId 넣으면 해당 사용자로 등록 - 계정 전환 시 올바른 작성자) */
+export async function createPost(body: PostRequest, userId?: number | null): Promise<PostDetail> {
   const url = `${API_BASE_URL}/api/posts`;
+  const headers = await getHeaders(userId ?? undefined);
   const res = await fetch(url, {
     method: 'POST',
-    headers: await getHeaders(),
+    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`createPost failed: ${res.status}`);
   return res.json();
 }
 
-/** 게시글 수정 */
+/** 게시글 수정 (userId 넣으면 해당 사용자로 수정 요청) */
 export async function updatePost(
   id: number | string,
-  body: PostRequest
+  body: PostRequest,
+  userId?: number | null
 ): Promise<PostDetail> {
   const url = `${API_BASE_URL}/api/posts/${id}`;
+  const headers = await getHeaders(userId ?? undefined);
   const res = await fetch(url, {
     method: 'PUT',
-    headers: await getHeaders(),
+    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`updatePost failed: ${res.status}`);
   return res.json();
 }
 
-/** 게시글 삭제 */
-export async function deletePost(id: number | string): Promise<void> {
+/** 게시글 삭제 (userId 넣으면 해당 사용자로 삭제 요청 - 작성자 일치용) */
+export async function deletePost(id: number | string, userId?: number | null): Promise<void> {
   const url = `${API_BASE_URL}/api/posts/${id}`;
-  const res = await fetch(url, { method: 'DELETE', headers: await getHeaders() });
+  const headers = await getHeaders(userId ?? undefined);
+  const res = await fetch(url, { method: 'DELETE', headers });
   if (!res.ok) throw new Error(`deletePost failed: ${res.status}`);
 }
 

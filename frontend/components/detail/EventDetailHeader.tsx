@@ -1,6 +1,6 @@
 // frontend/components/detail/EventDetailHeader.tsx
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Image,
@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import type { EventDetail } from "../../types/event";
+import * as logService from "../../services/log.service";
 
 const DEFAULT_POSTER_URI =
   "https://images.unsplash.com/photo-1485550409059-9afb054cada4?w=800";
@@ -57,6 +58,14 @@ interface Props {
 export default function EventDetailHeader({ id, event, loading, error, onShare, onSave }: Props) {
   const router = useRouter();
   const posterUri = event?.posterUrls?.[0] ?? DEFAULT_POSTER_URI;
+  const [clickCount, setClickCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!id || !event) return;
+    const eventIdNum = Number(id);
+    if (!Number.isFinite(eventIdNum)) return;
+    logService.getEventClickCount(eventIdNum).then(setClickCount).catch(() => {});
+  }, [id, event]);
 
   const defaultShare = async () => {
     try {
@@ -146,6 +155,9 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
           {timeStr ? <Text style={styles.infoLine}>🕒 {timeStr} ~</Text> : null}
           <Text style={styles.infoLine}>📍 {placeStr}</Text>
           {hostStr ? <Text style={styles.infoLine}>👤 {hostStr}</Text> : null}
+          {clickCount != null ? (
+            <Text style={styles.infoLine}>👁 조회수 {clickCount}</Text>
+          ) : null}
         </View>
       </View>
     </View>

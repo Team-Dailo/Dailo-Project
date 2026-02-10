@@ -12,11 +12,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as logService from '../../services/log.service';
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const params = useLocalSearchParams<{ from?: string }>();
   const fromMap = params.from === 'map';
   const placeholder = fromMap
@@ -39,7 +40,7 @@ export default function SearchScreen() {
     } catch {
       // ignore
     }
-    // TODO: 검색 결과 화면으로 이동 또는 결과 표시
+    router.push({ pathname: '/board/search', params: { keyword: k } });
   };
 
   return (

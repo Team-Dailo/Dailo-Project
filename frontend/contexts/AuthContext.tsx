@@ -6,6 +6,10 @@ export type AuthUser = {
   name: string;
   /** 회원 id (게시판 내 글 조회 등) */
   id?: number;
+  /** USER | ADMIN - 관리자일 때 마이페이지에 관리자 메뉴 표시 */
+  role?: string;
+  /** 로그인한 이메일 (관리자 메뉴 노출 판별용, getMe 실패 시에도 사용) */
+  email?: string;
 };
 
 type AuthContextValue = {
@@ -28,10 +32,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const email = await authService.getStoredUserEmail();
       if (token && email) {
         const me = await authService.getMe();
+        const storedId = await authService.getStoredUserId();
         const name = me?.nickname || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
-        const id = me?.id ?? (await authService.getStoredUserId()) ?? undefined;
-        if (me?.id != null) await authService.setStoredUserId(me.id);
-        setUser({ name, id });
+        const id = (me?.id != null && me.id > 0 ? me.id : storedId) ?? undefined;
+        const role = me?.role ?? undefined;
+        if (id != null) await authService.setStoredUserId(id);
+        setUser({ name, id, role, email });
       } else {
         setUser(null);
       }
@@ -52,10 +58,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const email = await authService.getStoredUserEmail();
     if (token && email) {
       const me = await authService.getMe();
+      const storedId = await authService.getStoredUserId();
       const name = me?.nickname || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
-      const id = me?.id ?? (await authService.getStoredUserId()) ?? undefined;
-      if (me?.id != null) await authService.setStoredUserId(me.id);
-      setUser({ name, id });
+      const id = (me?.id != null && me.id > 0 ? me.id : storedId) ?? undefined;
+      const role = me?.role ?? undefined;
+      if (id != null) await authService.setStoredUserId(id);
+      setUser({ name, id, role, email });
     } else {
       setUser(null);
     }

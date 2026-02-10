@@ -92,14 +92,33 @@ export default function ChatRoomScreen() {
     fetchRoomAndMessages();
   }, [fetchRoomAndMessages]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || !roomId) return;
+    setInput("");
+    const optimisticId = `m${Date.now()}`;
     setMessages((prev) => [
       ...prev,
-      { id: `m${Date.now()}`, isMe: true, text: input.trim(), time: formatMessageTime() },
+      { id: optimisticId, isMe: true, text, time: formatMessageTime() },
     ]);
-    setInput("");
-    // TODO: STOMP로 실제 전송 연동
+    try {
+      const sent = await chatService.sendMessage(roomId, text);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === optimisticId
+            ? {
+                id: String(sent.id),
+                isMe: true,
+                text: sent.content ?? text,
+                time: formatMessageTime(sent.createdAt),
+              }
+            : m
+        )
+      );
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      Alert.alert("오류", "메시지 전송에 실패했습니다.");
+    }
   };
 
   const handleToggleNotification = () => {

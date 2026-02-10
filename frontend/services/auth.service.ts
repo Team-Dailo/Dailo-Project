@@ -7,6 +7,9 @@ const USER_EMAIL_KEY = '@dailo/userEmail';
 const USER_ID_KEY = '@dailo/userId';
 const NICKNAME_MAP_KEY = '@dailo/emailToNickname';
 
+/** 이 이메일로 로그인한 경우 마이페이지에 관리자 메뉴 표시 (백엔드 app.admin.emails와 동일하게) */
+export const ADMIN_EMAIL = 'yunajo5858@gmail.com';
+
 /** 백엔드 TokenDto */
 export type TokenDto = {
   grantType: string;
@@ -39,6 +42,8 @@ export type MemberResponseDto = {
   id?: number;
   email: string;
   nickname: string;
+  /** USER | ADMIN - 마이페이지 관리자 메뉴 노출 여부 */
+  role?: string;
 };
 
 /**
@@ -70,7 +75,8 @@ export async function loginApi(body: LoginRequest): Promise<LoginResponseDto> {
         : `로그인 실패 (${res.status})`;
     throw new Error(getErrorMessage(text, res.status, fallback));
   }
-  return JSON.parse(text) as LoginResponseDto;
+  const json = JSON.parse(text) as Record<string, unknown>;
+  return json as LoginResponseDto;
 }
 
 /**
@@ -144,26 +150,46 @@ export async function getStoredNickname(email: string): Promise<string | null> {
  * 로그인 처리: API 호출 후 토큰·이메일 저장
  * @returns 표시명 + 회원 id (게시판 기록 등에서 사용)
  */
-export async function login(email: string, password: string): Promise<{ name: string; id?: number }> {
+/** 로그인 응답 JSON에서 회원 id 추출 (userId / user_id / id 모두 확인) */
+function parseUserIdFromLoginResponse(dto: Record<string, unknown>): number | undefined {
+  const raw =
+    dto['userId'] ?? dto['user_id'] ?? dto['id'];
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+export async function login(
+  email: string,
+  password: string
+): Promise<{ name: string; id?: number; email: string }> {
   const dto = await loginApi({ email: email.trim(), password });
   const trimmed = email.trim();
+  const dtoAny = dto as Record<string, unknown>;
+  const id = parseUserIdFromLoginResponse(dtoAny);
+
   const storageItems: [string, string][] = [
     [ACCESS_TOKEN_KEY, dto.accessToken],
     [REFRESH_TOKEN_KEY, dto.refreshToken],
     [USER_EMAIL_KEY, trimmed],
   ];
-  if (dto.userId != null && dto.userId > 0) {
-    storageItems.push([USER_ID_KEY, String(dto.userId)]);
+  if (id != null && id > 0) {
+    storageItems.push([USER_ID_KEY, String(id)]);
   }
   await AsyncStorage.multiSet(storageItems);
+  // 계정 전환 시 이전 계정 id 제거 (없으면 삭제해서 다른 계정 글이 안 섞이게)
+  if (id != null && id > 0) {
+    await setStoredUserId(id);
+  } else {
+    await AsyncStorage.removeItem(USER_ID_KEY);
+  }
   const name =
     (dto.nickname && dto.nickname.trim()) ||
     (await getStoredNickname(trimmed)) ||
     trimmed.split('@')[0] ||
     trimmed ||
     '사용자';
-  const id = dto.userId != null && dto.userId > 0 ? dto.userId : undefined;
-  return { name, id };
+  await saveNicknameForEmail(trimmed, name);
+  return { name, id, email: trimmed };
 }
 
 /**
@@ -195,6 +221,21 @@ export async function getStoredUserId(): Promise<number | null> {
  */
 export async function setStoredUserId(id: number): Promise<void> {
   await AsyncStorage.setItem(USER_ID_KEY, String(id));
+}
+
+/**
+ * 게시판 API와 동일한 "현재 사용자 id" (저장값 없으면 1).
+ * 수정 버튼/게시판 기록에서 id를 못 가져올 때 이 값으로 맞춤.
+ */
+export async function getEffectiveUserId(): Promise<number> {
+  const stored = await getStoredUserId();
+  if (stored != null && stored > 0) return stored;
+  const envId = process.env.EXPO_PUBLIC_USER_ID;
+  if (envId != null && envId !== '') {
+    const n = Number(envId);
+    if (Number.isInteger(n) && n > 0) return n;
+  }
+  return 1;
 }
 
 /**
