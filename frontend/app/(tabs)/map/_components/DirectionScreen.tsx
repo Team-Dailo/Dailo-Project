@@ -49,6 +49,25 @@ export function DirectionScreen({ visible, event, onClose }: Props) {
     }
   };
 
+  /** 네이버 지도 앱 길찾기 (nmap URL 스킴) */
+  const openInNaverMap = () => {
+    const appname = 'com.anonymous.app';
+    if (hasCoords) {
+      const dname = encodeURIComponent(destination);
+      const url = `nmap://route/car?dlat=${event.latitude}&dlng=${event.longitude}&dname=${dname}&appname=${appname}`;
+      Linking.openURL(url).catch(() => {
+        Linking.openURL(
+          `https://play.google.com/store/apps/details?id=com.nhn.android.nmap`
+        ).catch(() => {});
+      });
+    } else {
+      const query = encodeURIComponent(destination);
+      Linking.openURL(
+        `https://map.naver.com/v5/search/${query}`
+      ).catch(() => {});
+    }
+  };
+
   return (
     <Modal
       visible={visible}
@@ -81,18 +100,28 @@ export function DirectionScreen({ visible, event, onClose }: Props) {
           ) : null}
         </View>
 
-        {/* 지도 앱으로 열기 */}
+        {/* 네이버 지도로 열기 */}
         <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={openInMaps}
+          style={[styles.primaryButton, styles.naverButton]}
+          onPress={openInNaverMap}
           activeOpacity={0.85}
         >
           <Ionicons name="navigate" size={22} color="#FFFFFF" />
-          <Text style={styles.primaryButtonText}>지도 앱으로 열기</Text>
+          <Text style={styles.primaryButtonText}>네이버 지도 길찾기</Text>
+        </TouchableOpacity>
+
+        {/* 기본 지도 앱으로 열기 */}
+        <TouchableOpacity
+          style={[styles.primaryButton, styles.secondaryButton]}
+          onPress={openInMaps}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="map-outline" size={22} color="#374151" />
+          <Text style={styles.secondaryButtonText}>기본 지도 앱으로 열기</Text>
         </TouchableOpacity>
 
         <Text style={styles.hint}>
-          기본 지도 앱이 열려 목적지로 경로를 확인할 수 있습니다.
+          네이버 지도 또는 기본 지도 앱에서 목적지로 경로를 확인할 수 있습니다.
         </Text>
       </View>
     </Modal>
@@ -163,6 +192,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  naverButton: {
+    backgroundColor: '#03C75A',
+  },
+  secondaryButton: {
+    backgroundColor: '#F3F4F6',
+    marginTop: 10,
+  },
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
   },
   hint: {
     fontSize: 12,

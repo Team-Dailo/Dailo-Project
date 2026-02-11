@@ -22,6 +22,7 @@ export default function MyPageLayout() {
           headerTitleAlign: "left",
         }}
       />
+      <Stack.Screen name="saved-festivals" options={{ headerShown: false }} />
       <Stack.Screen name="my-reports" options={{ headerShown: false }} />
       <Stack.Screen name="block-list" options={{ headerShown: false }} />
       <Stack.Screen

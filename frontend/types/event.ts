@@ -1,9 +1,13 @@
-// frontend/types/event.ts
+// frontend/types/event.ts (백엔드 EventCategory enum과 동기화)
 export type EventCategory =
+  | 'FESTIVAL'
+  | 'EXHIBITION'
   | 'PERFORMANCE'
+  | 'EXPERIENCE_BOOTH'
   | 'FOOD_TRUCK'
-  | 'EXPERIENCE'
-  | 'EXHIBITION';
+  | 'TRAFFIC'
+  | 'CONSTRUCTION'
+  | 'ETC';
 
 export type EventScale =
   | 'CITY'

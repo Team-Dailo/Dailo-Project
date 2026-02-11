@@ -87,7 +87,7 @@ export default function SavedFestivalsScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()}>
+          <Pressable onPress={() => router.replace('/(tabs)/mypage')}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
           <Text style={styles.headerTitle}>저장한 축제</Text>

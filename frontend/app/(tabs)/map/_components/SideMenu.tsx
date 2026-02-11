@@ -21,6 +21,7 @@ type Props = {
   onPressActiveFestival: () => void;
   onPressSavedFestivals: () => void;
   onPressMyActivities: () => void;
+  onPressDirection: () => void;
   onPressSettings: () => void;
 };
 
@@ -34,6 +35,7 @@ export function SideMenu({
   onPressActiveFestival,
   onPressSavedFestivals,
   onPressMyActivities,
+  onPressDirection,
   onPressSettings,
 }: Props) {
   const { user, isLoggedIn, logout } = useAuth();
@@ -156,7 +158,10 @@ export function SideMenu({
                   label="축제 길찾기"
                   iconColor="#059669"
                   circleBg="#D1FAE5"
-                  onPress={onClose}
+                  onPress={() => {
+                    onClose();
+                    onPressDirection();
+                  }}
                 />
               </>
             )}
@@ -171,7 +176,10 @@ export function SideMenu({
               icon="notifications-outline"
               label="공지사항"
               gray
-              onPress={onClose}
+              onPress={() => {
+                onClose();
+                router.push('/board/notice');
+              }}
             />
             <MenuRow
               icon="information-circle-outline"

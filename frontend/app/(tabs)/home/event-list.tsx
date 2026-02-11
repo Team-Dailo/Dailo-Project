@@ -43,12 +43,16 @@ function formatTimeRange(startIso: string, endIso?: string): string {
 
 function categoryLabel(cat: string | undefined): string {
   const map: Record<string, string> = {
-    PERFORMANCE: "공연",
+    FESTIVAL: "축제",
     EXHIBITION: "전시",
-    EXPERIENCE: "체험",
+    PERFORMANCE: "공연",
+    EXPERIENCE_BOOTH: "체험부스",
     FOOD_TRUCK: "푸드트럭",
+    TRAFFIC: "교통",
+    CONSTRUCTION: "공사",
+    ETC: "기타",
   };
-  return (cat && map[cat]) || "공연";
+  return (cat && map[cat]) || "기타";
 }
 
 export default function EventListScreen() {
@@ -93,48 +97,46 @@ export default function EventListScreen() {
           ) : events.length === 0 ? (
             <Text style={styles.eventCardEmpty}>등록된 행사가 없어요</Text>
           ) : (
-            events.map((event: Event, index) => {
+            events.map((event: Event) => {
               const dateStr = formatDate(event.startAt);
               const timeStr = formatTimeRange(event.startAt, event.endAt);
               return (
-                <View key={event.id} style={styles.eventCardWrap}>
-                  <Pressable
-                    style={styles.eventCard}
-                    onPress={() => router.push(`/event/${event.id}?source=list`)}
-                  >
-                    <Image
-                      source={{
-                        uri: event.thumbnailUrl ?? "https://via.placeholder.com/200x300.png?text=Poster",
-                      }}
-                      style={styles.eventImage}
-                    />
-                    <View style={styles.eventInfo}>
-                      <Text style={styles.eventCategory}>
-                        {categoryLabel(event.category)}
-                      </Text>
-                      <Text style={styles.eventTitle} numberOfLines={2}>
-                        {event.title}
-                      </Text>
+                <Pressable
+                  key={event.id}
+                  style={styles.eventCard}
+                  onPress={() => router.push(`/event/${event.id}?source=list`)}
+                >
+                  <Image
+                    source={{
+                      uri: event.thumbnailUrl ?? "https://via.placeholder.com/200x300.png?text=Poster",
+                    }}
+                    style={styles.eventImage}
+                  />
+                  <View style={styles.eventInfo}>
+                    <Text style={styles.eventCategory}>
+                      {categoryLabel(event.category)}
+                    </Text>
+                    <Text style={styles.eventTitle} numberOfLines={2}>
+                      {event.title}
+                    </Text>
+                    <View style={styles.eventMeta}>
                       {dateStr ? (
                         <Text style={styles.eventDate}>{dateStr}</Text>
                       ) : null}
                       {timeStr ? (
                         <Text style={styles.eventTime}>{timeStr}</Text>
                       ) : null}
-                      <View style={styles.eventCardFooter}>
-                        <Text style={styles.detailButtonText}>자세히 보기</Text>
-                        <Ionicons
-                          name="chevron-forward"
-                          size={16}
-                          color="#FFFFFF"
-                        />
-                      </View>
                     </View>
-                  </Pressable>
-                  {index < events.length - 1 ? (
-                    <View style={styles.cardDivider} />
-                  ) : null}
-                </View>
+                    <View style={styles.eventCardFooter}>
+                      <Text style={styles.detailButtonText}>자세히 보기</Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={16}
+                        color="#FFFFFF"
+                      />
+                    </View>
+                  </View>
+                </Pressable>
               );
             })
           )}
@@ -167,7 +169,7 @@ const styles = StyleSheet.create({
   },
   retryText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
 
-  /* 홈과 동일한 섹션/카드 스타일 */
+  /* 홈 탭과 동일한 섹션/카드 스타일 */
   section: {
     marginTop: 24,
     paddingHorizontal: 16,
@@ -183,15 +185,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
   },
-  eventCardList: {},
-  eventCardWrap: {
-    marginBottom: 0,
-  },
-  cardDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#E5E7EB",
-    marginVertical: 12,
-    marginLeft: 0,
+  eventCardList: {
+    gap: 12,
   },
   eventCardLoading: {
     paddingVertical: 24,
@@ -207,13 +202,21 @@ const styles = StyleSheet.create({
   eventCard: {
     flexDirection: "row",
     alignItems: "stretch",
+    borderRadius: 14,
     backgroundColor: "#FFFFFF",
-    paddingVertical: 14,
-    paddingHorizontal: 0,
+    padding: 14,
+    overflow: "hidden",
+    shadowColor: "#000000",
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
   },
   eventImage: {
-    width: 100,
-    minWidth: 100,
+    width: 96,
+    minWidth: 96,
     aspectRatio: 2 / 3,
     borderRadius: 10,
     marginRight: 14,
@@ -224,40 +227,42 @@ const styles = StyleSheet.create({
     minWidth: 0,
     justifyContent: "space-between",
     paddingVertical: 2,
-    paddingRight: 16,
   },
   eventCategory: {
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: "600",
     color: "#6B7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
     marginBottom: 4,
   },
   eventTitle: {
     fontSize: 15,
     fontWeight: "700",
     color: "#111827",
-    lineHeight: 21,
-    marginBottom: 6,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  eventMeta: {
+    gap: 2,
+    marginBottom: 10,
   },
   eventDate: {
-    fontSize: 13,
-    color: "#111827",
-    marginBottom: 2,
+    fontSize: 12,
+    color: "#374151",
   },
   eventTime: {
-    fontSize: 13,
-    color: "#374151",
-    marginBottom: 10,
+    fontSize: 12,
+    color: "#6B7280",
   },
   eventCardFooter: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "center",
     gap: 4,
-    height: 38,
-    paddingHorizontal: 14,
+    height: 36,
     borderRadius: 10,
     backgroundColor: "#2563EB",
-    alignSelf: "flex-start",
   },
   detailButtonText: {
     color: "#FFFFFF",

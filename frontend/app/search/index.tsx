@@ -9,11 +9,28 @@ import {
   Platform,
   Pressable,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as logService from '../../services/log.service';
+import { searchEventsForMap } from '../../services/event.service';
+
+/** 지역명 → 지도 중심 좌표 (지역 검색용) */
+const REGION_CENTERS: Record<string, { latitude: number; longitude: number }> = {
+  충주: { latitude: 36.9910, longitude: 127.9260 },
+  충주시: { latitude: 36.9910, longitude: 127.9260 },
+  충북: { latitude: 36.6357, longitude: 127.4912 },
+  충청북도: { latitude: 36.6357, longitude: 127.4912 },
+  서울: { latitude: 37.5665, longitude: 126.978 },
+  대전: { latitude: 36.3504, longitude: 127.3845 },
+  대구: { latitude: 35.8714, longitude: 128.6014 },
+  부산: { latitude: 35.1796, longitude: 129.0756 },
+  인천: { latitude: 37.4563, longitude: 126.7052 },
+  광주: { latitude: 35.1595, longitude: 126.8526 },
+  한국: { latitude: 36.3504, longitude: 127.3845 },
+};
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -27,6 +44,7 @@ export default function SearchScreen() {
   const [keyword, setKeyword] = useState('');
   const [topKeywords, setTopKeywords] = useState<string[]>([]);
   const [topLoading, setTopLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     logService.getTopSearchKeywords(10).then(setTopKeywords).catch(() => {}).finally(() => setTopLoading(false));
@@ -35,6 +53,44 @@ export default function SearchScreen() {
   const handleSubmit = async () => {
     const k = keyword.trim();
     if (!k) return;
+
+    if (fromMap) {
+      setSearching(true);
+      try {
+        const events = await searchEventsForMap(k, 10);
+        if (events.length > 0) {
+          const first = events[0];
+          const lat = first.latitude!;
+          const lng = first.longitude!;
+          router.replace({
+            pathname: '/(tabs)/map',
+            params: { moveToLat: String(lat), moveToLng: String(lng) },
+          });
+          return;
+        }
+        const regionKey = Object.keys(REGION_CENTERS).find(
+          (r) => r === k || k.includes(r) || r.includes(k)
+        );
+        if (regionKey) {
+          const { latitude, longitude } = REGION_CENTERS[regionKey];
+          router.replace({
+            pathname: '/(tabs)/map',
+            params: {
+              moveToLat: String(latitude),
+              moveToLng: String(longitude),
+            },
+          });
+          return;
+        }
+        Alert.alert('검색 결과 없음', '해당하는 행사나 지역을 찾지 못했어요.');
+      } catch {
+        Alert.alert('검색 실패', '잠시 후 다시 시도해 주세요.');
+      } finally {
+        setSearching(false);
+      }
+      return;
+    }
+
     try {
       await logService.logSearch({ keyword: k, resultCount: 0 });
     } catch {
@@ -68,11 +124,15 @@ export default function SearchScreen() {
               onSubmitEditing={handleSubmit}
               returnKeyType="search"
               autoFocus
+              editable={!searching}
             />
           </View>
         </View>
 
         <View style={styles.content}>
+          {searching && (
+            <ActivityIndicator size="small" color="#6366F1" style={styles.searchingIndicator} />
+          )}
           <Text style={styles.sectionTitle}>인기 검색어</Text>
           {topLoading ? (
             <ActivityIndicator size="small" color="#6366F1" style={{ marginVertical: 8 }} />
@@ -131,6 +191,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  searchingIndicator: {
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 16,

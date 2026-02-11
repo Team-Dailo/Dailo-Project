@@ -279,7 +279,7 @@ export default function HomeScreen() {
                           }
                         })()
                       : "";
-                const catLabel = { PERFORMANCE: "공연", EXHIBITION: "전시", EXPERIENCE: "체험", FOOD_TRUCK: "푸드트럭" }[event.category] ?? "공연";
+                const catLabel = { FESTIVAL: "축제", EXHIBITION: "전시", PERFORMANCE: "공연", EXPERIENCE_BOOTH: "체험부스", FOOD_TRUCK: "푸드트럭", TRAFFIC: "교통", CONSTRUCTION: "공사", ETC: "기타" }[event.category] ?? "기타";
                 return (
                   <Pressable
                     key={event.id}

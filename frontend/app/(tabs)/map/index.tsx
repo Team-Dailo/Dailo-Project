@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect, useRef, Component } from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   TouchableOpacity,
   LayoutChangeEvent,
@@ -13,10 +14,12 @@ import {
   BackHandler,
   Alert,
   Linking,
+  ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
 
@@ -38,6 +41,22 @@ import {
   RegionFilterModal,
   ScaleFilterModal,
 } from './_components/FilterModals';
+import { searchEventsForMap } from '../../../services/event.service';
+
+/** 지역명 → 지도 중심 좌표 (지도 탭 검색용) */
+const REGION_CENTERS: Record<string, { latitude: number; longitude: number }> = {
+  충주: { latitude: 36.991, longitude: 127.926 },
+  충주시: { latitude: 36.991, longitude: 127.926 },
+  충북: { latitude: 36.636, longitude: 127.491 },
+  충청북도: { latitude: 36.636, longitude: 127.491 },
+  서울: { latitude: 37.5665, longitude: 126.978 },
+  대전: { latitude: 36.3504, longitude: 127.3845 },
+  대구: { latitude: 35.8714, longitude: 128.6014 },
+  부산: { latitude: 35.1796, longitude: 129.0756 },
+  인천: { latitude: 37.4563, longitude: 126.7052 },
+  광주: { latitude: 35.1595, longitude: 126.8526 },
+  한국: { latitude: 36.3504, longitude: 127.3845 },
+};
 
 type SheetMode = 'collapsed' | 'expanded';
 
@@ -57,7 +76,10 @@ class MapErrorBoundary extends Component<
         <View style={styles.mapFallback}>
           <Text style={styles.mapFallbackText}>지도를 불러올 수 없습니다.</Text>
           <Text style={styles.mapFallbackSub}>
-            네이버 클라우드 Client ID와 패키지명(com.app)을 확인하세요.
+            네이버 지도 연결을 확인해 주세요.{'\n'}
+            • 개발 빌드로 실행 중인지 확인 (npx expo run:android){'\n'}
+            • 네트워크 연결 확인{'\n'}
+            • 네이버 클라우드 Client ID·패키지명 확인
           </Text>
         </View>
       );
@@ -68,6 +90,9 @@ class MapErrorBoundary extends Component<
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const searchParams = useLocalSearchParams<{ moveToLat?: string; moveToLng?: string }>();
+  const moveToLat = searchParams.moveToLat;
+  const moveToLng = searchParams.moveToLng;
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<
@@ -90,6 +115,10 @@ export default function MapScreen() {
     setIsFestivalActive(isLoggedIn);
   }, [isLoggedIn]);
 
+  // 지도 탭 검색창 입력값 + 검색 중
+  const [mapSearchKeyword, setMapSearchKeyword] = useState('');
+  const [mapSearching, setMapSearching] = useState(false);
+
   // 범례(규모 설명)
   const [isScaleLegendVisible, setIsScaleLegendVisible] = useState(false);
 
@@ -105,9 +134,12 @@ export default function MapScreen() {
   } | null>(null);
 
   const mapRef = useRef<React.ComponentRef<typeof NaverMap> | null>(null);
+  /** 지도 드래그/줌 후 실제 화면 상태. setRegion 하지 않고 ref만 갱신해 지도가 제멋대로 움직이지 않게 함 */
+  const lastCameraRef = useRef<{ latitude: number; longitude: number; zoom: number } | null>(null);
 
   const {
     region,
+    setRegion,
     currentLocation,
     events,
     selectedEvent,
@@ -118,17 +150,119 @@ export default function MapScreen() {
     refreshCurrentLocation,
   } = useMap();
 
-  const naverMapCamera = useMemo((): NaverMapCamera => {
-    if (!region) {
-      return { latitude: 37.5665, longitude: 126.978, zoom: 14 };
+  // 검색 화면에서 지도 이동 요청 시 해당 좌표로 카메라 이동 후 파라미터 제거
+  const appliedMoveToRef = useRef(false);
+  useEffect(() => {
+    if (moveToLat == null || moveToLng == null) {
+      appliedMoveToRef.current = false;
+      return;
     }
-    const zoom = 14 - Math.round(Math.log2(region.latitudeDelta / 0.01));
+    if (appliedMoveToRef.current) return;
+    appliedMoveToRef.current = true;
+    const lat = Number(moveToLat);
+    const lng = Number(moveToLng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    setRegion({
+      latitude: lat,
+      longitude: lng,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    });
+    if (mapRef.current) {
+      mapRef.current.animateCameraTo({
+        latitude: lat,
+        longitude: lng,
+        zoom: 15,
+        duration: 400,
+        easing: 'EaseOut',
+      });
+    }
+    router.replace('/(tabs)/map');
+  }, [moveToLat, moveToLng, setRegion]);
+
+  const runMapSearch = async () => {
+    const k = mapSearchKeyword.trim();
+    if (!k) return;
+    Keyboard.dismiss();
+    setMapSearching(true);
+    try {
+      const eventResults = await searchEventsForMap(k, 10);
+      if (eventResults.length > 0) {
+        const first = eventResults[0];
+        const lat = first.latitude!;
+        const lng = first.longitude!;
+        setRegion({
+          latitude: lat,
+          longitude: lng,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
+        if (mapRef.current) {
+          mapRef.current.animateCameraTo({
+            latitude: lat,
+            longitude: lng,
+            zoom: 15,
+            duration: 400,
+            easing: 'EaseOut',
+          });
+        }
+        return;
+      }
+      const regionKey = Object.keys(REGION_CENTERS).find(
+        (r) => r === k || k.includes(r) || r.includes(k)
+      );
+      if (regionKey) {
+        const { latitude, longitude } = REGION_CENTERS[regionKey];
+        setRegion({
+          latitude,
+          longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
+        if (mapRef.current) {
+          mapRef.current.animateCameraTo({
+            latitude,
+            longitude,
+            zoom: 14,
+            duration: 400,
+            easing: 'EaseOut',
+          });
+        }
+        return;
+      }
+      Alert.alert('검색 결과 없음', '해당하는 행사나 지역을 찾지 못했어요.');
+    } catch {
+      Alert.alert('검색 실패', '잠시 후 다시 시도해 주세요.');
+    } finally {
+      setMapSearching(false);
+    }
+  };
+
+  const DEFAULT_CAMERA: NaverMapCamera = { latitude: 37.5665, longitude: 126.978, zoom: 14 };
+  const naverMapCamera = useMemo((): NaverMapCamera => {
+    if (!region) return DEFAULT_CAMERA;
+    const lat = Number(region.latitude);
+    const lng = Number(region.longitude);
+    const delta = Number(region.latitudeDelta);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(delta) || delta <= 0)
+      return DEFAULT_CAMERA;
+    const zoom = 14 - Math.round(Math.log2(delta / 0.01));
     return {
-      latitude: region.latitude,
-      longitude: region.longitude,
+      latitude: lat,
+      longitude: lng,
       zoom: Math.min(18, Math.max(10, zoom)),
     };
   }, [region?.latitude, region?.longitude, region?.latitudeDelta]);
+
+  // 검색/현재위치 등으로 setRegion 하면 ref도 맞춰 두어 확대·축소가 그 위치 기준으로 동작
+  useEffect(() => {
+    if (region)
+      lastCameraRef.current = {
+        latitude: region.latitude,
+        longitude: region.longitude,
+        zoom: naverMapCamera.zoom,
+      };
+  }, [region?.latitude, region?.longitude, region?.latitudeDelta, naverMapCamera.zoom]);
 
   // 에뮬/위치 못 받을 때 쓰는 기본 좌표 (서울 시청)
   const FALLBACK_COORDS = { latitude: 37.5665, longitude: 126.978 };
@@ -243,6 +377,11 @@ export default function MapScreen() {
     []
   );
 
+  // 하단 탭 바 높이 + safe area만큼 올려서 탭과 겹치지 않게
+  const TAB_BAR_HEIGHT = 60;
+  const bottomInset = insets.bottom ?? 0;
+  const tabBarOffset = TAB_BAR_HEIGHT + bottomInset;
+
   // 필터칩 위 여백: 검색창과 필터칩 사이 간격 (이전처럼 복원)
   const headerBottomGap = 12;
   useEffect(() => {
@@ -285,6 +424,18 @@ export default function MapScreen() {
                 camera={naverMapCamera}
                 events={events ?? []}
                 onMarkerPress={handleMarkerPress}
+                onCameraIdle={(params) => {
+                  const r = params.region;
+                  if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return;
+                  const centerLat = r.latitude + r.latitudeDelta / 2;
+                  const centerLng = r.longitude + r.longitudeDelta / 2;
+                  const zoom = 14 - Math.round(Math.log2(r.latitudeDelta / 0.01));
+                  lastCameraRef.current = {
+                    latitude: centerLat,
+                    longitude: centerLng,
+                    zoom: Math.min(18, Math.max(10, zoom)),
+                  };
+                }}
                 currentLocation={currentLocation ?? null}
                 circleCoords={myLocationCircleCoords}
                 showMyLocationCircle={showMyLocationCircle}
@@ -413,18 +564,18 @@ export default function MapScreen() {
             )}
           </View>
 
-          {/* 하단: 시트 닫을 때 = 축제 목록(가운데) + 현재 위치(오른쪽). 작은 카드일 때 = 시트 안에서 같은 줄. 큰 카드일 때 = 현재 위치만 위에 */}
+          {/* 하단: 확대/축소(현재위치 위) + 축제 목록 보기 (탭에서 50px 위) */}
           <View
               style={[
                 styles.listButtonWrapper,
                 {
-                  bottom: isBottomSheetOpen && sheetMode === 'expanded'
-                    ? 34
+                  bottom: tabBarOffset + (isBottomSheetOpen && sheetMode === 'expanded'
+                    ? 50
                     : !isBottomSheetOpen
-                      ? 34
+                      ? 50
                       : collapsedSheetHeight > 0
                         ? collapsedSheetHeight + 10
-                        : 230,
+                        : 100),
                 },
               ]}
           >
@@ -440,14 +591,53 @@ export default function MapScreen() {
               </View>
             )}
             {(!isBottomSheetOpen || sheetMode === 'expanded') && (
-              <TouchableOpacity
-                style={styles.currentLocationButton}
-                activeOpacity={0.85}
-                onPress={onFocusCurrentLocation}
-                accessibilityLabel="현재 위치"
-              >
-                <Ionicons name="locate" size={22} color="#2563EB" />
-              </TouchableOpacity>
+              <View style={styles.zoomAndLocationColumn}>
+                <View style={styles.zoomControlBox}>
+                  <TouchableOpacity
+                    style={styles.zoomButton}
+                    onPress={() => {
+                      const cam = lastCameraRef.current ?? (region ? { latitude: region.latitude, longitude: region.longitude, zoom: naverMapCamera.zoom } : null);
+                      if (mapRef.current && cam)
+                        mapRef.current.animateCameraTo({
+                          latitude: cam.latitude,
+                          longitude: cam.longitude,
+                          zoom: Math.min(18, cam.zoom + 1),
+                          duration: 200,
+                          easing: 'EaseOut',
+                        });
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="add" size={20} color="#374151" />
+                  </TouchableOpacity>
+                  <View style={styles.zoomDivider} />
+                  <TouchableOpacity
+                    style={styles.zoomButton}
+                    onPress={() => {
+                      const cam = lastCameraRef.current ?? (region ? { latitude: region.latitude, longitude: region.longitude, zoom: naverMapCamera.zoom } : null);
+                      if (mapRef.current && cam)
+                        mapRef.current.animateCameraTo({
+                          latitude: cam.latitude,
+                          longitude: cam.longitude,
+                          zoom: Math.max(10, cam.zoom - 1),
+                          duration: 200,
+                          easing: 'EaseOut',
+                        });
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="remove" size={20} color="#374151" />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={styles.currentLocationButton}
+                  activeOpacity={0.85}
+                  onPress={onFocusCurrentLocation}
+                  accessibilityLabel="현재 위치"
+                >
+                  <Ionicons name="locate" size={22} color="#2563EB" />
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         </View>
@@ -465,16 +655,31 @@ export default function MapScreen() {
           >
             <Ionicons name="menu" size={22} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.searchBox}
-            activeOpacity={0.8}
-            onPress={() => router.push({ pathname: '/search', params: { from: 'map' } })}
-          >
-            <Ionicons name="search" size={18} color="#9ca3af" />
-            <Text style={styles.searchPlaceholder}>
-              지역 축제 / 대학교 행사 / 장소 입력
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.searchBox}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="지역, 행사명, 장소 입력"
+              placeholderTextColor="#9ca3af"
+              value={mapSearchKeyword}
+              onChangeText={setMapSearchKeyword}
+              onSubmitEditing={runMapSearch}
+              returnKeyType="search"
+              editable={!mapSearching}
+            />
+            <TouchableOpacity
+              style={styles.searchSubmitButton}
+              onPress={runMapSearch}
+              disabled={mapSearching}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {mapSearching ? (
+                <ActivityIndicator size="small" color="#6366F1" />
+              ) : (
+                <Ionicons name="search" size={20} color="#6366F1" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* 필터 칩: 지도 위 오버레이, 검색창 아래 여백 후 배치 */}
@@ -545,6 +750,14 @@ export default function MapScreen() {
         onPressMyActivities={() => {
           setIsMenuOpen(false);
           router.push('/(tabs)/mypage/stay-mission-history');
+        }}
+        onPressDirection={() => {
+          setIsMenuOpen(false);
+          if (selectedEvent) {
+            setIsDirectionOpen(true);
+          } else {
+            Alert.alert('안내', '지도에서 축제 마커를 탭한 뒤 길찾기를 사용해 주세요.');
+          }
         }}
         onPressSettings={() => {
           setIsMenuOpen(false);
@@ -622,6 +835,7 @@ const styles = StyleSheet.create({
 
   mapArea: {
     flex: 1,
+    minHeight: 200,
     position: 'relative',
   },
   filterChipsOverlay: {
@@ -663,10 +877,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 999,
     backgroundColor: '#f3f4f6',
-    paddingHorizontal: 12,
+    paddingLeft: 12,
+    paddingRight: 4,
     height: 40,
   },
-  searchPlaceholder: { marginLeft: 6, fontSize: 13, color: '#9ca3af' },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#111827',
+    paddingVertical: 8,
+    paddingRight: 4,
+  },
+  searchSubmitButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   mapContainer: {},
   mapFallback: {
@@ -817,9 +1045,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listButtonText: { color: '#ffffff', fontWeight: '600' },
-  currentLocationButton: {
+  zoomAndLocationColumn: {
     position: 'absolute',
     right: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  zoomControlBox: {
+    width: 44,
+    borderRadius: 10,
+    backgroundColor: MAP_UI.cardBg,
+    overflow: 'hidden',
+    elevation: 6,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 16,
+  },
+  zoomButton: {
+    width: 44,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 6,
+  },
+  currentLocationButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
