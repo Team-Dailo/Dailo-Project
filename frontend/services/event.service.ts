@@ -114,6 +114,22 @@ export async function getCalendarEvents(
   return data ?? [];
 }
 
+/**
+ * 백엔드 LocalDateTime이 배열 [y,mo,d,h,min,s]로 올 수 있음 → ISO 문자열로 통일
+ */
+function toIsoDateString(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (Array.isArray(v)) {
+    const [y, mo, d, h = 0, min = 0, s = 0] = v.map(Number);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return '';
+    const month = mo - 1; // Java 1–12 → JS 0–11
+    const date = new Date(y, month, d, h, min, s);
+    return Number.isFinite(date.getTime()) ? date.toISOString() : '';
+  }
+  return '';
+}
+
 /** 백엔드 지도 마커 응답 (EventMapResponse) */
 type EventMapResponseItem = {
   id: number;
@@ -124,6 +140,10 @@ type EventMapResponseItem = {
   filterGroup?: string | null;
   thumbnailUrl: string | null;
   status?: string;
+  startAt?: string | number[] | null;
+  endAt?: string | number[] | null;
+  placeName?: string | null;
+  placeAddress?: string | null;
 };
 
 /**
@@ -160,12 +180,12 @@ export async function getEventsOnMap(params: {
     title: item.title,
     category: mapCategory(item.category),
     scale: filterGroupToScale(item.filterGroup),
-    startAt: '',
-    endAt: '',
+    startAt: toIsoDateString(item.startAt) || '',
+    endAt: toIsoDateString(item.endAt) || '',
     latitude: item.latitude ?? 0,
     longitude: item.longitude ?? 0,
-    address: '',
-    placeName: '',
+    address: item.placeAddress ?? '',
+    placeName: item.placeName ?? '',
     thumbnailUrl: item.thumbnailUrl ?? undefined,
     isBookmarked: false,
   }));

@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
 
@@ -148,7 +149,21 @@ export default function MapScreen() {
     closeBottomSheet,
     focusCurrentLocation,
     refreshCurrentLocation,
+    refetchMapEvents,
+    refetchWithBounds,
   } = useMap();
+
+  const cameraIdleFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (cameraIdleFetchRef.current) clearTimeout(cameraIdleFetchRef.current);
+  }, []);
+
+  // 지도 탭에 들어올 때마다 현재 영역으로 행사 다시 조회 → 위도/경도 수정 후 바로 반영
+  useFocusEffect(
+    React.useCallback(() => {
+      refetchMapEvents();
+    }, [refetchMapEvents])
+  );
 
   // 검색 화면에서 지도 이동 요청 시 해당 좌표로 카메라 이동 후 파라미터 제거
   const appliedMoveToRef = useRef(false);
@@ -239,6 +254,9 @@ export default function MapScreen() {
   };
 
   const DEFAULT_CAMERA: NaverMapCamera = { latitude: 37.5665, longitude: 126.978, zoom: 14 };
+  /** zoom 레벨 → latitudeDelta (naverMapCamera 공식과 맞춤) */
+  const zoomToDelta = (zoom: number) => 0.01 * Math.pow(2, 14 - Math.min(18, Math.max(10, zoom)));
+
   const naverMapCamera = useMemo((): NaverMapCamera => {
     if (!region) return DEFAULT_CAMERA;
     const lat = Number(region.latitude);
@@ -435,6 +453,12 @@ export default function MapScreen() {
                     longitude: centerLng,
                     zoom: Math.min(18, Math.max(10, zoom)),
                   };
+                  // region 상태는 건드리지 않음 → 지도가 혼자 움직이지 않음. 해당 영역 행사만 디바운스 조회
+                  if (cameraIdleFetchRef.current) clearTimeout(cameraIdleFetchRef.current);
+                  cameraIdleFetchRef.current = setTimeout(() => {
+                    cameraIdleFetchRef.current = null;
+                    refetchWithBounds(centerLat, centerLng, r.latitudeDelta, r.longitudeDelta);
+                  }, 600);
                 }}
                 currentLocation={currentLocation ?? null}
                 circleCoords={myLocationCircleCoords}
@@ -564,47 +588,53 @@ export default function MapScreen() {
             )}
           </View>
 
-          {/* 하단: 확대/축소(현재위치 위) + 축제 목록 보기 (탭에서 50px 위) */}
+          {/* 하단: 축제 목록 보기 + 확대/축소·현재위치. 마커 선택 시 작은 카드 위로 올려서 유지 */}
           <View
               style={[
                 styles.listButtonWrapper,
                 {
                   bottom: tabBarOffset + (isBottomSheetOpen && sheetMode === 'expanded'
-                    ? 50
+                    ? -68
                     : !isBottomSheetOpen
-                      ? 50
+                      ? -68
                       : collapsedSheetHeight > 0
-                        ? collapsedSheetHeight + 10
-                        : 100),
+                        ? collapsedSheetHeight - 68
+                        : 62),
                 },
               ]}
           >
-            {!isBottomSheetOpen && (
-              <View style={styles.listButtonCenterFull}>
-                <TouchableOpacity
-                  style={styles.listButton}
-                  activeOpacity={0.85}
-                  onPress={onPressFestivalList}
-                >
-                  <Text style={styles.listButtonText}>축제 목록 보기</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {(!isBottomSheetOpen || sheetMode === 'expanded') && (
-              <View style={styles.zoomAndLocationColumn}>
+            <View style={styles.listButtonCenterFull}>
+              <TouchableOpacity
+                style={styles.listButton}
+                activeOpacity={0.85}
+                onPress={onPressFestivalList}
+              >
+                <Text style={styles.listButtonText}>축제 목록 보기</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.zoomAndLocationColumn}>
                 <View style={styles.zoomControlBox}>
                   <TouchableOpacity
                     style={styles.zoomButton}
                     onPress={() => {
-                      const cam = lastCameraRef.current ?? (region ? { latitude: region.latitude, longitude: region.longitude, zoom: naverMapCamera.zoom } : null);
-                      if (mapRef.current && cam)
-                        mapRef.current.animateCameraTo({
-                          latitude: cam.latitude,
-                          longitude: cam.longitude,
-                          zoom: Math.min(18, cam.zoom + 1),
-                          duration: 200,
-                          easing: 'EaseOut',
-                        });
+                      const cam = lastCameraRef.current ?? (region ? { latitude: region.latitude, longitude: region.longitude, zoom: naverMapCamera.zoom } : null) ?? DEFAULT_CAMERA;
+                      if (!mapRef.current || !cam) return;
+                      const newZoom = Math.min(18, cam.zoom + 1);
+                      const delta = zoomToDelta(newZoom);
+                      setRegion({
+                        latitude: cam.latitude,
+                        longitude: cam.longitude,
+                        latitudeDelta: delta,
+                        longitudeDelta: delta,
+                      });
+                      lastCameraRef.current = { ...cam, zoom: newZoom };
+                      mapRef.current.animateCameraTo({
+                        latitude: cam.latitude,
+                        longitude: cam.longitude,
+                        zoom: newZoom,
+                        duration: 200,
+                        easing: 'EaseOut',
+                      });
                     }}
                     activeOpacity={0.8}
                   >
@@ -614,15 +644,24 @@ export default function MapScreen() {
                   <TouchableOpacity
                     style={styles.zoomButton}
                     onPress={() => {
-                      const cam = lastCameraRef.current ?? (region ? { latitude: region.latitude, longitude: region.longitude, zoom: naverMapCamera.zoom } : null);
-                      if (mapRef.current && cam)
-                        mapRef.current.animateCameraTo({
-                          latitude: cam.latitude,
-                          longitude: cam.longitude,
-                          zoom: Math.max(10, cam.zoom - 1),
-                          duration: 200,
-                          easing: 'EaseOut',
-                        });
+                      const cam = lastCameraRef.current ?? (region ? { latitude: region.latitude, longitude: region.longitude, zoom: naverMapCamera.zoom } : null) ?? DEFAULT_CAMERA;
+                      if (!mapRef.current || !cam) return;
+                      const newZoom = Math.max(10, cam.zoom - 1);
+                      const delta = zoomToDelta(newZoom);
+                      setRegion({
+                        latitude: cam.latitude,
+                        longitude: cam.longitude,
+                        latitudeDelta: delta,
+                        longitudeDelta: delta,
+                      });
+                      lastCameraRef.current = { ...cam, zoom: newZoom };
+                      mapRef.current.animateCameraTo({
+                        latitude: cam.latitude,
+                        longitude: cam.longitude,
+                        zoom: newZoom,
+                        duration: 200,
+                        easing: 'EaseOut',
+                      });
                     }}
                     activeOpacity={0.8}
                   >
@@ -635,10 +674,9 @@ export default function MapScreen() {
                   onPress={onFocusCurrentLocation}
                   accessibilityLabel="현재 위치"
                 >
-                  <Ionicons name="locate" size={22} color="#2563EB" />
-                </TouchableOpacity>
-              </View>
-            )}
+                <Ionicons name="locate" size={22} color="#2563EB" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -1019,13 +1057,13 @@ const styles = StyleSheet.create({
     color: MAP_UI.textDark,
   },
 
-  // 하단: 축제 목록 + 현재 위치. bottom은 동적(시트 열리면 collapsedSheetHeight+10)
+  // 하단: 축제 목록 + 현재 위치. 아래쪽 맞춤(축제목록보기·현재위치 버튼 하단 일치)
   listButtonWrapper: {
     position: 'absolute',
     left: 0,
     right: 0,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'center',
     zIndex: 20,
   },
@@ -1033,7 +1071,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    justifyContent: 'center',
+    bottom: 0,
+    justifyContent: 'flex-end',
     alignItems: 'center',
   },
   listButton: {
@@ -1048,6 +1087,7 @@ const styles = StyleSheet.create({
   zoomAndLocationColumn: {
     position: 'absolute',
     right: 16,
+    bottom: 0,
     alignItems: 'center',
     gap: 8,
   },
