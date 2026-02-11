@@ -41,6 +41,10 @@ export default function MyPageLayout() {
         options={{ title: "행사 추가/수정", headerShown: true, headerTitleAlign: "left" }}
       />
       <Stack.Screen
+        name="admin-event-edit-detail"
+        options={{ title: "행사 등록/수정 (상세형)", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
         name="admin-reports"
         options={{ title: "신고 처리", headerShown: true, headerTitleAlign: "left" }}
       />

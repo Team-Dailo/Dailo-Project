@@ -1,125 +1,83 @@
 // frontend/components/detail/EventBoothTab.tsx
 
-import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, Text, StyleSheet, Pressable, Platform, ToastAndroid, Alert } from "react-native";
 import BoothMap from "./BoothMap";
 import BoothDetailModal from "./BoothDetailModal";
+import type { EventBoothItem } from "../../types/event";
+import * as boothFavoriteService from "../../services/boothFavorite.service";
 
 export type BoothType = "food" | "experience";
 type Mode = "list" | "map";
 
-export type Booth = {
-  id: string;
-  name: string;
-  locationLabel: string;
-  type: BoothType;
-  time?: string;
-  host?: string;
-  menu?: string[];
-  description?: string;
-  rules?: string[];
-  prizes?: string[];
-};
+export type Booth = EventBoothItem & { locationLabel?: string };
 
-const FOOD_BOOTH_MOCK: Booth[] = [
-  {
-    id: "1",
-    name: "바삭한 타코야끼 트럭",
-    locationLabel: "운동장 앞",
-    type: "food",
-    time: "11:00 ~ 15:00",
-    host: "푸드트럭",
-    menu: [
-      "타코야끼(6pcs) - 5,000원",
-      "타코야끼(10pcs) - 7,000원",
-      "치즈타코야끼(6pcs) - 6,000원",
-      "매콤타코야끼(6pcs) - 6,000원",
-    ],
-  },
-  {
-    id: "2",
-    name: "핫도그 트럭",
-    locationLabel: "운동장 앞",
-    type: "food",
-    time: "11:00 ~ 15:00",
-    host: "푸드트럭",
-    menu: ["클래식 핫도그 - 4,000원", "치즈 핫도그 - 4,500원"],
-  },
-  {
-    id: "3",
-    name: "버거 트럭",
-    locationLabel: "테니스장 옆",
-    type: "food",
-    time: "12:00 ~ 18:00",
-    host: "푸드트럭",
-    menu: ["불고기 버거 - 6,000원", "치즈버거 - 6,500원"],
-  },
-  {
-    id: "4",
-    name: "디저트 트럭",
-    locationLabel: "도서관 앞",
-    type: "food",
-    time: "13:00 ~ 18:00",
-    host: "푸드트럭",
-    menu: ["츄러스 - 3,500원", "아이스크림 - 3,500원"],
-  },
-];
+interface EventBoothTabProps {
+  /** 행사 ID (부스 즐겨찾기 연동용) */
+  eventId?: number;
+  /** 행사 제목 (부스 즐겨찾기 표시용) */
+  eventTitle?: string;
+  /** 저장된 푸드트럭 목록 */
+  foodBooths?: EventBoothItem[] | null;
+  /** 저장된 체험부스 목록 */
+  experienceBooths?: EventBoothItem[] | null;
+}
 
-const EXPERIENCE_BOOTH_MOCK: Booth[] = [
-  {
-    id: "5",
-    name: "물풍선 터트리기",
-    locationLabel: "테니스장 앞",
-    type: "experience",
-    time: "11:00 ~ 15:00",
-    host: "총학생회 축제 부스",
-    description: "참가자에게 제한 시간 1분이 주어지고, 목표 지점에 물풍선을 던져 점수를 경쟁하는 게임입니다.",
-    rules: [
-      "1인 1회 무료 참여, 이후 추가 참여는 쿠폰 사용",
-      "안전상의 이유로 진행 요원의 안내에 반드시 따를 것",
-    ],
-    prizes: [
-      "1등: 기프티콘 + 축제 굿즈 세트",
-      "2등: 기프티콘",
-      "참가상: 랜덤 스티커",
-    ],
-  },
-  {
-    id: "6",
-    name: "보드게임 존",
-    locationLabel: "테니스장 앞",
-    type: "experience",
-    time: "13:00 ~ 18:00",
-    host: "보드게임 동아리",
-    description: "간단한 파티게임부터 전략게임까지 즐길 수 있는 자유 체험 부스입니다.",
-  },
-  {
-    id: "7",
-    name: "포토존 & 폴라로이드",
-    locationLabel: "도서관 앞",
-    type: "experience",
-    time: "13:00 ~ 20:00",
-    host: "홍보국",
-    description: "축제 컨셉에 맞는 포토존에서 사진을 찍고 인화해 가져갈 수 있습니다.",
-  },
-  {
-    id: "8",
-    name: "굿즈 판매 부스",
-    locationLabel: "체육관 입구",
-    type: "experience",
-    time: "10:00 ~ 18:00",
-    host: "총학생회",
-    description: "학교 로고와 축제 일러스트가 들어간 한정 굿즈를 판매합니다.",
-  },
-];
-
-export default function EventBoothTab() {
+export default function EventBoothTab({
+  eventId,
+  eventTitle = "",
+  foodBooths,
+  experienceBooths,
+}: EventBoothTabProps = {}) {
   const [boothType, setBoothType] = useState<BoothType>("food");
   const [mode, setMode] = useState<Mode>("list");
   const [selectedBooth, setSelectedBooth] = useState<Booth | null>(null);
+  const [favoriteSet, setFavoriteSet] = useState<Set<string>>(new Set());
 
-  const booths =
-    boothType === "food" ? FOOD_BOOTH_MOCK : EXPERIENCE_BOOTH_MOCK;
+  const food = foodBooths && foodBooths.length > 0 ? foodBooths : [];
+  const experience = experienceBooths && experienceBooths.length > 0 ? experienceBooths : [];
+  const booths = (boothType === "food" ? food : experience) as Booth[];
+
+  const loadFavorites = useCallback(async () => {
+    if (eventId == null) return;
+    const list = await boothFavoriteService.getBoothFavorites();
+    const set = new Set(
+      list.filter((x) => x.eventId === eventId).map((x) => x.boothName)
+    );
+    setFavoriteSet(set);
+  }, [eventId]);
+
+  useEffect(() => {
+    loadFavorites();
+  }, [loadFavorites]);
+
+  const isFavorite = useCallback(
+    (booth: Booth) => eventId != null && favoriteSet.has(booth.name),
+    [eventId, favoriteSet]
+  );
+
+  const handleToggleFavorite = useCallback(
+    async (booth: Booth) => {
+      if (eventId == null) return;
+      const item: boothFavoriteService.BoothFavoriteItem = {
+        eventId,
+        eventTitle,
+        boothName: booth.name,
+        boothType: booth.type,
+      };
+      const added = await boothFavoriteService.toggleBoothFavorite(item);
+      await loadFavorites();
+      if (Platform.OS === "android") {
+        ToastAndroid.show(
+          added ? "부스를 즐겨찾기에 추가했어요" : "즐겨찾기를 해제했어요",
+          ToastAndroid.SHORT
+        );
+      } else {
+        Alert.alert(added ? "부스를 즐겨찾기에 추가했어요" : "즐겨찾기를 해제했어요");
+      }
+    },
+    [eventId, eventTitle, loadFavorites]
+  );
 
   // 지도 모드
   if (mode === "map") {
@@ -178,22 +136,24 @@ export default function EventBoothTab() {
 
       {/* 부스 리스트 */}
       <View style={styles.listWrapper}>
-        {booths.map((booth) => (
-          <Pressable
-            key={booth.id}
-            style={styles.boothCard}
-            onPress={() => setSelectedBooth(booth)}
-          >
-            <View style={styles.iconPlaceholder} />
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.boothName}>{booth.name}</Text>
-              <Text style={styles.boothLocation}>{booth.locationLabel}</Text>
-            </View>
-
-            <Text style={styles.star}>★</Text>
-          </Pressable>
-        ))}
+        {booths.length === 0 ? (
+          <Text style={styles.emptyText}>등록된 부스가 없습니다.</Text>
+        ) : (
+          booths.map((booth) => (
+            <Pressable
+              key={booth.id}
+              style={styles.boothCard}
+              onPress={() => setSelectedBooth(booth)}
+            >
+              <View style={styles.iconPlaceholder} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.boothName}>{booth.name}</Text>
+                <Text style={styles.boothLocation}>{booth.locationLabel ?? ""}</Text>
+              </View>
+              <Text style={styles.star}>★</Text>
+            </Pressable>
+          ))
+        )}
       </View>
 
       {/* 하단 위치 보기 버튼 */}
@@ -208,6 +168,13 @@ export default function EventBoothTab() {
       <BoothDetailModal
         visible={!!selectedBooth}
         booth={selectedBooth}
+        eventId={eventId}
+        isFavorite={selectedBooth ? isFavorite(selectedBooth) : false}
+        onToggleFavorite={
+          selectedBooth
+            ? () => handleToggleFavorite(selectedBooth)
+            : undefined
+        }
         onClose={() => setSelectedBooth(null)}
         onPressLocation={() => {
           setSelectedBooth(null);
@@ -277,6 +244,12 @@ const styles = StyleSheet.create({
   boothLocation: {
     fontSize: 12,
     color: "#777",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+    paddingVertical: 24,
   },
   star: {
     fontSize: 18,

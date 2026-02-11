@@ -1,100 +1,81 @@
 // frontend/components/detail/Timeline.tsx
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet } from "react-native";
+import type { EventTimelineItem } from "../../types/event";
 
-type TimelineItem = {
-  id: string;
-  startTime: string;
-  endTime?: string;
-  title: string;
-  location?: string;
-  details?: string[];
-};
+interface TimelineProps {
+  /** 표시할 날짜 라벨 (예: 11.29(목)) */
+  dateLabel?: string | null;
+  /** 저장된 타임테이블 목록 */
+  items?: EventTimelineItem[] | null;
+}
 
-const MOCK_ITEMS: TimelineItem[] = [
-  {
-    id: "1",
-    startTime: "12:00",
-    endTime: "18:00",
-    title: "어울림 공연",
-    details: ["버스킹", "동아리 공연"],
-  },
-  {
-    id: "2",
-    startTime: "12:00",
-    endTime: "18:00",
-    title: "식스라인 공연",
-    details: ["노래 제목 1", "노래 제목 2", "노래 제목 3"],
-  },
-  {
-    id: "3",
-    startTime: "18:00",
-    endTime: "18:30",
-    title: "소리담 공연",
-    details: ["공연장"],
-  },
-  {
-    id: "4",
-    startTime: "18:00",
-    endTime: "18:30",
-    title: "신문고 공연",
-    details: ["광장", "스테이크"],
-  },
-];
+function timeToMinutes(t: string): number {
+  const s = (t || "").trim();
+  const [h, m] = s.split(":").map((x) => parseInt(x, 10));
+  if (Number.isNaN(h)) return 0;
+  return (h ?? 0) * 60 + (Number.isNaN(m) ? 0 : m);
+}
 
-export default function Timeline() {
+function sortByStartTime<T extends { startTime: string }>(arr: T[]): T[] {
+  return [...arr].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+}
+
+function formatEventDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+    const w = weekdays[d.getDay()];
+    return `${m}.${day}(${w})`;
+  } catch {
+    return "";
+  }
+}
+
+export default function Timeline({ dateLabel, items }: TimelineProps) {
+  const raw = items && items.length > 0 ? items : [];
+  const list = sortByStartTime(raw);
+  const label = dateLabel && dateLabel.trim() ? dateLabel : null;
+
   return (
     <View>
-      {/* 날짜 선택 헤더 */}
-      <View style={styles.dateHeader}>
-        <Pressable style={styles.dateArrow}>
-          <Text style={styles.dateArrowText}>{"<"}</Text>
-        </Pressable>
-        <Text style={styles.dateText}>11.29(목)</Text>
-        <Pressable style={styles.dateArrow}>
-          <Text style={styles.dateArrowText}>{">"}</Text>
-        </Pressable>
-      </View>
+      {label ? (
+        <View style={styles.dateHeader}>
+          <Text style={styles.dateText}>{label}</Text>
+        </View>
+      ) : null}
 
-      {/* 타임라인 리스트 */}
-      <ScrollView
-        style={styles.timelineScroll}
-        contentContainerStyle={styles.timelineContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {MOCK_ITEMS.map((item, index) => (
-          <TimelineRow
-            key={item.id}
-            item={item}
-            isLast={index === MOCK_ITEMS.length - 1}
-          />
-        ))}
-      </ScrollView>
+      <View style={styles.timelineContent}>
+        {list.length === 0 ? (
+          <Text style={styles.emptyText}>등록된 타임테이블이 없습니다.</Text>
+        ) : (
+          list.map((item, index) => (
+            <TimelineRow
+              key={item.id}
+              item={item}
+              isLast={index === list.length - 1}
+            />
+          ))
+        )}
+      </View>
     </View>
   );
 }
 
 interface RowProps {
-  item: TimelineItem;
+  item: EventTimelineItem;
   isLast: boolean;
 }
 
 function TimelineRow({ item, isLast }: RowProps) {
   return (
     <View style={styles.row}>
-      {/* 왼쪽 세로 라인 + 점 */}
       <View style={styles.lineCol}>
         <View style={styles.circle} />
         {!isLast && <View style={styles.line} />}
       </View>
-
-      {/* 오른쪽 카드 */}
       <View style={styles.card}>
         <Text style={styles.timeText}>
           {item.startTime}
@@ -111,28 +92,22 @@ function TimelineRow({ item, isLast }: RowProps) {
   );
 }
 
+export { formatEventDate };
+
 const styles = StyleSheet.create({
   dateHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 12,
     paddingHorizontal: 4,
-  },
-  dateArrow: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  dateArrowText: {
-    fontSize: 16,
-    color: "#777",
   },
   dateText: {
     fontSize: 16,
     fontWeight: "bold",
   },
-  timelineScroll: {
-    maxHeight: 600, // 필요에 따라 조절
+  emptyText: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+    paddingVertical: 24,
   },
   timelineContent: {
     paddingTop: 4,

@@ -57,11 +57,14 @@ export type AdminEventResponse = {
   startAt: string;
   endAt: string;
   categories?: string[];
+  scale?: string | null; // SMALL | MEDIUM | LARGE
   status?: string;
   thumbnailUrl?: string | null;
   description?: string | null;
   hostContact?: string | null;
   adminManaged?: boolean;
+  /** 소식/타임테이블/부스 JSON */
+  extraJson?: string | null;
 };
 
 export type AdminEventCreateRequest = {
@@ -74,11 +77,13 @@ export type AdminEventCreateRequest = {
   startAt: string;
   endAt: string;
   categories: string[];
+  scale?: string | null; // SMALL | MEDIUM | LARGE
   status?: string;
   thumbnailUrl?: string | null;
   posterUrls?: string[];
   description?: string | null;
   hostContact?: string | null;
+  extraJson?: string | null;
 };
 
 export type ReportResponseDto = {
@@ -182,13 +187,30 @@ export async function getAdminEventDetail(eventId: number): Promise<AdminEventRe
   return res.json();
 }
 
+async function parseErrorResponse(res: Response): Promise<string> {
+  const text = await res.text();
+  if (!text) return `요청 실패 (${res.status})`;
+  try {
+    const json = JSON.parse(text) as { message?: string };
+    return json?.message ?? text;
+  } catch {
+    return text;
+  }
+}
+
 export async function createAdminEvent(body: AdminEventCreateRequest): Promise<number> {
   const res = await adminFetch('/api/admin/events', {
     method: 'POST',
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(await res.text().then((t) => t || `생성 실패 (${res.status})`));
-  return res.json();
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  const bodyRes = await res.text();
+  if (!bodyRes) return 0;
+  try {
+    return JSON.parse(bodyRes) as number;
+  } catch {
+    return Number(bodyRes) || 0;
+  }
 }
 
 export async function updateAdminEvent(eventId: number, body: AdminEventCreateRequest): Promise<number> {
@@ -196,13 +218,48 @@ export async function updateAdminEvent(eventId: number, body: AdminEventCreateRe
     method: 'PUT',
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(await res.text().then((t) => t || `수정 실패 (${res.status})`));
-  return res.json();
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  const bodyRes = await res.text();
+  if (!bodyRes) return eventId;
+  try {
+    return JSON.parse(bodyRes) as number;
+  } catch {
+    return Number(bodyRes) || eventId;
+  }
 }
 
 export async function deleteAdminEvent(eventId: number): Promise<void> {
   const res = await adminFetch(`/api/admin/events/${eventId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(await res.text().then((t) => t || `삭제 실패 (${res.status})`));
+}
+
+/** 행사 대표/포스터 이미지 업로드. 로컬 이미지 URI → 서버 저장 후 접근 URL 반환 */
+export async function uploadAdminEventImage(imageUri: string): Promise<string> {
+  const token = await authService.getAccessToken();
+  if (!token) throw new Error('로그인이 필요합니다.');
+  const userId = await getAdminUserId();
+  const formData = new FormData();
+  formData.append('file', {
+    uri: imageUri,
+    type: 'image/jpeg',
+    name: 'photo.jpg',
+  } as unknown as Blob);
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+  };
+  if (userId != null && userId > 0) {
+    headers['X-User-Id'] = String(userId);
+  }
+  const res = await fetch(`${API_BASE_URL}/api/admin/upload`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || `업로드 실패 (${res.status})`));
+  const data = (await res.json()) as { path?: string };
+  const path = data?.path ?? '';
+  if (!path) throw new Error('업로드 응답에 path가 없습니다.');
+  return `${API_BASE_URL}${path}`;
 }
 
 // --- 신고 처리 (AdminReportController) ---

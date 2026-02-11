@@ -1,6 +1,6 @@
 // app/(tabs)/home/index.tsx
 
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ScrollView,
   View,
@@ -9,6 +9,10 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  Dimensions,
+  FlatList,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,22 +20,78 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useHomePopularPosts } from "../../../hooks/useBoard";
-import { useEventList, useTopClickedEvents } from "../../../hooks/useEvent";
+import { useEventList, usePopularEvents } from "../../../hooks/useEvent";
+import type { PopularEventItem } from "../../../services/event.service";
+import type { Event } from "../../../types/event";
+
+const CAROUSEL_SIZE = 3;
+
+function toCarouselItem(e: Event): PopularEventItem {
+  return {
+    id: Number(e.id),
+    title: e.title,
+    thumbnailUrl: e.thumbnailUrl ?? null,
+    startAt: e.startAt ?? "",
+    endAt: e.endAt ?? "",
+    placeName: e.placeName ?? null,
+  };
+}
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const BANNER_WIDTH = SCREEN_WIDTH - 32;
+
+function getDaysLeft(startAt: string): number | null {
+  try {
+    const start = new Date(startAt);
+    const now = new Date();
+    start.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((start.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+    return diff;
+  } catch {
+    return null;
+  }
+}
+
+function formatDday(startAt: string): string {
+  const d = getDaysLeft(startAt);
+  if (d === null) return "";
+  if (d > 0) return `D-${d}`;
+  if (d === 0) return "D-Day";
+  return "종료";
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { posts: popularPosts, loading: popularLoading } = useHomePopularPosts();
   const { events: eventList, loading: eventListLoading, refetch: refetchEventList } = useEventList({ size: 6 });
-  const { events: topClickedEvents, loading: topClickedLoading, refetch: refetchTopClicked } = useTopClickedEvents(5);
+  const { events: popularEvents, loading: popularLoadingEvents, refetch: refetchPopular } = usePopularEvents(CAROUSEL_SIZE);
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
-  // 홈 탭에 들어올 때마다 행사 리스트 새로고침 (관리자에서 추가한 행사 반영)
   useFocusEffect(
     useCallback(() => {
       refetchEventList();
-      refetchTopClicked();
-    }, [refetchEventList, refetchTopClicked])
+      refetchPopular();
+    }, [refetchEventList, refetchPopular])
   );
+
+  const onCarouselScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x;
+    const index = Math.round(x / BANNER_WIDTH);
+    setCarouselIndex(index);
+  }, []);
+
+  // 캐러셀: 인기순 3개 있으면 사용, 없으면 행사 리스트에서 앞 3개 사용 (항상 3개 노출)
+  const carouselItems: PopularEventItem[] = useMemo(() => {
+    if (popularEvents.length >= CAROUSEL_SIZE) return popularEvents.slice(0, CAROUSEL_SIZE);
+    if (eventList.length > 0) {
+      return eventList.slice(0, CAROUSEL_SIZE).map(toCarouselItem);
+    }
+    return popularEvents;
+  }, [popularEvents, eventList]);
+
+  const carouselLoading = popularLoadingEvents && eventListLoading;
+  const carouselEmpty = !carouselLoading && carouselItems.length === 0;
 
   return (
     <SafeAreaView
@@ -67,35 +127,63 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* 상단 배너 */}
+        {/* 상단 캐러셀 (인기순 3개, 없으면 행사 리스트 앞 3개) */}
         <View style={styles.bannerWrapper}>
-          <View style={styles.bannerCard}>
-            <Image
-              source={{
-                uri: "https://via.placeholder.com/700x380.png?text=Festival+Banner",
-              }}
-              style={styles.bannerImage}
-            />
-
-            {/* D-Day 뱃지 */}
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>D-5</Text>
+          {carouselLoading ? (
+            <View style={[styles.bannerCard, styles.bannerPlaceholder]}>
+              <ActivityIndicator size="large" color="#6366F1" />
             </View>
-
-            {/* 텍스트 오버레이 */}
-            <View style={styles.bannerTextWrapper}>
-              <Text style={styles.bannerTitle}>Lucide Dream</Text>
-              <Text style={styles.bannerSub}>한국교통대학교</Text>
-              <Text style={styles.bannerDate}>2025.9.23 ~ 9.24</Text>
+          ) : carouselEmpty ? (
+            <View style={[styles.bannerCard, styles.bannerPlaceholder]}>
+              <Text style={styles.bannerEmpty}>등록된 행사가 없어요</Text>
             </View>
-
-            {/* 인디케이터 점 */}
-            <View style={styles.indicatorWrapper}>
-              <View style={[styles.indicatorDot, styles.indicatorDotActive]} />
-              <View style={styles.indicatorDot} />
-              <View style={styles.indicatorDot} />
-            </View>
-          </View>
+          ) : (
+            <>
+              <FlatList
+                data={carouselItems}
+                keyExtractor={(item) => String(item.id)}
+                horizontal
+                pagingEnabled
+                onMomentumScrollEnd={onCarouselScroll}
+                showsHorizontalScrollIndicator={false}
+                renderItem={({ item }: { item: PopularEventItem }) => (
+                  <View style={{ width: BANNER_WIDTH }}>
+                    <Pressable
+                      style={[styles.bannerCard, styles.bannerCardCarousel]}
+                      onPress={() => router.push(`/event/${item.id}?source=list`)}
+                    >
+                      <Image
+                        source={{
+                          uri: item.thumbnailUrl ?? "https://via.placeholder.com/700x380.png?text=Poster",
+                        }}
+                        style={styles.bannerImage}
+                      />
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{formatDday(item.startAt)}</Text>
+                      </View>
+                      <View style={styles.bannerTextWrapper}>
+                        <Text style={styles.bannerTitle} numberOfLines={1}>{item.title}</Text>
+                        <Text style={styles.bannerSub} numberOfLines={1}>{item.placeName ?? "장소 미정"}</Text>
+                      </View>
+                    </Pressable>
+                  </View>
+                )}
+              />
+              {carouselItems.length > 1 && (
+                <View style={styles.indicatorWrapper}>
+                  {carouselItems.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.indicatorDot,
+                        i === carouselIndex && styles.indicatorDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
+            </>
+          )}
         </View>
 
         {/* 인기 게시물 섹션 */}
@@ -139,78 +227,6 @@ export default function HomeScreen() {
                   </View>
                 </Pressable>
               ))
-            )}
-          </View>
-        </View>
-
-        {/* 인기 행사 섹션 (클릭 로그 기반) */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>인기 행사</Text>
-            <Pressable onPress={() => router.push("./home/event-list")}>
-              <Text style={styles.sectionMore}>더 보기 &gt;</Text>
-            </Pressable>
-          </View>
-          <View style={styles.eventCardList}>
-            {topClickedLoading ? (
-              <View style={styles.eventCardLoading}>
-                <ActivityIndicator size="small" color="#6366F1" />
-              </View>
-            ) : topClickedEvents.length === 0 ? (
-              <Text style={styles.eventCardEmpty}>아직 인기 행사가 없어요</Text>
-            ) : (
-              topClickedEvents.slice(0, 3).map((event) => {
-                const dateStr = event.startAt
-                  ? (() => {
-                      try {
-                        const d = new Date(event.startAt);
-                        return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${["일", "월", "화", "수", "목", "금", "토"][d.getDay()]}요일`;
-                      } catch {
-                        return "";
-                      }
-                    })()
-                  : "";
-                const timeStr = event.startAt
-                  ? (() => {
-                      try {
-                        const d = new Date(event.startAt);
-                        return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} ~`;
-                      } catch {
-                        return "";
-                      }
-                    })()
-                  : "";
-                return (
-                  <Pressable
-                    key={event.id}
-                    style={styles.eventCard}
-                    onPress={() => router.push(`/event/${event.id}?source=list`)}
-                  >
-                    <Image
-                      source={{
-                        uri: event.posterUrls?.[0] ?? "https://via.placeholder.com/200x300.png?text=Poster",
-                      }}
-                      style={styles.eventImage}
-                    />
-                    <View style={styles.eventInfo}>
-                      <Text style={styles.eventCategory}>
-                        {event.categories?.[0] ?? "공연"}
-                      </Text>
-                      <Text style={styles.eventTitle} numberOfLines={2}>
-                        {event.title}
-                      </Text>
-                      <View style={styles.eventMeta}>
-                        {dateStr ? <Text style={styles.eventDate}>{dateStr}</Text> : null}
-                        {timeStr ? <Text style={styles.eventTime}>{timeStr}</Text> : null}
-                      </View>
-                      <View style={styles.eventCardFooter}>
-                        <Text style={styles.detailButtonText}>자세히 보기</Text>
-                        <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
-                      </View>
-                    </View>
-                  </Pressable>
-                );
-              })
             )}
           </View>
         </View>
@@ -362,6 +378,19 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#E5E7EB",
     position: "relative",
+    marginHorizontal: 16,
+  },
+  bannerCardCarousel: {
+    marginHorizontal: 0,
+  },
+  bannerPlaceholder: {
+    minHeight: 184,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bannerEmpty: {
+    fontSize: 14,
+    color: "#9CA3AF",
   },
   bannerImage: {
     width: "100%",
