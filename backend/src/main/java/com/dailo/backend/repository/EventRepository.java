@@ -27,7 +27,15 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("status") EventStatus status
     );
 
-
+    /** 지도: ACTIVE + DRAFT (대축제 등 아직 공개 전인 행사도 마커 표시) */
+    @Query("SELECT e FROM Event e " +
+            "WHERE e.latitude IS NOT NULL AND e.longitude IS NOT NULL " +
+            "AND e.latitude BETWEEN :swLat AND :neLat " +
+            "AND e.longitude BETWEEN :swLng AND :neLng " +
+            "AND (e.status = 'ACTIVE' OR e.status = 'DRAFT')")
+    List<Event> findEventsInBoundsForMap(
+            @Param("swLat") Double swLat, @Param("neLat") Double neLat,
+            @Param("swLng") Double swLng, @Param("neLng") Double neLng);
 
     // 리스트 뷰 - 통합 검색 쿼리
 
