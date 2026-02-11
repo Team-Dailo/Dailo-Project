@@ -5,15 +5,12 @@ import com.dailo.backend.entity.ChatMember;
 import com.dailo.backend.entity.ChatRoom;
 import com.dailo.backend.repository.ChatMemberRepository;
 import com.dailo.backend.repository.ChatRoomRepository;
-import com.dailo.backend.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -25,7 +22,6 @@ public class ChatRoomService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMemberRepository chatMemberRepository;
     private final BlockService blockService;
-    private final MemberRepository memberRepository;
 
     // 채팅방 생성 (1:1)
     @Transactional
@@ -51,7 +47,7 @@ public class ChatRoomService {
             // 나간 멤버가 있으면 rejoin 처리
             rejoinIfNeeded(room, userId);
             rejoinIfNeeded(room, targetUserId);
-            return toDtoWithNicknames(room);
+            return ChatRoomResponseDto.from(room);
         }
 
         // 5. 새 채팅방 생성 시도
@@ -74,28 +70,17 @@ public class ChatRoomService {
             chatMemberRepository.save(member1);
             chatMemberRepository.save(member2);
 
-            return toDtoWithNicknames(savedRoom);
+            return ChatRoomResponseDto.from(savedRoom);
         } catch (DataIntegrityViolationException e) {
             // 동시 생성으로 인한 유니크 제약 위반 시 기존 방 반환
             return chatRoomRepository.findByDirectRoomKey(directRoomKey)
                     .map(room -> {
                         rejoinIfNeeded(room, userId);
                         rejoinIfNeeded(room, targetUserId);
-                        return toDtoWithNicknames(room);
+                        return ChatRoomResponseDto.from(room);
                     })
                     .orElseThrow(() -> new RuntimeException("Failed to create or find chat room"));
         }
-    }
-
-    private ChatRoomResponseDto toDtoWithNicknames(ChatRoom room) {
-        Map<Long, String> nicknameMap = new HashMap<>();
-        room.getMembers().stream()
-                .filter(m -> m.getLeftAt() == null)
-                .map(ChatMember::getUserId)
-                .distinct()
-                .forEach(uid -> memberRepository.findById(uid)
-                        .ifPresent(m -> nicknameMap.put(uid, m.getNickname() != null && !m.getNickname().isBlank() ? m.getNickname() : ("user_" + uid))));
-        return ChatRoomResponseDto.fromWithNicknames(room, nicknameMap);
     }
 
     // directRoomKey 생성 (DIRECT:minUserId:maxUserId)
@@ -114,10 +99,10 @@ public class ChatRoomService {
                 });
     }
 
-    // 내 채팅방 목록 (멤버 닉네임 포함)
+    // 내 채팅방 목록
     public List<ChatRoomResponseDto> getMyRooms(Long userId) {
         return chatRoomRepository.findMyRooms(userId).stream()
-                .map(this::toDtoWithNicknames)
+                .map(ChatRoomResponseDto::from)
                 .collect(Collectors.toList());
     }
 
@@ -150,6 +135,6 @@ public class ChatRoomService {
             throw new RuntimeException("You have left this room");
         }
 
-        return toDtoWithNicknames(room);
+        return ChatRoomResponseDto.from(room);
     }
 }

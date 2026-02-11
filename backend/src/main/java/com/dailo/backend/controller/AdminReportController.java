@@ -7,7 +7,6 @@ import com.dailo.backend.dto.ReportActionRequestDto;
 import com.dailo.backend.dto.ReportActionResponseDto;
 import com.dailo.backend.dto.ReportResponseDto;
 import com.dailo.backend.service.AdminReportService;
-import com.dailo.backend.util.SecurityUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -24,29 +23,33 @@ public class AdminReportController {
 
     private final AdminReportService adminReportService;
 
-    private static Long adminIdOr401() {
-        Long id = SecurityUtil.getCurrentMemberId();
-        if (id == null) throw new org.springframework.security.access.AccessDeniedException("인증이 필요합니다.");
-        return id;
-    }
-
+    // 신고 목록 조회 (필터링)
     @GetMapping
     public ResponseEntity<Page<ReportResponseDto>> getReports(
+            @RequestHeader("X-User-Id") Long adminId,
             @RequestParam(required = false) ReportStatus status,
             @RequestParam(required = false) ReportType targetType,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(adminReportService.getReports(adminIdOr401(), status, targetType, pageable));
+
+        return ResponseEntity.ok(adminReportService.getReports(adminId, status, targetType, pageable));
     }
 
+    // 신고 상세 조회
     @GetMapping("/{reportId}")
-    public ResponseEntity<AdminReportDetailResponseDto> getReportDetail(@PathVariable Long reportId) {
-        return ResponseEntity.ok(adminReportService.getReportDetail(adminIdOr401(), reportId));
+    public ResponseEntity<AdminReportDetailResponseDto> getReportDetail(
+            @RequestHeader("X-User-Id") Long adminId,
+            @PathVariable Long reportId) {
+
+        return ResponseEntity.ok(adminReportService.getReportDetail(adminId, reportId));
     }
 
+    // 신고 처리
     @PostMapping("/{reportId}/action")
     public ResponseEntity<ReportActionResponseDto> processReport(
             @PathVariable Long reportId,
+            @RequestHeader("X-User-Id") Long adminId,
             @Valid @RequestBody ReportActionRequestDto requestDto) {
-        return ResponseEntity.ok(adminReportService.processReport(reportId, adminIdOr401(), requestDto));
+
+        return ResponseEntity.ok(adminReportService.processReport(reportId, adminId, requestDto));
     }
 }

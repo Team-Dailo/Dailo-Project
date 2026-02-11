@@ -1,8 +1,6 @@
 package com.dailo.backend.entity;
 
 import com.dailo.backend.domain.enums.EventCategory;
-import com.dailo.backend.domain.enums.EventFilterGroup;
-import com.dailo.backend.domain.enums.EventScale;
 import com.dailo.backend.domain.enums.EventStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -61,16 +59,6 @@ public class Event {
     @Builder.Default
     private List<EventCategory> categories = new ArrayList<>();
 
-    /** 행사 규모 (소/중/대) */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "scale", length = 20)
-    private EventScale scale;
-
-    /** 달력 필터 구분 (충주시/대학교/총학생회/단과대/동아리) */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "filter_group", length = 30)
-    private EventFilterGroup filterGroup;
-
     // 공개/비공개 관리
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -92,15 +80,6 @@ public class Event {
     // 주최측 연락처
     private String hostContact;
 
-    /** 소식/타임테이블/부스 등 상세 탭 데이터 (JSON 문자열) */
-    @Column(name = "extra_json", columnDefinition = "TEXT")
-    private String extraJson;
-
-    /** 좋아요 수 (denormalized, EventLike 토글 시 갱신) */
-    @Column(name = "like_count", nullable = false)
-    @Builder.Default
-    private Integer likeCount = 0;
-
     // 관리자가 수동으로 데이터를 수정했는지 여부
     @Builder.Default
     private boolean isAdminManaged = false;
@@ -121,7 +100,7 @@ public class Event {
     public void updateEvent(String title, String placeName, String placeAddress, String regionName,
                             Double latitude, Double longitude,
                             LocalDateTime startAt, LocalDateTime endAt,
-                            List<EventCategory> categories, EventScale scale, EventFilterGroup filterGroup, EventStatus status,
+                            List<EventCategory> categories, EventStatus status,
                             String thumbnailUrl, List<String> posterUrls,
                             String description, String hostContact) {
         this.title = title;
@@ -133,22 +112,11 @@ public class Event {
         this.startAt = startAt;
         this.endAt = endAt;
         this.categories = categories;
-        this.scale = scale;
-        this.filterGroup = filterGroup;
         this.status = status;
         this.thumbnailUrl = thumbnailUrl;
         this.posterUrls = posterUrls;
         this.description = description;
         this.hostContact = hostContact;
         this.isAdminManaged = true;
-    }
-
-    public void setExtraJson(String extraJson) {
-        this.extraJson = extraJson;
-    }
-
-    /** 좋아요 수 갱신 (EventLike 토글 시 서비스에서 호출) */
-    public void setLikeCount(Integer likeCount) {
-        this.likeCount = likeCount != null ? Math.max(0, likeCount) : 0;
     }
 }

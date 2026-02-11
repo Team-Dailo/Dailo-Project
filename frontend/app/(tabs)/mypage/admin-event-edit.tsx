@@ -1,5 +1,5 @@
 // 관리자 - 행사 추가 (POST /api/admin/events). eventId 없으면 신규, 있으면 수정.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -16,9 +16,14 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../../hooks/useAuth";
 import * as adminService from "../../../services/admin.service";
 import * as authService from "../../../services/auth.service";
+import {
+  getPickedLocation,
+  clearPickedLocation,
+} from "../../../services/eventLocationPickStore";
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "FESTIVAL", label: "축제" },
@@ -31,13 +36,7 @@ const CATEGORIES: { value: string; label: string }[] = [
   { value: "ETC", label: "기타" },
 ];
 
-const SCALE_OPTIONS: { value: string; label: string }[] = [
-  { value: "SMALL", label: "소규모" },
-  { value: "MEDIUM", label: "중규모" },
-  { value: "LARGE", label: "대규모" },
-];
-
-/** 달력 필터 (충주시/대학교/총학생회/단과대/동아리) - 행사 등록 시 지정 시 달력에서 해당 칩 선택 시 노출 */
+/** 규모(지도·달력 마커 색상) - 행사 등록 시 지정 시 지도/달력에서 해당 색으로 표시 */
 const FILTER_GROUP_OPTIONS: { value: string; label: string }[] = [
   { value: "CHUNGJU_CITY", label: "충주시" },
   { value: "UNIVERSITY", label: "대학교" },
@@ -87,7 +86,6 @@ export default function AdminEventEditScreen() {
   const [startAt, setStartAt] = useState(defaultStart());
   const [endAt, setEndAt] = useState(defaultEnd());
   const [categories, setCategories] = useState<string[]>([]);
-  const [scale, setScale] = useState("");
   const [filterGroup, setFilterGroup] = useState("");
   const [status, setStatus] = useState("DRAFT");
   const [thumbnailUrl, setThumbnailUrl] = useState("");
@@ -97,6 +95,19 @@ export default function AdminEventEditScreen() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadDetail, setLoadDetail] = useState(isEdit);
+  const openedLocationPickerRef = useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const picked = getPickedLocation();
+      if (openedLocationPickerRef.current && picked) {
+        setLatitude(String(picked.latitude));
+        setLongitude(String(picked.longitude));
+        clearPickedLocation();
+        openedLocationPickerRef.current = false;
+      }
+    }, [])
+  );
 
   useEffect(() => {
     if (!isEdit || eventId == null || !Number.isInteger(eventId)) return;
@@ -110,7 +121,6 @@ export default function AdminEventEditScreen() {
         setStartAt(res.startAt ? res.startAt.slice(0, 16) : defaultStart());
         setEndAt(res.endAt ? res.endAt.slice(0, 16) : defaultEnd());
         setCategories(Array.isArray(res.categories) ? res.categories : []);
-        setScale(res.scale ?? "");
         setFilterGroup(res.filterGroup ?? "");
         setStatus(res.status ?? "DRAFT");
         setThumbnailUrl(res.thumbnailUrl ?? "");
@@ -188,7 +198,6 @@ export default function AdminEventEditScreen() {
       startAt: start.length <= 16 ? `${start}:00` : start,
       endAt: end.length <= 16 ? `${end}:00` : end,
       categories,
-      scale: scale.trim() || undefined,
       filterGroup: filterGroup.trim() || undefined,
       status: status || "DRAFT",
       thumbnailUrl: thumbnailUrl.trim() || undefined,
@@ -242,20 +251,26 @@ export default function AdminEventEditScreen() {
         <Field label="장소명" value={placeName} onChangeText={setPlaceName} placeholder="장소 이름" />
         <Field label="상세 주소" value={placeAddress} onChangeText={setPlaceAddress} placeholder="주소" />
         <Field label="지역명" value={regionName} onChangeText={setRegionName} placeholder="예: 서울, 경기" />
-        <Field
-          label="위도 *"
-          value={latitude}
-          onChangeText={setLatitude}
-          placeholder="예: 37.5665"
-          keyboardType="decimal-pad"
-        />
-        <Field
-          label="경도 *"
-          value={longitude}
-          onChangeText={setLongitude}
-          placeholder="예: 126.978"
-          keyboardType="decimal-pad"
-        />
+        <Text style={styles.label}>위도·경도 (지도 표시용) *</Text>
+        <Pressable
+          style={styles.locationPickRow}
+          onPress={() => {
+            openedLocationPickerRef.current = true;
+            const initialLat = latitude.trim() || "36.991";
+            const initialLng = longitude.trim() || "127.926";
+            router.push({
+              pathname: "/(tabs)/mypage/event-location-picker",
+              params: { initialLat, initialLng },
+            });
+          }}
+        >
+          <Text style={styles.locationPickText} numberOfLines={1}>
+            {latitude.trim() && longitude.trim()
+              ? `위도 ${latitude} / 경도 ${longitude}`
+              : "지도에서 위치 선택 (탭하여 열기)"}
+          </Text>
+          <Text style={styles.locationPickHint}>지도에서 마커를 눌러 위치 지정</Text>
+        </Pressable>
         <Field
           label="시작 일시 *"
           value={startAt}
@@ -269,22 +284,7 @@ export default function AdminEventEditScreen() {
           placeholder="2025-02-16T18:00"
         />
 
-        <Text style={styles.label}>규모</Text>
-        <View style={styles.chipRow}>
-          {SCALE_OPTIONS.map((s) => (
-            <Pressable
-              key={s.value}
-              style={[styles.chip, scale === s.value && styles.chipSelected]}
-              onPress={() => setScale(s.value)}
-            >
-              <Text style={[styles.chipText, scale === s.value && styles.chipTextSelected]}>
-                {s.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={styles.label}>달력 카테고리 (충주시/대학교/총학생회/단과대/동아리)</Text>
+        <Text style={styles.label}>규모 (지도·달력 마커 색상)</Text>
         <View style={styles.chipRow}>
           {FILTER_GROUP_OPTIONS.map((f) => (
             <Pressable
@@ -414,6 +414,16 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   field: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 8 },
+  locationPickRow: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    backgroundColor: "#F9FAFB",
+  },
+  locationPickText: { fontSize: 14, color: "#374151" },
+  locationPickHint: { fontSize: 12, color: "#9CA3AF", marginTop: 4 },
   input: {
     borderWidth: 1,
     borderColor: "#D1D5DB",

@@ -80,7 +80,11 @@ export default function PostDetailScreen() {
     : "";
 
   const comments = useMemo(() => apiComments.map(toCommentDisplay), [apiComments]);
-  const likeCount = post ? (liked ? (post.likeCount ?? 0) + 1 : (post.likeCount ?? 0)) : 0;
+  const likeCount = post ? (post.likeCount ?? 0) : 0;
+
+  useEffect(() => {
+    setLiked(post?.isLiked ?? false);
+  }, [post?.id, post?.isLiked]);
 
   const handleCopyLink = async () => {
     setMenuVisible(false);
@@ -235,7 +239,7 @@ export default function PostDetailScreen() {
     }
   };
 
-  const toggleLike = () => {
+  const toggleLike = async () => {
     if (!isLoggedIn) {
       Alert.alert("로그인 필요", "좋아요를 누르려면 로그인해 주세요.", [
         { text: "취소", style: "cancel" },
@@ -243,7 +247,15 @@ export default function PostDetailScreen() {
       ]);
       return;
     }
-    setLiked((prev) => !prev);
+    if (!id) return;
+    try {
+      const userId = user?.id != null ? Number(user.id) : undefined;
+      const res = await boardService.togglePostLike(id, userId);
+      setLiked(res.liked);
+      await refetchPost();
+    } catch {
+      Alert.alert("오류", "좋아요 처리에 실패했습니다.");
+    }
   };
 
   const toggleCommentLike = (commentId: string) => {

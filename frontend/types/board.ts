@@ -23,6 +23,8 @@ export type PostDetail = PostListItem & {
   content: string;
   status: string;
   updatedAt: string;
+  /** 로그인 사용자가 좋아요 눌렀는지 */
+  isLiked?: boolean;
 };
 
 /** 게시글 작성/수정 요청 (PostRequestDto) */

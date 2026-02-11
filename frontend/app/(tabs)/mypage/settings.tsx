@@ -1,14 +1,27 @@
 // app/(tabs)/mypage/settings.tsx
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../../hooks/useAuth';
 
 export default function MyPageSettingsScreen() {
+  const { isLoggedIn, logout } = useAuth();
+
+  const handleLoginLogout = () => {
+    if (isLoggedIn) {
+      Alert.alert('로그아웃', '로그아웃 하시겠습니까?', [
+        { text: '취소', style: 'cancel' },
+        { text: '로그아웃', style: 'destructive', onPress: () => { logout(); router.back(); } },
+      ]);
+    } else {
+      router.push('/login');
+    }
+  };
+
   return (
     <>
-      {/* 네이티브 헤더 사용 (상단과 겹치지 않음) */}
       <Stack.Screen
         options={{
           title: '설정',
@@ -26,13 +39,15 @@ export default function MyPageSettingsScreen() {
         }}
       />
 
-      {/* 헤더 아래 영역만 SafeArea 처리 */}
       <SafeAreaView
         style={styles.safeArea}
         edges={['left', 'right', 'bottom']}
       >
         <View style={styles.container}>
-          <Pressable style={styles.item}>
+          <Pressable
+            style={styles.item}
+            onPress={() => router.push('/(tabs)/mypage/notification-settings')}
+          >
             <Ionicons
               name="notifications-outline"
               size={22}
@@ -42,21 +57,27 @@ export default function MyPageSettingsScreen() {
             <Ionicons name="chevron-forward" size={18} style={styles.arrow} />
           </Pressable>
 
-          <Pressable style={styles.item}>
+          <Pressable
+            style={styles.item}
+            onPress={() => router.push('/(tabs)/mypage/location-permission')}
+          >
             <Ionicons name="location-outline" size={22} style={styles.icon} />
             <Text style={styles.label}>위치 권한</Text>
             <Ionicons name="chevron-forward" size={18} style={styles.arrow} />
           </Pressable>
 
-          <Pressable style={styles.item}>
+          <Pressable
+            style={styles.item}
+            onPress={() => router.push('/(tabs)/mypage/contact')}
+          >
             <Ionicons name="call-outline" size={22} style={styles.icon} />
             <Text style={styles.label}>문의하기</Text>
             <Ionicons name="chevron-forward" size={18} style={styles.arrow} />
           </Pressable>
 
-          <Pressable style={styles.item}>
+          <Pressable style={styles.item} onPress={handleLoginLogout}>
             <Ionicons name="log-out-outline" size={22} style={styles.icon} />
-            <Text style={styles.label}>로그인/로그아웃</Text>
+            <Text style={styles.label}>{isLoggedIn ? '로그아웃' : '로그인'}</Text>
             <Ionicons name="chevron-forward" size={18} style={styles.arrow} />
           </Pressable>
         </View>

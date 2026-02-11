@@ -2,8 +2,6 @@ package com.dailo.backend.dto;
 
 import com.dailo.backend.entity.Event;
 import com.dailo.backend.domain.enums.EventCategory;
-import com.dailo.backend.domain.enums.EventFilterGroup;
-import com.dailo.backend.domain.enums.EventScale;
 import com.dailo.backend.domain.enums.EventStatus;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,15 +21,12 @@ public class AdminEventResponse {
     private LocalDateTime endAt;
 
     private List<EventCategory> categories;
-    private EventScale scale;
-    private EventFilterGroup filterGroup;
 
     private EventStatus status;
     private String thumbnailUrl;
     private String description;
     private String hostContact;
     private boolean isAdminManaged;
-    private String extraJson;
 
     public static AdminEventResponse from(Event event) {
         return AdminEventResponse.builder()
@@ -43,14 +38,11 @@ public class AdminEventResponse {
                 .startAt(event.getStartAt())
                 .endAt(event.getEndAt())
                 .categories(event.getCategories())
-                .scale(event.getScale())
-                .filterGroup(event.getFilterGroup())
                 .status(event.getStatus())
                 .thumbnailUrl(event.getThumbnailUrl())
                 .description(event.getDescription())
                 .hostContact(event.getHostContact())
                 .isAdminManaged(event.isAdminManaged())
-                .extraJson(event.getExtraJson())
                 .build();
     }
 }

@@ -44,15 +44,40 @@ type Props = {
   circleCoords?: { latitude: number; longitude: number } | null;
   /** 현재 위치 파란 동그라미 표시 여부 */
   showMyLocationCircle?: boolean;
+  /** 선택된 행사 마커 → 해당 위치에 빨간 원(200m 반경) 표시 */
+  selectedEvent?: Event | null;
+  /** 거리 필터 적용 시: 내 위치 기준 반경(m). 있으면 해당 거리만큼 원 표시 */
+  distanceFilterRadiusM?: number | null;
+  /** 거리 필터 원의 중심 (내 위치) */
+  distanceFilterCenter?: { latitude: number; longitude: number } | null;
 };
 
-const MY_LOCATION_CIRCLE_RADIUS_M = 60;
+const MY_LOCATION_CIRCLE_RADIUS_M = 25;
 const MY_LOCATION_CIRCLE_COLOR = '#4285F4';
 const MY_LOCATION_CIRCLE_OUTLINE_WIDTH = 3;
 const MY_LOCATION_CIRCLE_OUTLINE_COLOR = '#ffffff';
 
+/** 마커 선택 시 표시하는 행사 반경 원 (200m) */
+const EVENT_ZONE_RADIUS_M = 200;
+const EVENT_ZONE_COLOR = 'rgba(239, 68, 68, 0.25)';
+const EVENT_ZONE_OUTLINE_WIDTH = 2;
+const EVENT_ZONE_OUTLINE_COLOR = 'rgba(239, 68, 68, 0.6)';
+
+/** 행사 시작일까지 남은 일수 (이미 시작했으면 0) */
+function getDaysUntilStart(startAt: string): number {
+  const start = new Date(startAt).getTime();
+  const now = Date.now();
+  if (Number.isNaN(start)) return 0;
+  const days = Math.ceil((start - now) / (24 * 60 * 60 * 1000));
+  return Math.max(0, days);
+}
+
+const DISTANCE_FILTER_CIRCLE_COLOR = 'rgba(59, 130, 246, 0.15)';
+const DISTANCE_FILTER_CIRCLE_OUTLINE_WIDTH = 2;
+const DISTANCE_FILTER_CIRCLE_OUTLINE_COLOR = 'rgba(59, 130, 246, 0.5)';
+
 export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
-  { style, camera, events, onMarkerPress, onCameraIdle, currentLocation, circleCoords, showMyLocationCircle },
+  { style, camera, events, onMarkerPress, onCameraIdle, currentLocation, circleCoords, showMyLocationCircle, selectedEvent, distanceFilterRadiusM, distanceFilterCenter },
   ref
 ) {
   const myLocationCoords = circleCoords ?? currentLocation ?? null;
@@ -92,19 +117,46 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
       isShowLocationButton={false}
       onCameraIdle={onCameraIdle}
     >
-      {eventsWithCoords.map((event) => (
-        <NaverMapMarkerOverlay
-          key={event.id}
-          latitude={event.latitude}
-          longitude={event.longitude}
-          image={{ symbol: 'red' }}
-          tintColor={SCALE_COLORS[event.scale] ?? MAP_UI.scaleBadge[4]}
-          anchor={{ x: 0.5, y: 1 }}
-          caption={event.title ? { text: event.title } : undefined}
-          onTap={() => onMarkerPress(event)}
-          globalZIndex={200001}
-        />
-      ))}
+      {eventsWithCoords.map((event) => {
+        const daysLeft = getDaysUntilStart(event.startAt);
+        const daysText = daysLeft > 0 ? String(daysLeft) : '0';
+        return (
+          <NaverMapMarkerOverlay
+            key={event.id}
+            latitude={event.latitude}
+            longitude={event.longitude}
+            image={{ symbol: 'red' }}
+            tintColor={SCALE_COLORS[event.scale] ?? MAP_UI.scaleBadge[4]}
+            anchor={{ x: 0.5, y: 1 }}
+            caption={{
+              text: daysText,
+              align: 'Center',
+              color: '#FFFFFF',
+              haloColor: '#000000',
+              textSize: 12,
+            }}
+            subCaption={event.title ? { text: event.title, textSize: 10 } : undefined}
+            onTap={() => onMarkerPress(event)}
+            globalZIndex={200001}
+          />
+        );
+      })}
+      {selectedEvent != null &&
+        Number.isFinite(selectedEvent.latitude) &&
+        Number.isFinite(selectedEvent.longitude) &&
+        (selectedEvent.latitude !== 0 || selectedEvent.longitude !== 0) && (
+          <NaverMapCircleOverlay
+            key={`event-zone-${selectedEvent.id}`}
+            latitude={selectedEvent.latitude}
+            longitude={selectedEvent.longitude}
+            radius={EVENT_ZONE_RADIUS_M}
+            color={EVENT_ZONE_COLOR}
+            outlineWidth={EVENT_ZONE_OUTLINE_WIDTH}
+            outlineColor={EVENT_ZONE_OUTLINE_COLOR}
+            zIndex={5}
+            globalZIndex={150000}
+          />
+        )}
       {showMyLocationCircle &&
         myLocationCoords != null &&
         Number.isFinite(myLocationCoords.latitude) &&
@@ -119,6 +171,23 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
             outlineColor={MY_LOCATION_CIRCLE_OUTLINE_COLOR}
             zIndex={10}
             globalZIndex={300000}
+          />
+        )}
+      {distanceFilterRadiusM != null &&
+        distanceFilterRadiusM > 0 &&
+        distanceFilterCenter != null &&
+        Number.isFinite(distanceFilterCenter.latitude) &&
+        Number.isFinite(distanceFilterCenter.longitude) && (
+          <NaverMapCircleOverlay
+            key="distance-filter-circle"
+            latitude={distanceFilterCenter.latitude}
+            longitude={distanceFilterCenter.longitude}
+            radius={distanceFilterRadiusM}
+            color={DISTANCE_FILTER_CIRCLE_COLOR}
+            outlineWidth={DISTANCE_FILTER_CIRCLE_OUTLINE_WIDTH}
+            outlineColor={DISTANCE_FILTER_CIRCLE_OUTLINE_COLOR}
+            zIndex={3}
+            globalZIndex={100000}
           />
         )}
     </NaverMapView>

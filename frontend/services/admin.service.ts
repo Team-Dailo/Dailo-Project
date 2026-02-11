@@ -179,7 +179,11 @@ export async function getAdminEventList(params?: {
   if (params?.size != null) q.size = String(params.size);
   if (params?.sort != null) q.sort = params.sort;
   const res = await adminFetch(`/api/admin/events${Object.keys(q).length ? '?' + new URLSearchParams(q).toString() : ''}`);
-  if (!res.ok) throw new Error(await res.text().then((t) => t || `목록 조회 실패 (${res.status})`));
+  if (!res.ok) {
+    const msg = await res.text().then((t) => t || `목록 조회 실패 (${res.status})`);
+    if (res.status === 403) throw new Error('관리자 권한이 필요합니다. 로그아웃 후 관리자 계정으로 다시 로그인해 주세요.');
+    throw new Error(msg);
+  }
   return res.json();
 }
 

@@ -22,6 +22,18 @@ export default function MyPageLayout() {
           headerTitleAlign: "left",
         }}
       />
+      <Stack.Screen
+        name="notification-settings"
+        options={{ title: "알림설정", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
+        name="location-permission"
+        options={{ title: "위치 권한", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
+        name="contact"
+        options={{ title: "문의하기", headerShown: true, headerTitleAlign: "left" }}
+      />
       <Stack.Screen name="saved-festivals" options={{ headerShown: false }} />
       <Stack.Screen name="my-reports" options={{ headerShown: false }} />
       <Stack.Screen name="block-list" options={{ headerShown: false }} />
@@ -44,6 +56,14 @@ export default function MyPageLayout() {
       <Stack.Screen
         name="admin-event-edit-detail"
         options={{ title: "행사 등록/수정 (상세형)", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
+        name="event-location-picker"
+        options={{ title: "위치 선택", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
+        name="demo-settings"
+        options={{ title: "시범 설정", headerShown: true, headerTitleAlign: "left" }}
       />
       <Stack.Screen
         name="admin-reports"
@@ -72,6 +92,14 @@ export default function MyPageLayout() {
       <Stack.Screen
         name="admin-posts"
         options={{ title: "게시글 관리", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
+        name="guide"
+        options={{ title: "이용 안내", headerShown: false }}
+      />
+      <Stack.Screen
+        name="admin-guide"
+        options={{ title: "이용 안내 수정", headerShown: false }}
       />
     </Stack>
   );

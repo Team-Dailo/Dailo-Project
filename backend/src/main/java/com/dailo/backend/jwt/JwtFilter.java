@@ -20,13 +20,6 @@ public class JwtFilter extends OncePerRequestFilter {
 
     private final TokenProvider tokenProvider;
 
-    /** Swagger/OpenAPI 문서 경로는 JWT 검사 생략 (403 방지) */
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        return path != null && (path.startsWith("/v3/api-docs") || path.startsWith("/swagger-ui"));
-    }
-
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
