@@ -3,6 +3,33 @@ import type { EventDetail, Event } from '../types/event';
 import * as eventService from '../services/event.service';
 import * as logService from '../services/log.service';
 
+/** 인기순(좋아요 순) 행사 - 홈 캐러셀용 */
+export function usePopularEvents(size: number = 3) {
+  const [events, setEvents] = useState<eventService.PopularEventItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchList = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await eventService.getPopularEvents(size);
+      setEvents(data);
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [size]);
+
+  useEffect(() => {
+    fetchList();
+  }, [fetchList]);
+
+  return { events, loading, error, refetch: fetchList };
+}
+
 /** 행사 목록 (홈·행사 리스트 화면) */
 export function useEventList(params?: { page?: number; size?: number }) {
   const [events, setEvents] = useState<Event[]>([]);

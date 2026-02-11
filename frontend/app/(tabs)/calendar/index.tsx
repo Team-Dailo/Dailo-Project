@@ -44,6 +44,9 @@ type DayCell = { day: number; currentMonth: boolean; date: Date };
 const CATEGORY_COLORS: Record<string, string> = {
   FESTIVAL: "#EF4444",
   EXHIBITION: "#EAB308",
+  PERFORMANCE: "#A855F7",
+  EXPERIENCE_BOOTH: "#22C55E",
+  FOOD_TRUCK: "#F97316",
   TRAFFIC: "#F59E0B",
   CONSTRUCTION: "#3B82F6",
   ETC: "#6B7280",
@@ -133,48 +136,19 @@ export default function CalendarScreen() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  /** 9일 임시 행사 2건 (다른 규모/카테고리) */
-  const mockEventsForDay9 = useCallback(
-    (year: number, month: number): CalendarEventItem[] => {
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const base = `${year}-${pad(month)}-09`;
-      return [
-        {
-          id: -1,
-          title: "충주 다이브 페스티벌",
-          category: "FESTIVAL",
-          startAt: `${base}T19:00:00`,
-          endAt: `${base}T21:00:00`,
-          isBookmarked: false,
-        },
-        {
-          id: -2,
-          title: "한국교통대 <Lucid dream>",
-          category: "EXHIBITION",
-          startAt: `${base}T19:00:00`,
-          endAt: `${base}T21:00:00`,
-          isBookmarked: false,
-        },
-      ];
-    },
-    []
-  );
-
   const fetchEvents = useCallback(async (year: number, month: number) => {
     setLoading(true);
     setError(null);
     try {
       const list = await getCalendarEvents(year, month);
-      const mock9 = mockEventsForDay9(year, month);
-      const listWithout9 = list.filter((ev) => getDayFromIso(ev.startAt) !== 9);
-      setEvents([...listWithout9, ...mock9]);
+      setEvents(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : "이벤트를 불러올 수 없습니다.");
-      setEvents(mockEventsForDay9(year, month));
+      setEvents([]);
     } finally {
       setLoading(false);
     }
-  }, [mockEventsForDay9]);
+  }, []);
 
   useEffect(() => {
     fetchEvents(viewYear, viewMonth);

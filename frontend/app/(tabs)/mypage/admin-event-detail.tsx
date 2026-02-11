@@ -1,7 +1,7 @@
 // 관리자 - 행사 상세 (GET /api/admin/events/{eventId})
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from "react-native";
+import { useLocalSearchParams, router } from "expo-router";
 import * as adminService from "../../../services/admin.service";
 
 export default function AdminEventDetailScreen() {
@@ -44,6 +44,13 @@ export default function AdminEventDetailScreen() {
       <Row label="썸네일" value={item.thumbnailUrl ? "있음" : "-"} />
       <Row label="설명" value={item.description ?? "-"} />
       <Row label="주최 연락처" value={item.hostContact ?? "-"} />
+      <Pressable
+        style={styles.editBtn}
+        onPress={() => router.push({ pathname: "/(tabs)/mypage/admin-event-edit-detail", params: { eventId: String(item.id) } })}
+      >
+        <Text style={styles.editBtnText}>수정 (상세형 편집)</Text>
+      </Pressable>
+      <View style={{ height: 24 }} />
     </ScrollView>
   );
 }
@@ -66,4 +73,12 @@ const styles = StyleSheet.create({
   row: { marginBottom: 12 },
   label: { fontSize: 12, color: "#6B7280", marginBottom: 2 },
   value: { fontSize: 15, color: "#111827" },
+  editBtn: {
+    marginTop: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+  },
+  editBtnText: { color: "#FFF", fontSize: 16, fontWeight: "600" },
 });

@@ -111,7 +111,7 @@ export default function AdminEventsScreen() {
             <View style={styles.actions}>
               <Pressable
                 style={styles.actionBtn}
-                onPress={() => router.push({ pathname: "/(tabs)/mypage/admin-event-edit", params: { eventId: String(ev.id) } })}
+                onPress={() => router.push({ pathname: "/(tabs)/mypage/admin-event-edit-detail", params: { eventId: String(ev.id) } })}
               >
                 <Text style={styles.actionText}>수정</Text>
               </Pressable>
@@ -127,7 +127,7 @@ export default function AdminEventsScreen() {
       )}
       <Pressable
         style={styles.addBtn}
-        onPress={() => router.push("/(tabs)/mypage/admin-event-edit")}
+        onPress={() => router.push("/(tabs)/mypage/admin-event-edit-detail")}
       >
         <Ionicons name="add-circle-outline" size={20} color="#FFF" />
         <Text style={styles.addBtnText}>행사 추가</Text>

@@ -1,48 +1,31 @@
 // frontend/components/detail/EventNewsTab.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import type { EventNewsItem } from "../../types/event";
 
-interface NewsItem {
-  id: string;
-  title: string;
-  body: string;
-  date: string;
+interface EventNewsTabProps {
+  /** 저장된 소식 목록 (없으면 빈 화면) */
+  news?: EventNewsItem[] | null;
 }
 
-const MOCK_NEWS: NewsItem[] = [
-  {
-    id: "1",
-    title: "공연 시작 시간 안내",
-    body: "공연 시작 시간은 19:00 입니다. 앱을 통해 소식을 접하고 빠르게 입장하세요!",
-    date: "2025.11.10",
-  },
-  {
-    id: "2",
-    title: "우천 시 행사 안내",
-    body: "우천시에도 행사는 예정대로 진행되며, 실내 프로그램이 강화될 예정 입니다.",
-    date: "2025.11.10",
-  },
-  {
-    id: "3",
-    title: "공지 사항 안내",
-    body: "축제 사전 예약이 시작되었습니다. 앱을 통해 미리 예약하고 빠르게 입장하세요!",
-    date: "2025.11.10",
-  },
-];
+export default function EventNewsTab({ news }: EventNewsTabProps) {
+  const list = news && news.length > 0 ? news : [];
 
-export default function EventNewsTab() {
   return (
     <View>
       <Text style={styles.sectionTitle}>최신 소식</Text>
-
-      {MOCK_NEWS.map((item) => (
-        <NewsCard
-          key={item.id}
-          title={item.title}
-          body={item.body}
-          date={item.date}
-        />
-      ))}
+      {list.length === 0 ? (
+        <Text style={styles.emptyText}>등록된 소식이 없습니다.</Text>
+      ) : (
+        list.map((item) => (
+          <NewsCard
+            key={item.id}
+            title={item.title}
+            body={item.body}
+            date={item.date}
+          />
+        ))
+      )}
     </View>
   );
 }
@@ -117,5 +100,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#aaa",
     marginLeft: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+    paddingVertical: 24,
   },
 });

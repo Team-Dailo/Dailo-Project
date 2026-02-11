@@ -11,7 +11,9 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, router } from "expo-router";
 import { useAuth } from "../../../hooks/useAuth";
 import * as adminService from "../../../services/admin.service";
@@ -20,9 +22,18 @@ import * as authService from "../../../services/auth.service";
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "FESTIVAL", label: "축제" },
   { value: "EXHIBITION", label: "전시" },
+  { value: "PERFORMANCE", label: "공연" },
+  { value: "EXPERIENCE_BOOTH", label: "체험부스" },
+  { value: "FOOD_TRUCK", label: "푸드트럭" },
   { value: "TRAFFIC", label: "교통" },
   { value: "CONSTRUCTION", label: "공사" },
   { value: "ETC", label: "기타" },
+];
+
+const SCALE_OPTIONS: { value: string; label: string }[] = [
+  { value: "SMALL", label: "소규모" },
+  { value: "MEDIUM", label: "중규모" },
+  { value: "LARGE", label: "대규모" },
 ];
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -66,12 +77,14 @@ export default function AdminEventEditScreen() {
   const [startAt, setStartAt] = useState(defaultStart());
   const [endAt, setEndAt] = useState(defaultEnd());
   const [categories, setCategories] = useState<string[]>([]);
+  const [scale, setScale] = useState("");
   const [status, setStatus] = useState("DRAFT");
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [description, setDescription] = useState("");
   const [hostContact, setHostContact] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [loadDetail, setLoadDetail] = useState(isEdit);
 
   useEffect(() => {
@@ -86,6 +99,7 @@ export default function AdminEventEditScreen() {
         setStartAt(res.startAt ? res.startAt.slice(0, 16) : defaultStart());
         setEndAt(res.endAt ? res.endAt.slice(0, 16) : defaultEnd());
         setCategories(Array.isArray(res.categories) ? res.categories : []);
+        setScale(res.scale ?? "");
         setStatus(res.status ?? "DRAFT");
         setThumbnailUrl(res.thumbnailUrl ?? "");
         setDescription(res.description ?? "");
@@ -102,6 +116,30 @@ export default function AdminEventEditScreen() {
     setCategories((prev) =>
       prev.includes(value) ? prev.filter((c) => c !== value) : [...prev, value]
     );
+  };
+
+  const pickAndUploadImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    setUploading(true);
+    try {
+      const url = await adminService.uploadAdminEventImage(result.assets[0].uri);
+      setThumbnailUrl(url);
+    } catch (e) {
+      Alert.alert("업로드 실패", e instanceof Error ? e.message : "사진 업로드에 실패했습니다.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const buildBody = (): adminService.AdminEventCreateRequest => {
@@ -124,6 +162,7 @@ export default function AdminEventEditScreen() {
       startAt: start.length <= 16 ? `${start}:00` : start,
       endAt: end.length <= 16 ? `${end}:00` : end,
       categories,
+      scale: scale.trim() || undefined,
       status: status || "DRAFT",
       thumbnailUrl: thumbnailUrl.trim() || undefined,
       description: description.trim() || undefined,
@@ -203,6 +242,21 @@ export default function AdminEventEditScreen() {
           placeholder="2025-02-16T18:00"
         />
 
+        <Text style={styles.label}>규모</Text>
+        <View style={styles.chipRow}>
+          {SCALE_OPTIONS.map((s) => (
+            <Pressable
+              key={s.value}
+              style={[styles.chip, scale === s.value && styles.chipSelected]}
+              onPress={() => setScale(s.value)}
+            >
+              <Text style={[styles.chipText, scale === s.value && styles.chipTextSelected]}>
+                {s.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
         <Text style={styles.label}>카테고리 * (1개 이상)</Text>
         <View style={styles.chipRow}>
           {CATEGORIES.map((c) => (
@@ -233,7 +287,28 @@ export default function AdminEventEditScreen() {
           ))}
         </View>
 
-        <Field label="썸네일 URL" value={thumbnailUrl} onChangeText={setThumbnailUrl} placeholder="https://..." />
+        <Text style={styles.label}>대표 사진</Text>
+        {thumbnailUrl ? (
+          <View style={styles.photoSection}>
+            <Image source={{ uri: thumbnailUrl }} style={styles.photoPreview} resizeMode="cover" />
+            <Pressable
+              style={[styles.photoBtn, uploading && styles.photoBtnDisabled]}
+              onPress={pickAndUploadImage}
+              disabled={uploading}
+            >
+              <Text style={styles.photoBtnText}>{uploading ? "업로드 중..." : "다른 사진 선택"}</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            style={[styles.photoBtn, styles.photoBtnOutlined, uploading && styles.photoBtnDisabled]}
+            onPress={pickAndUploadImage}
+            disabled={uploading}
+          >
+            <Text style={styles.photoBtnTextOutlined}>{uploading ? "업로드 중..." : "갤러리에서 사진 선택"}</Text>
+          </Pressable>
+        )}
+        <Field label="썸네일 URL (직접 입력)" value={thumbnailUrl} onChangeText={setThumbnailUrl} placeholder="또는 URL 입력" />
         <Field
           label="설명"
           value={description}
@@ -325,4 +400,11 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { color: "#FFF", fontSize: 16, fontWeight: "600" },
+  photoSection: { marginBottom: 16 },
+  photoPreview: { width: "100%", aspectRatio: 4 / 3, borderRadius: 12, backgroundColor: "#F3F4F6", marginBottom: 8 },
+  photoBtn: { paddingVertical: 12, borderRadius: 12, backgroundColor: "#2563EB", alignItems: "center" },
+  photoBtnOutlined: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#2563EB" },
+  photoBtnDisabled: { opacity: 0.6 },
+  photoBtnText: { color: "#FFF", fontSize: 15, fontWeight: "600" },
+  photoBtnTextOutlined: { color: "#2563EB", fontSize: 15, fontWeight: "600" },
 });

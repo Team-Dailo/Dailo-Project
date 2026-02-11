@@ -59,9 +59,12 @@ interface Props {
   error?: Error | null;
   onShare?: () => void;
   onSave?: () => void;
+  /** 좋아요 (하트) - 선택 */
+  isLiked?: boolean;
+  onLike?: () => void;
 }
 
-export default function EventDetailHeader({ id, event, loading, error, onShare, onSave }: Props) {
+export default function EventDetailHeader({ id, event, loading, error, onShare, onSave, isLiked = false, onLike }: Props) {
   const router = useRouter();
   const posterUri = event?.posterUrls?.[0] ?? DEFAULT_POSTER_URI;
   const [clickCount, setClickCount] = useState<number | null>(null);
@@ -123,7 +126,7 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
         </View>
         <View style={styles.iconRow}>
           <Pressable onPress={() => router.back()} style={styles.iconButton} hitSlop={10}>
-            <Text style={styles.iconText}>‹</Text>
+            <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
         </View>
       </View>
@@ -146,15 +149,24 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
 
       <View style={styles.iconRow}>
         <Pressable onPress={() => router.back()} style={styles.iconButton} hitSlop={10}>
-          <Text style={styles.iconText}>‹</Text>
+          <Ionicons name="arrow-back" size={22} color="#111827" />
         </Pressable>
 
         <View style={styles.rightGroup}>
+          {onLike ? (
+            <Pressable onPress={onLike} style={styles.iconButton} hitSlop={10}>
+              <Ionicons
+                name={isLiked ? "heart" : "heart-outline"}
+                size={22}
+                color={isLiked ? "#EF4444" : "#111827"}
+              />
+            </Pressable>
+          ) : null}
           <Pressable onPress={handlePressShare} style={styles.iconButton} hitSlop={10}>
-            <Text style={styles.iconText}>⤴</Text>
+            <Ionicons name="share-outline" size={22} color="#111827" />
           </Pressable>
           <Pressable onPress={handlePressSave} style={styles.iconButton} hitSlop={10}>
-            <Text style={styles.iconText}>★</Text>
+            <Ionicons name="bookmark-outline" size={22} color="#111827" />
           </Pressable>
         </View>
       </View>
@@ -218,16 +230,21 @@ const styles = StyleSheet.create({
 
   rightGroup: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
   },
 
   iconButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#ffffff",
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
 
   iconText: {
@@ -242,8 +259,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     marginTop: -20,
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
     shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: -2 },
@@ -253,20 +270,21 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 13,
     color: "#777",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   titleText: {
     fontSize: 20,
     fontWeight: "bold",
+    marginBottom: 6,
   },
   infoBlock: {
-    marginTop: 12,
-    gap: 10,
+    marginTop: 4,
+    gap: 4,
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 24,
+    minHeight: 20,
   },
   infoIcon: {
     marginRight: 10,

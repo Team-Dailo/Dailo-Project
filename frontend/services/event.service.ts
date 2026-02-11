@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../constants/api';
+import { getAccessToken } from './auth.service';
 import type { Event, EventDetail } from '../types/event';
 
 /** 백엔드 이벤트 리스트 응답 (EventListResponse: id, title, thumbnailUrl, startAt, endAt, placeName) */
@@ -179,14 +180,20 @@ type EventDetailResponseRaw = {
   hostContact: string | null;
   status: string;
   naverMapUrl: string | null;
+  extraJson?: string | null;
+  likeCount?: number;
+  isLiked?: boolean;
 };
 
 /**
- * 이벤트 상세 조회
+ * 이벤트 상세 조회 (로그인 시 isLiked 포함)
  * GET /api/events/{id}
  */
 export async function getEventDetail(id: string): Promise<EventDetail> {
-  const res = await fetch(`${API_BASE_URL}/api/events/${id}`);
+  const token = await getAccessToken().catch(() => null);
+  const res = await fetch(`${API_BASE_URL}/api/events/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
   if (!res.ok) throw new Error(`event detail failed: ${res.status}`);
   const raw: EventDetailResponseRaw = await res.json();
   if (__DEV__) console.log('[Event API] detail ok:', raw?.id ?? id);
@@ -205,5 +212,50 @@ export async function getEventDetail(id: string): Promise<EventDetail> {
     hostContact: raw.hostContact ?? null,
     status: raw.status ?? '',
     naverMapUrl: raw.naverMapUrl ?? null,
+    extraJson: raw.extraJson ?? null,
+    likeCount: raw.likeCount ?? 0,
+    isLiked: raw.isLiked ?? false,
   };
+}
+
+/** 인기순(좋아요 많은 순) 행사 목록 (홈 캐러셀용) - EventListResponse와 동일 구조 */
+export type PopularEventItem = {
+  id: number;
+  title: string;
+  thumbnailUrl: string | null;
+  startAt: string;
+  endAt: string;
+  placeName: string | null;
+};
+
+/**
+ * 인기 행사 목록 (좋아요 순)
+ * GET /api/events/popular?size=3
+ */
+export async function getPopularEvents(size: number = 3): Promise<PopularEventItem[]> {
+  const url = `${API_BASE_URL}/api/events/popular?size=${size}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`popular events failed: ${res.status}`);
+  const data: PopularEventItem[] = await res.json();
+  return data ?? [];
+}
+
+/**
+ * 좋아요 토글 (로그인 필요)
+ * POST /api/events/{eventId}/like
+ * @returns { liked, likeCount }
+ */
+export async function toggleEventLike(eventId: number): Promise<{ liked: boolean; likeCount: number }> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('로그인이 필요합니다.');
+  const res = await fetch(`${API_BASE_URL}/api/events/${eventId}/like`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    if (res.status === 401) throw new Error('로그인이 필요합니다.');
+    throw new Error(`좋아요 처리 실패 (${res.status})`);
+  }
+  const data = await res.json();
+  return { liked: !!data.liked, likeCount: Number(data.likeCount) ?? 0 };
 }
