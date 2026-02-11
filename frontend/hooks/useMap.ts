@@ -9,6 +9,9 @@ import { getEventsOnMap } from '../services/event.service';
 const LOCATION_REQUEST_TIMEOUT_MS = 10000;
 /** 지도 영역 변경 시 API 재요청 디바운스(ms) */
 const MAP_FETCH_DEBOUNCE_MS = 600;
+/** 확대해도 마커가 사라지지 않도록 요청 bounds 최소 크기(degree). 이보다 작게 요청하면 결과가 없을 수 있음 */
+const MIN_LAT_DELTA = 0.008;
+const MIN_LNG_DELTA = 0.01;
 
 export function useMap() {
   const [region, setRegion] = useState<Region | undefined>();
@@ -21,22 +24,35 @@ export function useMap() {
   const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchEventsInBounds = useCallback((r: Region) => {
-    const swLat = r.latitude - r.latitudeDelta / 2;
-    const neLat = r.latitude + r.latitudeDelta / 2;
-    const swLng = r.longitude - r.longitudeDelta / 2;
-    const neLng = r.longitude + r.longitudeDelta / 2;
+    const latDelta = Math.max(r.latitudeDelta, MIN_LAT_DELTA);
+    const lngDelta = Math.max(r.longitudeDelta, MIN_LNG_DELTA);
+    const swLat = r.latitude - latDelta / 2;
+    const neLat = r.latitude + latDelta / 2;
+    const swLng = r.longitude - lngDelta / 2;
+    const neLng = r.longitude + lngDelta / 2;
     setEventsLoading(true);
     getEventsOnMap({ swLat, neLat, swLng, neLng })
       .then(setEvents)
-      .catch(() => setEvents([]))
+      .catch((err) => {
+        if (__DEV__) console.warn('[useMap] getEventsOnMap failed', err);
+        setEvents([]);
+      })
       .finally(() => setEventsLoading(false));
   }, []);
+
+  const defaultRegion: Region = {
+    latitude: 36.991,
+    longitude: 127.926,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  };
 
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== Location.PermissionStatus.GRANTED) {
+        setRegion(defaultRegion);
         return;
       }
 
@@ -65,6 +81,8 @@ export function useMap() {
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         });
+      } else {
+        setRegion(defaultRegion);
       }
     })();
   }, []);
@@ -142,6 +160,20 @@ export function useMap() {
     if (region) fetchEventsInBounds(region);
   }, [region, fetchEventsInBounds]);
 
+  /** 지도 드래그/줌 후 화면 영역으로만 행사 조회. setRegion 하지 않아서 지도가 튀지 않음 */
+  const refetchWithBounds = useCallback(
+    (centerLat: number, centerLng: number, latDelta: number, lngDelta: number) => {
+      const r: Region = {
+        latitude: centerLat,
+        longitude: centerLng,
+        latitudeDelta: latDelta,
+        longitudeDelta: lngDelta,
+      };
+      fetchEventsInBounds(r);
+    },
+    [fetchEventsInBounds]
+  );
+
   return {
     region,
     setRegion,
@@ -155,5 +187,6 @@ export function useMap() {
     focusCurrentLocation,
     refreshCurrentLocation,
     refetchMapEvents,
+    refetchWithBounds,
   };
 }

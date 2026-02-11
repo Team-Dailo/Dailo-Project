@@ -74,7 +74,8 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
           e.latitude != null &&
           e.longitude != null &&
           Number.isFinite(e.latitude) &&
-          Number.isFinite(e.longitude)
+          Number.isFinite(e.longitude) &&
+          (e.latitude !== 0 || e.longitude !== 0)
       ),
     [events]
   );
@@ -101,6 +102,7 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
           anchor={{ x: 0.5, y: 1 }}
           caption={event.title ? { text: event.title } : undefined}
           onTap={() => onMarkerPress(event)}
+          globalZIndex={200001}
         />
       ))}
       {showMyLocationCircle &&

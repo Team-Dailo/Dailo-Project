@@ -22,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import EventDetailTabs, { TabKey } from "../../../components/detail/EventDetailTabs";
 import * as adminService from "../../../services/admin.service";
 import { parseEventExtra, stringifyEventExtra } from "../../../utils/eventExtra";
+import { MAP_UI } from "../../../constants/colors";
 
 const DEFAULT_POSTER = "https://images.unsplash.com/photo-1485550409059-9afb054cada4?w=800";
 
@@ -42,12 +43,13 @@ const SCALE_OPTIONS: { value: string; label: string }[] = [
   { value: "LARGE", label: "대규모" },
 ];
 
-const FILTER_GROUP_OPTIONS: { value: string; label: string }[] = [
-  { value: "CHUNGJU_CITY", label: "충주시" },
-  { value: "UNIVERSITY", label: "대학교" },
-  { value: "STUDENT_COUNCIL", label: "총학생회" },
-  { value: "COLLEGE", label: "단과대" },
-  { value: "CLUB", label: "동아리" },
+/** 규모(지도 마커 색상): 시군구·대학교·단과대/학생회·동아리/소모임·개인 */
+const FILTER_GROUP_OPTIONS: { value: string; label: string; color: string }[] = [
+  { value: "CHUNGJU_CITY", label: "시·군·구", color: MAP_UI.scaleBadge[0] },
+  { value: "UNIVERSITY", label: "대학교", color: MAP_UI.scaleBadge[1] },
+  { value: "COLLEGE", label: "단과대/학생회", color: MAP_UI.scaleBadge[2] },
+  { value: "CLUB", label: "동아리/소모임", color: MAP_UI.scaleBadge[3] },
+  { value: "", label: "개인", color: MAP_UI.scaleBadge[4] },
 ];
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -254,7 +256,7 @@ export default function AdminEventEditDetailScreen() {
         endAt: end,
         categories: categories.length ? categories : ["FESTIVAL"],
         scale: scale.trim() || undefined,
-        filterGroup: filterGroup.trim() || undefined,
+        filterGroup: filterGroup.trim() === "" ? null : (filterGroup.trim() || undefined),
         status: status || "DRAFT",
         thumbnailUrl: thumbnailUrl.trim() || undefined,
         description: description.trim() || undefined,
@@ -405,10 +407,13 @@ export default function AdminEventEditDetailScreen() {
               <Ionicons name="pencil" size={14} color="#9CA3AF" />
             </Pressable>
             <Pressable style={styles.infoRow} onPress={() => setEditTarget({ type: "filterGroup" })}>
-              <Ionicons name="calendar-outline" size={18} color="#6B7280" style={styles.infoIcon} />
+              <Ionicons name="pin-outline" size={18} color="#6B7280" style={styles.infoIcon} />
               <Text style={styles.infoText} numberOfLines={1}>
-                {filterGroup ? (FILTER_GROUP_OPTIONS.find((f) => f.value === filterGroup)?.label ?? filterGroup) : "달력 카테고리 (탭하여 편집)"}
+                {FILTER_GROUP_OPTIONS.some((f) => f.value === filterGroup) ? (FILTER_GROUP_OPTIONS.find((f) => f.value === filterGroup)?.label) : "규모 (지도 마커 색상, 탭하여 편집)"}
               </Text>
+              {FILTER_GROUP_OPTIONS.some((f) => f.value === filterGroup) ? (
+                <View style={[styles.filterGroupBadge, { backgroundColor: FILTER_GROUP_OPTIONS.find((f) => f.value === filterGroup)!.color }]} />
+              ) : null}
               <Ionicons name="pencil" size={14} color="#9CA3AF" />
             </Pressable>
             <Pressable style={styles.infoRow} onPress={() => setEditTarget({ type: "status" })}>
@@ -828,7 +833,7 @@ function EditModal({
     coords: "위도 / 경도",
     categories: "카테고리",
     scale: "규모",
-    filterGroup: "달력 카테고리",
+    filterGroup: "규모 (지도 마커 색상)",
     status: "상태",
     news: "소식",
     timeline: "타임테이블",
@@ -897,10 +902,11 @@ function EditModal({
                   const isSelected = selectedFilterGroup === f.value;
                   return (
                     <Pressable
-                      key={f.value}
-                      style={[styles.modalChip, isSelected && styles.modalChipSelected]}
+                      key={f.value || "PERSONAL"}
+                      style={[styles.modalChip, styles.modalChipRow, isSelected && styles.modalChipSelected]}
                       onPress={() => setSelectedFilterGroup(f.value)}
                     >
+                      <View style={[styles.filterGroupChipBadge, { backgroundColor: f.color }]} />
                       <Text style={[styles.modalChipText, isSelected && styles.modalChipTextSelected]}>
                         {f.label}
                       </Text>
@@ -1113,9 +1119,12 @@ const styles = StyleSheet.create({
   modalChipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   modalChipHint: { width: "100%", fontSize: 12, color: "#6B7280", marginBottom: 4 },
   modalChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#E5E7EB" },
+  modalChipRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   modalChipSelected: { backgroundColor: "#2563EB", borderColor: "#2563EB" },
   modalChipText: { fontSize: 14, color: "#374151" },
   modalChipTextSelected: { color: "#FFF", fontWeight: "600" },
+  filterGroupBadge: { width: 12, height: 12, borderRadius: 6, marginLeft: 4 },
+  filterGroupChipBadge: { width: 14, height: 14, borderRadius: 7 },
   modalActions: { flexDirection: "row", gap: 12, marginTop: 8 },
   modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: "center" },
   modalBtnPrimary: { backgroundColor: "#2563EB" },

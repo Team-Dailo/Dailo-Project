@@ -11,9 +11,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import type { Event } from '../../../../types/event';
-import { formatDateTimeRange } from '../../../../utils/formatDate';
-import { formatTimeRange } from '../../../../utils/formatTime';
+import type { Event, EventCategory } from '../../../../types/event';
+import { formatDate, formatDateTimeRange } from '../../../../utils/formatDate';
+import { formatTime, formatTimeRange } from '../../../../utils/formatTime';
+
+const CATEGORY_LABEL: Record<EventCategory, string> = {
+  FESTIVAL: '축제',
+  EXHIBITION: '전시',
+  PERFORMANCE: '공연',
+  EXPERIENCE_BOOTH: '체험부스',
+  FOOD_TRUCK: '푸드트럭',
+  TRAFFIC: '교통',
+  CONSTRUCTION: '공사',
+  ETC: '기타',
+};
 
 type SheetMode = 'collapsed' | 'expanded';
 
@@ -56,13 +67,23 @@ export function MapBottomSheet({
     onClose();
   };
 
-  // ✅ ISO 문자열 그대로 출력하지 않도록 포맷 적용
-  const dateText = formatDateTimeRange(event.startAt, event.endAt);
-
-  // ✅ 하드코딩 제거: 실제 시간으로 표시
-  const timeText = formatTimeRange(event.startAt, event.endAt);
-
-  const placeText = event.address || event.placeName;
+  const hasStart = event.startAt && !Number.isNaN(new Date(event.startAt).getTime());
+  const hasEnd = event.endAt && !Number.isNaN(new Date(event.endAt).getTime());
+  const dateText =
+    hasStart && hasEnd
+      ? formatDateTimeRange(event.startAt, event.endAt)
+      : hasStart
+        ? formatDate(event.startAt)
+        : '날짜 없음';
+  const timeText =
+    hasStart && hasEnd
+      ? formatTimeRange(event.startAt, event.endAt)
+      : hasStart
+        ? formatTime(event.startAt)
+        : '시간 없음';
+  const placeText = event.address || event.placeName || '위치 없음';
+  const categoryLabel =
+    (event.category && CATEGORY_LABEL[event.category as EventCategory]) ?? '기타';
 
   // 큰 카드 상단 위치: 필터 칩 아래 + 8px 정도 여백
   const expandedTop = filterBottomY + 8;
@@ -80,37 +101,14 @@ export function MapBottomSheet({
             onCollapsedHeightChange?.(e.nativeEvent.layout.height)
           }
         >
-          {/* 축제 목록 보기(가운데) + 오른쪽 버튼(현재 위치 등) 같은 줄 */}
-          <View style={styles.listButtonRowOnSheet}>
-            <View style={styles.listButtonCenterOnSheet}>
-              <TouchableOpacity style={styles.listButton} activeOpacity={0.85}>
-                <Text style={styles.listButtonText}>축제 목록 보기</Text>
-              </TouchableOpacity>
-            </View>
-            {onPressCurrentLocation != null ? (
-              <TouchableOpacity
-                style={styles.currentLocationButtonInSheet}
-                activeOpacity={0.85}
-                onPress={onPressCurrentLocation}
-                accessibilityLabel="현재 위치"
-              >
-                <Ionicons name="locate" size={22} color="#2563EB" />
-              </TouchableOpacity>
-            ) : (
-              renderRightButton?.()
-            )}
-          </View>
-
+          {/* 축제 목록 보기·현재위치·확대축소는 지도 오버레이에서 카드 위로 올려서 표시 → 여기서는 작은 카드만 */}
           {/* 작은 카드 */}
           <View style={styles.cardSmall}>
             <View style={styles.cardHeader}>
-              <Text style={styles.category}>공연</Text>
+              <Text style={styles.category}>{categoryLabel}</Text>
             </View>
 
             <Text style={styles.title}>{event.title}</Text>
-            <Text style={styles.subtitle} numberOfLines={1}>
-              즐겁고 힐링할 수 있도록 준비한 공연
-            </Text>
 
             <View style={styles.metaRow}>
               <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
@@ -122,7 +120,7 @@ export function MapBottomSheet({
             </View>
             <View style={styles.metaRow}>
               <Ionicons name="location-outline" size={14} color="#9CA3AF" />
-              <Text style={styles.metaText}>{placeText}</Text>
+              <Text style={styles.metaText} numberOfLines={2}>{placeText}</Text>
             </View>
 
             <View style={styles.smallBottomRow}>
@@ -161,13 +159,15 @@ export function MapBottomSheet({
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.cardHeader}>
-              <Text style={styles.category}>공연</Text>
+              <Text style={styles.category}>{categoryLabel}</Text>
             </View>
 
             <Text style={styles.title}>{event.title}</Text>
-            <Text style={styles.subtitle}>
-              즐겁고 힐링할 수 있도록 준비한 공연
-            </Text>
+            {placeText !== '위치 없음' ? (
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {placeText}
+              </Text>
+            ) : null}
 
             <View style={[styles.metaRow, { marginTop: 12 }]}>
               <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
