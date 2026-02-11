@@ -6,6 +6,7 @@ import com.dailo.backend.entity.Event;
 import com.dailo.backend.domain.enums.EventStatus;
 import com.dailo.backend.domain.enums.EventCategory;
 import com.dailo.backend.repository.EventRepository;
+import com.dailo.backend.repository.EventLikeRepository;
 import com.dailo.backend.repository.ScrapRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,12 +30,14 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final ScrapRepository scrapRepository;
-    // 상세 조회
+    private final EventLikeRepository eventLikeRepository;
 
-    public EventDetailResponse getEventDetail(Long eventId) {
-        return eventRepository.findById(eventId)
-                .map(EventDetailResponse::from)
+    /** 상세 조회 (비로그인 시 isLiked=false) */
+    public EventDetailResponse getEventDetail(Long eventId, Long memberId) {
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이벤트입니다. id=" + eventId));
+        Boolean isLiked = memberId != null && eventLikeRepository.existsByMemberIdAndEventId(memberId, eventId);
+        return EventDetailResponse.from(event, isLiked);
     }
 
     // 지도 마커 조회
@@ -67,6 +70,19 @@ public class EventService {
         );
 
         return events.map(this::convertToEventListResponse);
+    }
+
+    /** 인기순(좋아요 많은 순) 상위 행사 (홈 캐러셀용). 종료된 행사(endAt < now) 제외. */
+    public List<EventListResponse> getTopEventsByLikeCount(int size) {
+        Pageable pageable = PageRequest.of(0, Math.max(size * 2, 20),
+                Sort.by(Sort.Direction.DESC, "likeCount").and(Sort.by(Sort.Direction.ASC, "startAt")));
+        List<Event> events = eventRepository.findByStatus(EventStatus.ACTIVE, pageable);
+        LocalDateTime now = LocalDateTime.now();
+        List<Event> notEnded = events.stream()
+                .filter(e -> e.getEndAt() == null || !e.getEndAt().isBefore(now))
+                .limit(size)
+                .collect(Collectors.toList());
+        return notEnded.stream().map(this::convertToEventListResponse).collect(Collectors.toList());
     }
 
     private EventListResponse convertToEventListResponse(Event event) {

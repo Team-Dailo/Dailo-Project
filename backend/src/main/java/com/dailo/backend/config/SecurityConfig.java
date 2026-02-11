@@ -81,6 +81,9 @@ public class SecurityConfig {
                     "/webjars/**"
                 ).permitAll()
 
+                // 업로드된 이미지 공개 조회
+                .requestMatchers("/uploads/**").permitAll()
+
                 // 백엔드 동작 확인용 (브라우저에서 http://localhost:8080/ 또는 /hello)
                 .requestMatchers("/", "/hello").permitAll()
 

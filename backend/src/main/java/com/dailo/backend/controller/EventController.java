@@ -1,10 +1,11 @@
 package com.dailo.backend.controller;
 
-import com.dailo.backend.dto.event.EventCalendarResponse; // [추가]
+import com.dailo.backend.dto.event.EventCalendarResponse;
 import com.dailo.backend.dto.event.EventDetailResponse;
 import com.dailo.backend.dto.event.EventListRequest;
 import com.dailo.backend.dto.event.EventListResponse;
 import com.dailo.backend.dto.event.EventMapResponse;
+import com.dailo.backend.service.EventLikeService;
 import com.dailo.backend.service.EventService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -12,10 +13,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal; // [추가] Security 사용 시
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/events")
@@ -24,6 +27,7 @@ import java.util.List;
 public class EventController {
 
     private final EventService eventService;
+    private final EventLikeService eventLikeService;
 
     /**
      * 지도 마커 조회 (Bounds 기반)
@@ -78,13 +82,45 @@ public class EventController {
     /**
      * 이벤트 상세 조회
      * [GET] /api/events/{id}
+     * 로그인 시 isLiked 포함.
      */
     @Operation(summary = "이벤트 상세 조회", description = "특정 이벤트의 모든 상세 정보를 조회합니다.")
     @GetMapping("/{id}")
     public ResponseEntity<EventDetailResponse> getEventDetail(
-            @Parameter(description = "조회할 이벤트 ID", required = true)
-            @PathVariable Long id
+            @Parameter(description = "조회할 이벤트 ID", required = true) @PathVariable Long id,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails
     ) {
-        return ResponseEntity.ok(eventService.getEventDetail(id));
+        Long memberId = (userDetails != null && userDetails.getUsername() != null)
+                ? Long.parseLong(userDetails.getUsername())
+                : null;
+        return ResponseEntity.ok(eventService.getEventDetail(id, memberId));
+    }
+
+    /**
+     * 인기순(좋아요 많은 순) 행사 목록 (홈 캐러셀용)
+     * [GET] /api/events/popular?size=3
+     */
+    @Operation(summary = "인기 행사 (좋아요 순)", description = "좋아요가 많은 순으로 행사 목록을 반환합니다.")
+    @GetMapping("/popular")
+    public ResponseEntity<List<EventListResponse>> getPopularEvents(
+            @Parameter(description = "조회 개수", example = "3") @RequestParam(defaultValue = "3") int size
+    ) {
+        return ResponseEntity.ok(eventService.getTopEventsByLikeCount(Math.min(size, 20)));
+    }
+
+    /**
+     * 좋아요 토글 (로그인 필요)
+     * [POST] /api/events/{eventId}/like
+     */
+    @Operation(summary = "좋아요 토글", description = "행사에 좋아요를 누르거나 해제합니다.")
+    @PostMapping("/{eventId}/like")
+    public ResponseEntity<Map<String, Object>> toggleLike(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "행사 ID", required = true) @PathVariable Long eventId
+    ) {
+        Long memberId = Long.parseLong(userDetails.getUsername());
+        boolean liked = eventLikeService.toggleLike(memberId, eventId);
+        long likeCount = eventService.getEventDetail(eventId, memberId).getLikeCount();
+        return ResponseEntity.ok(Map.of("liked", liked, "likeCount", likeCount));
     }
 }
