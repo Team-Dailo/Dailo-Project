@@ -79,6 +79,10 @@ public class Post {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void setAuthorId(Long authorId) {
+        this.authorId = authorId;
+    }
+
     // 비즈니스 메서드
     public void update(String title, String content, String categoryType) {
         this.title = title;

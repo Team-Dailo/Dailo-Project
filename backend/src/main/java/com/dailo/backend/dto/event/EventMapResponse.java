@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Builder
 @NoArgsConstructor
@@ -18,6 +20,12 @@ public class EventMapResponse {
     private String category;      // 대표 카테고리 1개 (핀 색상 구분용)
     private String thumbnailUrl;
     private String status;        // 행사 상태 (ACTIVE 등)
+    private LocalDateTime startAt;
+    private LocalDateTime endAt;
+    private String placeName;
+    private String placeAddress;
+    /** 규모/달력 필터 (CHUNGJU_CITY, UNIVERSITY, COLLEGE, CLUB 등) → 마커 색상용 */
+    private String filterGroup;
 
     public static EventMapResponse from(Event event) {
         String mainCategory = "ETC";
@@ -33,6 +41,11 @@ public class EventMapResponse {
                 .category(mainCategory)
                 .thumbnailUrl(event.getThumbnailUrl())
                 .status(event.getStatus().name())
+                .startAt(event.getStartAt())
+                .endAt(event.getEndAt())
+                .placeName(event.getPlaceName())
+                .placeAddress(event.getPlaceAddress())
+                .filterGroup(event.getFilterGroup())
                 .build();
     }
 }

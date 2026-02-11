@@ -16,4 +16,6 @@ public interface EventLikeRepository extends JpaRepository<EventLike, Long> {
     boolean existsByMemberIdAndEventId(Long memberId, Long eventId);
 
     void deleteByMemberIdAndEventId(Long memberId, Long eventId);
+
+    long countByEvent_Id(Long eventId);
 }

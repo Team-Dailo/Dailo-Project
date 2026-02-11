@@ -76,6 +76,19 @@ public class EventController {
     }
 
     /**
+     * 지도 검색: 키워드(행사명·장소·설명)로 행사 검색
+     * [GET] /api/events/search?keyword=xxx&size=30
+     */
+    @Operation(summary = "지도 검색", description = "행사명·장소명·설명에 키워드가 포함된 행사 목록을 반환합니다. 위경도가 있는 행사만 포함됩니다.")
+    @GetMapping("/search")
+    public ResponseEntity<List<EventMapResponse>> searchEvents(
+            @Parameter(description = "검색 키워드", required = true) @RequestParam String keyword,
+            @Parameter(description = "최대 건수", example = "30") @RequestParam(defaultValue = "30") int size
+    ) {
+        return ResponseEntity.ok(eventService.searchEventsByKeyword(keyword, size));
+    }
+
+    /**
      * 이벤트 상세 조회
      * [GET] /api/events/{id}
      */

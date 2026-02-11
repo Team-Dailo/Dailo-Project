@@ -16,6 +16,8 @@ public class PostListResponseDto {
 
     private Long id;
     private Long authorId;
+    /** 작성자 닉네임 (표시용) */
+    private String authorNickname;
     private String title;
     private String categoryType;
     private Integer viewCount;
@@ -24,9 +26,14 @@ public class PostListResponseDto {
     private LocalDateTime createdAt;
 
     public static PostListResponseDto from(Post post) {
+        return from(post, null);
+    }
+
+    public static PostListResponseDto from(Post post, String authorNickname) {
         return PostListResponseDto.builder()
                 .id(post.getId())
                 .authorId(post.getAuthorId())
+                .authorNickname(authorNickname != null ? authorNickname : "알 수 없음")
                 .title(post.getTitle())
                 .categoryType(post.getCategoryType())
                 .viewCount(post.getViewCount())
