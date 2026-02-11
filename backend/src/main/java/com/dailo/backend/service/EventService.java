@@ -43,7 +43,7 @@ public class EventService {
     // 지도 마커 조회
 
     public List<EventMapResponse> getEventsInMap(Double swLat, Double neLat, Double swLng, Double neLng) {
-        return eventRepository.findEventsInBounds(swLat, neLat, swLng, neLng, EventStatus.ACTIVE)
+        return eventRepository.findEventsInBoundsForMap(swLat, neLat, swLng, neLng)
                 .stream()
                 .map(EventMapResponse::from)
                 .collect(Collectors.toList());
