@@ -18,7 +18,7 @@ import { useAuth } from '../../hooks/useAuth';
 import * as authService from '../../services/auth.service';
 
 export default function LoginScreen() {
-  const { login, refreshUser } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,11 +35,12 @@ export default function LoginScreen() {
     try {
       const user = await authService.login(trimmed, password);
       login(user);
-      await refreshUser();
+      // refreshUser()는 getMe() 실패 시 저장을 지우므로, 로그인 직후에는 호출하지 않음
       router.back();
     } catch (e) {
       const message = e instanceof Error ? e.message : '로그인에 실패했습니다.';
       setErrorMessage(message);
+      Alert.alert('로그인 실패', message, [{ text: '확인' }]);
     } finally {
       setLoading(false);
     }

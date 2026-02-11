@@ -67,7 +67,8 @@ export default function ChatListScreen() {
 
   const getPartner = (room: chatService.ChatRoomResponse) => {
     const other = room.members?.find((m) => m.userId !== myUserId);
-    return other ? `user_${other.userId}` : "알 수 없음";
+    if (!other) return "알 수 없음";
+    return (other.nickname && other.nickname.trim()) || `user_${other.userId}`;
   };
 
   const filtered = search.trim()

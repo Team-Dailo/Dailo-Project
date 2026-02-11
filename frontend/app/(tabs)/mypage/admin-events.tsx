@@ -1,5 +1,5 @@
 // 관리자 - 행사 관리 (GET/POST/PUT/DELETE /api/admin/events)
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   RefreshControl,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as adminService from "../../../services/admin.service";
@@ -43,9 +44,12 @@ export default function AdminEventsScreen() {
     }
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  // 행사 추가/수정 후 돌아올 때마다 목록 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      load(true);
+    }, [])
+  );
 
   const handleDelete = (id: number, title: string) => {
     Alert.alert("행사 삭제", `"${title}"을(를) 삭제하시겠습니까?`, [

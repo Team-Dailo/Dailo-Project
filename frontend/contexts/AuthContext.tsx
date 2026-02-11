@@ -30,17 +30,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       const token = await authService.getAccessToken();
       const email = await authService.getStoredUserEmail();
-      if (token && email) {
-        const me = await authService.getMe();
-        const storedId = await authService.getStoredUserId();
-        const name = me?.nickname || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
-        const id = (me?.id != null && me.id > 0 ? me.id : storedId) ?? undefined;
-        const role = me?.role ?? undefined;
-        if (id != null) await authService.setStoredUserId(id);
-        setUser({ name, id, role, email });
-      } else {
+      if (!token || !email) {
         setUser(null);
+        return;
       }
+      const me = await authService.getMe();
+      if (!me) {
+        await authService.clearAuthStorage();
+        setUser(null);
+        return;
+      }
+      const name = me.nickname?.trim() || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
+      const id = (me.id != null && me.id > 0 ? me.id : await authService.getStoredUserId()) ?? undefined;
+      const role = me.role ?? undefined;
+      if (id != null) await authService.setStoredUserId(id);
+      setUser({ name, id, role, email });
     })();
   }, []);
 
@@ -56,17 +60,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(async () => {
     const token = await authService.getAccessToken();
     const email = await authService.getStoredUserEmail();
-    if (token && email) {
-      const me = await authService.getMe();
-      const storedId = await authService.getStoredUserId();
-      const name = me?.nickname || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
-      const id = (me?.id != null && me.id > 0 ? me.id : storedId) ?? undefined;
-      const role = me?.role ?? undefined;
-      if (id != null) await authService.setStoredUserId(id);
-      setUser({ name, id, role, email });
-    } else {
+    if (!token || !email) {
       setUser(null);
+      return;
     }
+    const me = await authService.getMe();
+    if (!me) {
+      // getMe 실패 시 저장은 지우지 않고, user만 유지 (로그인 직후 마이페이지 포커스에서 상태가 지워지는 것 방지)
+      return;
+    }
+    const name = me.nickname?.trim() || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
+    const id = (me.id != null && me.id > 0 ? me.id : await authService.getStoredUserId()) ?? undefined;
+    const role = me.role ?? undefined;
+    if (id != null) await authService.setStoredUserId(id);
+    setUser({ name, id, role, email });
   }, []);
 
   const value: AuthContextValue = {

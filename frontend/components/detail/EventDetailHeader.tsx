@@ -13,8 +13,10 @@ import {
   ToastAndroid,
   Alert,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import type { EventDetail } from "../../types/event";
 import * as logService from "../../services/log.service";
 
@@ -35,12 +37,16 @@ function formatEventDate(iso: string): string {
   }
 }
 
-function formatEventTime(iso: string): string {
+function formatEventTimeRange(startIso: string, endIso?: string | null): string {
   try {
-    const d = new Date(iso);
-    const h = d.getHours();
-    const m = d.getMinutes();
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    const s = new Date(startIso);
+    const start = `${String(s.getHours()).padStart(2, "0")}:${String(s.getMinutes()).padStart(2, "0")}`;
+    if (endIso) {
+      const e = new Date(endIso);
+      const end = `${String(e.getHours()).padStart(2, "0")}:${String(e.getMinutes()).padStart(2, "0")}`;
+      return `${start} ~ ${end}`;
+    }
+    return `${start} ~`;
   } catch {
     return "";
   }
@@ -125,9 +131,14 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
   }
 
   const dateStr = formatEventDate(event.startAt);
-  const timeStr = formatEventTime(event.startAt);
+  const timeStr = formatEventTimeRange(event.startAt, event.endAt);
   const placeStr = event.placeName?.trim() || "장소 미정";
-  const hostStr = event.hostContact?.trim() || "";
+  const organizerStr = event.hostContact?.trim() || "—";
+
+  const openMap = () => {
+    const url = event.naverMapUrl;
+    if (url) Linking.openURL(url).catch(() => {});
+  };
 
   return (
     <View style={styles.container}>
@@ -151,14 +162,33 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
       <View style={styles.infoCard}>
         {dateStr ? <Text style={styles.dateText}>{dateStr}</Text> : null}
         <Text style={styles.titleText}>{event.title}</Text>
-        <View style={{ marginTop: 8 }}>
-          {timeStr ? <Text style={styles.infoLine}>🕒 {timeStr} ~</Text> : null}
-          <Text style={styles.infoLine}>📍 {placeStr}</Text>
-          {hostStr ? <Text style={styles.infoLine}>👤 {hostStr}</Text> : null}
-          {clickCount != null ? (
-            <Text style={styles.infoLine}>👁 조회수 {clickCount}</Text>
+
+        {/* 시간 · 장소 · 주최자 (아이콘 + 한 줄씩) */}
+        <View style={styles.infoBlock}>
+          {timeStr ? (
+            <View style={styles.infoRow}>
+              <Ionicons name="time-outline" size={18} color="#6B7280" style={styles.infoIcon} />
+              <Text style={styles.infoText}>{timeStr}</Text>
+            </View>
           ) : null}
+          <View style={styles.infoRow}>
+            <Ionicons name="location-outline" size={18} color="#6B7280" style={styles.infoIcon} />
+            <Text style={styles.infoText} numberOfLines={1}>{placeStr}</Text>
+            {event.naverMapUrl ? (
+              <Pressable onPress={openMap} style={styles.mapButton} hitSlop={8}>
+                <Ionicons name="navigate" size={18} color="#FFFFFF" />
+              </Pressable>
+            ) : null}
+          </View>
+          <View style={styles.infoRow}>
+            <Ionicons name="information-circle-outline" size={18} color="#6B7280" style={styles.infoIcon} />
+            <Text style={styles.infoText} numberOfLines={1}>{organizerStr}</Text>
+          </View>
         </View>
+
+        {clickCount != null ? (
+          <Text style={styles.clickCount}>조회수 {clickCount}</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -229,10 +259,37 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
-  infoLine: {
+  infoBlock: {
+    marginTop: 12,
+    gap: 10,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 24,
+  },
+  infoIcon: {
+    marginRight: 10,
+    width: 18,
+  },
+  infoText: {
+    flex: 1,
     fontSize: 14,
-    marginBottom: 4,
-    color: "#444",
+    color: "#374151",
+  },
+  mapButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#2563EB",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  clickCount: {
+    marginTop: 10,
+    fontSize: 12,
+    color: "#9CA3AF",
   },
   posterPlaceholder: {
     backgroundColor: "#F3F4F6",

@@ -1,4 +1,4 @@
-// app/(tabs)/home/event-list.tsx
+// app/(tabs)/home/event-list.tsx - 행사 리스트 전체 (참고 이미지 스타일)
 import React from "react";
 import {
   View,
@@ -8,11 +8,14 @@ import {
   Pressable,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEventList } from "../../../hooks/useEvent";
 import type { Event } from "../../../types/event";
 
+/** 2025.11.20 목요일 */
 function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
@@ -22,18 +25,42 @@ function formatDate(iso: string): string {
   }
 }
 
-function formatTime(iso: string): string {
+/** 19:00 ~ 21:00 (시작~종료) */
+function formatTimeRange(startIso: string, endIso?: string): string {
   try {
-    const d = new Date(iso);
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} ~`;
+    const start = new Date(startIso);
+    const startStr = `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`;
+    if (endIso) {
+      const end = new Date(endIso);
+      const endStr = `${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
+      return `${startStr} ~ ${endStr}`;
+    }
+    return `${startStr} ~`;
   } catch {
     return "";
   }
 }
 
+function categoryLabel(cat: string | undefined): string {
+  const map: Record<string, string> = {
+    PERFORMANCE: "공연",
+    EXHIBITION: "전시",
+    EXPERIENCE: "체험",
+    FOOD_TRUCK: "푸드트럭",
+  };
+  return (cat && map[cat]) || "공연";
+}
+
 export default function EventListScreen() {
   const router = useRouter();
   const { events, loading, error, refetch } = useEventList({ size: 50 });
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   if (error) {
     return (
@@ -47,47 +74,72 @@ export default function EventListScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.filterRow}>
-        {["날짜", "카테고리", "인기/추천", "지역"].map((label, index) => (
-          <Pressable key={label} style={[styles.filterChip, index === 0 && styles.filterChipActive]}>
-            <Text style={[styles.filterText, index === 0 && styles.filterTextActive]}>
-              {label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color="#2563EB" />
-          <Text style={styles.loadingText}>불러오는 중...</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>행사 리스트</Text>
         </View>
-      ) : (
-        events.map((event: Event) => (
-          <Pressable
-            key={event.id}
-            style={styles.eventCard}
-            onPress={() => router.push(`/event/${event.id}?source=list`)}
-          >
-            <Image
-              source={{
-                uri: event.thumbnailUrl ?? "https://via.placeholder.com/200x300.png?text=Poster",
-              }}
-              style={styles.eventImage}
-            />
-            <View style={styles.eventInfo}>
-              <Text style={styles.eventCategory}>{event.category ?? "공연"}</Text>
-              <Text style={styles.eventTitle}>{event.title}</Text>
-              <Text style={styles.eventDate}>{formatDate(event.startAt)}</Text>
-              <Text style={styles.eventTime}>{formatTime(event.startAt)}</Text>
-              <Pressable style={styles.detailButton}>
-                <Text style={styles.detailButtonText}>자세히 보기</Text>
-              </Pressable>
+        <View style={styles.eventCardList}>
+          {loading ? (
+            <View style={styles.eventCardLoading}>
+              <ActivityIndicator size="small" color="#6366F1" />
             </View>
-          </Pressable>
-        ))
-      )}
+          ) : events.length === 0 ? (
+            <Text style={styles.eventCardEmpty}>등록된 행사가 없어요</Text>
+          ) : (
+            events.map((event: Event, index) => {
+              const dateStr = formatDate(event.startAt);
+              const timeStr = formatTimeRange(event.startAt, event.endAt);
+              return (
+                <View key={event.id} style={styles.eventCardWrap}>
+                  <Pressable
+                    style={styles.eventCard}
+                    onPress={() => router.push(`/event/${event.id}?source=list`)}
+                  >
+                    <Image
+                      source={{
+                        uri: event.thumbnailUrl ?? "https://via.placeholder.com/200x300.png?text=Poster",
+                      }}
+                      style={styles.eventImage}
+                    />
+                    <View style={styles.eventInfo}>
+                      <Text style={styles.eventCategory}>
+                        {categoryLabel(event.category)}
+                      </Text>
+                      <Text style={styles.eventTitle} numberOfLines={2}>
+                        {event.title}
+                      </Text>
+                      {dateStr ? (
+                        <Text style={styles.eventDate}>{dateStr}</Text>
+                      ) : null}
+                      {timeStr ? (
+                        <Text style={styles.eventTime}>{timeStr}</Text>
+                      ) : null}
+                      <View style={styles.eventCardFooter}>
+                        <Text style={styles.detailButtonText}>자세히 보기</Text>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={16}
+                          color="#FFFFFF"
+                        />
+                      </View>
+                    </View>
+                  </Pressable>
+                  {index < events.length - 1 ? (
+                    <View style={styles.cardDivider} />
+                  ) : null}
+                </View>
+              );
+            })
+          )}
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -95,11 +147,9 @@ export default function EventListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#ffffff",
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
     paddingBottom: 24,
   },
   center: {
@@ -108,12 +158,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 24,
   },
-  loadingWrap: {
-    paddingVertical: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: { marginTop: 12, fontSize: 14, color: "#6B7280" },
   errorText: { fontSize: 14, color: "#6B7280", marginBottom: 12 },
   retryBtn: {
     paddingVertical: 8,
@@ -122,80 +166,98 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
-  filterRow: {
-    flexDirection: "row",
-    marginBottom: 16,
+
+  /* 홈과 동일한 섹션/카드 스타일 */
+  section: {
+    marginTop: 24,
+    paddingHorizontal: 16,
   },
-  filterChip: {
+  sectionHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 10,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#F3F4F6",
-    marginRight: 8,
+    marginBottom: 12,
   },
-  filterChipActive: {
-    backgroundColor: "#2563EB",
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
   },
-  filterText: {
-    fontSize: 13,
-    color: "#4B5563",
+  eventCardList: {},
+  eventCardWrap: {
+    marginBottom: 0,
   },
-  filterTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "600",
+  cardDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E5E7EB",
+    marginVertical: 12,
+    marginLeft: 0,
+  },
+  eventCardLoading: {
+    paddingVertical: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  eventCardEmpty: {
+    paddingVertical: 24,
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
   },
   eventCard: {
     flexDirection: "row",
-    borderRadius: 14,
+    alignItems: "stretch",
     backgroundColor: "#FFFFFF",
-    padding: 12,
-    marginBottom: 12,
-    shadowColor: "#000000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 3,
+    paddingVertical: 14,
+    paddingHorizontal: 0,
   },
   eventImage: {
-    width: 80,
+    width: 100,
+    minWidth: 100,
     aspectRatio: 2 / 3,
-    borderRadius: 8,
-    marginRight: 12,
-    backgroundColor: "#D1D5DB",
+    borderRadius: 10,
+    marginRight: 14,
+    backgroundColor: "#E5E7EB",
   },
   eventInfo: {
     flex: 1,
+    minWidth: 0,
     justifyContent: "space-between",
+    paddingVertical: 2,
+    paddingRight: 16,
   },
   eventCategory: {
     fontSize: 12,
     color: "#6B7280",
+    marginBottom: 4,
   },
   eventTitle: {
     fontSize: 15,
     fontWeight: "700",
     color: "#111827",
-    marginTop: 2,
+    lineHeight: 21,
+    marginBottom: 6,
   },
   eventDate: {
     fontSize: 13,
-    color: "#374151",
-    marginTop: 6,
+    color: "#111827",
+    marginBottom: 2,
   },
   eventTime: {
     fontSize: 13,
-    color: "#4B5563",
-    marginTop: 2,
+    color: "#374151",
+    marginBottom: 10,
   },
-  detailButton: {
-    marginTop: 10,
-    height: 38,
-    borderRadius: 999,
-    backgroundColor: "#2563EB",
+  eventCardFooter: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    gap: 4,
+    height: 38,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: "#2563EB",
+    alignSelf: "flex-start",
   },
   detailButtonText: {
     color: "#FFFFFF",
