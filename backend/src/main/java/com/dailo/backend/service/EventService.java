@@ -72,6 +72,28 @@ public class EventService {
         return events.map(this::convertToEventListResponse);
     }
 
+    /** 지도 검색용: 키워드로 행사 검색 후 위경도 있는 것만 반환 (지도 이동용) */
+    public List<EventMapResponse> searchEventsForMap(String keyword, int size) {
+        if (keyword == null || keyword.isBlank()) {
+            return List.of();
+        }
+        Pageable pageable = PageRequest.of(0, Math.min(size * 2, 50), Sort.by(Sort.Direction.ASC, "startAt"));
+        Page<Event> events = eventRepository.searchEvents(
+                EventStatus.ACTIVE,
+                null,
+                null,
+                null,
+                null,
+                keyword.trim(),
+                pageable
+        );
+        return events.getContent().stream()
+                .filter(e -> e.getLatitude() != null && e.getLongitude() != null)
+                .limit(size)
+                .map(EventMapResponse::from)
+                .collect(Collectors.toList());
+    }
+
     /** 인기순(좋아요 많은 순) 상위 행사 (홈 캐러셀용). 종료된 행사(endAt < now) 제외. */
     public List<EventListResponse> getTopEventsByLikeCount(int size) {
         Pageable pageable = PageRequest.of(0, Math.max(size * 2, 20),
@@ -86,13 +108,15 @@ public class EventService {
     }
 
     private EventListResponse convertToEventListResponse(Event event) {
+        List<EventCategory> categories = event.getCategories() != null ? event.getCategories() : List.of();
         return new EventListResponse(
                 event.getId(),
                 event.getTitle(),
                 event.getThumbnailUrl(),
                 event.getStartAt(),
                 event.getEndAt(),
-                event.getPlaceName()
+                event.getPlaceName(),
+                categories
         );
     }
 
@@ -116,8 +140,8 @@ public class EventService {
                 .map(event -> EventCalendarResponse.builder()
                         .id(event.getId())
                         .title(event.getTitle())
-                        // 카테고리가 여러 개면 첫 번째 것을 대표 색상으로 사용 (없으면 ETC)
                         .category(event.getCategories().isEmpty() ? EventCategory.ETC : event.getCategories().get(0))
+                        .filterGroup(event.getFilterGroup())
                         .startAt(event.getStartAt())
                         .endAt(event.getEndAt() != null ? event.getEndAt() : event.getStartAt())
                         .isBookmarked(scrappedEventIds.contains(event.getId()))

@@ -15,7 +15,8 @@ public class EventMapResponse {
     private String title;
     private Double latitude;
     private Double longitude;
-    private String category;      // 대표 카테고리 1개 (핀 색상 구분용)
+    private String category;      // 대표 카테고리 1개
+    private String filterGroup;    // 규모/구분 (마커 색상용: CHUNGJU_CITY, UNIVERSITY, COLLEGE, CLUB 등)
     private String thumbnailUrl;
     private String status;        // 행사 상태 (ACTIVE 등)
 
@@ -24,6 +25,7 @@ public class EventMapResponse {
         if (event.getCategories() != null && !event.getCategories().isEmpty()) {
             mainCategory = event.getCategories().get(0).name();
         }
+        String filterGroupName = event.getFilterGroup() != null ? event.getFilterGroup().name() : null;
 
         return EventMapResponse.builder()
                 .id(event.getId())
@@ -31,6 +33,7 @@ public class EventMapResponse {
                 .latitude(event.getLatitude())
                 .longitude(event.getLongitude())
                 .category(mainCategory)
+                .filterGroup(filterGroupName)
                 .thumbnailUrl(event.getThumbnailUrl())
                 .status(event.getStatus().name())
                 .build();

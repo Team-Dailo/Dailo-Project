@@ -38,6 +38,7 @@ public class AdminEventService {
                 .endAt(request.getEndAt())
                 .categories(request.getCategories())
                 .scale(request.getScale())
+                .filterGroup(request.getFilterGroup())
                 .status(request.getStatus() != null ? request.getStatus() : EventStatus.DRAFT)
                 .thumbnailUrl(request.getThumbnailUrl())
                 .posterUrls(request.getPosterUrls())
@@ -81,6 +82,7 @@ public class AdminEventService {
                 request.getEndAt(),
                 request.getCategories(),
                 request.getScale(),
+                request.getFilterGroup(),
                 request.getStatus(),
                 request.getThumbnailUrl(),
                 request.getPosterUrls(),
