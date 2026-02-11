@@ -1,5 +1,5 @@
 // app/board/[id].tsx
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import { usePostDetail, useComments } from "../../hooks/useBoard";
 import { formatRelativeTime } from "../../utils/formatDate";
 import * as boardService from "../../services/board.service";
 import * as reportService from "../../services/report.service";
+import * as authService from "../../services/auth.service";
 import * as blockService from "../../services/block.service";
 import * as chatService from "../../services/chat.service";
 
@@ -63,6 +64,16 @@ export default function PostDetailScreen() {
 
   const postAuthorId = post ? Number((post as Record<string, unknown>).author_id ?? post.authorId ?? 0) : 0;
   const isMyPost = Boolean(post && user?.id != null && postAuthorId !== 0 && Number(postAuthorId) === Number(user.id));
+  const [blockCheck, setBlockCheck] = useState<{ iBlockedThem: boolean; theyBlockedMe: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!post || postAuthorId <= 0 || isMyPost) {
+      setBlockCheck(null);
+      return;
+    }
+    blockService.checkBlock(postAuthorId).then(setBlockCheck).catch(() => setBlockCheck(null));
+  }, [post, postAuthorId, isMyPost]);
+
   /** 항상 API에서 온 작성자 닉네임 표시 (백엔드가 실제 작성자 정보 반환) */
   const authorDisplayName = post
     ? (post.authorNickname ?? (post as Record<string, unknown>).author_nickname ?? `user_${postAuthorId}`)
@@ -134,7 +145,9 @@ export default function PostDetailScreen() {
 
   const handleBlock = () => {
     setMenuVisible(false);
-    if (!post?.authorId) return;
+    if (blockCheck?.iBlockedThem) return;
+    const authorId = post?.authorId ?? postAuthorId;
+    if (!authorId) return;
     Alert.alert("차단", "이 사용자를 차단하시겠습니까?", [
       { text: "취소", style: "cancel" },
       {
@@ -142,7 +155,7 @@ export default function PostDetailScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            await blockService.blockUser(post!.authorId);
+            await blockService.blockUser(authorId);
             Alert.alert("차단됨", "사용자를 차단했습니다.");
             router.back();
           } catch {
@@ -155,13 +168,28 @@ export default function PostDetailScreen() {
 
   const handleSendChat = () => {
     setMenuVisible(false);
-    if (!post?.authorId) return;
+    const targetId = post?.authorId ?? postAuthorId;
+    if (!targetId || targetId <= 0) return;
+    const myId = user?.id != null ? Number(user.id) : null;
+    if (myId != null && Number(targetId) === myId) {
+      Alert.alert("알림", "본인 글에는 채팅을 보낼 수 없습니다.");
+      return;
+    }
     (async () => {
       try {
-        const room = await chatService.createRoom(post!.authorId);
+        const hasToken = !!(await authService.getAccessToken());
+        if (!hasToken) {
+          Alert.alert(
+            "로그인 필요",
+            "채팅을 사용하려면 로그인이 필요합니다. 마이페이지에서 로그인해 주세요."
+          );
+          return;
+        }
+        const room = await chatService.createRoom(Number(targetId));
         router.push(`/board/chat/${room.id}`);
-      } catch {
-        Alert.alert("오류", "채팅방을 열 수 없습니다.");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "채팅방을 열 수 없습니다.";
+        Alert.alert("오류", msg);
       }
     })();
   };
@@ -505,8 +533,19 @@ export default function PostDetailScreen() {
             <Pressable style={styles.menuItem} onPress={handleReport}>
               <Text style={styles.menuText}>신고</Text>
             </Pressable>
-            <Pressable style={styles.menuItem} onPress={handleBlock}>
-              <Text style={[styles.menuText, styles.menuTextDanger]}>차단하기</Text>
+            <Pressable
+              style={styles.menuItem}
+              onPress={blockCheck?.iBlockedThem ? () => setMenuVisible(false) : handleBlock}
+              disabled={blockCheck?.iBlockedThem}
+            >
+              <Text
+                style={[
+                  styles.menuText,
+                  blockCheck?.iBlockedThem ? styles.menuTextMuted : styles.menuTextDanger,
+                ]}
+              >
+                {blockCheck?.iBlockedThem ? "이미 차단한 사용자" : "차단하기"}
+              </Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -677,6 +716,7 @@ const styles = StyleSheet.create({
   menuItem: { paddingVertical: 14, paddingHorizontal: 18 },
   menuText: { fontSize: 15, color: "#111827" },
   menuTextDanger: { color: "#DC2626" },
+  menuTextMuted: { color: "#9CA3AF" },
   loadingWrap: { paddingVertical: 48, alignItems: "center", justifyContent: "center" },
   loadingText: { marginTop: 12, fontSize: 14, color: "#6B7280" },
   errorWrap: { paddingVertical: 48, alignItems: "center", justifyContent: "center" },

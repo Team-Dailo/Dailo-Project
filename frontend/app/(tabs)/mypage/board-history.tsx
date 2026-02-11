@@ -57,7 +57,10 @@ export default function BoardHistoryScreen() {
   const { user, refreshUser } = useAuthContext();
   const userIdFromHook = useMyUserId();
   const [resolvedUserId, setResolvedUserId] = useState<number | null>(null);
-  const userId = resolvedUserId ?? userIdFromHook;
+  const userId =
+    (user?.id != null && user.id > 0 ? Number(user.id) : null) ??
+    resolvedUserId ??
+    userIdFromHook;
   const { posts, loading, error, refetch } = useMyPostList(userId);
   const sortedPosts = useMemo(() => posts.map(toPostRow), [posts]);
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
@@ -112,12 +115,22 @@ export default function BoardHistoryScreen() {
     Alert.alert("숨기기(나만 보기)", "해당 기능은 준비 중입니다.");
   };
 
+  // 로그인 시 저장된 userId를 먼저 사용해, getMe() 대기 없이 내 글 조회 가능하도록 함
   useFocusEffect(
     React.useCallback(() => {
+      if (user?.id != null && user.id > 0) {
+        setResolvedUserId(Number(user.id));
+        return;
+      }
+      if (!user) {
+        setResolvedUserId(null);
+        return;
+      }
       let cancelled = false;
       (async () => {
-        if (!user) {
-          if (!cancelled) setResolvedUserId(null);
+        const stored = await authService.getStoredUserId();
+        if (!cancelled && stored != null && stored > 0) {
+          setResolvedUserId(stored);
           return;
         }
         const me = await authService.getMe();
@@ -130,16 +143,18 @@ export default function BoardHistoryScreen() {
           setResolvedUserId(userIdFromHook);
           return;
         }
-        const stored = await authService.getStoredUserId();
-        if (!cancelled && stored != null && stored > 0) {
-          setResolvedUserId(stored);
-        } else if (!cancelled) {
-          setResolvedUserId(null);
-        }
+        if (!cancelled) setResolvedUserId(null);
       })();
       return () => { cancelled = true; };
-    }, [user, userIdFromHook])
+    }, [user, user?.id, userIdFromHook])
   );
+
+  const handleRetryUserIdAndRefetch = React.useCallback(async () => {
+    await refreshUser();
+    const stored = await authService.getStoredUserId();
+    if (stored != null && stored > 0) setResolvedUserId(stored);
+    refetch();
+  }, [refreshUser, refetch]);
 
   const renderPost = ({ item }: { item: PostRow }) => (
     <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.id}`)}>
@@ -212,7 +227,7 @@ export default function BoardHistoryScreen() {
           ) : userId == null ? (
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyText}>내 글 정보를 불러오는 중...</Text>
-              <Pressable style={styles.retryBtn} onPress={() => refreshUser()}>
+              <Pressable style={styles.retryBtn} onPress={handleRetryUserIdAndRefetch}>
                 <Text style={styles.retryText}>다시 시도</Text>
               </Pressable>
             </View>

@@ -49,18 +49,27 @@ export default function SearchScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color="#9ca3af" />
-          <TextInput
-            style={styles.input}
-            placeholder={placeholder}
-            placeholderTextColor="#9ca3af"
-            value={keyword}
-            onChangeText={setKeyword}
-            onSubmitEditing={handleSubmit}
-            returnKeyType="search"
-            autoFocus
-          />
+        <View style={styles.headerRow}>
+          <Pressable
+            onPress={() => router.back()}
+            style={styles.backButton}
+            hitSlop={12}
+          >
+            <Ionicons name="chevron-back" size={24} color="#111827" />
+          </Pressable>
+          <View style={styles.searchBox}>
+            <Ionicons name="search" size={18} color="#9ca3af" />
+            <TextInput
+              style={styles.input}
+              placeholder={placeholder}
+              placeholderTextColor="#9ca3af"
+              value={keyword}
+              onChangeText={setKeyword}
+              onSubmitEditing={handleSubmit}
+              returnKeyType="search"
+              autoFocus
+            />
+          </View>
         </View>
 
         <View style={styles.content}>
@@ -93,14 +102,26 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   searchBox: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 999,
     backgroundColor: '#f3f4f6',
     paddingHorizontal: 12,
     height: 40,
-    marginBottom: 16,
   },
   input: {
     flex: 1,

@@ -1,13 +1,15 @@
 import { API_BASE_URL } from '../constants/api';
 import type { Event, EventDetail } from '../types/event';
 
-/** 백엔드 이벤트 리스트 응답 (EventListResponse) */
+/** 백엔드 이벤트 리스트 응답 (EventListResponse: id, title, thumbnailUrl, startAt, endAt, placeName) */
 type EventListResponseItem = {
   id: number;
   title: string;
   thumbnailUrl?: string | null;
-  startDateTime: string;
-  endDateTime: string;
+  startAt?: string;
+  endAt?: string;
+  startDateTime?: string;
+  endDateTime?: string;
   placeName?: string | null;
   placeAddress?: string | null;
   latitude?: number | null;
@@ -38,8 +40,8 @@ function toEvent(item: EventListResponseItem): Event {
     title: item.title,
     category,
     scale: 'UNIVERSITY', // 백엔드에 scale 없음 시 기본값
-    startAt: item.startDateTime,
-    endAt: item.endDateTime,
+    startAt: item.startAt ?? item.startDateTime ?? '',
+    endAt: item.endAt ?? item.endDateTime ?? '',
     latitude: item.latitude ?? 0,
     longitude: item.longitude ?? 0,
     address: item.placeAddress ?? '',

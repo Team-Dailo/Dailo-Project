@@ -1,6 +1,6 @@
 // app/(tabs)/home/index.tsx
 
-import React from "react";
+import React, { useCallback } from "react";
 import {
   ScrollView,
   View,
@@ -10,6 +10,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -21,8 +22,16 @@ export default function HomeScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { posts: popularPosts, loading: popularLoading } = useHomePopularPosts();
-  const { events: eventList, loading: eventListLoading } = useEventList({ size: 6 });
-  const { events: topClickedEvents, loading: topClickedLoading } = useTopClickedEvents(5);
+  const { events: eventList, loading: eventListLoading, refetch: refetchEventList } = useEventList({ size: 6 });
+  const { events: topClickedEvents, loading: topClickedLoading, refetch: refetchTopClicked } = useTopClickedEvents(5);
+
+  // 홈 탭에 들어올 때마다 행사 리스트 새로고침 (관리자에서 추가한 행사 반영)
+  useFocusEffect(
+    useCallback(() => {
+      refetchEventList();
+      refetchTopClicked();
+    }, [refetchEventList, refetchTopClicked])
+  );
 
   return (
     <SafeAreaView
@@ -233,16 +242,28 @@ export default function HomeScreen() {
                       }
                     })()
                   : "";
-                const timeStr = event.startAt
-                  ? (() => {
-                      try {
-                        const d = new Date(event.startAt);
-                        return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} ~`;
-                      } catch {
-                        return "";
-                      }
-                    })()
-                  : "";
+                const timeStr =
+                  event.startAt && event.endAt
+                    ? (() => {
+                        try {
+                          const s = new Date(event.startAt);
+                          const e = new Date(event.endAt);
+                          return `${String(s.getHours()).padStart(2, "0")}:${String(s.getMinutes()).padStart(2, "0")} ~ ${String(e.getHours()).padStart(2, "0")}:${String(e.getMinutes()).padStart(2, "0")}`;
+                        } catch {
+                          return "";
+                        }
+                      })()
+                    : event.startAt
+                      ? (() => {
+                          try {
+                            const d = new Date(event.startAt);
+                            return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} ~`;
+                          } catch {
+                            return "";
+                          }
+                        })()
+                      : "";
+                const catLabel = { PERFORMANCE: "공연", EXHIBITION: "전시", EXPERIENCE: "체험", FOOD_TRUCK: "푸드트럭" }[event.category] ?? "공연";
                 return (
                   <Pressable
                     key={event.id}
@@ -256,7 +277,7 @@ export default function HomeScreen() {
                       style={styles.eventImage}
                     />
                     <View style={styles.eventInfo}>
-                      <Text style={styles.eventCategory}>{event.category ?? "공연"}</Text>
+                      <Text style={styles.eventCategory}>{catLabel}</Text>
                       <Text style={styles.eventTitle} numberOfLines={2}>
                         {event.title}
                       </Text>

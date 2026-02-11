@@ -8,11 +8,14 @@ const getDefaultUserId = (): number => {
 };
 
 const getHeaders = async (): Promise<HeadersInit> => {
+  const token = await authService.getAccessToken();
   const id = (await authService.getStoredUserId()) ?? getDefaultUserId();
-  return {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-User-Id': String(id),
   };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
 };
 
 export type BlockResponse = {

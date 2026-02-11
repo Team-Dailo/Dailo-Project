@@ -164,12 +164,16 @@ export async function login(
 ): Promise<{ name: string; id?: number; email: string }> {
   const dto = await loginApi({ email: email.trim(), password });
   const trimmed = email.trim();
+  const token = (dto as Record<string, unknown>).accessToken ?? dto.accessToken;
+  if (!token || typeof token !== 'string' || !token.trim()) {
+    throw new Error('로그인 응답에 토큰이 없습니다. 서버 설정을 확인해 주세요.');
+  }
   const dtoAny = dto as Record<string, unknown>;
   const id = parseUserIdFromLoginResponse(dtoAny);
 
   const storageItems: [string, string][] = [
-    [ACCESS_TOKEN_KEY, dto.accessToken],
-    [REFRESH_TOKEN_KEY, dto.refreshToken],
+    [ACCESS_TOKEN_KEY, String(token)],
+    [REFRESH_TOKEN_KEY, (dto as Record<string, unknown>).refreshToken ?? dto.refreshToken ?? ''],
     [USER_EMAIL_KEY, trimmed],
   ];
   if (id != null && id > 0) {
