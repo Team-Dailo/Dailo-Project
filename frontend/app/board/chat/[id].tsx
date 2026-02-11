@@ -1,207 +1,279 @@
-// app/board/chat/[id].tsx - 채팅화면 (1:1 대화)
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TextInput,
   Pressable,
+  Alert,
   KeyboardAvoidingView,
   Platform,
-  Modal,
-  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-type Message = {
+import SockJS from "sockjs-client";
+import { Client, IMessage } from "@stomp/stompjs";
+
+import { API_BASE_URL } from "@/constants/api";
+import * as chatService from "@/services/chat.service";
+
+type UIMessage = {
   id: string;
-  isMe: boolean;
+  mine: boolean;
   text: string;
-  time?: string;
+  createdAt: string;
+  senderId?: string;
 };
 
-function formatMessageTime(date?: Date): string {
-  const d = date ?? new Date();
-  const h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h < 12 ? "오전" : "오후";
-  const h12 = h % 12 || 12;
-  return `${ampm} ${h12}:${m.toString().padStart(2, "0")}`;
+function nowIso() {
+  return new Date().toISOString();
 }
 
-const MOCK_PARTNER = { id: "1", name: "민수", subId: "@minsu_daily" };
-const MOCK_MESSAGES: Message[] = [
-  { id: "m1", isMe: true, text: "안녕하세요! 축제 후기 글 보고 연락드렸어요.", time: "오전 10:12" },
-  { id: "m2", isMe: false, text: "네 안녕하세요 ㅎㅎ", time: "오전 10:14" },
-  { id: "m3", isMe: false, text: "다음 주 축제 같이 갈래요?", time: "오전 10:15" },
-  { id: "m4", isMe: true, text: "좋아요! 몇 시쯤 만날까요?", time: "오전 10:16" },
-];
+function normalizeMessage(m: any): { id: string; senderId?: string | number; text: string; createdAt: string } {
+  return {
+    id: String(m?.id ?? `${Date.now()}`),
+    senderId: m?.senderId,
+    text: String(m?.content ?? m?.text ?? ""),
+    createdAt: String(m?.createdAt ?? m?.sentAt ?? nowIso()),
+  };
+}
+
+// ✅ roomId 정규화: 배열/슬래시/공백 제거
+function normalizeRoomId(param: unknown) {
+  const raw = Array.isArray(param) ? param[0] : param;
+  return String(raw ?? "")
+    .replace(/\//g, "")
+    .trim();
+}
 
 export default function ChatRoomScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [notificationsOn, setNotificationsOn] = useState(true);
+  const params = useLocalSearchParams(); // ✅ 타입 강제 안 함 (실제론 string | string[])
+  const roomId = useMemo(() => normalizeRoomId(params.id), [params.id]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      { id: `m${Date.now()}`, isMe: true, text: input.trim(), time: formatMessageTime() },
-    ]);
-    setInput("");
-  };
+  const [myUserId, setMyUserId] = useState<string>("");
+  const [messages, setMessages] = useState<UIMessage[]>([]);
+  const [text, setText] = useState("");
+  const [connecting, setConnecting] = useState(false);
 
-  const handleToggleNotification = () => {
-    setNotificationsOn((prev) => !prev);
-    setMenuVisible(false);
-  };
+  const clientRef = useRef<Client | null>(null);
+  const connectedRef = useRef(false);
 
-  const handleBlock = () => {
-    setMenuVisible(false);
-    Alert.alert("차단하기", `${MOCK_PARTNER.name}님을 차단하시겠어요?`, [
-      { text: "취소", style: "cancel" },
-      { text: "차단", style: "destructive", onPress: () => router.back() },
-    ]);
-  };
+  const wsUrl = `${API_BASE_URL}/ws`;
 
-  const handleLeaveChat = () => {
-    setMenuVisible(false);
-    Alert.alert("채팅방 나가기", "채팅방을 나가시겠어요?", [
-      { text: "취소", style: "cancel" },
-      { text: "나가기", style: "destructive", onPress: () => router.back() },
-    ]);
-  };
+  useEffect(() => {
+    console.log("✅ [ChatRoomScreen] entered, roomId(raw) =", params.id);
+    console.log("✅ [ChatRoomScreen] roomId(normalized) =", roomId);
+    console.log("✅ [ChatRoomScreen] wsUrl =", wsUrl);
+  }, [params.id, roomId, wsUrl]);
+
+  // 내 userId
+  useEffect(() => {
+    (async () => {
+      const uid = (await chatService.getUserId()) ?? "";
+      setMyUserId(uid);
+      console.log("✅ [ChatRoomScreen] myUserId =", uid || "(empty)");
+    })();
+  }, []);
+
+  const appendIncoming = useCallback(
+    (payload: any) => {
+      const m = normalizeMessage(payload);
+      const ui: UIMessage = {
+        id: m.id,
+        mine: myUserId ? String(m.senderId) === String(myUserId) : false,
+        text: m.text,
+        createdAt: m.createdAt,
+        senderId: m.senderId ? String(m.senderId) : undefined,
+      };
+      setMessages((prev) => [...prev, ui]);
+    },
+    [myUserId]
+  );
+
+  const loadHistory = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      console.log("✅ [ChatRoomScreen] loadHistory roomId =", roomId);
+
+      const data: any = await chatService.getMessages(roomId);
+
+      // Page<...> 가능성 처리
+      const list: any[] = Array.isArray(data) ? data : Array.isArray(data?.content) ? data.content : [];
+
+      const ui: UIMessage[] = list.map((raw) => {
+        const m = normalizeMessage(raw);
+        return {
+          id: m.id,
+          mine: myUserId ? String(m.senderId) === String(myUserId) : false,
+          text: m.text,
+          createdAt: m.createdAt,
+          senderId: m.senderId ? String(m.senderId) : undefined,
+        };
+      });
+
+      setMessages(ui);
+      console.log("✅ [ChatRoomScreen] history count =", ui.length);
+    } catch (e: any) {
+      console.log("❌ loadHistory error =", e?.response?.status, e?.response?.data ?? e?.message);
+    }
+  }, [roomId, myUserId]);
+
+  const connectStomp = useCallback(async () => {
+    if (!roomId) return;
+    if (connectedRef.current || clientRef.current) return;
+
+    setConnecting(true);
+
+    const uid = (await chatService.getUserId()) ?? "";
+    const token = (await chatService.getAuthToken()) ?? "";
+
+    const client = new Client({
+      webSocketFactory: () => new SockJS(wsUrl),
+      connectHeaders: {
+        "X-User-Id": uid,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      reconnectDelay: 3000,
+      heartbeatIncoming: 10000,
+      heartbeatOutgoing: 10000,
+      debug: (str) => console.log("STOMP:", str),
+
+      onConnect: () => {
+        connectedRef.current = true;
+        setConnecting(false);
+        console.log("✅ STOMP connected");
+
+        client.subscribe(`/topic/chat/${roomId}`, (msg: IMessage) => {
+          try {
+            const payload = JSON.parse(msg.body);
+            appendIncoming(payload);
+          } catch (e) {
+            console.log("❌ parse incoming msg error", e);
+          }
+        });
+      },
+
+      onStompError: (frame) => {
+        console.log("❌ STOMP error", frame.headers, frame.body);
+        setConnecting(false);
+      },
+
+      onWebSocketClose: (evt) => {
+        connectedRef.current = false;
+        setConnecting(false);
+        console.log("⚠️ WS closed", evt?.code, evt?.reason);
+      },
+
+      onWebSocketError: (evt) => {
+        setConnecting(false);
+        console.log("❌ WS error", evt);
+      },
+    });
+
+    clientRef.current = client;
+    client.activate();
+  }, [roomId, wsUrl, appendIncoming]);
+
+  useEffect(() => {
+    if (!roomId) return;
+
+    loadHistory();
+    connectStomp();
+
+    return () => {
+      try {
+        connectedRef.current = false;
+        clientRef.current?.deactivate();
+        clientRef.current = null;
+      } catch {}
+    };
+  }, [roomId, loadHistory, connectStomp]);
+
+  const onSend = useCallback(async () => {
+    const t = text.trim();
+    if (!t || !roomId) return;
+
+    const client = clientRef.current;
+    if (!client || !connectedRef.current) {
+      Alert.alert("연결중", "채팅 서버에 연결중입니다. 잠시 후 다시 시도해줘.");
+      return;
+    }
+
+    const uid = (await chatService.getUserId()) ?? "";
+
+    const payload = {
+      content: t,
+      messageType: "TEXT",
+    };
+
+    try {
+      client.publish({
+        destination: `/app/chat/${roomId}`,
+        body: JSON.stringify(payload),
+        headers: {
+          "X-User-Id": uid,
+        },
+      });
+
+      setText("");
+    } catch (e: any) {
+      console.log("❌ publish error", e?.message ?? e);
+      Alert.alert("전송 실패", "메시지 전송에 실패했어.");
+    }
+  }, [text, roomId]);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
+          <Ionicons name="chevron-back" size={24} />
+        </Pressable>
+
+        <Text style={styles.title}>채팅방 {roomId}</Text>
+
+        <View style={{ width: 54, alignItems: "flex-end" }}>
+          {connecting ? <Text style={styles.connecting}>연결중</Text> : null}
+        </View>
+      </View>
+
       <KeyboardAvoidingView
-        style={styles.flex}
-        behavior="padding"
-        keyboardVerticalOffset={0}
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
       >
-        {/* 헤더: 뒤로가기 | 프로필 | 닉네임 / 아이디 | ⋯ */}
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="chevron-back" size={24} color="#111827" />
-          </Pressable>
-          <View style={styles.profileCircle} />
-          <View style={styles.headerCenter}>
-            <Text style={styles.partnerName}>{MOCK_PARTNER.name}님</Text>
-            <Text style={styles.partnerId}>{MOCK_PARTNER.subId}</Text>
-          </View>
-          <Pressable hitSlop={12} onPress={() => setMenuVisible(true)}>
-            <Ionicons name="ellipsis-horizontal" size={22} color="#111827" />
-          </Pressable>
-        </View>
-
-        {/* 더보기 메뉴 */}
-        <Modal
-          visible={menuVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setMenuVisible(false)}
-        >
-          <Pressable style={styles.menuBackdrop} onPress={() => setMenuVisible(false)}>
-            <View style={styles.menuCard}>
-              <Pressable style={styles.menuItem} onPress={handleToggleNotification}>
-                <Ionicons
-                  name={notificationsOn ? "notifications" : "notifications-off"}
-                  size={20}
-                  color="#374151"
-                />
-                <Text style={styles.menuItemText}>
-                  {notificationsOn ? "알림 끄기" : "알림 켜기"}
-                </Text>
-              </Pressable>
-              <Pressable style={styles.menuItem} onPress={handleBlock}>
-                <Ionicons name="ban" size={20} color="#374151" />
-                <Text style={styles.menuItemText}>차단하기</Text>
-              </Pressable>
-              <Pressable style={[styles.menuItem, styles.menuItemDanger]} onPress={handleLeaveChat}>
-                <Ionicons name="exit-outline" size={20} color="#DC2626" />
-                <Text style={styles.menuItemTextDanger}>채팅방 나가기</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Modal>
-
-        {/* 날짜 구분 */}
-        <View style={styles.dateWrap}>
-          <Text style={styles.dateText}>오늘</Text>
-        </View>
-
-        {/* 메시지 목록 */}
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+        <FlatList
+          data={messages}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {messages.map((msg, index) => {
-            const isLastOtherInRow =
-              !msg.isMe &&
-              (index === messages.length - 1 || messages[index + 1].isMe);
-            const hasNextOther =
-              !msg.isMe && index < messages.length - 1 && !messages[index + 1].isMe;
-            return msg.isMe ? (
-              <View key={msg.id} style={styles.myRow}>
-                {msg.time ? <Text style={styles.messageTime}>{msg.time}</Text> : null}
-                <View style={styles.myBubble}>
-                  <Text style={styles.myText}>{msg.text}</Text>
-                </View>
-              </View>
-            ) : (
-              <View
-                key={msg.id}
-                style={[styles.otherRow, hasNextOther && styles.otherRowTight]}
-              >
-                {isLastOtherInRow ? (
-                  <View style={styles.otherAvatar} />
-                ) : (
-                  <View style={styles.otherAvatarPlaceholder} />
-                )}
-                <View style={styles.otherBubble}>
-                  <Text style={styles.otherText}>{msg.text}</Text>
-                </View>
-                {msg.time ? <Text style={styles.messageTime}>{msg.time}</Text> : null}
-              </View>
-            );
-          })}
-        </ScrollView>
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>메시지가 없습니다.</Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <View style={[styles.bubble, item.mine ? styles.mine : styles.other]}>
+              <Text style={styles.msgText}>{item.text}</Text>
+              <Text style={styles.timeText}>{item.createdAt}</Text>
+            </View>
+          )}
+        />
 
-        {/* 입력 영역: 사진 | 메시지 보내기.. | 마이크 | 전송 */}
         <View style={styles.inputRow}>
-          <Pressable style={styles.inputIcon}>
-            <Ionicons name="image-outline" size={24} color="#2563EB" />
-          </Pressable>
           <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder="메시지 입력"
             style={styles.input}
-            placeholder="메시지 보내기.."
-            placeholderTextColor="#9CA3AF"
-            value={input}
-            onChangeText={setInput}
-            multiline
-            maxLength={500}
+            returnKeyType="send"
+            onSubmitEditing={onSend}
           />
-          <Pressable style={styles.inputIcon}>
-            <Ionicons name="mic-outline" size={22} color="#6B7280" />
-          </Pressable>
-          <Pressable
-            onPress={handleSend}
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
-            disabled={!input.trim()}
-          >
-            <Ionicons
-              name="send"
-              size={20}
-              color={input.trim() ? "#2563EB" : "#9CA3AF"}
-            />
+          <Pressable onPress={onSend} style={styles.sendBtn}>
+            <Ionicons name="send" size={18} color="#fff" />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -210,111 +282,51 @@ export default function ChatRoomScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
+  container: { flex: 1, backgroundColor: "#fff" },
   header: {
+    height: 52,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-    gap: 10,
+    borderBottomColor: "#eee",
+    paddingHorizontal: 12,
   },
-  profileCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#E5E7EB",
-  },
-  headerCenter: { flex: 1 },
-  partnerName: { fontSize: 16, fontWeight: "600", color: "#111827" },
-  partnerId: { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  dateWrap: { alignItems: "center", paddingVertical: 12 },
-  dateText: { fontSize: 12, color: "#9CA3AF" },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 16 },
-  myRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "flex-end", marginBottom: 10, gap: 6 },
-  myBubble: {
-    maxWidth: "80%",
-    backgroundColor: "#2563EB",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomRightRadius: 4,
-  },
-  myText: { fontSize: 15, color: "#FFFFFF", lineHeight: 20 },
-  otherRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 10, gap: 6 },
-  otherRowTight: { marginBottom: 4 },
-  otherAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#F9A8D4",
-    marginRight: 8,
-  },
-  otherAvatarPlaceholder: { width: 32, height: 32, marginRight: 8 },
-  otherBubble: {
-    maxWidth: "80%",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomLeftRadius: 4,
-  },
-  otherText: { fontSize: 15, color: "#111827", lineHeight: 20 },
-  messageTime: { fontSize: 11, color: "#9CA3AF", marginBottom: 2 },
+  backBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
+  title: { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "600" },
+  connecting: { fontSize: 10, opacity: 0.6, textAlign: "right" },
+
+  list: { padding: 12, gap: 10, flexGrow: 1 },
+  empty: { paddingTop: 40, alignItems: "center" },
+  emptyText: { color: "#6B7280" },
+
+  bubble: { maxWidth: "80%", padding: 10, borderRadius: 12 },
+  mine: { alignSelf: "flex-end", backgroundColor: "#DCF8C6" },
+  other: { alignSelf: "flex-start", backgroundColor: "#F2F2F2" },
+  msgText: { fontSize: 15 },
+  timeText: { marginTop: 4, fontSize: 11, opacity: 0.6 },
+
   inputRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    padding: 10,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
+    borderTopColor: "#eee",
+    alignItems: "center",
     gap: 8,
   },
-  inputIcon: { padding: 4, marginBottom: 4 },
   input: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 20,
-    fontSize: 15,
-    color: "#111827",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  sendBtn: { padding: 4, marginBottom: 4 },
-  sendBtnDisabled: { opacity: 0.6 },
-  menuBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-start",
-    alignItems: "flex-end",
-    paddingTop: 56,
-    paddingRight: 12,
-  },
-  menuCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    minWidth: 200,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-    overflow: "hidden",
-  },
-  menuItem: {
-    flexDirection: "row",
+  sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: "#111",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 12,
+    justifyContent: "center",
   },
-  menuItemText: { fontSize: 15, color: "#111827" },
-  menuItemDanger: { borderTopWidth: 1, borderTopColor: "#F3F4F6" },
-  menuItemTextDanger: { fontSize: 15, color: "#DC2626", fontWeight: "500" },
 });

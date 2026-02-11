@@ -42,30 +42,58 @@ export default function PostWriteScreen() {
   }, []);
 
   const handleCancel = () => router.back();
+
   const handleShare = async () => {
+    // ✅ 임시 로그: 지금 앱이 실제로 어디로 요청하려 하는지 확인
+    console.log("[PostWrite] API_BASE_URL =", API_BASE_URL);
+    console.log("[PostWrite] EXPO_PUBLIC_API_URL =", process.env.EXPO_PUBLIC_API_URL);
+
     const trimmedTitle = title.trim();
     const trimmedContent = content.trim();
+
     if (!trimmedTitle || !trimmedContent) {
       Alert.alert("알림", "제목과 내용을 입력해주세요.");
       return;
     }
+
     setSubmitting(true);
+
     try {
-      const created = await boardService.createPost({
+      const payload = {
         title: trimmedTitle,
         content: trimmedContent,
         categoryType: category,
-      });
+      };
+
+      // ✅ 임시 로그: 실제로 어떤 payload를 보내는지 확인
+      console.log("[PostWrite] createPost payload =", payload);
+
+      const created = await boardService.createPost(payload);
+
+      // ✅ 임시 로그: 서버에서 응답으로 뭐가 왔는지
+      console.log("[PostWrite] createPost success =", created);
+
       router.replace(`/board/${created.id}`);
-    } catch (e) {
+    } catch (e: any) {
+      // ✅ 임시 로그: 실패 원인(상태코드/응답/메시지) 정확히 확인
+      console.log("[PostWrite] createPost error (raw) =", e);
+      console.log("[PostWrite] message =", e?.message);
+      console.log("[PostWrite] code =", e?.code);
+      console.log("[PostWrite] status =", e?.response?.status);
+      console.log("[PostWrite] response data =", e?.response?.data);
+      console.log("[PostWrite] response headers =", e?.response?.headers);
+
       const isNetworkError =
-        e instanceof Error &&
-        (e.message?.includes("failed") ||
-          e.message?.includes("Network") ||
-          e.message?.includes("fetch"));
+        (e instanceof Error &&
+          (e.message?.includes("failed") ||
+            e.message?.includes("Network") ||
+            e.message?.includes("fetch"))) ||
+        e?.code === "ERR_NETWORK";
+
       const msg = isNetworkError
-        ? `서버에 연결할 수 없습니다.\n\n연결 시도 주소: ${API_BASE_URL}\n\n• 백엔드 실행: backend 폴더에서\n  ./gradlew bootRun --args='--spring.profiles.active=local'\n• 에뮬레이터: .env에 http://10.0.2.2:8080\n• 실기기: .env의 EXPO_PUBLIC_API_URL을 PC IP로 (예: http://192.168.0.10:8080)\n• 설정 변경 후 앱 완전 종료 후 다시 실행`
-        : "게시물을 등록할 수 없습니다.";
+        ? `서버에 연결할 수 없습니다.\n\n연결 시도 주소: ${API_BASE_URL}\n\n• 백엔드 실행: backend 폴더에서\n  ./gradlew bootRun --args="--spring.profiles.active=local"\n• 에뮬레이터: .env에 http://10.0.2.2:8080\n• 실기기: .env의 EXPO_PUBLIC_API_URL을 PC IP로 (예: http://192.168.219.102:8080)\n• 설정 변경 후 앱 완전 종료 후 다시 실행`
+        : `게시물을 등록할 수 없습니다.\n\nstatus: ${e?.response?.status ?? "unknown"}\nmessage: ${e?.message ?? "unknown"}`;
+
       Alert.alert("게시물 등록 실패", msg);
     } finally {
       setSubmitting(false);
@@ -100,7 +128,7 @@ export default function PostWriteScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* 카테고리: 후기 / 질문 / 자유 - 게시판 탭과 비슷한 크기, 파란색 */}
+          {/* 카테고리 */}
           <View style={styles.categoryRow}>
             {CATEGORIES.map((cat) => {
               const selected = category === cat;
@@ -118,7 +146,7 @@ export default function PostWriteScreen() {
             })}
           </View>
 
-          {/* 제목 - 라벨 없음, 플레이스홀더만 "제목" 크게 */}
+          {/* 제목 */}
           <TextInput
             style={styles.titleInput}
             placeholder="제목을 입력해주세요"
@@ -127,7 +155,7 @@ export default function PostWriteScreen() {
             onChangeText={setTitle}
           />
 
-          {/* 내용 - 라벨 없음 */}
+          {/* 내용 */}
           <TextInput
             style={styles.contentInput}
             placeholder="자유롭게 기록해보세요!"
@@ -139,7 +167,7 @@ export default function PostWriteScreen() {
           />
         </ScrollView>
 
-        {/* 사진/동영상, 태그 - 키보드 없을 땐 하단, 키보드 뜨면 키보드 위에 여유 간격 */}
+        {/* 하단 */}
         <View style={[styles.attachRow, { bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 0 }]}>
           <Pressable style={styles.attachBtn}>
             <Ionicons name="image-outline" size={22} color="#6B7280" />

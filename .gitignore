@@ -50,6 +50,7 @@ docker-compose.override.yml
 
 # 4. 크래시 로그
 crash.log
+<<<<<<< HEAD
 
 ### Custom - 개인 정보 보호 ###
 application-local.properties
@@ -76,3 +77,6 @@ backend/docs/
 # Logs
 **/logs/
 .vscode/
+=======
+node_modules
+>>>>>>> 5b29d0e (board 페이지에 expo-router추가)

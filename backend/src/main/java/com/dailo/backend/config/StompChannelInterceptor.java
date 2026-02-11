@@ -14,26 +14,32 @@ import java.security.Principal;
 public class StompChannelInterceptor implements ChannelInterceptor {
 
     private static final String USER_ID_HEADER = "X-User-Id";
+    private static final Long GUEST_USER_ID = 0L; // ✅ 없으면 게스트로 처리
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
-        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        StompHeaderAccessor accessor =
+                MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
-            // CONNECT 시 X-User-Id 헤더에서 userId 추출
             String userIdHeader = accessor.getFirstNativeHeader(USER_ID_HEADER);
 
-            if (userIdHeader != null) {
-                Long userId = Long.parseLong(userIdHeader);
-                // Principal로 설정하여 이후 메시지에서 사용
-                accessor.setUser(new StompPrincipal(userId));
+            Long userId = GUEST_USER_ID;
+            if (userIdHeader != null && !userIdHeader.isBlank()) {
+                try {
+                    userId = Long.parseLong(userIdHeader.trim());
+                } catch (NumberFormatException ignored) {
+                    userId = GUEST_USER_ID;
+                }
             }
+
+            // ✅ 무조건 Principal 세팅 (null 방지)
+            accessor.setUser(new StompPrincipal(userId));
         }
 
         return message;
     }
 
-    // 간단한 Principal 구현
     public static class StompPrincipal implements Principal {
         private final Long userId;
 

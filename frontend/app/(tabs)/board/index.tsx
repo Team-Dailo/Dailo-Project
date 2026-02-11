@@ -1,4 +1,5 @@
 // app/(tabs)/board/index.tsx
+
 import React, { useState, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -18,7 +19,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
-import { usePostList } from "../../../hooks/useBoard";
+import {usePostList } from "../../../hooks/useBoard";
 import { formatRelativeTime } from "../../../utils/formatDate";
 
 type Post = {
