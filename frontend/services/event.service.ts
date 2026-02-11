@@ -55,15 +55,21 @@ type PageResponse<T> = {
 
 /**
  * 이벤트 목록 조회 (리스트/지도 공통)
- * - 지도용: size 크게 해서 가져온 뒤 latitude, longitude 있는 것만 마커로 표시
+ * - keyword 있으면 행사명·장소명·내용(description) 기준 검색
  */
 export async function getEventList(params?: {
   page?: number;
   size?: number;
+  keyword?: string | null;
 }): Promise<Event[]> {
   const page = params?.page ?? 1;
   const size = params?.size ?? 100;
-  const url = `${API_BASE_URL}/api/events?page=${page}&size=${size}`;
+  const keyword = params?.keyword?.trim();
+  const searchParams = new URLSearchParams();
+  searchParams.set('page', String(page));
+  searchParams.set('size', String(size));
+  if (keyword) searchParams.set('keyword', keyword);
+  const url = `${API_BASE_URL}/api/events?${searchParams.toString()}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`events list failed: ${res.status}`);
   const data: PageResponse<EventListResponseItem> = await res.json();
@@ -146,6 +152,35 @@ type EventMapResponseItem = {
   placeAddress?: string | null;
 };
 
+function filterGroupToScale(fg: string | null | undefined): EventScale {
+  if (!fg) return 'PERSONAL';
+  switch (fg) {
+    case 'CHUNGJU_CITY': return 'CITY';
+    case 'UNIVERSITY': return 'UNIVERSITY';
+    case 'COLLEGE':
+    case 'STUDENT_COUNCIL': return 'DEPARTMENT';
+    case 'CLUB': return 'CLUB';
+    default: return 'PERSONAL';
+  }
+}
+
+function eventMapItemToEvent(item: EventMapResponseItem): Event {
+  return {
+    id: String(item.id),
+    title: item.title,
+    category: mapCategory(item.category),
+    scale: filterGroupToScale(item.filterGroup),
+    startAt: toIsoDateString(item.startAt) || '',
+    endAt: toIsoDateString(item.endAt) || '',
+    latitude: item.latitude ?? 0,
+    longitude: item.longitude ?? 0,
+    address: item.placeAddress ?? '',
+    placeName: item.placeName ?? '',
+    thumbnailUrl: item.thumbnailUrl ?? undefined,
+    isBookmarked: false,
+  };
+}
+
 /**
  * 지도 영역(bounds) 내 이벤트 마커 조회
  * GET /api/events/map?swLat=&neLat=&swLng=&neLng=
@@ -163,32 +198,7 @@ export async function getEventsOnMap(params: {
   const data: EventMapResponseItem[] = await res.json();
   const list = data ?? [];
   if (__DEV__) console.log('[Event API] map ok, count:', list.length);
-  const filterGroupToScale = (fg: string | null | undefined): EventScale => {
-    if (!fg) return 'PERSONAL';
-    switch (fg) {
-      case 'CHUNGJU_CITY': return 'CITY';
-      case 'UNIVERSITY': return 'UNIVERSITY';
-      case 'COLLEGE':
-      case 'STUDENT_COUNCIL': return 'DEPARTMENT';
-      case 'CLUB': return 'CLUB';
-      default: return 'PERSONAL';
-    }
-  };
-
-  return list.map((item) => ({
-    id: String(item.id),
-    title: item.title,
-    category: mapCategory(item.category),
-    scale: filterGroupToScale(item.filterGroup),
-    startAt: toIsoDateString(item.startAt) || '',
-    endAt: toIsoDateString(item.endAt) || '',
-    latitude: item.latitude ?? 0,
-    longitude: item.longitude ?? 0,
-    address: item.placeAddress ?? '',
-    placeName: item.placeName ?? '',
-    thumbnailUrl: item.thumbnailUrl ?? undefined,
-    isBookmarked: false,
-  }));
+  return list.map(eventMapItemToEvent);
 }
 
 /** 백엔드 상세 응답 (EventDetailResponse) - startAt/endAt ISO 문자열로 수신 */
@@ -266,6 +276,15 @@ export async function searchEventsForMap(
       Number.isFinite(e.latitude) &&
       Number.isFinite(e.longitude)
   );
+}
+
+/** 지도 탭 검색: 키워드로 행사 검색 후 Event[] 반환 (목록 표시용) */
+export async function searchEventsAsEvents(
+  keyword: string,
+  size: number = 30
+): Promise<Event[]> {
+  const raw = await searchEventsForMap(keyword, size);
+  return raw.map(eventMapItemToEvent);
 }
 
 /** 인기순(좋아요 많은 순) 행사 목록 (홈 캐러셀용) - EventListResponse와 동일 구조 */

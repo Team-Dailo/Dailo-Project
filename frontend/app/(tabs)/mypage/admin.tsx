@@ -12,6 +12,8 @@ const MENU_ITEMS: { icon: keyof typeof Ionicons.glyphMap; label: string; route: 
   { icon: "sync-outline", label: "동기화 로그", route: "/(tabs)/mypage/admin-sync-logs" },
   { icon: "document-text-outline", label: "수집 로그", route: "/(tabs)/mypage/admin-ingest-logs" },
   { icon: "newspaper-outline", label: "게시글 관리", route: "/(tabs)/mypage/admin-posts" },
+  { icon: "information-circle-outline", label: "이용안내 수정", route: "/(tabs)/mypage/admin-guide" },
+  { icon: "locate-outline", label: "시범 설정", route: "/(tabs)/mypage/demo-settings" },
 ];
 
 export default function AdminMenuScreen() {

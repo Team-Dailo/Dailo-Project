@@ -2,7 +2,6 @@ package com.dailo.backend.controller;
 
 import com.dailo.backend.dto.IngestLogResponseDto;
 import com.dailo.backend.service.AdminIngestLogService;
-import com.dailo.backend.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,21 +17,28 @@ public class AdminIngestLogController {
 
     private final AdminIngestLogService adminIngestLogService;
 
-    private static Long adminIdOr401() {
-        Long id = SecurityUtil.getCurrentMemberId();
-        if (id == null) throw new org.springframework.security.access.AccessDeniedException("인증이 필요합니다.");
-        return id;
-    }
-
+    /**
+     * 수집 로그 목록 조회
+     * GET /api/admin/ingest-logs?source=crawling
+     */
     @GetMapping
     public ResponseEntity<Page<IngestLogResponseDto>> getIngestLogs(
+            @RequestHeader("X-User-Id") Long adminId,
             @RequestParam(required = false) String source,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(adminIngestLogService.getIngestLogs(adminIdOr401(), source, pageable));
+        Page<IngestLogResponseDto> response = adminIngestLogService.getIngestLogs(adminId, source, pageable);
+        return ResponseEntity.ok(response);
     }
 
+    /**
+     * 수집 로그 상세 조회
+     * GET /api/admin/ingest-logs/{id}
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<IngestLogResponseDto> getIngestLog(@PathVariable Long id) {
-        return ResponseEntity.ok(adminIngestLogService.getIngestLog(adminIdOr401(), id));
+    public ResponseEntity<IngestLogResponseDto> getIngestLog(
+            @RequestHeader("X-User-Id") Long adminId,
+            @PathVariable Long id) {
+        IngestLogResponseDto response = adminIngestLogService.getIngestLog(adminId, id);
+        return ResponseEntity.ok(response);
     }
 }

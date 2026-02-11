@@ -4,7 +4,6 @@ import com.dailo.backend.dto.PostListResponseDto;
 import com.dailo.backend.dto.PostRequestDto;
 import com.dailo.backend.dto.PostResponseDto;
 import com.dailo.backend.entity.Post;
-import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -21,26 +20,20 @@ public class PostService {
 
     private final PostRepository postRepository;
     private final BlockService blockService;
-    private final MemberRepository memberRepository;
-
-    private String getAuthorNickname(Long authorId) {
-        return memberRepository.findById(authorId)
-                .map(m -> m.getNickname() != null && !m.getNickname().isBlank() ? m.getNickname() : ("user_" + authorId))
-                .orElse("user_" + authorId);
-    }
 
     public Page<PostListResponseDto> getAllPosts(Long userId, Pageable pageable) {
+        // 비로그인 또는 차단 없으면 전체 조회
         if (userId == null) {
-            return postRepository.findAll(pageable).map(p -> PostListResponseDto.from(p, getAuthorNickname(p.getAuthorId())));
+            return postRepository.findAll(pageable).map(PostListResponseDto::from);
         }
 
         Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
         if (invisibleIds.isEmpty()) {
-            return postRepository.findAll(pageable).map(p -> PostListResponseDto.from(p, getAuthorNickname(p.getAuthorId())));
+            return postRepository.findAll(pageable).map(PostListResponseDto::from);
         }
 
         return postRepository.findAllExcludingAuthors(invisibleIds, pageable)
-                .map(p -> PostListResponseDto.from(p, getAuthorNickname(p.getAuthorId())));
+                .map(PostListResponseDto::from);
     }
 
     @Transactional
@@ -51,7 +44,7 @@ public class PostService {
         validateVisible(post, userId);
         postRepository.increaseViewCount(id);
 
-        return PostResponseDto.from(post, getAuthorNickname(post.getAuthorId()));
+        return PostResponseDto.from(post);
     }
 
     private void validateVisible(Post post, Long userId) {
@@ -67,7 +60,7 @@ public class PostService {
     public PostResponseDto createPost(PostRequestDto requestDto, Long authorId) {
         Post post = requestDto.toEntity(authorId);
         Post savedPost = postRepository.save(post);
-        return PostResponseDto.from(savedPost, getAuthorNickname(savedPost.getAuthorId()));
+        return PostResponseDto.from(savedPost);
     }
 
     @Transactional
@@ -80,7 +73,7 @@ public class PostService {
         }
 
         post.update(requestDto.getTitle(), requestDto.getContent(), requestDto.getCategoryType());
-        return PostResponseDto.from(post, getAuthorNickname(post.getAuthorId()));
+        return PostResponseDto.from(post);
     }
 
     @Transactional
@@ -98,49 +91,32 @@ public class PostService {
     public Page<PostListResponseDto> getPostsByCategory(String categoryType, Long userId, Pageable pageable) {
         if (userId == null) {
             return postRepository.findByCategoryType(categoryType, pageable)
-                    .map(p -> PostListResponseDto.from(p, getAuthorNickname(p.getAuthorId())));
+                    .map(PostListResponseDto::from);
         }
 
         Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
         if (invisibleIds.isEmpty()) {
             return postRepository.findByCategoryType(categoryType, pageable)
-                    .map(p -> PostListResponseDto.from(p, getAuthorNickname(p.getAuthorId())));
+                    .map(PostListResponseDto::from);
         }
 
         return postRepository.findByCategoryTypeExcludingAuthors(categoryType, invisibleIds, pageable)
-                .map(p -> PostListResponseDto.from(p, getAuthorNickname(p.getAuthorId())));
+                .map(PostListResponseDto::from);
     }
 
     public Page<PostListResponseDto> searchPosts(String keyword, Long userId, Pageable pageable) {
         if (userId == null) {
             return postRepository.findByTitleContaining(keyword, pageable)
-                    .map(p -> PostListResponseDto.from(p, getAuthorNickname(p.getAuthorId())));
+                    .map(PostListResponseDto::from);
         }
 
         Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
         if (invisibleIds.isEmpty()) {
             return postRepository.findByTitleContaining(keyword, pageable)
-                    .map(p -> PostListResponseDto.from(p, getAuthorNickname(p.getAuthorId())));
+                    .map(PostListResponseDto::from);
         }
 
         return postRepository.findByTitleContainingExcludingAuthors(keyword, invisibleIds, pageable)
-                .map(p -> PostListResponseDto.from(p, getAuthorNickname(p.getAuthorId())));
-    }
-
-    /** 내가 쓴 글 목록 (게시판 기록용) */
-    public Page<PostListResponseDto> getPostsByAuthorId(Long authorId, Pageable pageable) {
-        return postRepository.findByAuthorId(authorId, pageable)
-                .map(p -> PostListResponseDto.from(p, getAuthorNickname(p.getAuthorId())));
-    }
-
-    /** 관리자용: 게시글 작성자 변경 (기존 데이터 수정 시 사용) */
-    @Transactional
-    public void updatePostAuthor(Long postId, Long newAuthorId) {
-        Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new RuntimeException("Post not found: " + postId));
-        if (newAuthorId == null || newAuthorId <= 0) {
-            throw new IllegalArgumentException("authorId must be positive");
-        }
-        post.changeAuthor(newAuthorId);
+                .map(PostListResponseDto::from);
     }
 }

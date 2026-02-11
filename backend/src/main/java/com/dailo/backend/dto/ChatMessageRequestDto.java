@@ -3,10 +3,8 @@ package com.dailo.backend.dto;
 import com.dailo.backend.domain.enums.MessageType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Getter
-@Setter
 @NoArgsConstructor
 public class ChatMessageRequestDto {
 

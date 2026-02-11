@@ -1,5 +1,5 @@
 // app/(tabs)/map/index.tsx
-import React, { useMemo, useState, useEffect, useRef, Component } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback, Component } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,8 @@ import {
   Linking,
   ActivityIndicator,
   Keyboard,
+  ImageBackground,
+  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,10 +41,20 @@ import {
   DateFilterModal,
   CategoryFilterModal,
   PopularFilterModal,
-  RegionFilterModal,
+  DistanceFilterModal,
   ScaleFilterModal,
 } from './_components/FilterModals';
-import { searchEventsForMap } from '../../../services/event.service';
+import type { Event } from '../../../types/event';
+import { searchEventsAsEvents, getEventsOnMap } from '../../../services/event.service';
+import { getDemoLocation } from '../../../services/demoLocationStorage';
+import {
+  setFestivalParticipation,
+  clearFestivalParticipation,
+  getFestivalParticipation,
+} from '../../../services/festivalParticipationStorage';
+import { startStay, completeStay } from '../../../services/location.service';
+import { useFestivalParticipation } from '../../../hooks/useFestivalParticipation';
+import { distanceKm } from '../../../utils/geo';
 
 /** 지역명 → 지도 중심 좌표 (지도 탭 검색용) */
 const REGION_CENTERS: Record<string, { latitude: number; longitude: number }> = {
@@ -97,8 +109,17 @@ export default function MapScreen() {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<
-    'date' | 'category' | 'popular' | 'region' | 'scale' | null
+    'date' | 'category' | 'popular' | 'distance' | 'scale' | null
   >(null);
+  const [distanceFilter, setDistanceFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<{ start: string; end: string } | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [scaleFilter, setScaleFilter] = useState<string>('all');
+  const [isEventListSheetVisible, setIsEventListSheetVisible] = useState(false);
+  /** 축제 목록 시트 열 때의 지도 카메라 중심 (정렬·범위 기준) */
+  const [listSheetCameraCenter, setListSheetCameraCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  /** 지도 검색 결과 (행사명 등 키워드 매칭 목록) */
+  const [mapSearchResults, setMapSearchResults] = useState<Event[] | null>(null);
 
   const [sheetMode, setSheetMode] = useState<SheetMode>('collapsed');
   const [filterBottomY, setFilterBottomY] = useState(0);
@@ -110,11 +131,201 @@ export default function MapScreen() {
   const { isLoggedIn } = useAuth();
   const [isFestivalActive, setIsFestivalActive] = useState(false);
   const [festivalChipHeight, setFestivalChipHeight] = useState(0);
+  const wasInFestivalZoneRef = useRef(false);
+  const { entry: festivalEntry, elapsedFormatted: festivalElapsed, isCompleted: festivalIsCompleted, refresh: refreshFestivalParticipation } = useFestivalParticipation();
 
-  // 로그인 상태에서 축제 범위로 들어온 것으로 간주 → 참여 중 칩·사이드메뉴 카드 표시 (mock)
+  // 로그인 + 위치 있을 때, 위치가 바뀌면 주변 행사 캐시를 비워서 구역 판정 이펙트가 새 위치로 즉시 조회하게 함 (다른 구역에서 들어와도 바로 참여 중 표시)
+  const [eventsNearMe, setEventsNearMe] = useState<Event[] | null>(null);
   useEffect(() => {
-    setIsFestivalActive(isLoggedIn);
-  }, [isLoggedIn]);
+    const myPos = demoLocation ?? currentLocation ?? null;
+    if (!myPos || !isLoggedIn) {
+      setEventsNearMe(null);
+      return;
+    }
+    setEventsNearMe(null);
+  }, [demoLocation, currentLocation, isLoggedIn]);
+
+  // 행사 마커로부터 200m 이내에 내 위치가 있으면 축제 구역 진입 → 진입 모달 + 참여 중 + 타이머 저장
+  // 이탈 시: 저장된 참여 행사 좌표 기준으로 200m 초과일 때만 해제 (지도 bounds/events 목록에 의존하지 않음)
+  // 판정용 행사 목록: 로그인 시 내 위치 기준 조회(eventsNearMe) 우선, 없으면 지도 bounds(events) 사용
+  useEffect(() => {
+    const myPos = demoLocation ?? currentLocation ?? null;
+    if (!myPos) return;
+
+    // 다른 구역에서 들어왔을 때: eventsNearMe가 아직 null이면 현재 위치 기준으로 즉시 조회 후 진입 판정 (참여 중 바로 표시)
+    if (isLoggedIn && eventsNearMe === null) {
+      const delta = 0.01;
+      getEventsOnMap({
+        swLat: myPos.latitude - delta,
+        neLat: myPos.latitude + delta,
+        swLng: myPos.longitude - delta,
+        neLng: myPos.longitude + delta,
+      }).then((fetched) => {
+        setEventsNearMe(fetched);
+        const list = fetched ?? [];
+        const firstInRange = list.find(
+          (e) =>
+            e.latitude != null &&
+            e.longitude != null &&
+            Number.isFinite(e.latitude) &&
+            Number.isFinite(e.longitude) &&
+            (e.latitude !== 0 || e.longitude !== 0) &&
+            distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= 0.2
+        );
+        if (firstInRange != null) {
+          setIsFestivalActive(true);
+          if (!wasInFestivalZoneRef.current) {
+            wasInFestivalZoneRef.current = true;
+            const lat =
+              firstInRange.latitude != null && Number.isFinite(firstInRange.latitude)
+                ? firstInRange.latitude
+                : undefined;
+            const lng =
+              firstInRange.longitude != null && Number.isFinite(firstInRange.longitude)
+                ? firstInRange.longitude
+                : undefined;
+            setFestivalParticipation(Date.now(), firstInRange.id, firstInRange.title, lat, lng).then(
+              () => refreshFestivalParticipation()
+            );
+            setIsEntryModalVisible(true);
+            const eventId = Number(firstInRange.id);
+            const tryStart = (lat: number, lng: number) => {
+              startStay(eventId, lat, lng).catch(() => {
+                if (
+                  firstInRange.latitude != null &&
+                  firstInRange.longitude != null
+                ) {
+                  startStay(eventId, firstInRange.latitude, firstInRange.longitude).catch(() => {});
+                }
+              });
+            };
+            tryStart(myPos.latitude, myPos.longitude);
+          }
+        }
+      });
+      return;
+    }
+
+    const eventsToCheck = (eventsNearMe != null ? eventsNearMe : events) ?? [];
+    if (!eventsToCheck.length) {
+      // 행사 목록 없을 때는 기존 참여 유지. 참여 행사 좌표가 있으면 그 기준으로 이탈 시에만 해제
+      getFestivalParticipation().then((entry) => {
+        if (!entry || entry.eventLat == null || entry.eventLng == null) return;
+        const elat = entry.eventLat;
+        const elng = entry.eventLng;
+        if (typeof elat !== 'number' || typeof elng !== 'number' || !Number.isFinite(elat) || !Number.isFinite(elng)) return;
+        const km = distanceKm(myPos.latitude, myPos.longitude, elat, elng);
+        if (km > 0.2) {
+          wasInFestivalZoneRef.current = false;
+          setIsFestivalActive(false);
+          if (isLoggedIn) {
+            completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
+              .catch(() => {})
+              .finally(() => {
+                clearFestivalParticipation().then(() => refreshFestivalParticipation());
+              });
+          } else {
+            clearFestivalParticipation().then(() => refreshFestivalParticipation());
+          }
+        }
+      });
+      return;
+    }
+    const firstInRange = eventsToCheck.find(
+      (e) =>
+        e.latitude != null &&
+        e.longitude != null &&
+        Number.isFinite(e.latitude) &&
+        Number.isFinite(e.longitude) &&
+        (e.latitude !== 0 || e.longitude !== 0) &&
+        distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= 0.2
+    );
+    const inRange = firstInRange != null;
+    if (inRange) {
+      setIsFestivalActive(true);
+      if (!wasInFestivalZoneRef.current) {
+        wasInFestivalZoneRef.current = true;
+        if (isLoggedIn) {
+          const lat = firstInRange.latitude != null && Number.isFinite(firstInRange.latitude) ? firstInRange.latitude : undefined;
+          const lng = firstInRange.longitude != null && Number.isFinite(firstInRange.longitude) ? firstInRange.longitude : undefined;
+          setFestivalParticipation(Date.now(), firstInRange.id, firstInRange.title, lat, lng).then(() => {
+            refreshFestivalParticipation();
+          });
+          setIsEntryModalVisible(true);
+          const eventId = Number(firstInRange.id);
+          const tryStart = (lat: number, lng: number) => {
+            startStay(eventId, lat, lng).catch(() => {
+              if (firstInRange.latitude != null && firstInRange.longitude != null) {
+                startStay(eventId, firstInRange.latitude, firstInRange.longitude).catch(() => {});
+              }
+            });
+          };
+          tryStart(myPos.latitude, myPos.longitude);
+        }
+      }
+    } else {
+      wasInFestivalZoneRef.current = false;
+      setIsFestivalActive(false);
+      getFestivalParticipation().then((entry) => {
+        if (!entry) {
+          clearFestivalParticipation().then(() => refreshFestivalParticipation());
+          return;
+        }
+        const elat = entry.eventLat;
+        const elng = entry.eventLng;
+        const shouldClear =
+          elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng)
+            ? true
+            : distanceKm(myPos.latitude, myPos.longitude, elat, elng) > 0.2;
+        if (shouldClear) {
+          // 구역 이탈 시 1초라도 있었으면 서버에 참여 기록 (날짜·진입시간·체류시간)
+          if (isLoggedIn) {
+            completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
+              .catch(() => { /* 이미 완료됐거나 세션 없음 등 무시 */ })
+              .finally(() => {
+                clearFestivalParticipation().then(() => refreshFestivalParticipation());
+              });
+          } else {
+            clearFestivalParticipation().then(() => refreshFestivalParticipation());
+          }
+        }
+      });
+    }
+  }, [demoLocation, currentLocation, events, eventsNearMe, isLoggedIn, refreshFestivalParticipation]);
+
+  // 30분 이상 체류 시 자동으로 서버에 참여 완료 요청 (1회만) → 마이페이지 '참여한 축제'·'체류 미션 기록'에 반영
+  useEffect(() => {
+    if (!festivalEntry) {
+      stayCompletedSentRef.current = false;
+      return;
+    }
+    if (!festivalIsCompleted) return;
+    if (stayCompletedSentRef.current) return;
+    let lat: number;
+    let lng: number;
+    const myPos = demoLocation ?? currentLocation ?? null;
+    if (myPos && Number.isFinite(myPos.latitude) && Number.isFinite(myPos.longitude)) {
+      lat = myPos.latitude;
+      lng = myPos.longitude;
+    } else if (
+      festivalEntry.eventLat != null &&
+      festivalEntry.eventLng != null &&
+      Number.isFinite(festivalEntry.eventLat) &&
+      Number.isFinite(festivalEntry.eventLng)
+    ) {
+      lat = festivalEntry.eventLat;
+      lng = festivalEntry.eventLng;
+    } else {
+      const ev = (events ?? eventsNearMe ?? [])?.find((e) => String(e.id) === String(festivalEntry.eventId));
+      if (!ev || ev.latitude == null || ev.longitude == null) return;
+      lat = ev.latitude;
+      lng = ev.longitude;
+    }
+    stayCompletedSentRef.current = true;
+    completeStay(Number(festivalEntry.eventId), lat, lng).catch(() => {
+      stayCompletedSentRef.current = false;
+    });
+  }, [festivalEntry, festivalIsCompleted, demoLocation, currentLocation, events, eventsNearMe]);
 
   // 지도 탭 검색창 입력값 + 검색 중
   const [mapSearchKeyword, setMapSearchKeyword] = useState('');
@@ -133,7 +344,13 @@ export default function MapScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  /** 시범용: 관리자에서 설정한 현재위치 (있으면 현재위치 버튼이 여기로 이동) */
+  const [demoLocation, setDemoLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
+  const stayCompletedSentRef = useRef(false);
   const mapRef = useRef<React.ComponentRef<typeof NaverMap> | null>(null);
   /** 지도 드래그/줌 후 실제 화면 상태. setRegion 하지 않고 ref만 갱신해 지도가 제멋대로 움직이지 않게 함 */
   const lastCameraRef = useRef<{ latitude: number; longitude: number; zoom: number } | null>(null);
@@ -153,15 +370,106 @@ export default function MapScreen() {
     refetchWithBounds,
   } = useMap();
 
+  // 날짜 구간과 이벤트 기간이 겹치는지 (날짜만 비교)
+  const eventOverlapsDateRange = useCallback(
+    (startAt: string, endAt: string, rangeStart: string, rangeEnd: string) => {
+      const toDate = (s: string) => {
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? null : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      };
+      const evStart = toDate(startAt);
+      const evEnd = toDate(endAt);
+      if (!evStart || !evEnd) return true;
+      return evStart <= rangeEnd && evEnd >= rangeStart;
+    },
+    []
+  );
+
+  // 거리(km) 제한값 매핑
+  const distanceKmLimit = useMemo(() => {
+    switch (distanceFilter) {
+      case '300m': return 0.3;
+      case '500m': return 0.5;
+      case '1km': return 1;
+      case '2km': return 2;
+      case '5km': return 5;
+      default: return null;
+    }
+  }, [distanceFilter]);
+
+  /** 거리 필터 원: 반경(m) — 지도에 그릴 때 사용 */
+  const distanceFilterRadiusM = useMemo(() => {
+    switch (distanceFilter) {
+      case '300m': return 300;
+      case '500m': return 500;
+      case '1km': return 1000;
+      case '2km': return 2000;
+      case '5km': return 5000;
+      default: return null;
+    }
+  }, [distanceFilter]);
+  const distanceFilterCenter = distanceFilter !== 'all' ? (demoLocation ?? currentLocation) : null;
+
+  // 거리 + 날짜 + 카테고리 필터 적용
+  const filteredEvents = useMemo(() => {
+    let list = events ?? [];
+    if (distanceKmLimit != null) {
+      const myPos = demoLocation ?? currentLocation ?? null;
+      if (myPos) {
+        list = list.filter((e) => {
+          const lat = e.latitude ?? 0;
+          const lng = e.longitude ?? 0;
+          return Number.isFinite(lat) && Number.isFinite(lng) && distanceKm(myPos.latitude, myPos.longitude, lat, lng) <= distanceKmLimit;
+        });
+      }
+    }
+    if (dateFilter) {
+      list = list.filter((e) => eventOverlapsDateRange(e.startAt, e.endAt, dateFilter.start, dateFilter.end));
+    }
+    if (categoryFilter !== 'all') {
+      list = list.filter((e) => (e.category ?? 'ETC') === categoryFilter);
+    }
+    if (scaleFilter !== 'all') {
+      list = list.filter((e) => (e.scale ?? 'PERSONAL') === scaleFilter);
+    }
+    return list;
+  }, [events, distanceKmLimit, demoLocation, currentLocation, dateFilter, categoryFilter, scaleFilter, eventOverlapsDateRange]);
+
+  const MAX_EVENT_LIST_ITEMS = 20;
+  /** 축제 목록 시트: 지도 카메라 영역(events) + 날짜/카테고리/규모 필터 → 카메라 중심에서 가까운 순, 최대 20개 */
+  const eventListFiltered = useMemo(() => {
+    const center = listSheetCameraCenter
+      ?? (region
+        ? { latitude: region.latitude + region.latitudeDelta / 2, longitude: region.longitude + region.longitudeDelta / 2 }
+        : { latitude: 37.5665, longitude: 126.978 });
+    let list = events ?? [];
+    if (dateFilter) {
+      list = list.filter((e) => eventOverlapsDateRange(e.startAt, e.endAt, dateFilter.start, dateFilter.end));
+    }
+    if (categoryFilter !== 'all') {
+      list = list.filter((e) => (e.category ?? 'ETC') === categoryFilter);
+    }
+    if (scaleFilter !== 'all') {
+      list = list.filter((e) => (e.scale ?? 'PERSONAL') === scaleFilter);
+    }
+    const withDist = list.map((e) => ({
+      event: e,
+      km: distanceKm(center.latitude, center.longitude, e.latitude ?? 0, e.longitude ?? 0),
+    }));
+    withDist.sort((a, b) => a.km - b.km);
+    return withDist.slice(0, MAX_EVENT_LIST_ITEMS).map((x) => x.event);
+  }, [events, listSheetCameraCenter, region, dateFilter, categoryFilter, scaleFilter, eventOverlapsDateRange]);
+
   const cameraIdleFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (cameraIdleFetchRef.current) clearTimeout(cameraIdleFetchRef.current);
   }, []);
 
-  // 지도 탭에 들어올 때마다 현재 영역으로 행사 다시 조회 → 위도/경도 수정 후 바로 반영
+  // 지도 탭에 들어올 때마다 현재 영역으로 행사 다시 조회 + 시범용 현재위치 로드
   useFocusEffect(
     React.useCallback(() => {
       refetchMapEvents();
+      getDemoLocation().then((loc) => setDemoLocation(loc));
     }, [refetchMapEvents])
   );
 
@@ -200,12 +508,13 @@ export default function MapScreen() {
     if (!k) return;
     Keyboard.dismiss();
     setMapSearching(true);
+    setMapSearchResults(null);
     try {
-      const eventResults = await searchEventsForMap(k, 10);
+      const eventResults = await searchEventsAsEvents(k, 30);
       if (eventResults.length > 0) {
         const first = eventResults[0];
-        const lat = first.latitude!;
-        const lng = first.longitude!;
+        const lat = first.latitude;
+        const lng = first.longitude;
         setRegion({
           latitude: lat,
           longitude: lng,
@@ -221,6 +530,7 @@ export default function MapScreen() {
             easing: 'EaseOut',
           });
         }
+        setMapSearchResults(eventResults);
         return;
       }
       const regionKey = Object.keys(REGION_CENTERS).find(
@@ -243,14 +553,36 @@ export default function MapScreen() {
             easing: 'EaseOut',
           });
         }
+        setMapSearchResults([]);
         return;
       }
-      Alert.alert('검색 결과 없음', '해당하는 행사나 지역을 찾지 못했어요.');
+      setMapSearchResults([]);
     } catch {
       Alert.alert('검색 실패', '잠시 후 다시 시도해 주세요.');
     } finally {
       setMapSearching(false);
     }
+  };
+
+  const handleSelectSearchResult = (event: Event) => {
+    setMapSearchResults(null);
+    setRegion({
+      latitude: event.latitude,
+      longitude: event.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    });
+    if (mapRef.current) {
+      mapRef.current.animateCameraTo({
+        latitude: event.latitude,
+        longitude: event.longitude,
+        zoom: 16,
+        duration: 400,
+        easing: 'EaseOut',
+      });
+    }
+    handleMarkerPress(event);
+    setSheetMode('collapsed');
   };
 
   const DEFAULT_CAMERA: NaverMapCamera = { latitude: 37.5665, longitude: 126.978, zoom: 14 };
@@ -287,6 +619,26 @@ export default function MapScreen() {
 
   const onFocusCurrentLocation = async () => {
     setShowMyLocationCircle(true);
+    // 시범용: 관리자에서 설정한 위치가 있으면 그곳으로 이동 (나중에는 실제 GPS만 사용)
+    if (demoLocation) {
+      setMyLocationCircleCoords(demoLocation);
+      setRegion({
+        latitude: demoLocation.latitude,
+        longitude: demoLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+      if (mapRef.current) {
+        mapRef.current.animateCameraTo({
+          latitude: demoLocation.latitude,
+          longitude: demoLocation.longitude,
+          zoom: 15,
+          duration: 500,
+          easing: 'EaseOut',
+        });
+      }
+      return;
+    }
     let coords =
       currentLocation ?? (await refreshCurrentLocation());
     const { status } = await Location.getForegroundPermissionsAsync();
@@ -326,14 +678,23 @@ export default function MapScreen() {
     setIsEntryModalVisible(true);
   };
 
+  /** 지도 카메라가 비추는 지역 기준으로 목록 시트 오픈 (가까운 순·최대 20개) */
   const onPressFestivalList = () => {
-    if (!events || events.length === 0) return;
-    handleMarkerPress(events[0]);
+    const center = region
+      ? { latitude: region.latitude + region.latitudeDelta / 2, longitude: region.longitude + region.longitudeDelta / 2 }
+      : { latitude: 37.5665, longitude: 126.978 };
+    setListSheetCameraCenter(center);
+    setIsEventListSheetVisible(true);
+  };
+
+  const handleSelectEventFromList = (event: Event) => {
+    setIsEventListSheetVisible(false);
+    handleMarkerPress(event);
     setSheetMode('collapsed');
   };
 
-  // 규모·북마크: 필터 칩 줄 바로 아래 10dp, 같은 수평 라인 (축제 참여 칩 있으면 아래로 밀기)
-  const chipPush = isFestivalActive ? (festivalChipHeight || 60) + 10 : 0;
+  // 규모·북마크: 필터 칩 줄 바로 아래 10dp (로그인 + 축제 참여 중일 때만 칩이 있으므로 그때만 밀기)
+  const chipPush = isLoggedIn && festivalEntry != null ? (festivalChipHeight || 60) + 10 : 0;
   const scaleTop = filterBottomY + 10 + chipPush;
   const scaleLeft = SPACING.scaleButtonLeft;
   const bookmarkTop = scaleTop;
@@ -440,7 +801,8 @@ export default function MapScreen() {
                 ref={mapRef}
                 style={StyleSheet.absoluteFill}
                 camera={naverMapCamera}
-                events={events ?? []}
+                events={filteredEvents ?? []}
+                selectedEvent={selectedEvent ?? null}
                 onMarkerPress={handleMarkerPress}
                 onCameraIdle={(params) => {
                   const r = params.region;
@@ -463,6 +825,8 @@ export default function MapScreen() {
                 currentLocation={currentLocation ?? null}
                 circleCoords={myLocationCircleCoords}
                 showMyLocationCircle={showMyLocationCircle}
+                distanceFilterRadiusM={distanceFilterRadiusM}
+                distanceFilterCenter={distanceFilterCenter}
               />
             </MapErrorBoundary>
           )}
@@ -488,14 +852,16 @@ export default function MapScreen() {
               { zIndex: isBottomSheetOpen ? 10 : 10 },
             ]}
           >
-            {/* 카테고리 아래·규모 버튼 위: 참여 중인 시간 칩 (로그인 + 축제 범위 시) */}
-            {isFestivalActive && (
+            {/* 축제 참여 칩: 로그인 + 저장된 참여 정보가 있을 때만 표시 */}
+            {isLoggedIn && festivalEntry != null && (
               <View
                 style={[
                   styles.activeChip,
                   {
-                    top: filterBottomY + 10,
+                    top: Math.max(filterBottomY + 10, 70),
                     left: SPACING.base,
+                    zIndex: 12,
+                    elevation: 12,
                   },
                 ]}
                 onLayout={(e) => setFestivalChipHeight(e.nativeEvent.layout.height)}
@@ -505,8 +871,10 @@ export default function MapScreen() {
                     <Text style={styles.activeChipEmoji}>🎉</Text>
                   </View>
                   <View style={styles.activeChipTextCol}>
-                    <Text style={styles.activeChipLabel}>축제 참여 중</Text>
-                    <Text style={styles.activeChipTimer}>00:17:37</Text>
+                    <Text style={styles.activeChipLabel}>
+                      {festivalIsCompleted ? '축제 참여 완료' : '축제 참여 중'}
+                    </Text>
+                    <Text style={styles.activeChipTimer}>{festivalElapsed}</Text>
                   </View>
                 </View>
               </View>
@@ -617,20 +985,15 @@ export default function MapScreen() {
                   <TouchableOpacity
                     style={styles.zoomButton}
                     onPress={() => {
-                      const cam = lastCameraRef.current ?? (region ? { latitude: region.latitude, longitude: region.longitude, zoom: naverMapCamera.zoom } : null) ?? DEFAULT_CAMERA;
-                      if (!mapRef.current || !cam) return;
-                      const newZoom = Math.min(18, cam.zoom + 1);
-                      const delta = zoomToDelta(newZoom);
-                      setRegion({
-                        latitude: cam.latitude,
-                        longitude: cam.longitude,
-                        latitudeDelta: delta,
-                        longitudeDelta: delta,
-                      });
-                      lastCameraRef.current = { ...cam, zoom: newZoom };
+                      const centerLat = lastCameraRef.current?.latitude ?? (region ? region.latitude + region.latitudeDelta / 2 : DEFAULT_CAMERA.latitude);
+                      const centerLng = lastCameraRef.current?.longitude ?? (region ? region.longitude + region.longitudeDelta / 2 : DEFAULT_CAMERA.longitude);
+                      const currentZoom = lastCameraRef.current?.zoom ?? naverMapCamera.zoom;
+                      if (!mapRef.current) return;
+                      const newZoom = Math.min(18, currentZoom + 1);
+                      lastCameraRef.current = { latitude: centerLat, longitude: centerLng, zoom: newZoom };
                       mapRef.current.animateCameraTo({
-                        latitude: cam.latitude,
-                        longitude: cam.longitude,
+                        latitude: centerLat,
+                        longitude: centerLng,
                         zoom: newZoom,
                         duration: 200,
                         easing: 'EaseOut',
@@ -644,20 +1007,15 @@ export default function MapScreen() {
                   <TouchableOpacity
                     style={styles.zoomButton}
                     onPress={() => {
-                      const cam = lastCameraRef.current ?? (region ? { latitude: region.latitude, longitude: region.longitude, zoom: naverMapCamera.zoom } : null) ?? DEFAULT_CAMERA;
-                      if (!mapRef.current || !cam) return;
-                      const newZoom = Math.max(10, cam.zoom - 1);
-                      const delta = zoomToDelta(newZoom);
-                      setRegion({
-                        latitude: cam.latitude,
-                        longitude: cam.longitude,
-                        latitudeDelta: delta,
-                        longitudeDelta: delta,
-                      });
-                      lastCameraRef.current = { ...cam, zoom: newZoom };
+                      const centerLat = lastCameraRef.current?.latitude ?? (region ? region.latitude + region.latitudeDelta / 2 : DEFAULT_CAMERA.latitude);
+                      const centerLng = lastCameraRef.current?.longitude ?? (region ? region.longitude + region.longitudeDelta / 2 : DEFAULT_CAMERA.longitude);
+                      const currentZoom = lastCameraRef.current?.zoom ?? naverMapCamera.zoom;
+                      if (!mapRef.current) return;
+                      const newZoom = Math.max(10, currentZoom - 1);
+                      lastCameraRef.current = { latitude: centerLat, longitude: centerLng, zoom: newZoom };
                       mapRef.current.animateCameraTo({
-                        latitude: cam.latitude,
-                        longitude: cam.longitude,
+                        latitude: centerLat,
+                        longitude: centerLng,
                         zoom: newZoom,
                         duration: 200,
                         easing: 'EaseOut',
@@ -720,9 +1078,12 @@ export default function MapScreen() {
           </View>
         </View>
 
-        {/* 필터 칩: 지도 위 오버레이, 검색창 아래 여백 후 배치 */}
+        {/* 필터 칩: 지도 위 오버레이, 검색창 아래 여백 후 배치 (헤더 높이 미측정 시 최소 56으로 배치해 가리지 않음) */}
         <View
-          style={[styles.filterChipsOverlay, { top: headerHeight + headerBottomGap }]}
+          style={[
+            styles.filterChipsOverlay,
+            { top: Math.max(headerHeight + headerBottomGap, 56) },
+          ]}
           onLayout={(e: LayoutChangeEvent) =>
             setFilterChipsHeight(e.nativeEvent.layout.height)
           }
@@ -731,7 +1092,7 @@ export default function MapScreen() {
             onPressDate={() => setActiveFilter('date')}
             onPressCategory={() => setActiveFilter('category')}
             onPressPopular={() => setActiveFilter('popular')}
-            onPressRegion={() => setActiveFilter('region')}
+            onPressDistance={() => setActiveFilter('distance')}
             onPressScale={() => setActiveFilter('scale')}
           />
         </View>
@@ -779,6 +1140,9 @@ export default function MapScreen() {
       {/* 사이드 메뉴 */}
       <SideMenu
         visible={isMenuOpen}
+        festivalEntry={festivalEntry}
+        festivalElapsed={festivalElapsed}
+        festivalIsCompleted={festivalIsCompleted}
         onClose={() => setIsMenuOpen(false)}
         onPressActiveFestival={handlePressActiveFestivalFromMenu}
         onPressSavedFestivals={() => {
@@ -807,48 +1171,156 @@ export default function MapScreen() {
       <DateFilterModal
         visible={activeFilter === 'date'}
         onClose={() => setActiveFilter(null)}
+        selectedDateRange={dateFilter}
+        onSelectDateRange={(range) => {
+          setDateFilter(range);
+          setActiveFilter(null);
+        }}
       />
       <CategoryFilterModal
         visible={activeFilter === 'category'}
         onClose={() => setActiveFilter(null)}
+        selectedValue={categoryFilter}
+        onSelect={(value) => {
+          setCategoryFilter(value);
+          setActiveFilter(null);
+        }}
       />
       <PopularFilterModal
         visible={activeFilter === 'popular'}
         onClose={() => setActiveFilter(null)}
       />
-      <RegionFilterModal
-        visible={activeFilter === 'region'}
+      <DistanceFilterModal
+        visible={activeFilter === 'distance'}
+        selectedValue={distanceFilter}
+        onSelect={(value) => {
+          setDistanceFilter(value);
+          setActiveFilter(null);
+        }}
         onClose={() => setActiveFilter(null)}
       />
       <ScaleFilterModal
         visible={activeFilter === 'scale'}
         onClose={() => setActiveFilter(null)}
+        selectedValue={scaleFilter}
+        onSelect={(value) => {
+          setScaleFilter(value);
+          setActiveFilter(null);
+        }}
       />
+
+      {/* 축제 목록 보기 시트: 필터된 행사 리스트 */}
+      <Modal
+        visible={isEventListSheetVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsEventListSheetVisible(false)}
+      >
+        <Pressable style={styles.eventListBackdrop} onPress={() => setIsEventListSheetVisible(false)} />
+        <View style={[styles.eventListSheet, { paddingBottom: (insets.bottom || 0) + 16 }]}>
+          <View style={styles.eventListSheetHeader}>
+            <Text style={styles.eventListSheetTitle}>축제 목록</Text>
+            <TouchableOpacity onPress={() => setIsEventListSheetVisible(false)} hitSlop={8}>
+              <Ionicons name="close" size={24} color="#111827" />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={eventListFiltered}
+            keyExtractor={(item) => item.id}
+            style={styles.eventListFlatList}
+            contentContainerStyle={styles.eventListContent}
+            ListEmptyComponent={
+              <Text style={styles.eventListEmpty}>해당 조건의 행사가 없습니다.</Text>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.eventListRow}
+                activeOpacity={0.7}
+                onPress={() => handleSelectEventFromList(item)}
+              >
+                <Text style={styles.eventListRowTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.eventListRowMeta} numberOfLines={1}>
+                  {item.placeName || '장소 없음'} · {item.startAt ? new Date(item.startAt).toLocaleDateString('ko-KR') : ''}
+                </Text>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </Modal>
+
+      {/* 지도 검색 결과: 행사명 등 키워드 매칭 목록 */}
+      <Modal
+        visible={mapSearchResults !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMapSearchResults(null)}
+      >
+        <Pressable style={styles.eventListBackdrop} onPress={() => setMapSearchResults(null)} />
+        <View style={[styles.eventListSheet, { paddingBottom: (insets.bottom || 0) + 16 }]}>
+          <View style={styles.eventListSheetHeader}>
+            <Text style={styles.eventListSheetTitle}>
+              검색 결과 {mapSearchResults?.length ? `(${mapSearchResults.length}건)` : ''}
+            </Text>
+            <TouchableOpacity onPress={() => setMapSearchResults(null)} hitSlop={8}>
+              <Ionicons name="close" size={24} color="#111827" />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={mapSearchResults ?? []}
+            keyExtractor={(item) => item.id}
+            style={styles.eventListFlatList}
+            contentContainerStyle={styles.eventListContent}
+            ListEmptyComponent={
+              <Text style={styles.eventListEmpty}>해당하는 행사가 없습니다.</Text>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.eventListRow}
+                activeOpacity={0.7}
+                onPress={() => handleSelectSearchResult(item)}
+              >
+                <Text style={styles.eventListRowTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.eventListRowMeta} numberOfLines={1}>
+                  {item.placeName || '장소 없음'} · {item.startAt ? new Date(item.startAt).toLocaleDateString('ko-KR') : ''}
+                </Text>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </Modal>
 
       {/* 전체 화면 모달 */}
       <Modal
         visible={isEntryModalVisible}
-        transparent
         animationType="fade"
         onRequestClose={() => setIsEntryModalVisible(false)}
       >
-        <View style={styles.entryModalOverlay}>
-          <View style={styles.entryModalCard}>
-            <View style={styles.entryEmojiCircle}>
-              <Text style={{ fontSize: 32 }}>🎉</Text>
+        <View style={[styles.entryModalContainer, { paddingTop: insets.top || 0 }]}>
+          <View style={styles.entryModalBody}>
+            <ImageBackground
+              source={require('../../../assets/images/entry-modal-bg.png')}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="cover"
+            />
+            <View style={styles.entryModalContent}>
+              <View style={styles.entryEmojiCircle}>
+                <Text style={styles.entryEmojiText}>🎉</Text>
+              </View>
+              <Text style={styles.entryTitle}>축제 구역에 진입했습니다!</Text>
+              <Text style={styles.entrySubtitle}>
+                자동으로 축제 참여 상태가 활성화 됩니다.
+              </Text>
+              <TouchableOpacity
+                onPress={() => setIsEntryModalVisible(false)}
+                activeOpacity={0.85}
+                style={styles.entryButtonWrapper}
+              >
+                <View style={[styles.entryButton, styles.entryButtonGradient]}>
+                  <Ionicons name="map-outline" size={20} color="#4F46E5" style={styles.entryButtonIcon} />
+                  <Text style={styles.entryButtonText}>지도로 돌아가기</Text>
+                </View>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.entryTitle}>축제 구역에 진입했습니다!</Text>
-            <Text style={styles.entrySubtitle}>
-              자동으로 축제 참여 상태가 활성화 됩니다.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.entryButton}
-              onPress={() => setIsEntryModalVisible(false)}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.entryButtonText}>지도로 돌아가기</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -880,7 +1352,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    zIndex: 10,
+    zIndex: 12,
     backgroundColor: 'transparent',
   },
   header: {
@@ -892,7 +1364,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     alignItems: 'center',
-    zIndex: 11,
+    zIndex: 13,
     backgroundColor: '#ffffff',
   },
   menuButton: {
@@ -1127,50 +1599,80 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
   },
 
-  // 전체 화면 모달
-  entryModalOverlay: {
+  // 전체 화면 모달 (축제 구역 진입)
+  entryModalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
-  entryModalCard: {
-    width: '80%',
-    borderRadius: 24,
-    paddingVertical: 32,
-    paddingHorizontal: 20,
+  entryModalBody: {
+    flex: 1,
+    position: 'relative',
+  },
+  entryModalContent: {
+    ...StyleSheet.absoluteFillObject,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    backgroundColor: '#6366F1',
+    justifyContent: 'center',
   },
   entryEmojiCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
+  entryEmojiText: { fontSize: 44 },
   entryTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   entrySubtitle: {
-    fontSize: 13,
-    color: '#E5E7EB',
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.95)',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 36,
+    lineHeight: 22,
+  },
+  entryButtonWrapper: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    minWidth: 220,
+    elevation: 8,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
   },
   entryButton: {
-    marginTop: 4,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 16,
   },
-  entryButtonText: { fontSize: 14, fontWeight: '600', color: '#4F46E5' },
+  entryButtonGradient: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  entryButtonIcon: {
+    marginRight: 8,
+  },
+  entryButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#4F46E5',
+    letterSpacing: 0.3,
+  },
 
   /* ✅ 축제 참여 중 칩: 가로 123 : 세로 46 비율, 라벨 10 / 시간 13 */
   activeChip: {
@@ -1196,7 +1698,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#E9E0F5',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
@@ -1219,5 +1721,57 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.3,
+  },
+
+  eventListBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  eventListSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    backgroundColor: '#FFFFFF',
+    maxHeight: '70%',
+    paddingTop: 12,
+    paddingHorizontal: 16,
+  },
+  eventListSheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  eventListSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  eventListFlatList: { flex: 1, maxHeight: 400 },
+  eventListContent: { paddingBottom: 16 },
+  eventListEmpty: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 24,
+  },
+  eventListRow: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  eventListRowTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  eventListRowMeta: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 4,
   },
 });

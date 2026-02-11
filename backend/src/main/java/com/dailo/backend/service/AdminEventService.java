@@ -30,21 +30,18 @@ public class AdminEventService {
         Event event = Event.builder()
                 .title(request.getTitle())
                 .placeName(request.getPlaceName())
-                .placeAddress(request.getPlaceAddress())
-                .regionName(request.getRegionName())
+                .placeAddress(request.getPlaceAddress()) // [추가] 상세 주소
+                .regionName(request.getRegionName())     // [추가] 지역명
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
                 .startAt(request.getStartAt())
                 .endAt(request.getEndAt())
                 .categories(request.getCategories())
-                .scale(request.getScale())
-                .filterGroup(request.getFilterGroup())
-                .status(request.getStatus() != null ? request.getStatus() : EventStatus.DRAFT)
+                .status(request.getStatus() != null ? request.getStatus() : EventStatus.DRAFT) // 기본값 DRAFT
                 .thumbnailUrl(request.getThumbnailUrl())
                 .posterUrls(request.getPosterUrls())
                 .description(request.getDescription())
                 .hostContact(request.getHostContact())
-                .extraJson(request.getExtraJson())
                 .isAdminManaged(true)
                 .build();
 
@@ -71,6 +68,7 @@ public class AdminEventService {
 
         eventHistoryRepository.save(history);
 
+        // 데이터 업데이트 (Entity의 updateEvent 메서드 호출)
         event.updateEvent(
                 request.getTitle(),
                 request.getPlaceName(),
@@ -81,17 +79,12 @@ public class AdminEventService {
                 request.getStartAt(),
                 request.getEndAt(),
                 request.getCategories(),
-                request.getScale(),
-                request.getFilterGroup(),
                 request.getStatus(),
                 request.getThumbnailUrl(),
                 request.getPosterUrls(),
                 request.getDescription(),
                 request.getHostContact()
         );
-        if (request.getExtraJson() != null) {
-            event.setExtraJson(request.getExtraJson());
-        }
 
         return event.getId();
     }

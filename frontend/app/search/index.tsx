@@ -10,12 +10,15 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
+  ScrollView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as logService from '../../services/log.service';
-import { searchEventsForMap } from '../../services/event.service';
+import { searchEventsForMap, getEventList } from '../../services/event.service';
+import type { Event } from '../../types/event';
 
 /** 지역명 → 지도 중심 좌표 (지역 검색용) */
 const REGION_CENTERS: Record<string, { latitude: number; longitude: number }> = {
@@ -39,12 +42,14 @@ export default function SearchScreen() {
   const fromMap = params.from === 'map';
   const placeholder = fromMap
     ? '지역 축제 / 대학교 행사 / 장소 입력'
-    : '글 제목, 내용, 키워드 검색';
+    : '행사명, 내용, 키워드 검색';
 
   const [keyword, setKeyword] = useState('');
   const [topKeywords, setTopKeywords] = useState<string[]>([]);
   const [topLoading, setTopLoading] = useState(true);
   const [searching, setSearching] = useState(false);
+  /** 홈에서 검색 시 행사 검색 결과 (null = 아직 검색 안 함) */
+  const [eventResults, setEventResults] = useState<Event[] | null>(null);
 
   useEffect(() => {
     logService.getTopSearchKeywords(10).then(setTopKeywords).catch(() => {}).finally(() => setTopLoading(false));
@@ -91,12 +96,32 @@ export default function SearchScreen() {
       return;
     }
 
+    setSearching(true);
+    setEventResults(null);
     try {
-      await logService.logSearch({ keyword: k, resultCount: 0 });
+      const events = await getEventList({ keyword: k, size: 30 });
+      setEventResults(events);
+      try {
+        await logService.logSearch({ keyword: k, resultCount: events.length });
+      } catch {
+        // ignore
+      }
     } catch {
-      // ignore
+      setEventResults([]);
+    } finally {
+      setSearching(false);
     }
-    router.push({ pathname: '/board/search', params: { keyword: k } });
+  };
+
+  const categoryLabel = (cat: string | undefined) =>
+    ({ FESTIVAL: '축제', EXHIBITION: '전시', PERFORMANCE: '공연', EXPERIENCE_BOOTH: '체험부스', FOOD_TRUCK: '푸드트럭', ETC: '기타' }[cat ?? ''] ?? '기타');
+  const formatEventDate = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+    } catch {
+      return '';
+    }
   };
 
   return (
@@ -129,11 +154,52 @@ export default function SearchScreen() {
           </View>
         </View>
 
-        <View style={styles.content}>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {searching && (
             <ActivityIndicator size="small" color="#6366F1" style={styles.searchingIndicator} />
           )}
-          <Text style={styles.sectionTitle}>인기 검색어</Text>
+
+          {/* 홈에서 검색 시: 행사 검색 결과 */}
+          {!fromMap && eventResults !== null && (
+            <View style={styles.resultSection}>
+              <Text style={styles.sectionTitle}>
+                행사 검색 결과 {eventResults.length > 0 ? `(${eventResults.length}건)` : ''}
+              </Text>
+              {eventResults.length === 0 ? (
+                <Text style={styles.emptyText}>행사명·내용에 맞는 행사가 없어요.</Text>
+              ) : (
+                <View style={styles.eventList}>
+                  {eventResults.map((ev) => (
+                    <Pressable
+                      key={ev.id}
+                      style={styles.eventRow}
+                      onPress={() => router.push(`/event/${ev.id}`)}
+                    >
+                      {ev.thumbnailUrl ? (
+                        <Image source={{ uri: ev.thumbnailUrl }} style={styles.eventThumb} />
+                      ) : (
+                        <View style={[styles.eventThumb, styles.eventThumbPlaceholder]}>
+                          <Ionicons name="calendar-outline" size={24} color="#9ca3af" />
+                        </View>
+                      )}
+                      <View style={styles.eventInfo}>
+                        <Text style={styles.eventTitle} numberOfLines={1}>{ev.title}</Text>
+                        <Text style={styles.eventMeta}>
+                          {ev.placeName ? `${ev.placeName} · ` : ''}
+                          {formatEventDate(ev.startAt)}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          <Text style={[styles.sectionTitle, !fromMap && eventResults !== null && { marginTop: 24 }]}>
+            인기 검색어
+          </Text>
           {topLoading ? (
             <ActivityIndicator size="small" color="#6366F1" style={{ marginVertical: 8 }} />
           ) : topKeywords.length === 0 ? (
@@ -147,7 +213,7 @@ export default function SearchScreen() {
               ))}
             </View>
           )}
-        </View>
+        </ScrollView>
       </View>
     </KeyboardAvoidingView>
   );
@@ -219,5 +285,43 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 14,
     color: '#374151',
+  },
+  resultSection: {
+    marginBottom: 8,
+  },
+  eventList: {
+    gap: 0,
+  },
+  eventRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingRight: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  eventThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  eventThumbPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eventInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  eventTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  eventMeta: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 2,
   },
 });

@@ -19,6 +19,6 @@ export const MAP_UI = {
   scalePressed: '#F3F4F6',
   fabDisabledBg: '#F9FAFB',
   fabDisabledIcon: '#9CA3AF',
-  // Scale legend pin colors (5 items)
-  scaleBadge: ['#EF4444', '#F59E0B', '#FBBF24', '#22C55E', '#3B82F6'] as const,
+  // Scale legend pin colors (5 items, 진한 색): 시·군·구(빨강), 대학교(주황), 단과대/학생회(노랑), 동아리/소모임(초록), 개인(파랑)
+  scaleBadge: ['#C62828', '#E65100', '#F9A825', '#2E7D32', '#1565C0'] as const,
 };

@@ -34,19 +34,7 @@ public class EventDetailResponse {
     // 네이버 지도 길찾기 URL (웹용)
     private String naverMapUrl;
 
-    /** 소식/타임테이블/부스 등 상세 탭 데이터 (JSON) */
-    private String extraJson;
-
-    /** 좋아요 수 */
-    private Long likeCount;
-    /** 현재 사용자가 좋아요 했는지 */
-    private Boolean isLiked;
-
     public static EventDetailResponse from(Event event) {
-        return from(event, null);
-    }
-
-    public static EventDetailResponse from(Event event, Boolean isLiked) {
 
         // 1. 장소명 or 제목 가져오기
         String safePlaceName;
@@ -90,9 +78,6 @@ public class EventDetailResponse {
                 .hostContact(event.getHostContact())
                 .status(event.getStatus().name())
                 .naverMapUrl(generatedMapUrl)
-                .extraJson(event.getExtraJson())
-                .likeCount(event.getLikeCount() != null ? event.getLikeCount().longValue() : 0L)
-                .isLiked(isLiked != null ? isLiked : false)
                 .build();
     }
 }

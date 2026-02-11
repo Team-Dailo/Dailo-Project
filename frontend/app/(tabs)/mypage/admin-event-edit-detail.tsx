@@ -1,6 +1,6 @@
 // 관리자 - 행사 등록/수정 (상세보기와 동일 레이아웃, 탭 시 편집)
 // 상단에 "관리자용 페이지 · 수정 중입니다" 배너 표시
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -15,14 +15,20 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  TouchableOpacity,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import EventDetailTabs, { TabKey } from "../../../components/detail/EventDetailTabs";
 import * as adminService from "../../../services/admin.service";
 import { parseEventExtra, stringifyEventExtra } from "../../../utils/eventExtra";
 import { MAP_UI } from "../../../constants/colors";
+import {
+  getPickedLocation,
+  clearPickedLocation,
+} from "../../../services/eventLocationPickStore";
 
 const DEFAULT_POSTER = "https://images.unsplash.com/photo-1485550409059-9afb054cada4?w=800";
 
@@ -37,13 +43,7 @@ const CATEGORIES: { value: string; label: string }[] = [
   { value: "ETC", label: "기타" },
 ];
 
-const SCALE_OPTIONS: { value: string; label: string }[] = [
-  { value: "SMALL", label: "소규모" },
-  { value: "MEDIUM", label: "중규모" },
-  { value: "LARGE", label: "대규모" },
-];
-
-/** 규모(지도 마커 색상): 시군구·대학교·단과대/학생회·동아리/소모임·개인 */
+/** 규모(지도·달력 마커 색상): 시군구·대학교·단과대/학생회·동아리/소모임·개인 */
 const FILTER_GROUP_OPTIONS: { value: string; label: string; color: string }[] = [
   { value: "CHUNGJU_CITY", label: "시·군·구", color: MAP_UI.scaleBadge[0] },
   { value: "UNIVERSITY", label: "대학교", color: MAP_UI.scaleBadge[1] },
@@ -139,7 +139,6 @@ export default function AdminEventEditDetailScreen() {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
-  const [scale, setScale] = useState("");
   const [filterGroup, setFilterGroup] = useState("");
   const [status, setStatus] = useState("DRAFT");
 
@@ -151,6 +150,19 @@ export default function AdminEventEditDetailScreen() {
   const [experienceBooths, setExperienceBooths] = useState<BoothEdit[]>([]);
 
   const [uploading, setUploading] = useState(false);
+  const openedLocationPickerRef = useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const picked = getPickedLocation();
+      if (openedLocationPickerRef.current && picked) {
+        setLatitude(String(picked.latitude));
+        setLongitude(String(picked.longitude));
+        clearPickedLocation();
+        openedLocationPickerRef.current = false;
+      }
+    }, [])
+  );
 
   // 편집 모달
   const [editTarget, setEditTarget] = useState<
@@ -161,7 +173,6 @@ export default function AdminEventEditDetailScreen() {
     | { type: "host" }
     | { type: "coords" }
     | { type: "categories" }
-    | { type: "scale" }
     | { type: "filterGroup" }
     | { type: "status" }
     | { type: "news"; item?: NewsItemEdit }
@@ -185,7 +196,6 @@ export default function AdminEventEditDetailScreen() {
       setLatitude(res.latitude != null ? String(res.latitude) : "");
       setLongitude(res.longitude != null ? String(res.longitude) : "");
       setCategories(Array.isArray(res.categories) ? res.categories : []);
-      setScale(res.scale ?? "");
       setFilterGroup(res.filterGroup ?? "");
       setStatus(res.status ?? "DRAFT");
 
@@ -255,7 +265,6 @@ export default function AdminEventEditDetailScreen() {
         startAt: start,
         endAt: end,
         categories: categories.length ? categories : ["FESTIVAL"],
-        scale: scale.trim() || undefined,
         filterGroup: filterGroup.trim() === "" ? null : (filterGroup.trim() || undefined),
         status: status || "DRAFT",
         thumbnailUrl: thumbnailUrl.trim() || undefined,
@@ -399,17 +408,10 @@ export default function AdminEventEditDetailScreen() {
               </Text>
               <Ionicons name="pencil" size={14} color="#9CA3AF" />
             </Pressable>
-            <Pressable style={styles.infoRow} onPress={() => setEditTarget({ type: "scale" })}>
-              <Ionicons name="resize-outline" size={18} color="#6B7280" style={styles.infoIcon} />
-              <Text style={styles.infoText} numberOfLines={1}>
-                {scale ? (SCALE_OPTIONS.find((s) => s.value === scale)?.label ?? scale) : "규모 선택 (탭하여 편집)"}
-              </Text>
-              <Ionicons name="pencil" size={14} color="#9CA3AF" />
-            </Pressable>
             <Pressable style={styles.infoRow} onPress={() => setEditTarget({ type: "filterGroup" })}>
               <Ionicons name="pin-outline" size={18} color="#6B7280" style={styles.infoIcon} />
               <Text style={styles.infoText} numberOfLines={1}>
-                {FILTER_GROUP_OPTIONS.some((f) => f.value === filterGroup) ? (FILTER_GROUP_OPTIONS.find((f) => f.value === filterGroup)?.label) : "규모 (지도 마커 색상, 탭하여 편집)"}
+                {FILTER_GROUP_OPTIONS.some((f) => f.value === filterGroup) ? (FILTER_GROUP_OPTIONS.find((f) => f.value === filterGroup)?.label) : "규모 (지도·달력 마커 색상, 탭하여 편집)"}
               </Text>
               {FILTER_GROUP_OPTIONS.some((f) => f.value === filterGroup) ? (
                 <View style={[styles.filterGroupBadge, { backgroundColor: FILTER_GROUP_OPTIONS.find((f) => f.value === filterGroup)!.color }]} />
@@ -472,6 +474,16 @@ export default function AdminEventEditDetailScreen() {
       <EditModal
         editTarget={editTarget}
         onClose={() => setEditTarget(null)}
+        onPressMapPick={() => {
+          openedLocationPickerRef.current = true;
+          setEditTarget(null);
+          const initialLat = latitude.trim() || "36.991";
+          const initialLng = longitude.trim() || "127.926";
+          router.push({
+            pathname: "/(tabs)/mypage/event-location-picker",
+            params: { initialLat, initialLng },
+          });
+        }}
         values={{
           date: startAt,
           title,
@@ -482,7 +494,6 @@ export default function AdminEventEditDetailScreen() {
           latitude,
           longitude,
           categories,
-          scale,
           filterGroup,
           status,
           newsList,
@@ -499,7 +510,6 @@ export default function AdminEventEditDetailScreen() {
           setLatitude,
           setLongitude,
           setCategories,
-          setScale,
           setFilterGroup,
           setStatus,
           setNewsList,
@@ -658,11 +668,13 @@ function EditModal({
   onClose,
   values,
   onSave,
+  onPressMapPick,
 }: {
   editTarget: { type: string; item?: NewsItemEdit | TimelineItemEdit | BoothEdit } | null;
   onClose: () => void;
   values: Record<string, unknown>;
   onSave: Record<string, (v: unknown) => void>;
+  onPressMapPick?: () => void;
 }) {
   const [text, setText] = useState("");
   const [text2, setText2] = useState("");
@@ -670,7 +682,6 @@ function EditModal({
   const [text4, setText4] = useState("");
   const [text5, setText5] = useState(""); // 푸드트럭 메뉴-가격 (한 줄에 하나, 예: 타코야끼(6pcs) - 5,000원)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedScale, setSelectedScale] = useState("");
   const [selectedFilterGroup, setSelectedFilterGroup] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("DRAFT");
 
@@ -678,9 +689,6 @@ function EditModal({
     if (!editTarget) return;
     if (editTarget.type === "categories") {
       setSelectedCategories(Array.isArray(values.categories) ? [...(values.categories as string[])] : []);
-    }
-    if (editTarget.type === "scale") {
-      setSelectedScale((values.scale as string) ?? "");
     }
     if (editTarget.type === "filterGroup") {
       setSelectedFilterGroup((values.filterGroup as string) ?? "");
@@ -757,9 +765,6 @@ function EditModal({
     if (editTarget.type === "categories") {
       onSave.setCategories?.(selectedCategories.length > 0 ? selectedCategories : ["FESTIVAL"]);
     }
-    if (editTarget.type === "scale") {
-      onSave.setScale?.(selectedScale);
-    }
     if (editTarget.type === "filterGroup") {
       onSave.setFilterGroup?.(selectedFilterGroup);
     }
@@ -832,8 +837,7 @@ function EditModal({
     host: "주최",
     coords: "위도 / 경도",
     categories: "카테고리",
-    scale: "규모",
-    filterGroup: "규모 (지도 마커 색상)",
+    filterGroup: "규모 (지도·달력 마커 색상)",
     status: "상태",
     news: "소식",
     timeline: "타임테이블",
@@ -870,25 +874,6 @@ function EditModal({
                     >
                       <Text style={[styles.modalChipText, isSelected && styles.modalChipTextSelected]}>
                         {c.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-
-            {editTarget?.type === "scale" && (
-              <View style={styles.modalChipWrap}>
-                {SCALE_OPTIONS.map((s) => {
-                  const isSelected = selectedScale === s.value;
-                  return (
-                    <Pressable
-                      key={s.value}
-                      style={[styles.modalChip, isSelected && styles.modalChipSelected]}
-                      onPress={() => setSelectedScale(s.value)}
-                    >
-                      <Text style={[styles.modalChipText, isSelected && styles.modalChipTextSelected]}>
-                        {s.label}
                       </Text>
                     </Pressable>
                   );
@@ -935,7 +920,7 @@ function EditModal({
               </View>
             )}
 
-            {editTarget?.type !== "categories" && editTarget?.type !== "scale" && editTarget?.type !== "filterGroup" && editTarget?.type !== "status" && (
+            {editTarget?.type !== "categories" && editTarget?.type !== "filterGroup" && editTarget?.type !== "status" && (
             <TextInput
               style={styles.modalInput}
               value={text}
@@ -966,6 +951,12 @@ function EditModal({
                 placeholderTextColor="#9CA3AF"
                 keyboardType={editTarget?.type === "coords" ? "decimal-pad" : "default"}
               />
+            )}
+            {editTarget?.type === "coords" && onPressMapPick && (
+              <TouchableOpacity style={styles.modalMapPickButton} onPress={onPressMapPick} activeOpacity={0.85}>
+                <Ionicons name="map-outline" size={20} color="#2563EB" />
+                <Text style={styles.modalMapPickButtonText}>지도에서 위치 선택</Text>
+              </TouchableOpacity>
             )}
             {(editTarget?.type === "news" || editTarget?.type === "timeline" || editTarget?.type === "booth") && (
               <TextInput
@@ -1116,6 +1107,19 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
   modalInput: { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 16 },
   modalInputMultiline: { minHeight: 80, textAlignVertical: "top" },
+  modalMapPickButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    marginBottom: 12,
+    borderRadius: 8,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  modalMapPickButtonText: { fontSize: 15, color: "#2563EB", fontWeight: "500" },
   modalChipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   modalChipHint: { width: "100%", fontSize: 12, color: "#6B7280", marginBottom: 4 },
   modalChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#E5E7EB" },

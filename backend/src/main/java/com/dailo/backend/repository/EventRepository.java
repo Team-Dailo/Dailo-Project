@@ -27,15 +27,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("status") EventStatus status
     );
 
-    /** 지도: ACTIVE + DRAFT (대축제 등 아직 공개 전인 행사도 마커 표시) */
-    @Query("SELECT e FROM Event e " +
-            "WHERE e.latitude IS NOT NULL AND e.longitude IS NOT NULL " +
-            "AND e.latitude BETWEEN :swLat AND :neLat " +
-            "AND e.longitude BETWEEN :swLng AND :neLng " +
-            "AND (e.status = 'ACTIVE' OR e.status = 'DRAFT')")
-    List<Event> findEventsInBoundsForMap(
-            @Param("swLat") Double swLat, @Param("neLat") Double neLat,
-            @Param("swLng") Double swLng, @Param("neLng") Double neLng);
+
 
     // 리스트 뷰 - 통합 검색 쿼리
 
@@ -70,15 +62,14 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     // (관리자용 전체 조회는 필요하다면 남겨둡니다)
     Page<Event> findAll(Pageable pageable);
 
-    /** ACTIVE 행사만, 정렬은 Pageable에 위임 */
-    List<Event> findByStatus(EventStatus status, Pageable pageable);
-
-    //  캘린더 월별 조회 (ACTIVE + DRAFT 노출, 삭제/비활성 제외)
+    //  캘린더 월별 조회
+    //  해당 월(start~end)에 조금이라도 걸쳐 있는 모든 이벤트를 조회합니다.
+    //        N+1 문제를 방지하기 위해 카테고리를 함께 가져옵니다 (JOIN FETCH).
     @Query("SELECT DISTINCT e FROM Event e " +
             "LEFT JOIN FETCH e.categories " +
-            "WHERE (e.status = 'ACTIVE' OR e.status = 'DRAFT') " +
+            "WHERE e.status = 'ACTIVE' " +  // (중요) 삭제되거나 숨김 처리된 건 제외
             "AND e.startAt < :endOfMonth " +
-            "AND (e.endAt IS NULL OR e.endAt > :startOfMonth)")
+            "AND e.endAt > :startOfMonth")
     List<Event> findEventsForCalendar(@Param("startOfMonth") LocalDateTime startOfMonth,
                                       @Param("endOfMonth") LocalDateTime endOfMonth);
 }

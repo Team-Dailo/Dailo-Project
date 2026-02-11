@@ -1,5 +1,5 @@
 // components/map/FilterModals.tsx
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Pressable,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -15,87 +16,177 @@ type CommonProps = {
   onClose: () => void;
 };
 
-/* ===========================
-   날짜 선택 바텀 시트
-   =========================== */
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const MAX_DATE_RANGE_DAYS = 10;
 
-export function DateFilterModal({ visible, onClose }: CommonProps) {
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+function dayCountInclusive(startYmd: string, endYmd: string): number {
+  const start = new Date(startYmd).getTime();
+  const end = new Date(endYmd).getTime();
+  return Math.floor((end - start) / (24 * 60 * 60 * 1000)) + 1;
+}
 
-  const days = Array.from({ length: 31 }, (_, i) => i + 1);
-  const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+function getDaysInMonth(year: number, month: number) {
+  const first = new Date(year, month - 1, 1);
+  const last = new Date(year, month, 0);
+  const firstDay = first.getDay();
+  const daysCount = last.getDate();
+  const leadingBlanks = Array.from({ length: firstDay }, (_, i) => ({ type: 'blank' as const, day: 0 }));
+  const days = Array.from({ length: daysCount }, (_, i) => ({ type: 'day' as const, day: i + 1 }));
+  return { leadingBlanks, days, year, month };
+}
+
+export type DateRange = { start: string; end: string };
+
+type DateFilterModalProps = CommonProps & {
+  selectedDateRange: DateRange | null;
+  onSelectDateRange: (range: DateRange | null) => void;
+};
+
+export function DateFilterModal({ visible, onClose, selectedDateRange, onSelectDateRange }: DateFilterModalProps) {
+  const now = new Date();
+  const [viewYear, setViewYear] = useState(now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
+  const [rangeStart, setRangeStart] = useState<string | null>(selectedDateRange?.start ?? null);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(selectedDateRange?.end ?? null);
+
+  useEffect(() => {
+    if (visible) {
+      setRangeStart(selectedDateRange?.start ?? null);
+      setRangeEnd(selectedDateRange?.end ?? null);
+    }
+  }, [visible, selectedDateRange?.start, selectedDateRange?.end]);
+
+  const toYmd = (y: number, m: number, d: number) =>
+    `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+  const { leadingBlanks, days, year, month } = useMemo(
+    () => getDaysInMonth(viewYear, viewMonth),
+    [viewYear, viewMonth]
+  );
+
+  const handleDayPress = (day: number) => {
+    const dateStr = toYmd(viewYear, viewMonth, day);
+    if (!rangeStart || !rangeEnd) {
+      setRangeStart(dateStr);
+      setRangeEnd(dateStr);
+      return;
+    }
+    const newStart = dateStr < rangeStart ? dateStr : rangeStart;
+    const newEnd = dateStr > rangeEnd ? dateStr : rangeEnd;
+    const days = dayCountInclusive(newStart, newEnd);
+    if (days > MAX_DATE_RANGE_DAYS) {
+      Alert.alert('안내', '최대 10일까지 선택 가능합니다.');
+      return;
+    }
+    setRangeStart(newStart);
+    setRangeEnd(newEnd);
+  };
+
+  const isInRange = (day: number) => {
+    const dateStr = toYmd(viewYear, viewMonth, day);
+    if (!rangeStart || !rangeEnd) return dateStr === rangeStart || dateStr === rangeEnd;
+    return dateStr >= rangeStart && dateStr <= rangeEnd;
+  };
+  const isStartOrEnd = (day: number) => {
+    const dateStr = toYmd(viewYear, viewMonth, day);
+    return dateStr === rangeStart || dateStr === rangeEnd;
+  };
+
+  const handleApply = () => {
+    if (rangeStart && rangeEnd) {
+      onSelectDateRange({ start: rangeStart, end: rangeEnd });
+    } else {
+      onSelectDateRange(null);
+    }
+    onClose();
+  };
+
+  const handleClear = () => {
+    setRangeStart(null);
+    setRangeEnd(null);
+    onSelectDateRange(null);
+    onClose();
+  };
+
+  const prevMonth = () => {
+    if (viewMonth === 1) {
+      setViewYear((y) => y - 1);
+      setViewMonth(12);
+    } else setViewMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 12) {
+      setViewYear((y) => y + 1);
+      setViewMonth(1);
+    } else setViewMonth((m) => m + 1);
+  };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      {/* 뒤 배경 */}
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-
-      {/* 바텀 영역 */}
       <View style={styles.bottomSheet}>
-        {/* 실제 흰색 카드 부분 */}
         <View style={styles.sheetCard}>
-          {/* 헤더 */}
-          <View style={styles.bottomHeader}>
+          <View style={[styles.sheetCardPadding, styles.bottomHeader]}>
             <Text style={styles.bottomTitle}>날짜 선택</Text>
             <TouchableOpacity onPress={onClose} hitSlop={8}>
               <Ionicons name="close" size={20} color="#111827" />
             </TouchableOpacity>
           </View>
-
-          {/* 월 표시 */}
-          <View style={styles.monthHeader}>
-            <TouchableOpacity hitSlop={8}>
+          <View style={[styles.sheetCardPadding, styles.monthHeader]}>
+            <TouchableOpacity onPress={prevMonth} hitSlop={8}>
               <Ionicons name="chevron-back" size={18} color="#6b7280" />
             </TouchableOpacity>
-            <Text style={styles.monthText}>2026년 1월</Text>
-            <TouchableOpacity hitSlop={8}>
+            <Text style={styles.monthText}>{year}년 {month}월</Text>
+            <TouchableOpacity onPress={nextMonth} hitSlop={8}>
               <Ionicons name="chevron-forward" size={18} color="#6b7280" />
             </TouchableOpacity>
           </View>
-
-          {/* 요일 */}
-          <View style={styles.weekRow}>
-            {weekDays.map(d => (
-              <Text key={d} style={styles.weekDayText}>
-                {d}
-              </Text>
+          <View style={styles.calendarWrap}>
+            <View style={styles.weekRow}>
+              {WEEKDAYS.map((d) => (
+                <Text key={d} style={styles.weekDayText}>{d}</Text>
+              ))}
+            </View>
+            <View style={styles.daysGrid}>
+            {leadingBlanks.map((_, i) => (
+              <View key={`b-${i}`} style={styles.dayCell} />
             ))}
-          </View>
-
-          {/* 날짜 그리드 */}
-          <View style={styles.daysGrid}>
-            {days.map(day => {
-              const active = selectedDay === day;
+            {days.map(({ day }) => {
+              const inRange = isInRange(day);
+              const isEdge = isStartOrEnd(day);
               return (
                 <TouchableOpacity
                   key={day}
-                  style={[styles.dayCell, active && styles.dayCellActive]}
-                  onPress={() => setSelectedDay(day)}
+                  style={[
+                    styles.dayCell,
+                    inRange && styles.dayCellInRange,
+                    isEdge && styles.dayCellActive,
+                  ]}
+                  onPress={() => handleDayPress(day)}
                   activeOpacity={0.8}
                 >
                   <Text
-                    style={[styles.dayText, active && styles.dayTextActive]}
+                    style={[
+                      styles.dayText,
+                      isEdge && styles.dayTextActive,
+                      inRange && !isEdge && styles.dayTextInRange,
+                    ]}
                   >
                     {day}
                   </Text>
                 </TouchableOpacity>
               );
             })}
+            </View>
           </View>
-
-          {/* 적용하기 버튼 */}
-          <TouchableOpacity
-            style={styles.applyButton}
-            activeOpacity={0.9}
-            onPress={onClose}
-          >
-            <Text style={styles.applyButtonText}>적용하기</Text>
-          </TouchableOpacity>
+          <View style={[styles.sheetCardPadding, styles.dateActionsRow]}>
+            <TouchableOpacity style={styles.clearButton} onPress={handleClear} activeOpacity={0.8}>
+              <Text style={styles.clearButtonText}>전체 해제</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.applyButton} onPress={handleApply} activeOpacity={0.9}>
+              <Text style={styles.applyButtonText}>적용하기</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -169,27 +260,31 @@ function ListFilterModal({
    카테고리 / 인기 / 지역 / 규모 모달
    =========================== */
 
-export function CategoryFilterModal(props: CommonProps) {
-  const [selected, setSelected] = useState('performance');
+/** 백엔드 EventCategory와 동일 (FESTIVAL, EXHIBITION, TRAFFIC, CONSTRUCTION, ETC) */
+type CategoryModalProps = CommonProps & {
+  selectedValue: string;
+  onSelect: (value: string) => void;
+};
+
+export function CategoryFilterModal({ selectedValue, onSelect, ...rest }: CategoryModalProps) {
   return (
     <ListFilterModal
-      {...props}
+      {...rest}
       title="카테고리 선택"
-      selectedValue={selected}
-      onSelect={setSelected}
+      selectedValue={selectedValue}
+      onSelect={onSelect}
       options={[
         { label: '전체', value: 'all' },
-        { label: '공연', value: 'performance' },
-        { label: '푸드트럭', value: 'foodtruck' },
-        { label: '체험·부스', value: 'booth' },
-        { label: '전시', value: 'exhibition' },
+        { label: '축제', value: 'FESTIVAL' },
+        { label: '전시', value: 'EXHIBITION' },
+        { label: '기타', value: 'ETC' },
       ]}
     />
   );
 }
 
 export function PopularFilterModal(props: CommonProps) {
-  const [selected, setSelected] = useState('popular');
+  const [selected, setSelected] = useState('all');
   return (
     <ListFilterModal
       {...props}
@@ -206,39 +301,50 @@ export function PopularFilterModal(props: CommonProps) {
   );
 }
 
-export function RegionFilterModal(props: CommonProps) {
-  const [selected, setSelected] = useState('nearby');
+type DistanceModalProps = CommonProps & {
+  selectedValue: string;
+  onSelect: (value: string) => void;
+};
+
+export function DistanceFilterModal({ selectedValue, onSelect, ...rest }: DistanceModalProps) {
   return (
     <ListFilterModal
-      {...props}
-      title="지역"
-      selectedValue={selected}
-      onSelect={setSelected}
+      {...rest}
+      title="거리"
+      selectedValue={selectedValue}
+      onSelect={onSelect}
       options={[
         { label: '전체', value: 'all' },
-        { label: '내 주변', value: 'nearby' },
-        { label: '캠퍼스', value: 'campus' },
-        { label: '시·구 선택', value: 'city' },
+        { label: '300m', value: '300m' },
+        { label: '500m', value: '500m' },
+        { label: '1km', value: '1km' },
+        { label: '2km', value: '2km' },
+        { label: '5km', value: '5km' },
       ]}
     />
   );
 }
 
-export function ScaleFilterModal(props: CommonProps) {
-  const [selected, setSelected] = useState('univ');
+/** 규모: 백엔드 filterGroup → 프론트 EventScale (CITY, UNIVERSITY, DEPARTMENT, CLUB, PERSONAL) */
+type ScaleModalProps = CommonProps & {
+  selectedValue: string;
+  onSelect: (value: string) => void;
+};
+
+export function ScaleFilterModal({ selectedValue, onSelect, ...rest }: ScaleModalProps) {
   return (
     <ListFilterModal
-      {...props}
+      {...rest}
       title="규모"
-      selectedValue={selected}
-      onSelect={setSelected}
+      selectedValue={selectedValue}
+      onSelect={onSelect}
       options={[
         { label: '전체', value: 'all' },
-        { label: '시·군·구', value: 'city' },
-        { label: '대학교', value: 'univ' },
-        { label: '단과대/학생회', value: 'college' },
-        { label: '동아리/소모임', value: 'club' },
-        { label: '개인', value: 'personal' },
+        { label: '시·군·구', value: 'CITY' },
+        { label: '대학교', value: 'UNIVERSITY' },
+        { label: '단과대/학생회', value: 'DEPARTMENT' },
+        { label: '동아리/소모임', value: 'CLUB' },
+        { label: '개인', value: 'PERSONAL' },
       ]}
     />
   );
@@ -265,15 +371,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
 
-  // 실제 흰색 카드 (양옆 여백 주기)
+  // 실제 흰색 카드 (폰 가장자리까지)
   sheetCard: {
-    marginHorizontal: 12,
+    marginHorizontal: 0,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     backgroundColor: '#ffffff',
-    paddingHorizontal: 20,
     paddingTop: 18,
     paddingBottom: 24,
+  },
+  sheetCardPadding: {
+    paddingHorizontal: 20,
+  },
+  calendarWrap: {
+    paddingHorizontal: 16,
   },
   bottomHeader: {
     flexDirection: 'row',
@@ -325,6 +436,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#2563eb',
   },
+  dayCellInRange: {
+    backgroundColor: 'rgba(37, 99, 235, 0.2)',
+    borderRadius: 4,
+  },
   dayText: {
     fontSize: 13,
     color: '#111827',
@@ -333,8 +448,29 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
   },
-  applyButton: {
+  dayTextInRange: {
+    color: '#2563eb',
+  },
+  dateActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
     marginTop: 8,
+  },
+  clearButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+  },
+  clearButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  applyButton: {
+    flex: 1,
+    marginTop: 0,
     borderRadius: 999,
     backgroundColor: '#2563eb',
     height: 52,

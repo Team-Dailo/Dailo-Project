@@ -1,5 +1,6 @@
 package com.dailo.backend.entity;
 
+import com.dailo.backend.domain.enums.MemberStatus;
 import com.dailo.backend.domain.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,8 +22,27 @@ public class Member {
     @Column(nullable = false)
     private String nickname;
 
+    @Column(name = "profile_image_url")
+    private String profileImageUrl;
+
+    @Enumerated(EnumType.STRING)
+    private MemberStatus status; // ACTIVATE, DELETED
+
     @Enumerated(EnumType.STRING)
     private Role role;
+
+    public void updateProfile(String nickname, String profileImageUrl) {
+        if (nickname != null && !nickname.isEmpty()) {
+            this.nickname = nickname;
+        }
+        if (profileImageUrl != null && !profileImageUrl.isEmpty()) {
+            this.profileImageUrl = profileImageUrl;
+        }
+    }
+
+    public void withdraw() {
+        this.status = MemberStatus.DELETED;
+    }
 
     @Builder
     public Member(String email, String password, String nickname, Role role) {
@@ -30,18 +50,6 @@ public class Member {
         this.password = password;
         this.nickname = nickname;
         this.role = role;
-    }
-
-    /** 닉네임 변경 */
-    public void updateNickname(String nickname) {
-        if (nickname == null || nickname.isBlank()) {
-            throw new IllegalArgumentException("닉네임을 입력해 주세요.");
-        }
-        this.nickname = nickname.trim();
-    }
-
-    /** 관리자 지정 등 역할 변경 (시스템/초기화용) */
-    public void setRole(Role role) {
-        this.role = role != null ? role : Role.USER;
+        this.status = MemberStatus.ACTIVE;
     }
 }

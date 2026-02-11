@@ -15,7 +15,7 @@ type Props = {
   onPressDate: () => void;
   onPressCategory: () => void;
   onPressPopular: () => void;
-  onPressRegion: () => void;
+  onPressDistance: () => void;
   onPressScale: () => void;
 };
 
@@ -49,7 +49,7 @@ const CHIP_COLORS = {
   date: '#EF4444',      // 날짜 레드
   category: '#F59E0B',  // 카테고리 오렌지
   popular: '#FACC15',    // 인기/추천 옐로우
-  region: '#22C55E',    // 지역 그린
+  distance: '#22C55E',   // 거리 그린
   scale: '#3B82F6',    // 규모 블루
 } as const;
 
@@ -61,7 +61,7 @@ export function FilterChips({
   onPressDate,
   onPressCategory,
   onPressPopular,
-  onPressRegion,
+  onPressDistance,
   onPressScale,
 }: Props) {
   return (
@@ -99,16 +99,13 @@ export function FilterChips({
           onPress={onPressPopular}
         />
         <Chip
-          label="지역"
+          label="거리"
           icon={
             <IconWrap>
-              <View style={styles.locationIconWrap}>
-                <Ionicons name="location" size={ICON_SIZE} color={CHIP_COLORS.region} />
-                <View style={styles.locationIconCenterWhite} />
-              </View>
+              <Ionicons name="resize-outline" size={ICON_SIZE} color={CHIP_COLORS.distance} />
             </IconWrap>
           }
-          onPress={onPressRegion}
+          onPress={onPressDistance}
         />
         <Chip
           label="규모"

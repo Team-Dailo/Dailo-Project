@@ -13,10 +13,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../hooks/useAuth";
+import { useFestivalParticipation } from "../../../hooks/useFestivalParticipation";
 import { ADMIN_EMAIL } from "../../../services/auth.service";
 
 export default function MyPageScreen() {
   const { user, isLoggedIn, logout, refreshUser } = useAuth();
+  const { entry: festivalEntry, elapsedFormatted: festivalElapsed, isCompleted: festivalIsCompleted } = useFestivalParticipation();
 
   useFocusEffect(
     React.useCallback(() => {
@@ -78,16 +80,18 @@ export default function MyPageScreen() {
           </Pressable>
         </View>
 
-        {/* 참여 중인 축제 카드: 로그인 시에만 표시 */}
-        {isLoggedIn && (
+        {/* 참여 중인 축제 카드: 로그인 + 축제 구역 진입 중일 때만 표시 */}
+        {isLoggedIn && festivalEntry != null && (
           <View style={styles.activeFestivalCard}>
             <View style={styles.badgeRow}>
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>참여 중인 축제</Text>
+                <Text style={styles.badgeText}>
+                  {festivalIsCompleted ? '참여 완료한 축제' : '참여 중인 축제'}
+                </Text>
               </View>
-              <Text style={styles.timerText}>00:16:13</Text>
+              <Text style={styles.timerText}>{festivalElapsed}</Text>
             </View>
-            <Text style={styles.activeFestivalTitle}>한국교통대 대동제</Text>
+            <Text style={styles.activeFestivalTitle}>{festivalEntry.eventTitle}</Text>
           </View>
         )}
 
@@ -117,28 +121,6 @@ export default function MyPageScreen() {
             onPress={() =>
               isLoggedIn
                 ? router.push("/(tabs)/mypage/board-history")
-                : router.push("/login")
-            }
-          />
-        </Section>
-
-        {/* 섹션: 쿠폰 & 추첨권 */}
-        <Section title="쿠폰&추첨권">
-          <MenuItem
-            icon="ticket-outline"
-            label="체류 이벤트 쿠폰 리스트"
-            onPress={() =>
-              isLoggedIn
-                ? router.push("/(tabs)/mypage/stay-coupon-list")
-                : router.push("/login")
-            }
-          />
-          <MenuItem
-            icon="gift-outline"
-            label="추첨권 리스트"
-            onPress={() =>
-              isLoggedIn
-                ? router.push("/(tabs)/mypage/lottery-ticket-list")
                 : router.push("/login")
             }
           />

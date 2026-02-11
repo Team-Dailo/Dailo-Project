@@ -39,6 +39,15 @@ const FILTER_ID_TO_GROUP: Record<string, string> = {
   동아리: "CLUB",
 };
 
+/** filterGroup → 칩/카드 공통 색상 (칩 선택 시 보이는 색과 카드 색이 동일하게) */
+const FILTER_GROUP_TO_COLOR: Record<string, string> = {
+  CHUNGJU_CITY: "#EF4444",   // 충주시
+  UNIVERSITY: "#F97316",      // 대학교 주황
+  STUDENT_COUNCIL: "#EAB308", // 총학생회
+  COLLEGE: "#0EA5E9",         // 단과대
+  CLUB: "#22C55E",            // 동아리
+};
+
 type DayCell = { day: number; currentMonth: boolean; date: Date };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -54,6 +63,20 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function getCategoryColor(category: string): string {
   return CATEGORY_COLORS[category] ?? CATEGORY_COLORS.ETC;
+}
+
+/** 규모(filterGroup)에 따른 색상 - 필터 칩과 동일한 색으로 카드·도트 표시 */
+function getFilterGroupColor(filterGroup: string | null | undefined): string {
+  if (!filterGroup) return "#6B7280";
+  return FILTER_GROUP_TO_COLOR[filterGroup] ?? "#6B7280";
+}
+
+/** 이벤트 표시 색상: 규모(filterGroup) 우선, 없으면 카테고리 (칩 선택 색과 동일) */
+function getEventColor(ev: CalendarEventItem): string {
+  if (ev.filterGroup != null && ev.filterGroup !== "") {
+    return getFilterGroupColor(ev.filterGroup);
+  }
+  return getCategoryColor(ev.category);
 }
 
 function formatTimeRange(startAt: string, endAt: string): string {
@@ -78,6 +101,29 @@ function getDayFromIso(iso: string): number {
   } catch {
     return 0;
   }
+}
+
+/** 백엔드 LocalDateTime이 배열 [y,mo,d,h,min,s]로 올 수 있음 → ISO 문자열로 통일 */
+function toIsoString(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) {
+    const [y, mo, d, h = 0, min = 0, s = 0] = v.map(Number);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return "";
+    const date = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(min), Number(s));
+    return Number.isFinite(date.getTime()) ? date.toISOString() : "";
+  }
+  return "";
+}
+
+/** API 응답 정규화: startAt/endAt → ISO 문자열, filterGroup → 칩/카드 색상용 */
+function normalizeCalendarItem(raw: CalendarEventItem & { filter_group?: string | null }): CalendarEventItem {
+  return {
+    ...raw,
+    startAt: toIsoString(raw.startAt) || raw.startAt,
+    endAt: toIsoString(raw.endAt) || raw.endAt,
+    filterGroup: raw.filterGroup ?? raw.filter_group ?? null,
+  };
 }
 
 function buildCalendarWeeks(year: number, month: number): DayCell[][] {
@@ -141,7 +187,7 @@ export default function CalendarScreen() {
     setError(null);
     try {
       const list = await getCalendarEvents(year, month);
-      setEvents(list);
+      setEvents(list.map(normalizeCalendarItem));
     } catch (e) {
       setError(e instanceof Error ? e.message : "이벤트를 불러올 수 없습니다.");
       setEvents([]);
@@ -159,13 +205,18 @@ export default function CalendarScreen() {
     [viewYear, viewMonth]
   );
 
-  const eventsByDay = useMemo(() => {
+  /** 달력 위 점(dots): 카테고리 선택 시 해당 카테고리 행사만 표시 (해당 색 점만) */
+  const eventsByDayForDots = useMemo(() => {
     const filterGroupValue =
       selectedCategory != null ? FILTER_ID_TO_GROUP[selectedCategory] ?? null : null;
     const filtered =
       filterGroupValue === null
         ? events
-        : events.filter((ev) => ev.filterGroup === filterGroupValue);
+        : events.filter(
+            (ev) =>
+              ev.filterGroup != null &&
+              String(ev.filterGroup).trim() === String(filterGroupValue).trim()
+          );
     const map: Record<number, CalendarEventItem[]> = {};
     filtered.forEach((ev) => {
       const d = getDayFromIso(ev.startAt);
@@ -175,9 +226,20 @@ export default function CalendarScreen() {
     return map;
   }, [events, selectedCategory]);
 
+  /** 상세보기 칸: 해당 날짜의 모든 행사 (카테고리 필터 무관) */
+  const eventsByDayAll = useMemo(() => {
+    const map: Record<number, CalendarEventItem[]> = {};
+    events.forEach((ev) => {
+      const d = getDayFromIso(ev.startAt);
+      if (!map[d]) map[d] = [];
+      map[d].push(ev);
+    });
+    return map;
+  }, [events]);
+
   const selectedEvents = useMemo(() => {
-    return eventsByDay[selectedDay] ?? [];
-  }, [eventsByDay, selectedDay]);
+    return eventsByDayAll[selectedDay] ?? [];
+  }, [eventsByDayAll, selectedDay]);
 
   const handlePrevMonth = () => {
     if (viewMonth === 1) {
@@ -310,7 +372,7 @@ export default function CalendarScreen() {
                   const isSelected =
                     cell.currentMonth && cell.day === selectedDay;
                   const dayEvents = cell.currentMonth
-                    ? eventsByDay[cell.day] ?? []
+                    ? eventsByDayForDots[cell.day] ?? []
                   : [];
                   const dotColor =
                     selectedCategory != null
@@ -364,8 +426,7 @@ export default function CalendarScreen() {
                                   styles.eventDot,
                                   {
                                     backgroundColor:
-                                      dotColor ??
-                                      getCategoryColor(ev.category),
+                                      dotColor ?? getEventColor(ev),
                                   },
                                 ]}
                               />
@@ -420,7 +481,7 @@ export default function CalendarScreen() {
             >
               <View style={styles.eventList}>
                 {selectedEvents.map((ev) => {
-                  const color = getCategoryColor(ev.category);
+                  const color = getEventColor(ev);
                   return (
                     <Pressable
                       key={ev.id}

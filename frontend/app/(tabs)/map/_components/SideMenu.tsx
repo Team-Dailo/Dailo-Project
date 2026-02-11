@@ -14,15 +14,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../../hooks/useAuth';
+import type { FestivalParticipation } from '../../../../services/festivalParticipationStorage';
 
 type Props = {
   visible: boolean;
+  festivalEntry: FestivalParticipation | null;
+  festivalElapsed: string;
+  festivalIsCompleted?: boolean;
   onClose: () => void;
   onPressActiveFestival: () => void;
   onPressSavedFestivals: () => void;
   onPressMyActivities: () => void;
   onPressDirection: () => void;
   onPressSettings: () => void;
+  onPressGuide?: () => void;
 };
 
 const DRAWER_WIDTH = 280;
@@ -31,12 +36,16 @@ const TOP_MARGIN = 14;
 
 export function SideMenu({
   visible,
+  festivalEntry,
+  festivalElapsed,
+  festivalIsCompleted = false,
   onClose,
   onPressActiveFestival,
   onPressSavedFestivals,
   onPressMyActivities,
   onPressDirection,
   onPressSettings,
+  onPressGuide,
 }: Props) {
   const { user, isLoggedIn, logout } = useAuth();
   const insets = useSafeAreaInsets();
@@ -108,8 +117,8 @@ export function SideMenu({
               </View>
             </View>
 
-            {/* 3) 참여 중인 축제 카드 (로그인 시에만) */}
-            {isLoggedIn && (
+            {/* 3) 참여 중인 축제 카드 (로그인 + 진입 중일 때만) */}
+            {isLoggedIn && festivalEntry != null && (
               <TouchableOpacity
                 style={styles.festivalCard}
                 activeOpacity={0.9}
@@ -120,10 +129,12 @@ export function SideMenu({
               >
                 <View style={styles.festivalTagRow}>
                   <Ionicons name="flag-outline" size={12} color="#1D4ED8" />
-                  <Text style={styles.festivalTag}>참여 중인 축제</Text>
+                  <Text style={styles.festivalTag}>
+                    {festivalIsCompleted ? '참여 완료한 축제' : '참여 중인 축제'}
+                  </Text>
                 </View>
-                <Text style={styles.festivalName}>한국교통대 대동제</Text>
-                <Text style={styles.festivalTimer}>00:16:13</Text>
+                <Text style={styles.festivalName}>{festivalEntry.eventTitle}</Text>
+                <Text style={styles.festivalTimer}>{festivalElapsed}</Text>
               </TouchableOpacity>
             )}
 
@@ -185,7 +196,11 @@ export function SideMenu({
               icon="information-circle-outline"
               label="이용 안내"
               gray
-              onPress={onClose}
+              onPress={() => {
+                onClose();
+                if (onPressGuide) onPressGuide();
+                else router.push('/(tabs)/mypage/guide');
+              }}
             />
             <MenuRow
               icon="settings-outline"

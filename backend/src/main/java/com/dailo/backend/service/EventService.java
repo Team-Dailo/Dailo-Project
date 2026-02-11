@@ -6,7 +6,6 @@ import com.dailo.backend.entity.Event;
 import com.dailo.backend.domain.enums.EventStatus;
 import com.dailo.backend.domain.enums.EventCategory;
 import com.dailo.backend.repository.EventRepository;
-import com.dailo.backend.repository.EventLikeRepository;
 import com.dailo.backend.repository.ScrapRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -30,35 +29,47 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final ScrapRepository scrapRepository;
-    private final EventLikeRepository eventLikeRepository;
+    // 상세 조회
 
-    /** 상세 조회 (비로그인 시 isLiked=false) */
-    public EventDetailResponse getEventDetail(Long eventId, Long memberId) {
-        Event event = eventRepository.findById(eventId)
+    public EventDetailResponse getEventDetail(Long eventId) {
+        return eventRepository.findById(eventId)
+                .map(EventDetailResponse::from)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이벤트입니다. id=" + eventId));
-        Boolean isLiked = memberId != null && eventLikeRepository.existsByMemberIdAndEventId(memberId, eventId);
-        return EventDetailResponse.from(event, isLiked);
     }
 
     // 지도 마커 조회
 
     public List<EventMapResponse> getEventsInMap(Double swLat, Double neLat, Double swLng, Double neLng) {
-        return eventRepository.findEventsInBoundsForMap(swLat, neLat, swLng, neLng)
+        return eventRepository.findEventsInBounds(swLat, neLat, swLng, neLng, EventStatus.ACTIVE)
                 .stream()
                 .map(EventMapResponse::from)
                 .collect(Collectors.toList());
     }
 
-    // 리스트 조회 (검색/필터 통합)
-
+    // 리스트 조회 (검색/필터/정렬 통합)
     public Page<EventListResponse> getEventList(EventListRequest request) {
-        // startAt 오름차순
-        Pageable pageable = PageRequest.of(request.page() - 1, request.size(), Sort.by(Sort.Direction.ASC, "startAt"));
 
+        // 동적 정렬 처리 (프론트에서 "startAt,desc" 처럼 보내면 그걸 적용)
+        Sort sort = Sort.by(Sort.Direction.ASC, "startAt"); // 기본값
+
+        if (request.sort() != null && !request.sort().isBlank()) {
+            String[] sortParams = request.sort().split(",");
+            String property = sortParams[0];
+            Sort.Direction direction = (sortParams.length > 1 && sortParams[1].equalsIgnoreCase("desc"))
+                    ? Sort.Direction.DESC
+                    : Sort.Direction.ASC;
+
+            sort = Sort.by(direction, property);
+        }
+
+        // Pageable 생성
+        Pageable pageable = PageRequest.of(request.page() - 1, request.size(), sort);
+
+        // 날짜 변환
         LocalDateTime searchStart = (request.startAt() != null) ? request.startAt().atStartOfDay() : null;
         LocalDateTime searchEnd = (request.endAt() != null) ? request.endAt().atTime(LocalTime.MAX) : null;
 
-        // 통합 검색 쿼리 실행
+        // 레포지토리 호출
         Page<Event> events = eventRepository.searchEvents(
                 EventStatus.ACTIVE,
                 searchStart,
@@ -71,52 +82,14 @@ public class EventService {
 
         return events.map(this::convertToEventListResponse);
     }
-
-    /** 지도 검색용: 키워드로 행사 검색 후 위경도 있는 것만 반환 (지도 이동용) */
-    public List<EventMapResponse> searchEventsForMap(String keyword, int size) {
-        if (keyword == null || keyword.isBlank()) {
-            return List.of();
-        }
-        Pageable pageable = PageRequest.of(0, Math.min(size * 2, 50), Sort.by(Sort.Direction.ASC, "startAt"));
-        Page<Event> events = eventRepository.searchEvents(
-                EventStatus.ACTIVE,
-                null,
-                null,
-                null,
-                null,
-                keyword.trim(),
-                pageable
-        );
-        return events.getContent().stream()
-                .filter(e -> e.getLatitude() != null && e.getLongitude() != null)
-                .limit(size)
-                .map(EventMapResponse::from)
-                .collect(Collectors.toList());
-    }
-
-    /** 인기순(좋아요 많은 순) 상위 행사 (홈 캐러셀용). 종료된 행사(endAt < now) 제외. */
-    public List<EventListResponse> getTopEventsByLikeCount(int size) {
-        Pageable pageable = PageRequest.of(0, Math.max(size * 2, 20),
-                Sort.by(Sort.Direction.DESC, "likeCount").and(Sort.by(Sort.Direction.ASC, "startAt")));
-        List<Event> events = eventRepository.findByStatus(EventStatus.ACTIVE, pageable);
-        LocalDateTime now = LocalDateTime.now();
-        List<Event> notEnded = events.stream()
-                .filter(e -> e.getEndAt() == null || !e.getEndAt().isBefore(now))
-                .limit(size)
-                .collect(Collectors.toList());
-        return notEnded.stream().map(this::convertToEventListResponse).collect(Collectors.toList());
-    }
-
     private EventListResponse convertToEventListResponse(Event event) {
-        List<EventCategory> categories = event.getCategories() != null ? event.getCategories() : List.of();
         return new EventListResponse(
                 event.getId(),
                 event.getTitle(),
                 event.getThumbnailUrl(),
                 event.getStartAt(),
                 event.getEndAt(),
-                event.getPlaceName(),
-                categories
+                event.getPlaceName()
         );
     }
 
@@ -140,8 +113,8 @@ public class EventService {
                 .map(event -> EventCalendarResponse.builder()
                         .id(event.getId())
                         .title(event.getTitle())
+                        // 카테고리가 여러 개면 첫 번째 것을 대표 색상으로 사용 (없으면 ETC)
                         .category(event.getCategories().isEmpty() ? EventCategory.ETC : event.getCategories().get(0))
-                        .filterGroup(event.getFilterGroup())
                         .startAt(event.getStartAt())
                         .endAt(event.getEndAt() != null ? event.getEndAt() : event.getStartAt())
                         .isBookmarked(scrappedEventIds.contains(event.getId()))

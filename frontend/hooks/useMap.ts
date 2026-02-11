@@ -104,7 +104,10 @@ export function useMap() {
     setBottomSheetOpen(true);
   };
 
-  const closeBottomSheet = () => setBottomSheetOpen(false);
+  const closeBottomSheet = () => {
+    setBottomSheetOpen(false);
+    setSelectedEvent(null);
+  };
 
   const focusCurrentLocation = () => {
     if (!currentLocation) return;

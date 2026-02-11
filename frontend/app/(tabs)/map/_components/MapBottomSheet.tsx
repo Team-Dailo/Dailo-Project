@@ -182,23 +182,11 @@ export function MapBottomSheet({
               <Text style={styles.metaText}>{placeText}</Text>
             </View>
 
-            {/* 본문 영역 */}
+            {/* 상세 내용은 상세보기에서 */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                총 90분간 진행되며, 중간에 관객 이벤트가 있습니다
+                자세한 일정과 소개는 아래 상세보기에서 확인할 수 있습니다.
               </Text>
-              <Text style={styles.bulletTitle}>
-                1부: 18:00 ~ 18:40 사랑이 시작될 때
-              </Text>
-              <Text style={styles.bulletText}>
-                · 사랑을 전하는 다함께 떼창 - 10cm
-              </Text>
-              <Text style={styles.bulletText}>· 너의 의미 - 아이유</Text>
-
-              <Text style={[styles.bulletTitle, { marginTop: 8 }]}>
-                2부: 18:50 ~ 19:30 위로가 필요한 밤
-              </Text>
-              <Text style={styles.bulletText}>· 감성 발라드 공연</Text>
             </View>
 
             {/* 포스터 영역 */}
