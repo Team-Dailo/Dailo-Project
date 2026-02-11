@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Linking,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, router } from "expo-router";
@@ -34,6 +35,15 @@ const SCALE_OPTIONS: { value: string; label: string }[] = [
   { value: "SMALL", label: "소규모" },
   { value: "MEDIUM", label: "중규모" },
   { value: "LARGE", label: "대규모" },
+];
+
+/** 달력 필터 (충주시/대학교/총학생회/단과대/동아리) - 행사 등록 시 지정 시 달력에서 해당 칩 선택 시 노출 */
+const FILTER_GROUP_OPTIONS: { value: string; label: string }[] = [
+  { value: "CHUNGJU_CITY", label: "충주시" },
+  { value: "UNIVERSITY", label: "대학교" },
+  { value: "STUDENT_COUNCIL", label: "총학생회" },
+  { value: "COLLEGE", label: "단과대" },
+  { value: "CLUB", label: "동아리" },
 ];
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -78,6 +88,7 @@ export default function AdminEventEditScreen() {
   const [endAt, setEndAt] = useState(defaultEnd());
   const [categories, setCategories] = useState<string[]>([]);
   const [scale, setScale] = useState("");
+  const [filterGroup, setFilterGroup] = useState("");
   const [status, setStatus] = useState("DRAFT");
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [description, setDescription] = useState("");
@@ -100,6 +111,7 @@ export default function AdminEventEditScreen() {
         setEndAt(res.endAt ? res.endAt.slice(0, 16) : defaultEnd());
         setCategories(Array.isArray(res.categories) ? res.categories : []);
         setScale(res.scale ?? "");
+        setFilterGroup(res.filterGroup ?? "");
         setStatus(res.status ?? "DRAFT");
         setThumbnailUrl(res.thumbnailUrl ?? "");
         setDescription(res.description ?? "");
@@ -119,26 +131,40 @@ export default function AdminEventEditScreen() {
   };
 
   const pickAndUploadImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets?.[0]?.uri) return;
-    setUploading(true);
     try {
-      const url = await adminService.uploadAdminEventImage(result.assets[0].uri);
-      setThumbnailUrl(url);
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "권한 필요",
+          "갤러리 접근 권한이 필요합니다. 설정에서 사진 접근을 허용해 주세요.",
+          [
+            { text: "취소", style: "cancel" },
+            { text: "설정으로 이동", onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      setUploading(true);
+      try {
+        const url = await adminService.uploadAdminEventImage(result.assets[0].uri);
+        setThumbnailUrl(url);
+      } catch (e) {
+        Alert.alert("업로드 실패", e instanceof Error ? e.message : "사진 업로드에 실패했습니다.");
+      } finally {
+        setUploading(false);
+      }
     } catch (e) {
-      Alert.alert("업로드 실패", e instanceof Error ? e.message : "사진 업로드에 실패했습니다.");
-    } finally {
-      setUploading(false);
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert(
+        "갤러리를 열 수 없음",
+        msg || "사진 선택 화면을 열 수 없습니다. 앱 설정에서 사진 권한을 확인해 주세요."
+      );
     }
   };
 
@@ -163,6 +189,7 @@ export default function AdminEventEditScreen() {
       endAt: end.length <= 16 ? `${end}:00` : end,
       categories,
       scale: scale.trim() || undefined,
+      filterGroup: filterGroup.trim() || undefined,
       status: status || "DRAFT",
       thumbnailUrl: thumbnailUrl.trim() || undefined,
       description: description.trim() || undefined,
@@ -252,6 +279,21 @@ export default function AdminEventEditScreen() {
             >
               <Text style={[styles.chipText, scale === s.value && styles.chipTextSelected]}>
                 {s.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={styles.label}>달력 카테고리 (충주시/대학교/총학생회/단과대/동아리)</Text>
+        <View style={styles.chipRow}>
+          {FILTER_GROUP_OPTIONS.map((f) => (
+            <Pressable
+              key={f.value}
+              style={[styles.chip, filterGroup === f.value && styles.chipSelected]}
+              onPress={() => setFilterGroup(f.value)}
+            >
+              <Text style={[styles.chipText, filterGroup === f.value && styles.chipTextSelected]}>
+                {f.label}
               </Text>
             </Pressable>
           ))}

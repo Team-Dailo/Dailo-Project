@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '../constants/api';
 import { getAccessToken } from './auth.service';
-import type { Event, EventDetail } from '../types/event';
+import type { Event, EventDetail, EventScale } from '../types/event';
 
 /** 백엔드 이벤트 리스트 응답 (EventListResponse: id, title, thumbnailUrl, startAt, endAt, placeName) */
 type EventListResponseItem = {
@@ -18,24 +18,16 @@ type EventListResponseItem = {
   categories?: string[] | null;
 };
 
-/** 백엔드 카테고리 → 프론트 EventCategory (없으면 EXHIBITION) */
-const mapCategory = (cat?: string | null): Event['category'] => {
-  const map: Record<string, Event['category']> = {
-    FESTIVAL: 'PERFORMANCE',
-    EXHIBITION: 'EXHIBITION',
-    TRAFFIC: 'EXPERIENCE',
-    CONSTRUCTION: 'EXPERIENCE',
-    ETC: 'EXHIBITION',
-  };
-  if (!cat || !(cat in map)) return 'EXHIBITION';
-  return map[cat];
+/** 백엔드 카테고리 → 프론트 표시용 (그대로 사용, 없으면 ETC) */
+const mapCategory = (cat?: string | null): string => {
+  return cat ?? 'ETC';
 };
 
 /** 백엔드 응답 → 프론트 Event (지도/리스트 공통) */
 function toEvent(item: EventListResponseItem): Event {
   const category = item.categories?.[0]
     ? mapCategory(item.categories[0])
-    : 'EXHIBITION';
+    : 'ETC';
   return {
     id: String(item.id),
     title: item.title,
@@ -100,6 +92,8 @@ export type CalendarEventItem = {
   id: number;
   title: string;
   category: string;
+  /** 달력 필터 (충주시/대학교/총학생회/단과대/동아리) - 백엔드 enum명 예: CHUNGJU_CITY */
+  filterGroup?: string | null;
   startAt: string;
   endAt: string;
   isBookmarked: boolean;
@@ -127,6 +121,7 @@ type EventMapResponseItem = {
   latitude: number | null;
   longitude: number | null;
   category: string;
+  filterGroup?: string | null;
   thumbnailUrl: string | null;
   status?: string;
 };
@@ -148,11 +143,23 @@ export async function getEventsOnMap(params: {
   const data: EventMapResponseItem[] = await res.json();
   const list = data ?? [];
   if (__DEV__) console.log('[Event API] map ok, count:', list.length);
+  const filterGroupToScale = (fg: string | null | undefined): EventScale => {
+    if (!fg) return 'PERSONAL';
+    switch (fg) {
+      case 'CHUNGJU_CITY': return 'CITY';
+      case 'UNIVERSITY': return 'UNIVERSITY';
+      case 'COLLEGE':
+      case 'STUDENT_COUNCIL': return 'DEPARTMENT';
+      case 'CLUB': return 'CLUB';
+      default: return 'PERSONAL';
+    }
+  };
+
   return list.map((item) => ({
     id: String(item.id),
     title: item.title,
     category: mapCategory(item.category),
-    scale: 'UNIVERSITY',
+    scale: filterGroupToScale(item.filterGroup),
     startAt: '',
     endAt: '',
     latitude: item.latitude ?? 0,
@@ -216,6 +223,29 @@ export async function getEventDetail(id: string): Promise<EventDetail> {
     likeCount: raw.likeCount ?? 0,
     isLiked: raw.isLiked ?? false,
   };
+}
+
+/**
+ * 지도 검색용: 키워드로 행사 검색 (위경도 포함)
+ * GET /api/events/search?keyword=xxx&size=10
+ */
+export async function searchEventsForMap(
+  keyword: string,
+  size: number = 10
+): Promise<EventMapResponseItem[]> {
+  const encoded = encodeURIComponent(keyword.trim());
+  if (!encoded) return [];
+  const url = `${API_BASE_URL}/api/events/search?keyword=${encoded}&size=${size}`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data: EventMapResponseItem[] = await res.json();
+  return (data ?? []).filter(
+    (e) =>
+      e.latitude != null &&
+      e.longitude != null &&
+      Number.isFinite(e.latitude) &&
+      Number.isFinite(e.longitude)
+  );
 }
 
 /** 인기순(좋아요 많은 순) 행사 목록 (홈 캐러셀용) - EventListResponse와 동일 구조 */

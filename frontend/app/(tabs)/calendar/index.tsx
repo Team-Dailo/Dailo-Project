@@ -30,13 +30,13 @@ const FILTER_CATEGORIES = [
   { id: "동아리", label: "동아리", borderColor: "#22C55E" },
 ] as const;
 
-/** 규모(필터) id → 이벤트 category 매핑 (해당하는 점만 표시) */
-const FILTER_TO_EVENT_CATEGORIES: Record<string, string[]> = {
-  충주시: ["FESTIVAL"],
-  대학교: ["CONSTRUCTION", "TRAFFIC"],
-  총학생회: ["FESTIVAL"],
-  단과대: ["EXHIBITION"],
-  동아리: ["ETC"],
+/** 달력 필터 id(충주시 등) → 백엔드 filterGroup enum 값 (행사 등록 시 지정한 구분으로 필터) */
+const FILTER_ID_TO_GROUP: Record<string, string> = {
+  충주시: "CHUNGJU_CITY",
+  대학교: "UNIVERSITY",
+  총학생회: "STUDENT_COUNCIL",
+  단과대: "COLLEGE",
+  동아리: "CLUB",
 };
 
 type DayCell = { day: number; currentMonth: boolean; date: Date };
@@ -160,14 +160,12 @@ export default function CalendarScreen() {
   );
 
   const eventsByDay = useMemo(() => {
-    const allowedCategories =
-      selectedCategory != null
-        ? FILTER_TO_EVENT_CATEGORIES[selectedCategory] ?? []
-        : null;
+    const filterGroupValue =
+      selectedCategory != null ? FILTER_ID_TO_GROUP[selectedCategory] ?? null : null;
     const filtered =
-      allowedCategories === null
+      filterGroupValue === null
         ? events
-        : events.filter((ev) => allowedCategories.includes(ev.category));
+        : events.filter((ev) => ev.filterGroup === filterGroupValue);
     const map: Record<number, CalendarEventItem[]> = {};
     filtered.forEach((ev) => {
       const d = getDayFromIso(ev.startAt);
@@ -178,8 +176,8 @@ export default function CalendarScreen() {
   }, [events, selectedCategory]);
 
   const selectedEvents = useMemo(() => {
-    return events.filter((ev) => getDayFromIso(ev.startAt) === selectedDay);
-  }, [events, selectedDay]);
+    return eventsByDay[selectedDay] ?? [];
+  }, [eventsByDay, selectedDay]);
 
   const handlePrevMonth = () => {
     if (viewMonth === 1) {

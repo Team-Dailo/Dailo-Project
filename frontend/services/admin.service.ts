@@ -57,7 +57,8 @@ export type AdminEventResponse = {
   startAt: string;
   endAt: string;
   categories?: string[];
-  scale?: string | null; // SMALL | MEDIUM | LARGE
+  scale?: string | null;
+  filterGroup?: string | null; // CHUNGJU_CITY | UNIVERSITY | STUDENT_COUNCIL | COLLEGE | CLUB
   status?: string;
   thumbnailUrl?: string | null;
   description?: string | null;
@@ -78,6 +79,7 @@ export type AdminEventCreateRequest = {
   endAt: string;
   categories: string[];
   scale?: string | null; // SMALL | MEDIUM | LARGE
+  filterGroup?: string | null; // CHUNGJU_CITY | UNIVERSITY | STUDENT_COUNCIL | COLLEGE | CLUB (달력 필터)
   status?: string;
   thumbnailUrl?: string | null;
   posterUrls?: string[];

@@ -14,6 +14,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, router } from "expo-router";
@@ -39,6 +40,14 @@ const SCALE_OPTIONS: { value: string; label: string }[] = [
   { value: "SMALL", label: "소규모" },
   { value: "MEDIUM", label: "중규모" },
   { value: "LARGE", label: "대규모" },
+];
+
+const FILTER_GROUP_OPTIONS: { value: string; label: string }[] = [
+  { value: "CHUNGJU_CITY", label: "충주시" },
+  { value: "UNIVERSITY", label: "대학교" },
+  { value: "STUDENT_COUNCIL", label: "총학생회" },
+  { value: "COLLEGE", label: "단과대" },
+  { value: "CLUB", label: "동아리" },
 ];
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -129,6 +138,7 @@ export default function AdminEventEditDetailScreen() {
   const [longitude, setLongitude] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [scale, setScale] = useState("");
+  const [filterGroup, setFilterGroup] = useState("");
   const [status, setStatus] = useState("DRAFT");
 
   // 로컬 전용 (소식/타임테이블/부스)
@@ -150,6 +160,7 @@ export default function AdminEventEditDetailScreen() {
     | { type: "coords" }
     | { type: "categories" }
     | { type: "scale" }
+    | { type: "filterGroup" }
     | { type: "status" }
     | { type: "news"; item?: NewsItemEdit }
     | { type: "timeline"; item?: TimelineItemEdit }
@@ -173,6 +184,7 @@ export default function AdminEventEditDetailScreen() {
       setLongitude(res.longitude != null ? String(res.longitude) : "");
       setCategories(Array.isArray(res.categories) ? res.categories : []);
       setScale(res.scale ?? "");
+      setFilterGroup(res.filterGroup ?? "");
       setStatus(res.status ?? "DRAFT");
 
       const extra = parseEventExtra(res.extraJson ?? null);
@@ -242,6 +254,7 @@ export default function AdminEventEditDetailScreen() {
         endAt: end,
         categories: categories.length ? categories : ["FESTIVAL"],
         scale: scale.trim() || undefined,
+        filterGroup: filterGroup.trim() || undefined,
         status: status || "DRAFT",
         thumbnailUrl: thumbnailUrl.trim() || undefined,
         description: description.trim() || undefined,
@@ -263,26 +276,40 @@ export default function AdminEventEditDetailScreen() {
   };
 
   const pickAndUploadImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets?.[0]?.uri) return;
-    setUploading(true);
     try {
-      const url = await adminService.uploadAdminEventImage(result.assets[0].uri);
-      setThumbnailUrl(url);
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "권한 필요",
+          "갤러리 접근 권한이 필요합니다. 설정에서 사진 접근을 허용해 주세요.",
+          [
+            { text: "취소", style: "cancel" },
+            { text: "설정으로 이동", onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      setUploading(true);
+      try {
+        const url = await adminService.uploadAdminEventImage(result.assets[0].uri);
+        setThumbnailUrl(url);
+      } catch (e) {
+        Alert.alert("업로드 실패", e instanceof Error ? e.message : "사진 업로드에 실패했습니다.");
+      } finally {
+        setUploading(false);
+      }
     } catch (e) {
-      Alert.alert("업로드 실패", e instanceof Error ? e.message : "사진 업로드에 실패했습니다.");
-    } finally {
-      setUploading(false);
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert(
+        "갤러리를 열 수 없음",
+        msg || "사진 선택 화면을 열 수 없습니다. 앱 설정에서 사진 권한을 확인해 주세요."
+      );
     }
   };
 
@@ -320,7 +347,7 @@ export default function AdminEventEditDetailScreen() {
         {/* 상단 포스터 (탭 시 사진 등록/변경) */}
         <Pressable style={styles.posterWrap} onPress={pickAndUploadImage} disabled={uploading}>
           <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" />
-          <View style={styles.posterOverlay}>
+          <View style={styles.posterOverlay} pointerEvents="none">
             <Ionicons name="camera" size={28} color="#FFF" />
             <Text style={styles.posterOverlayText}>{uploading ? "업로드 중..." : thumbnailUrl.trim() ? "사진 변경" : "사진 등록"}</Text>
           </View>
@@ -374,6 +401,13 @@ export default function AdminEventEditDetailScreen() {
               <Ionicons name="resize-outline" size={18} color="#6B7280" style={styles.infoIcon} />
               <Text style={styles.infoText} numberOfLines={1}>
                 {scale ? (SCALE_OPTIONS.find((s) => s.value === scale)?.label ?? scale) : "규모 선택 (탭하여 편집)"}
+              </Text>
+              <Ionicons name="pencil" size={14} color="#9CA3AF" />
+            </Pressable>
+            <Pressable style={styles.infoRow} onPress={() => setEditTarget({ type: "filterGroup" })}>
+              <Ionicons name="calendar-outline" size={18} color="#6B7280" style={styles.infoIcon} />
+              <Text style={styles.infoText} numberOfLines={1}>
+                {filterGroup ? (FILTER_GROUP_OPTIONS.find((f) => f.value === filterGroup)?.label ?? filterGroup) : "달력 카테고리 (탭하여 편집)"}
               </Text>
               <Ionicons name="pencil" size={14} color="#9CA3AF" />
             </Pressable>
@@ -444,6 +478,7 @@ export default function AdminEventEditDetailScreen() {
           longitude,
           categories,
           scale,
+          filterGroup,
           status,
           newsList,
           timelineItems,
@@ -460,6 +495,7 @@ export default function AdminEventEditDetailScreen() {
           setLongitude,
           setCategories,
           setScale,
+          setFilterGroup,
           setStatus,
           setNewsList,
           setTimelineItems,
@@ -630,6 +666,7 @@ function EditModal({
   const [text5, setText5] = useState(""); // 푸드트럭 메뉴-가격 (한 줄에 하나, 예: 타코야끼(6pcs) - 5,000원)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedScale, setSelectedScale] = useState("");
+  const [selectedFilterGroup, setSelectedFilterGroup] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("DRAFT");
 
   useEffect(() => {
@@ -639,6 +676,9 @@ function EditModal({
     }
     if (editTarget.type === "scale") {
       setSelectedScale((values.scale as string) ?? "");
+    }
+    if (editTarget.type === "filterGroup") {
+      setSelectedFilterGroup((values.filterGroup as string) ?? "");
     }
     if (editTarget.type === "status") {
       setSelectedStatus((values.status as string) ?? "DRAFT");
@@ -715,6 +755,9 @@ function EditModal({
     if (editTarget.type === "scale") {
       onSave.setScale?.(selectedScale);
     }
+    if (editTarget.type === "filterGroup") {
+      onSave.setFilterGroup?.(selectedFilterGroup);
+    }
     if (editTarget.type === "status") {
       onSave.setStatus?.(selectedStatus);
     }
@@ -785,6 +828,7 @@ function EditModal({
     coords: "위도 / 경도",
     categories: "카테고리",
     scale: "규모",
+    filterGroup: "달력 카테고리",
     status: "상태",
     news: "소식",
     timeline: "타임테이블",
@@ -847,6 +891,25 @@ function EditModal({
               </View>
             )}
 
+            {editTarget?.type === "filterGroup" && (
+              <View style={styles.modalChipWrap}>
+                {FILTER_GROUP_OPTIONS.map((f) => {
+                  const isSelected = selectedFilterGroup === f.value;
+                  return (
+                    <Pressable
+                      key={f.value}
+                      style={[styles.modalChip, isSelected && styles.modalChipSelected]}
+                      onPress={() => setSelectedFilterGroup(f.value)}
+                    >
+                      <Text style={[styles.modalChipText, isSelected && styles.modalChipTextSelected]}>
+                        {f.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
             {editTarget?.type === "status" && (
               <View style={styles.modalChipWrap}>
                 {STATUS_OPTIONS.map((s) => {
@@ -866,7 +929,7 @@ function EditModal({
               </View>
             )}
 
-            {editTarget?.type !== "categories" && editTarget?.type !== "scale" && editTarget?.type !== "status" && (
+            {editTarget?.type !== "categories" && editTarget?.type !== "scale" && editTarget?.type !== "filterGroup" && editTarget?.type !== "status" && (
             <TextInput
               style={styles.modalInput}
               value={text}
