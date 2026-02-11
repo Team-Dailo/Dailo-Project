@@ -1,5 +1,6 @@
 package com.dailo.backend.entity;
 
+import com.dailo.backend.domain.enums.MemberStatus;
 import com.dailo.backend.domain.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,8 +22,27 @@ public class Member {
     @Column(nullable = false)
     private String nickname;
 
+    @Column(name = "profile_image_url")
+    private String profileImageUrl;
+
+    @Enumerated(EnumType.STRING)
+    private MemberStatus status; // ACTIVATE, DELETED
+
     @Enumerated(EnumType.STRING)
     private Role role;
+
+    public void updateProfile(String nickname, String profileImageUrl) {
+        if (nickname != null && !nickname.isEmpty()) {
+            this.nickname = nickname;
+        }
+        if (profileImageUrl != null && !profileImageUrl.isEmpty()) {
+            this.profileImageUrl = profileImageUrl;
+        }
+    }
+
+    public void withdraw() {
+        this.status = MemberStatus.DELETED;
+    }
 
     @Builder
     public Member(String email, String password, String nickname, Role role) {
@@ -30,5 +50,6 @@ public class Member {
         this.password = password;
         this.nickname = nickname;
         this.role = role;
+        this.status = MemberStatus.ACTIVE;
     }
 }

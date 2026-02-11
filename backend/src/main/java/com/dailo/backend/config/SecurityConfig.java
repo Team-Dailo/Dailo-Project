@@ -48,6 +48,9 @@ public class SecurityConfig {
                         // 관리자 페이지 등 (필요하면 유지)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
+                        // 스크랩 기능은 "로그인한 사람"만 가능
+                        .requestMatchers("/api/scraps/**").authenticated()
+
                         // 그 외 모든 요청(스크랩, 마이페이지 등)은 '인증된 사용자'만 가능
                         .anyRequest().authenticated()
                 )
