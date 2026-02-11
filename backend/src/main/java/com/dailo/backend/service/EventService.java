@@ -46,16 +46,30 @@ public class EventService {
                 .collect(Collectors.toList());
     }
 
-    // 리스트 조회 (검색/필터 통합)
-
+    // 리스트 조회 (검색/필터/정렬 통합)
     public Page<EventListResponse> getEventList(EventListRequest request) {
-        // startAt 오름차순
-        Pageable pageable = PageRequest.of(request.page() - 1, request.size(), Sort.by(Sort.Direction.ASC, "startAt"));
 
+        // 동적 정렬 처리 (프론트에서 "startAt,desc" 처럼 보내면 그걸 적용)
+        Sort sort = Sort.by(Sort.Direction.ASC, "startAt"); // 기본값
+
+        if (request.sort() != null && !request.sort().isBlank()) {
+            String[] sortParams = request.sort().split(",");
+            String property = sortParams[0];
+            Sort.Direction direction = (sortParams.length > 1 && sortParams[1].equalsIgnoreCase("desc"))
+                    ? Sort.Direction.DESC
+                    : Sort.Direction.ASC;
+
+            sort = Sort.by(direction, property);
+        }
+
+        // Pageable 생성
+        Pageable pageable = PageRequest.of(request.page() - 1, request.size(), sort);
+
+        // 날짜 변환
         LocalDateTime searchStart = (request.startAt() != null) ? request.startAt().atStartOfDay() : null;
         LocalDateTime searchEnd = (request.endAt() != null) ? request.endAt().atTime(LocalTime.MAX) : null;
 
-        // 통합 검색 쿼리 실행
+        // 레포지토리 호출
         Page<Event> events = eventRepository.searchEvents(
                 EventStatus.ACTIVE,
                 searchStart,
@@ -68,7 +82,6 @@ public class EventService {
 
         return events.map(this::convertToEventListResponse);
     }
-
     private EventListResponse convertToEventListResponse(Event event) {
         return new EventListResponse(
                 event.getId(),
