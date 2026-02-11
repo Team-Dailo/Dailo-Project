@@ -47,8 +47,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             "AND (:categories IS NULL OR c IN :categories) " +
             // 3. 지역 필터 (주소에 해당 지역명이 포함되는지)
             "AND (:region IS NULL OR e.placeAddress LIKE %:region%) " +
-            // 4. 키워드 검색 (제목 또는 장소명에 키워드 포함)
-            "AND (:keyword IS NULL OR (e.title LIKE %:keyword% OR e.placeName LIKE %:keyword%))")
+            // 4. 키워드 검색 (제목, 장소명, 내용(description)에 키워드 포함)
+            "AND (:keyword IS NULL OR :keyword = '' OR (e.title LIKE CONCAT('%', :keyword, '%') OR e.placeName LIKE CONCAT('%', :keyword, '%') OR e.description LIKE CONCAT('%', :keyword, '%')))")
     Page<Event> searchEvents(
             @Param("status") EventStatus status,
             @Param("startAt") LocalDateTime startAt,
@@ -72,5 +72,11 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             "AND e.endAt > :startOfMonth")
     List<Event> findEventsForCalendar(@Param("startOfMonth") LocalDateTime startOfMonth,
                                       @Param("endOfMonth") LocalDateTime endOfMonth);
+
+    /** 시드 데이터 중복 방지: 제목에 해당 문자열이 포함된 이벤트 존재 여부 */
+    boolean existsByTitleContaining(String keyword);
+
+    /** 제목이 정확히 일치하는 이벤트 목록 (이전 시드 삭제용) */
+    List<Event> findByTitleIn(List<String> titles);
 }
 

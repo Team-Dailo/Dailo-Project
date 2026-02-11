@@ -31,15 +31,12 @@ public class EventLikeService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 행사입니다."));
 
-        int current = (event.getLikeCount() != null) ? event.getLikeCount() : 0;
         Optional<EventLike> existing = eventLikeRepository.findByMemberIdAndEventId(memberId, eventId);
         if (existing.isPresent()) {
             eventLikeRepository.delete(existing.get());
-            event.setLikeCount(Math.max(0, current - 1));
             return false;
         }
         eventLikeRepository.save(EventLike.builder().member(member).event(event).build());
-        event.setLikeCount(current + 1);
         return true;
     }
 

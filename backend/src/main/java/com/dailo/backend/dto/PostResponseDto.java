@@ -17,6 +17,8 @@ public class PostResponseDto {
 
     private Long id;
     private Long authorId;
+    /** 작성자 닉네임 (표시용) */
+    private String authorNickname;
     private String title;
     private String content;
     private String categoryType;
@@ -26,11 +28,22 @@ public class PostResponseDto {
     private PostStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    /** 로그인 사용자가 이 게시글에 좋아요를 눌렀는지 */
+    private Boolean isLiked;
 
     public static PostResponseDto from(Post post) {
+        return from(post, null, null);
+    }
+
+    public static PostResponseDto from(Post post, String authorNickname) {
+        return from(post, authorNickname, null);
+    }
+
+    public static PostResponseDto from(Post post, String authorNickname, Boolean isLiked) {
         return PostResponseDto.builder()
                 .id(post.getId())
                 .authorId(post.getAuthorId())
+                .authorNickname(authorNickname != null ? authorNickname : "알 수 없음")
                 .title(post.getTitle())
                 .content(post.getContent())
                 .categoryType(post.getCategoryType())
@@ -40,6 +53,7 @@ public class PostResponseDto {
                 .status(post.getStatus())
                 .createdAt(post.getCreatedAt())
                 .updatedAt(post.getUpdatedAt())
+                .isLiked(isLiked)
                 .build();
     }
 }

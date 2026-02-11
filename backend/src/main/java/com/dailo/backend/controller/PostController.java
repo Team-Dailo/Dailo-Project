@@ -1,5 +1,6 @@
 package com.dailo.backend.controller;
 
+import com.dailo.backend.dto.PostLikeResponseDto;
 import com.dailo.backend.dto.PostListResponseDto;
 import com.dailo.backend.dto.PostRequestDto;
 import com.dailo.backend.dto.PostResponseDto;
@@ -88,5 +89,19 @@ public class PostController {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return ResponseEntity.ok(postService.searchPosts(keyword, userId, pageable));
+    }
+
+    /** 게시글 좋아요 토글 (로그인 필요). 기록 저장 후 좋아요 상태·개수 반환 */
+    @PostMapping("/{id}/like")
+    public ResponseEntity<PostLikeResponseDto> toggleLike(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        boolean liked = postService.togglePostLike(id, userId);
+        int likeCount = postService.getLikeCount(id);
+        return ResponseEntity.ok(new PostLikeResponseDto(liked, likeCount));
     }
 }

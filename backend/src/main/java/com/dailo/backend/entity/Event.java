@@ -34,6 +34,10 @@ public class Event {
     @Column(length = 100)
     private String regionName; // 지역(서울, 경기) -> 필터링용
 
+    /** 규모/달력 필터 (CHUNGJU_CITY, UNIVERSITY, COLLEGE, CLUB 등) → 지도 마커 색상용 */
+    @Column(name = "filter_group", length = 50)
+    private String filterGroup;
+
     @Column(length = 100)
     private String placeName; // 장소이름
 
@@ -80,6 +84,10 @@ public class Event {
     // 주최측 연락처
     private String hostContact;
 
+    @Column(name = "like_count")
+    @Builder.Default
+    private Integer likeCount = 0;
+
     // 관리자가 수동으로 데이터를 수정했는지 여부
     @Builder.Default
     private boolean isAdminManaged = false;
@@ -102,7 +110,8 @@ public class Event {
                             LocalDateTime startAt, LocalDateTime endAt,
                             List<EventCategory> categories, EventStatus status,
                             String thumbnailUrl, List<String> posterUrls,
-                            String description, String hostContact) {
+                            String description, String hostContact,
+                            String filterGroup) {
         this.title = title;
         this.placeName = placeName;
         this.placeAddress = placeAddress;
@@ -117,6 +126,7 @@ public class Event {
         this.posterUrls = posterUrls;
         this.description = description;
         this.hostContact = hostContact;
+        if (filterGroup != null) this.filterGroup = filterGroup;
         this.isAdminManaged = true;
     }
 }

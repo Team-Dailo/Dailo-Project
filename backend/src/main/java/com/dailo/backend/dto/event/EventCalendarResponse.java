@@ -16,7 +16,9 @@ public class EventCalendarResponse {
 
     private Long id;
     private String title;
-    private EventCategory category;  // 색상 구분용 (FESTIVAL, ACADEMIC 등)
+    private EventCategory category;
+    /** 규모/지도·달력 마커 색상 (CHUNGJU_CITY, UNIVERSITY, COLLEGE, CLUB 등) */
+    private String filterGroup;
     private LocalDateTime startAt;
     private LocalDateTime endAt;
     private boolean isBookmarked;

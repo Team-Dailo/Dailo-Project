@@ -46,6 +46,27 @@ public class EventService {
                 .collect(Collectors.toList());
     }
 
+    /** 지도/검색: 키워드(행사명·장소·설명)로 행사 검색, 위경도 있는 것만 반환 (지도 검색 결과용) */
+    public List<EventMapResponse> searchEventsByKeyword(String keyword, int size) {
+        if (keyword == null || keyword.isBlank()) {
+            return Collections.emptyList();
+        }
+        Pageable pageable = PageRequest.of(0, Math.min(size, 100), Sort.by(Sort.Direction.ASC, "startAt"));
+        Page<Event> page = eventRepository.searchEvents(
+                EventStatus.ACTIVE,
+                null,
+                null,
+                null,
+                null,
+                keyword.trim(),
+                pageable
+        );
+        return page.getContent().stream()
+                .filter(e -> e.getLatitude() != null && e.getLongitude() != null)
+                .map(EventMapResponse::from)
+                .collect(Collectors.toList());
+    }
+
     // 리스트 조회 (검색/필터/정렬 통합)
     public Page<EventListResponse> getEventList(EventListRequest request) {
 
@@ -89,7 +110,8 @@ public class EventService {
                 event.getThumbnailUrl(),
                 event.getStartAt(),
                 event.getEndAt(),
-                event.getPlaceName()
+                event.getPlaceName(),
+                event.getCategories() != null ? event.getCategories() : List.of()
         );
     }
 
@@ -113,8 +135,8 @@ public class EventService {
                 .map(event -> EventCalendarResponse.builder()
                         .id(event.getId())
                         .title(event.getTitle())
-                        // 카테고리가 여러 개면 첫 번째 것을 대표 색상으로 사용 (없으면 ETC)
                         .category(event.getCategories().isEmpty() ? EventCategory.ETC : event.getCategories().get(0))
+                        .filterGroup(event.getFilterGroup())
                         .startAt(event.getStartAt())
                         .endAt(event.getEndAt() != null ? event.getEndAt() : event.getStartAt())
                         .isBookmarked(scrappedEventIds.contains(event.getId()))
