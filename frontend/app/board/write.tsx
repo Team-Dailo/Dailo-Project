@@ -1,191 +1,223 @@
-import { View, Text, Pressable, TextInput, SafeAreaView, Keyboard, ScrollView, Alert } from "react-native";
+// app/board/write.tsx
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Pressable,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import * as ImagePicker from "expo-image-picker";
-import axios from "axios";
-import { API_BASE_URL } from "@/constants/api";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import * as boardService from "../../services/board.service";
+import { API_BASE_URL } from "../../constants/api";
 
-export default function WriteScreen() {
+const CATEGORIES = ["후기", "질문", "자유"] as const;
+type Category = (typeof CATEGORIES)[number];
+
+export default function PostWriteScreen() {
   const router = useRouter();
-  const [category, setCategory] = useState<"후기" | "질문" | "자유">("자유");
+  const [category, setCategory] = useState<Category>("자유");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
-  const api = useMemo(
-    () =>
-      axios.create({
-        baseURL: API_BASE_URL,
-        timeout: 10000,
-        headers: { "Content-Type": "application/json" },
-      }),
-    []
-  );
+  useEffect(() => {
+    const show = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hide = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const subShow = Keyboard.addListener(show, (e) => setKeyboardHeight(e.endCoordinates.height));
+    const subHide = Keyboard.addListener(hide, () => setKeyboardHeight(0));
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, []);
 
-  const pickMedia = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("권한 필요", "사진 및 동영상 업로드를 위해 갤러리 접근 권한이 필요합니다.");
+  const handleCancel = () => router.back();
+  const handleShare = async () => {
+    const trimmedTitle = title.trim();
+    const trimmedContent = content.trim();
+    if (!trimmedTitle || !trimmedContent) {
+      Alert.alert("알림", "제목과 내용을 입력해주세요.");
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsMultipleSelection: false,
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      console.log(result.assets[0]);
-      // result.assets[0].uri -> 실제 파일 경로
-      Alert.alert("선택 완료", "미디어 선택은 됐고, 업로드는 아직 연결 전이야!");
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (submitting) return;
-
-    if (!title.trim()) {
-      Alert.alert("제목 입력", "제목을 입력해줘!");
-      return;
-    }
-    if (!content.trim()) {
-      Alert.alert("내용 입력", "내용을 입력해줘!");
-      return;
-    }
-
+    setSubmitting(true);
     try {
-      setSubmitting(true);
-
-      // ✅ 백엔드가 원하는 필드명은 프로젝트마다 다를 수 있음.
-      // 우선 가장 흔한 형태로 보냄: title, content, categoryType
-      const payload = {
-        title: title.trim(),
-        content: content.trim(),
-        categoryType: category, // 서버가 'categoryType'을 안 쓰면 로그 보고 수정
-      };
-
-      console.log("POST URL:", `${API_BASE_URL}/api/posts`);
-      console.log("POST payload:", payload);
-
-      const res = await api.post("/api/posts", payload);
-
-      console.log("POST status:", res.status);
-      console.log("POST data:", res.data);
-
-      Alert.alert("완료", "게시글이 저장됐어!");
-      router.back(); // 게시판으로 돌아가면 useFocusEffect로 목록 다시 불러올 거야
-    } catch (e: any) {
-      console.log("❌ POST ERROR");
-      console.log("message:", e?.message);
-      console.log("status:", e?.response?.status);
-      console.log("data:", e?.response?.data);
-
-      Alert.alert(
-        "저장 실패",
-        typeof e?.response?.data === "string"
-          ? e.response.data
-          : JSON.stringify(e?.response?.data ?? { message: e?.message })
-      );
+      const created = await boardService.createPost({
+        title: trimmedTitle,
+        content: trimmedContent,
+        categoryType: category,
+      });
+      router.replace(`/board/${created.id}`);
+    } catch (e) {
+      const isNetworkError =
+        e instanceof Error &&
+        (e.message?.includes("failed") ||
+          e.message?.includes("Network") ||
+          e.message?.includes("fetch"));
+      const msg = isNetworkError
+        ? `서버에 연결할 수 없습니다.\n\n연결 시도 주소: ${API_BASE_URL}\n\n• 백엔드 실행: backend 폴더에서\n  ./gradlew bootRun --args='--spring.profiles.active=local'\n• 에뮬레이터: .env에 http://10.0.2.2:8080\n• 실기기: .env의 EXPO_PUBLIC_API_URL을 PC IP로 (예: http://192.168.0.10:8080)\n• 설정 변경 후 앱 완전 종료 후 다시 실행`
+        : "게시물을 등록할 수 없습니다.";
+      Alert.alert("게시물 등록 실패", msg);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-          {/* 헤더 */}
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              padding: 16,
-              alignItems: "center",
-            }}
-          >
-            <Pressable onPress={() => router.back()} disabled={submitting}>
-              <Text style={{ fontSize: 16, opacity: submitting ? 0.5 : 1 }}>취소</Text>
-            </Pressable>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
+      >
+        {/* 헤더: 취소 | 새 게시물 | 공유 */}
+        <View style={styles.header}>
+          <Pressable onPress={handleCancel} hitSlop={12}>
+            <Text style={styles.headerCancel}>취소</Text>
+          </Pressable>
+          <Text style={styles.headerTitle}>새 게시물</Text>
+          <Pressable onPress={handleShare} hitSlop={12} disabled={submitting}>
+            {submitting ? (
+              <ActivityIndicator size="small" color="#2563EB" />
+            ) : (
+              <Text style={styles.headerShare}>공유</Text>
+            )}
+          </Pressable>
+        </View>
 
-            <Text style={{ fontSize: 16, fontWeight: "600" }}>새 게시물</Text>
-
-            {/* ✅ 공유 버튼에 저장 연결 */}
-            <Pressable onPress={handleSubmit} disabled={submitting}>
-              <Text style={{ fontSize: 16, color: "#2563EB", opacity: submitting ? 0.5 : 1 }}>
-                {submitting ? "저장중..." : "공유"}
-              </Text>
-            </Pressable>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 카테고리: 후기 / 질문 / 자유 - 게시판 탭과 비슷한 크기, 파란색 */}
+          <View style={styles.categoryRow}>
+            {CATEGORIES.map((cat) => {
+              const selected = category === cat;
+              return (
+                <Pressable
+                  key={cat}
+                  onPress={() => setCategory(cat)}
+                  style={[styles.categoryChip, selected && styles.categoryChipSelected]}
+                >
+                  <Text style={[styles.categoryChipText, selected && styles.categoryChipTextSelected]}>
+                    {cat}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
-          {/* 카테고리 */}
-          <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16 }}>
-            {["후기", "질문", "자유"].map((item) => (
-              <Pressable
-                key={item}
-                onPress={() => setCategory(item as any)}
-                disabled={submitting}
-                style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 6,
-                  borderRadius: 20,
-                  backgroundColor: category === item ? "#2563EB" : "#E5E7EB",
-                  opacity: submitting ? 0.7 : 1,
-                }}
-              >
-                <Text style={{ color: category === item ? "#fff" : "#374151" }}>{item}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* 제목 */}
+          {/* 제목 - 라벨 없음, 플레이스홀더만 "제목" 크게 */}
           <TextInput
-            placeholder="제목"
+            style={styles.titleInput}
+            placeholder="제목을 입력해주세요"
+            placeholderTextColor="#9CA3AF"
             value={title}
             onChangeText={setTitle}
-            editable={!submitting}
-            style={{
-              padding: 16,
-              fontSize: 16,
-              borderBottomWidth: 1,
-              borderColor: "#E5E7EB",
-              marginTop: 12,
-            }}
           />
 
-          {/* 내용 */}
+          {/* 내용 - 라벨 없음 */}
           <TextInput
+            style={styles.contentInput}
             placeholder="자유롭게 기록해보세요!"
+            placeholderTextColor="#9CA3AF"
             value={content}
             onChangeText={setContent}
-            editable={!submitting}
             multiline
-            style={{
-              padding: 16,
-              fontSize: 15,
-              flex: 1,
-              textAlignVertical: "top",
-              minHeight: 240,
-            }}
+            textAlignVertical="top"
           />
-
-          {/* 하단 액션 */}
-          <View
-            style={{
-              flexDirection: "row",
-              gap: 16,
-              padding: 16,
-              borderTopWidth: 1,
-              borderColor: "#E5E7EB",
-            }}
-          >
-            <Pressable onPress={pickMedia} disabled={submitting}>
-              <Text style={{ opacity: submitting ? 0.6 : 1 }}>사진/동영상</Text>
-            </Pressable>
-            <Text style={{ opacity: 0.6 }}>태그(추후)</Text>
-          </View>
         </ScrollView>
-      </Pressable>
+
+        {/* 사진/동영상, 태그 - 키보드 없을 땐 하단, 키보드 뜨면 키보드 위에 여유 간격 */}
+        <View style={[styles.attachRow, { bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 0 }]}>
+          <Pressable style={styles.attachBtn}>
+            <Ionicons name="image-outline" size={22} color="#6B7280" />
+            <Text style={styles.attachText}>사진/동영상</Text>
+          </Pressable>
+          <Pressable style={styles.attachBtn}>
+            <Text style={styles.hash}>#</Text>
+            <Text style={styles.attachText}>태그</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  headerCancel: { fontSize: 16, color: "#6B7280" },
+  headerTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
+  headerShare: { fontSize: 16, fontWeight: "600", color: "#2563EB" },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 72 },
+  categoryRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
+  categoryChipSelected: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+  },
+  categoryChipText: { fontSize: 13, color: "#4B5563", fontWeight: "500" },
+  categoryChipTextSelected: { color: "#FFFFFF" },
+  titleInput: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    paddingVertical: 12,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  contentInput: {
+    minHeight: 160,
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+    fontSize: 15,
+    color: "#111827",
+    lineHeight: 22,
+  },
+  attachRow: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    gap: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    zIndex: 10,
+    elevation: 10,
+  },
+  attachBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 4 },
+  attachText: { fontSize: 14, color: "#6B7280" },
+  hash: { fontSize: 16, color: "#6B7280", fontWeight: "600" },
+});

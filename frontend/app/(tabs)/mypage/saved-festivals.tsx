@@ -1,5 +1,4 @@
-// app/(tabs)/mypage/saved-festivals.tsx
-import React from "react";
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -48,7 +47,6 @@ export default function SavedFestivalsScreen() {
   );
 }
 
-/** 스타일 */
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,

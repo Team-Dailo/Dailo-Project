@@ -1,6 +1,18 @@
 // frontend/components/detail/EventDetailHeader.tsx
 
-import { View, Image, Text, StyleSheet, Dimensions, Pressable } from "react-native";
+import React from "react";
+import {
+  View,
+  Image,
+  Text,
+  StyleSheet,
+  Dimensions,
+  Pressable,
+  Share,
+  Platform,
+  ToastAndroid,
+  Alert,
+} from "react-native";
 import { useRouter } from "expo-router";
 
 const posterUri =
@@ -8,27 +20,70 @@ const posterUri =
 
 interface Props {
   id?: string;
+
+  // ✅ 바깥(상세 페이지)에서 넘겨줄 수도 있고, 없으면 헤더에서 기본 동작 수행
+  onShare?: () => void;
+  onSave?: () => void;
 }
 
-export default function EventDetailHeader({ id }: Props) {
+export default function EventDetailHeader({ id, onShare, onSave }: Props) {
   const router = useRouter();
+
+  // ✅ 기본 공유 동작(부모에서 onShare 안 넘기면 이걸로 실행)
+  const defaultShare = async () => {
+    try {
+      // TODO: 실제 링크로 교체 (딥링크/웹 링크)
+      const url = `https://www.naver.com/`;
+
+      await Share.share({
+        message: url, // Android는 message 중심
+        url,          // iOS 대응
+        title: "축제 공유하기",
+      });
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  // ✅ 기본 저장 동작(부모에서 onSave 안 넘기면 이걸로 실행)
+  const defaultSave = () => {
+    // TODO: 실제 저장 로직(API/상태관리)은 나중에 여기 또는 부모에서 처리
+    if (Platform.OS === "android") {
+      ToastAndroid.show("저장되었습니다", ToastAndroid.SHORT);
+    } else {
+      Alert.alert("저장되었습니다");
+    }
+  };
+
+  const handlePressShare = () => {
+    if (onShare) return onShare();
+    return defaultShare();
+  };
+
+  const handlePressSave = () => {
+    if (onSave) return onSave();
+    return defaultSave();
+  };
 
   return (
     <View style={styles.container}>
       {/* 포스터 이미지 */}
       <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" />
 
-      {/* 🔹 뒤로가기 / 공유 / 스크랩 버튼 */}
+      {/* 🔹 뒤로가기 / 공유 / 저장 버튼 */}
       <View style={styles.iconRow}>
-        <Pressable onPress={() => router.back()} style={styles.iconButton}>
+        <Pressable onPress={() => router.back()} style={styles.iconButton} hitSlop={10}>
           <Text style={styles.iconText}>‹</Text>
         </Pressable>
 
         <View style={styles.rightGroup}>
-          <Pressable onPress={() => {}} style={styles.iconButton}>
+          {/* ✅ 공유하기 */}
+          <Pressable onPress={handlePressShare} style={styles.iconButton} hitSlop={10}>
             <Text style={styles.iconText}>⤴</Text>
           </Pressable>
-          <Pressable onPress={() => {}} style={styles.iconButton}>
+
+          {/* ✅ 저장하기 */}
+          <Pressable onPress={handlePressSave} style={styles.iconButton} hitSlop={10}>
             <Text style={styles.iconText}>★</Text>
           </Pressable>
         </View>

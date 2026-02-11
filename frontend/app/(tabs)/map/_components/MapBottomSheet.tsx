@@ -12,6 +12,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { Event } from '../../../../types/event';
+import { formatDateTimeRange } from '../../../../utils/formatDate';
+import { formatTimeRange } from '../../../../utils/formatTime';
 
 type SheetMode = 'collapsed' | 'expanded';
 
@@ -23,6 +25,10 @@ type Props = {
   onClose: () => void;
   onPressMore: () => void;
   onPressDirection: () => void;
+  onPressBack: () => void; // 한 단계씩 뒤로 (expanded→collapsed, collapsed→닫기)
+  onCollapsedHeightChange?: (height: number) => void; // 작은 카드 영역 높이 (현재 위치 버튼 위치용)
+  renderRightButton?: () => React.ReactNode; // 작은 카드 시 축제 목록 보기와 같은 줄 오른쪽 (현재 위치 등)
+  onPressCurrentLocation?: () => void; // 현재 위치 버튼 직접 콜백 (터치 보장용)
 };
 
 export function MapBottomSheet({
@@ -33,6 +39,10 @@ export function MapBottomSheet({
   onClose,
   onPressMore,
   onPressDirection,
+  onPressBack,
+  onCollapsedHeightChange,
+  renderRightButton,
+  onPressCurrentLocation,
 }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -46,8 +56,12 @@ export function MapBottomSheet({
     onClose();
   };
 
-  const dateText = `${event.startAt} ~ ${event.endAt}`;
-  const timeText = 'PM 19:00 ~ 21:00'; // TODO: 실제 시간 파싱
+  // ✅ ISO 문자열 그대로 출력하지 않도록 포맷 적용
+  const dateText = formatDateTimeRange(event.startAt, event.endAt);
+
+  // ✅ 하드코딩 제거: 실제 시간으로 표시
+  const timeText = formatTimeRange(event.startAt, event.endAt);
+
   const placeText = event.address || event.placeName;
 
   // 큰 카드 상단 위치: 필터 칩 아래 + 8px 정도 여백
@@ -62,12 +76,29 @@ export function MapBottomSheet({
             styles.collapsedContainer,
             { paddingBottom: insets.bottom },
           ]}
+          onLayout={(e) =>
+            onCollapsedHeightChange?.(e.nativeEvent.layout.height)
+          }
         >
-          {/* 파란 축제 목록 버튼 (작은 카드 위쪽) */}
-          <View style={styles.listButtonWrapperOnSheet}>
-            <TouchableOpacity style={styles.listButton} activeOpacity={0.85}>
-              <Text style={styles.listButtonText}>축제 목록 보기</Text>
-            </TouchableOpacity>
+          {/* 축제 목록 보기(가운데) + 오른쪽 버튼(현재 위치 등) 같은 줄 */}
+          <View style={styles.listButtonRowOnSheet}>
+            <View style={styles.listButtonCenterOnSheet}>
+              <TouchableOpacity style={styles.listButton} activeOpacity={0.85}>
+                <Text style={styles.listButtonText}>축제 목록 보기</Text>
+              </TouchableOpacity>
+            </View>
+            {onPressCurrentLocation != null ? (
+              <TouchableOpacity
+                style={styles.currentLocationButtonInSheet}
+                activeOpacity={0.85}
+                onPress={onPressCurrentLocation}
+                accessibilityLabel="현재 위치"
+              >
+                <Ionicons name="locate" size={22} color="#2563EB" />
+              </TouchableOpacity>
+            ) : (
+              renderRightButton?.()
+            )}
           </View>
 
           {/* 작은 카드 */}
@@ -121,7 +152,7 @@ export function MapBottomSheet({
               left: 16,
               right: 16,
               top: expandedTop,
-              bottom: insets.bottom ,
+              bottom: insets.bottom,
             },
           ]}
         >
@@ -243,9 +274,24 @@ const styles = StyleSheet.create({
   collapsedContainer: {
     marginHorizontal: 16,
   },
-  listButtonWrapperOnSheet: {
+  listButtonRowOnSheet: {
+    flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10, // 파란 버튼과 카드 사이 간격
+  },
+  listButtonCenterOnSheet: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currentLocationButtonInSheet: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E5EDFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
   },
   listButton: {
     paddingHorizontal: 24,

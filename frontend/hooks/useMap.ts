@@ -4,12 +4,17 @@ import * as Location from 'expo-location';
 import type { Region } from 'react-native-maps';
 import { MOCK_EVENTS } from '../constants/mockEvents';
 import type { Event } from '../types/event';
+// 백엔드 연동 시: import { getEventsForMap } from '../services/event.service';
+
+/** 실기기: 4초면 충분. 에뮬레이터: Set location 반영이 느려서 10초까지 대기 */
+const LOCATION_REQUEST_TIMEOUT_MS = 10000;
 
 export function useMap() {
   const [region, setRegion] = useState<Region | undefined>();
   const [currentLocation, setCurrentLocation] =
     useState<{ latitude: number; longitude: number } | null>(null);
   const [events] = useState<Event[]>(MOCK_EVENTS);
+  // 백엔드 연동 시: useEffect에서 getEventsForMap({ size: 100 }).then(setEvents) 로 events 갱신
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isBottomSheetOpen, setBottomSheetOpen] = useState(false);
 
@@ -18,20 +23,35 @@ export function useMap() {
       const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== Location.PermissionStatus.GRANTED) {
-        // 권한 거부 시 위치 안 쓰고 그냥 기본 region 유지
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = loc.coords;
-
-      setCurrentLocation({ latitude, longitude });
-      setRegion({
-        latitude,
-        longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
+      // 에뮬: Set location은 getCurrentPosition 요청에 반영되는 경우가 많음. 먼저 현재 위치 요청.
+      let loc: Location.LocationObject | null = null;
+      try {
+        loc = await Promise.race([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Low,
+            mayShowUserSettingsDialog: false,
+          }),
+          new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), LOCATION_REQUEST_TIMEOUT_MS)
+          ),
+        ]);
+      } catch {
+        // 타임아웃/실패 시 캐시 시도
+      }
+      if (!loc) loc = await Location.getLastKnownPositionAsync({});
+      if (loc?.coords) {
+        const { latitude, longitude } = loc.coords;
+        setCurrentLocation({ latitude, longitude });
+        setRegion({
+          latitude,
+          longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
+      }
     })();
   }, []);
 
@@ -53,13 +73,54 @@ export function useMap() {
     }));
   };
 
+  /** 현재 위치를 다시 가져옴. 에뮬레이터에서는 캐시된 위치(getLastKnown)를 먼저 시도. */
+  const refreshCurrentLocation = async (): Promise<{
+    latitude: number;
+    longitude: number;
+  } | null> => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== Location.PermissionStatus.GRANTED) return null;
+    try {
+      // 에뮬: Extended controls에서 지정한 위치는 getCurrentPosition 응답으로 올 수 있음. 먼저 요청.
+      let loc: Location.LocationObject | null = null;
+      try {
+        loc = await Promise.race([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Low,
+            mayShowUserSettingsDialog: false,
+          }),
+          new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), LOCATION_REQUEST_TIMEOUT_MS)
+          ),
+        ]);
+      } catch {
+        // 타임아웃 시 캐시 시도
+      }
+      if (!loc) loc = await Location.getLastKnownPositionAsync({});
+      if (!loc?.coords) return null;
+      const { latitude, longitude } = loc.coords;
+      setCurrentLocation({ latitude, longitude });
+      setRegion(prev => ({
+        latitude,
+        longitude,
+        latitudeDelta: prev?.latitudeDelta ?? 0.01,
+        longitudeDelta: prev?.longitudeDelta ?? 0.01,
+      }));
+      return { latitude, longitude };
+    } catch {
+      return null;
+    }
+  };
+
   return {
     region,
+    currentLocation,
     events,
     selectedEvent,
     isBottomSheetOpen,
     handleMarkerPress,
     closeBottomSheet,
     focusCurrentLocation,
+    refreshCurrentLocation,
   };
 }

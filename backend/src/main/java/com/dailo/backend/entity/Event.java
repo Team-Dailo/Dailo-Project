@@ -4,6 +4,10 @@ import com.dailo.backend.domain.enums.EventCategory;
 import com.dailo.backend.domain.enums.EventStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.Where;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -12,10 +16,12 @@ import java.util.List;
 @Entity
 @Table(name = "events")
 @Getter
-//@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+// delete 명령에 지우는 것이 아닌 deleted_at에 날짜를 기록
+@SQLDelete(sql = "UPDATE events SET deleted_at = NOW() WHERE id = ?")
+@Where(clause = "deleted_at IS NULL")
 public class Event {
 
     @Id
@@ -37,12 +43,11 @@ public class Event {
     private Double latitude;
     private Double longitude;
 
-    // +Time 시간 포함 명시
-    @Column(name = "start_date", nullable = false)
-    private LocalDateTime startDateTime;
+    @Column(name = "start_at", nullable = false)
+    private LocalDateTime startAt;
 
-    @Column(name = "end_date")
-    private LocalDateTime endDateTime;
+    @Column(name = "end_at")
+    private LocalDateTime endAt;
 
     @Column(length = 255)
     private String thumbnailUrl;
@@ -69,4 +74,49 @@ public class Event {
 
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    // --- 관리자 기능 및 감사(Audit) 필드 ---
+
+    // 주최측 연락처
+    private String hostContact;
+
+    // 관리자가 수동으로 데이터를 수정했는지 여부
+    @Builder.Default
+    private boolean isAdminManaged = false;
+
+    // 생성 시간 자동 기록
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    // 수정 시간 자동 기록
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
+    // 삭제 시간 기록
+    private LocalDateTime deletedAt;
+
+
+    public void updateEvent(String title, String placeName, String placeAddress, String regionName,
+                            Double latitude, Double longitude,
+                            LocalDateTime startAt, LocalDateTime endAt,
+                            List<EventCategory> categories, EventStatus status,
+                            String thumbnailUrl, List<String> posterUrls,
+                            String description, String hostContact) {
+        this.title = title;
+        this.placeName = placeName;
+        this.placeAddress = placeAddress;
+        this.regionName = regionName;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.startAt = startAt;
+        this.endAt = endAt;
+        this.categories = categories;
+        this.status = status;
+        this.thumbnailUrl = thumbnailUrl;
+        this.posterUrls = posterUrls;
+        this.description = description;
+        this.hostContact = hostContact;
+        this.isAdminManaged = true;
+    }
 }

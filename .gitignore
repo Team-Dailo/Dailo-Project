@@ -15,6 +15,7 @@
 
 # Package Files #
 *.jar
+!gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -25,6 +26,11 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+### Docker ###
+.env
+.env.local
+docker-compose.override.yml
 
 ###################################
 ############## infra ##############
@@ -44,4 +50,29 @@ replay_pid*
 
 # 4. 크래시 로그
 crash.log
-node_modules
+
+### Custom - 개인 정보 보호 ###
+application-local.properties
+**/application-local.yml
+*.env
+.env
+
+### Backend 내부 문서 (PRD, TASK 등) ###
+backend/docs/
+
+### OS / IDE / Build artifacts ###
+.DS_Store
+**/.DS_Store
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Gradle caches & build outputs
+**/.gradle/
+**/build/
+**/out/
+
+# Logs
+**/logs/
+.vscode/

@@ -1,12 +1,15 @@
 package com.dailo.backend.entity;
 
 import com.dailo.backend.domain.enums.PostStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "posts")
@@ -59,6 +62,11 @@ public class Post {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @OneToMany(mappedBy = "post", cascade = CascadeType.PERSIST)
+    @JsonIgnore
+    @Builder.Default
+    private List<Comment> comments = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {

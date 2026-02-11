@@ -1,24 +1,59 @@
-// types/board.ts
-export type BoardCategory = "전체" | "후기" | "질문" | "자유";
+/**
+ * 게시판 타입 (백엔드 DTO와 매핑)
+ */
 
-export type BoardSort = "최신글" | "인기글";
-
-export type BoardPost = {
-  id: string;
-  authorName: string;
-  authorAvatarUrl?: string;
-  category: Exclude<BoardCategory, "전체">; // 게시글은 실제 카테고리만
-  content: string;
-  createdAt: string; // ISO string
+/** 목록용 게시글 (PostListResponseDto) */
+export type PostListItem = {
+  id: number;
+  authorId: number;
+  title: string;
+  /** 목록 미리보기용 본문 일부 */
+  contentPreview?: string;
+  categoryType: string;
+  viewCount: number;
   likeCount: number;
   commentCount: number;
+  createdAt: string;
 };
 
-export type BoardComment = {
-  id: string;
-  postId: string;
-  authorName: string;
-  authorAvatarUrl?: string;
+/** 상세용 게시글 (PostResponseDto) */
+export type PostDetail = PostListItem & {
   content: string;
-  createdAt: string; // ISO string
+  status: string;
+  updatedAt: string;
+};
+
+/** 게시글 작성/수정 요청 (PostRequestDto) */
+export type PostRequest = {
+  title: string;
+  content: string;
+  categoryType: string;
+};
+
+/** 댓글 (CommentResponseDto) */
+export type CommentItem = {
+  id: number;
+  postId: number;
+  parentCommentId: number | null;
+  authorId: number;
+  content: string;
+  likeCount: number;
+  createdAt: string;
+  updatedAt: string;
+  replies: CommentItem[];
+};
+
+/** 댓글 작성 요청 (CommentRequestDto) */
+export type CommentRequest = {
+  content: string;
+  parentCommentId?: number | null;
+};
+
+/** Spring Page 응답 */
+export type PageResponse<T> = {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
 };
