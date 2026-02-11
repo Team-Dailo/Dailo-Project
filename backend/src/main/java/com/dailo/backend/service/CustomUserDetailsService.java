@@ -29,8 +29,10 @@ public class CustomUserDetailsService implements UserDetailsService {
     }
 
     // DB 에 있는 Member 정보를 Spring Security 의 UserDetails 객체로 변환
+    // hasRole("ADMIN") 체크 시 "ROLE_ADMIN" 권한이 필요함
     private UserDetails createUserDetails(Member member) {
-        GrantedAuthority grantedAuthority = new SimpleGrantedAuthority(member.getRole().toString());
+        String roleName = "ROLE_" + member.getRole().name();
+        GrantedAuthority grantedAuthority = new SimpleGrantedAuthority(roleName);
 
         return new User(
                 String.valueOf(member.getId()), // [중요] 토큰의 subject를 ID(PK)로 저장
