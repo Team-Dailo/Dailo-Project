@@ -2,6 +2,7 @@ package com.dailo.backend.dto;
 
 import com.dailo.backend.entity.Event;
 import com.dailo.backend.domain.enums.EventCategory;
+import com.dailo.backend.domain.enums.EventFilterGroup;
 import com.dailo.backend.domain.enums.EventScale;
 import com.dailo.backend.domain.enums.EventStatus;
 import lombok.Builder;
@@ -23,6 +24,7 @@ public class AdminEventResponse {
 
     private List<EventCategory> categories;
     private EventScale scale;
+    private EventFilterGroup filterGroup;
 
     private EventStatus status;
     private String thumbnailUrl;
@@ -42,6 +44,7 @@ public class AdminEventResponse {
                 .endAt(event.getEndAt())
                 .categories(event.getCategories())
                 .scale(event.getScale())
+                .filterGroup(event.getFilterGroup())
                 .status(event.getStatus())
                 .thumbnailUrl(event.getThumbnailUrl())
                 .description(event.getDescription())

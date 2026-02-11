@@ -1,6 +1,7 @@
 package com.dailo.backend.entity;
 
 import com.dailo.backend.domain.enums.EventCategory;
+import com.dailo.backend.domain.enums.EventFilterGroup;
 import com.dailo.backend.domain.enums.EventScale;
 import com.dailo.backend.domain.enums.EventStatus;
 import jakarta.persistence.*;
@@ -65,6 +66,11 @@ public class Event {
     @Column(name = "scale", length = 20)
     private EventScale scale;
 
+    /** 달력 필터 구분 (충주시/대학교/총학생회/단과대/동아리) */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "filter_group", length = 30)
+    private EventFilterGroup filterGroup;
+
     // 공개/비공개 관리
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -115,7 +121,7 @@ public class Event {
     public void updateEvent(String title, String placeName, String placeAddress, String regionName,
                             Double latitude, Double longitude,
                             LocalDateTime startAt, LocalDateTime endAt,
-                            List<EventCategory> categories, EventScale scale, EventStatus status,
+                            List<EventCategory> categories, EventScale scale, EventFilterGroup filterGroup, EventStatus status,
                             String thumbnailUrl, List<String> posterUrls,
                             String description, String hostContact) {
         this.title = title;
@@ -128,6 +134,7 @@ public class Event {
         this.endAt = endAt;
         this.categories = categories;
         this.scale = scale;
+        this.filterGroup = filterGroup;
         this.status = status;
         this.thumbnailUrl = thumbnailUrl;
         this.posterUrls = posterUrls;

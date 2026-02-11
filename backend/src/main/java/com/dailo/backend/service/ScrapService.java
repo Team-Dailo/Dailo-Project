@@ -64,13 +64,15 @@ public class ScrapService {
 
         return scraps.map(scrap -> {
             Event event = scrap.getEvent();
+            var categories = event.getCategories() != null ? event.getCategories() : java.util.List.<com.dailo.backend.domain.enums.EventCategory>of();
             return new EventListResponse(
                     event.getId(),
                     event.getTitle(),
                     event.getThumbnailUrl(),
                     event.getStartAt(),
                     event.getEndAt(),
-                    event.getPlaceName()
+                    event.getPlaceName(),
+                    categories
             );
         });
     }

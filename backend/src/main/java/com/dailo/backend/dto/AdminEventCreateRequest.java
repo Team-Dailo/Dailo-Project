@@ -1,6 +1,7 @@
 package com.dailo.backend.dto;
 
 import com.dailo.backend.domain.enums.EventCategory;
+import com.dailo.backend.domain.enums.EventFilterGroup;
 import com.dailo.backend.domain.enums.EventScale;
 import com.dailo.backend.domain.enums.EventStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -46,6 +47,8 @@ public class AdminEventCreateRequest {
     private List<EventCategory> categories;
 
     private EventScale scale; // 소규모, 중규모, 대규모 (안 보내면 null 허용)
+
+    private EventFilterGroup filterGroup; // 달력 필터: 충주시/대학교/총학생회/단과대/동아리 (안 보내면 null)
 
     private EventStatus status; // DRAFT, ACTIVE 등 (안 보내면 기본값 처리 예정)
 
