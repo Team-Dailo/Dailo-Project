@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,9 +23,10 @@ public class ChatRoomController {
     // 1. 채팅방 생성
     @PostMapping
     public ResponseEntity<ChatRoomResponseDto> createRoom(
-            @RequestHeader("X-User-Id") Long userId,
+            @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ChatRoomRequestDto requestDto) {
 
+        Long userId = Long.parseLong(userDetails.getUsername());
         ChatRoomResponseDto response = chatRoomService.createRoom(userId, requestDto.getTargetUserId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -31,8 +34,9 @@ public class ChatRoomController {
     // 2. 내 채팅방 목록
     @GetMapping
     public ResponseEntity<List<ChatRoomResponseDto>> getMyRooms(
-            @RequestHeader("X-User-Id") Long userId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
+        Long userId = Long.parseLong(userDetails.getUsername());
         return ResponseEntity.ok(chatRoomService.getMyRooms(userId));
     }
 
@@ -40,8 +44,9 @@ public class ChatRoomController {
     @GetMapping("/{roomId}")
     public ResponseEntity<ChatRoomResponseDto> getRoom(
             @PathVariable Long roomId,
-            @RequestHeader("X-User-Id") Long userId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
+        Long userId = Long.parseLong(userDetails.getUsername());
         return ResponseEntity.ok(chatRoomService.getRoom(roomId, userId));
     }
 
@@ -49,8 +54,9 @@ public class ChatRoomController {
     @DeleteMapping("/{roomId}")
     public ResponseEntity<Void> leaveRoom(
             @PathVariable Long roomId,
-            @RequestHeader("X-User-Id") Long userId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
+        Long userId = Long.parseLong(userDetails.getUsername());
         chatRoomService.leaveRoom(roomId, userId);
         return ResponseEntity.ok().build();
     }
