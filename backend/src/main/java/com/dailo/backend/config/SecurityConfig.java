@@ -47,6 +47,10 @@ public class SecurityConfig {
 
                         // 게시판·댓글 조회 (비로그인도 목록/상세/댓글 읽기 가능)
                         .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
+                        // 게시판 작성/수정/삭제는 인증 필요
+                        .requestMatchers(HttpMethod.POST, "/api/posts/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/posts/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/posts/**").authenticated()
 
                         // 이용 안내 등 앱 콘텐츠 조회 (비로그인 포함)
                         .requestMatchers(HttpMethod.GET, "/api/content/**").permitAll()
