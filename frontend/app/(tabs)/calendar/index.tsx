@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 0,
     minHeight: 160,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -8 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.14,
     shadowRadius: 16,
     elevation: 12,
