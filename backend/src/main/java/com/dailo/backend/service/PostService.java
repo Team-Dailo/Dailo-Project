@@ -3,7 +3,9 @@ package com.dailo.backend.service;
 import com.dailo.backend.dto.PostListResponseDto;
 import com.dailo.backend.dto.PostRequestDto;
 import com.dailo.backend.dto.PostResponseDto;
+import com.dailo.backend.entity.Member;
 import com.dailo.backend.entity.Post;
+import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -19,21 +21,30 @@ import java.util.Set;
 public class PostService {
 
     private final PostRepository postRepository;
+    private final MemberRepository memberRepository;
     private final BlockService blockService;
+
+    private String getNickname(Long authorId) {
+        return memberRepository.findById(authorId)
+                .map(Member::getNickname)
+                .orElse("알 수 없음");
+    }
 
     public Page<PostListResponseDto> getAllPosts(Long userId, Pageable pageable) {
         // 비로그인 또는 차단 없으면 전체 조회
         if (userId == null) {
-            return postRepository.findAll(pageable).map(PostListResponseDto::from);
+            return postRepository.findAll(pageable)
+                    .map(post -> PostListResponseDto.from(post, getNickname(post.getAuthorId())));
         }
 
         Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
         if (invisibleIds.isEmpty()) {
-            return postRepository.findAll(pageable).map(PostListResponseDto::from);
+            return postRepository.findAll(pageable)
+                    .map(post -> PostListResponseDto.from(post, getNickname(post.getAuthorId())));
         }
 
         return postRepository.findAllExcludingAuthors(invisibleIds, pageable)
-                .map(PostListResponseDto::from);
+                .map(post -> PostListResponseDto.from(post, getNickname(post.getAuthorId())));
     }
 
     @Transactional
@@ -44,7 +55,7 @@ public class PostService {
         validateVisible(post, userId);
         postRepository.increaseViewCount(id);
 
-        return PostResponseDto.from(post);
+        return PostResponseDto.from(post, getNickname(post.getAuthorId()));
     }
 
     private void validateVisible(Post post, Long userId) {
@@ -60,7 +71,7 @@ public class PostService {
     public PostResponseDto createPost(PostRequestDto requestDto, Long authorId) {
         Post post = requestDto.toEntity(authorId);
         Post savedPost = postRepository.save(post);
-        return PostResponseDto.from(savedPost);
+        return PostResponseDto.from(savedPost, getNickname(authorId));
     }
 
     @Transactional
@@ -73,7 +84,7 @@ public class PostService {
         }
 
         post.update(requestDto.getTitle(), requestDto.getContent(), requestDto.getCategoryType());
-        return PostResponseDto.from(post);
+        return PostResponseDto.from(post, getNickname(authorId));
     }
 
     @Transactional
@@ -91,32 +102,32 @@ public class PostService {
     public Page<PostListResponseDto> getPostsByCategory(String categoryType, Long userId, Pageable pageable) {
         if (userId == null) {
             return postRepository.findByCategoryType(categoryType, pageable)
-                    .map(PostListResponseDto::from);
+                    .map(post -> PostListResponseDto.from(post, getNickname(post.getAuthorId())));
         }
 
         Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
         if (invisibleIds.isEmpty()) {
             return postRepository.findByCategoryType(categoryType, pageable)
-                    .map(PostListResponseDto::from);
+                    .map(post -> PostListResponseDto.from(post, getNickname(post.getAuthorId())));
         }
 
         return postRepository.findByCategoryTypeExcludingAuthors(categoryType, invisibleIds, pageable)
-                .map(PostListResponseDto::from);
+                .map(post -> PostListResponseDto.from(post, getNickname(post.getAuthorId())));
     }
 
     public Page<PostListResponseDto> searchPosts(String keyword, Long userId, Pageable pageable) {
         if (userId == null) {
             return postRepository.findByTitleContaining(keyword, pageable)
-                    .map(PostListResponseDto::from);
+                    .map(post -> PostListResponseDto.from(post, getNickname(post.getAuthorId())));
         }
 
         Set<Long> invisibleIds = blockService.getInvisibleUserIds(userId);
         if (invisibleIds.isEmpty()) {
             return postRepository.findByTitleContaining(keyword, pageable)
-                    .map(PostListResponseDto::from);
+                    .map(post -> PostListResponseDto.from(post, getNickname(post.getAuthorId())));
         }
 
         return postRepository.findByTitleContainingExcludingAuthors(keyword, invisibleIds, pageable)
-                .map(PostListResponseDto::from);
+                .map(post -> PostListResponseDto.from(post, getNickname(post.getAuthorId())));
     }
 }

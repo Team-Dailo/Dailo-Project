@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../constants/api';
+import { getAccessToken } from './auth.service';
 import type {
   PostListItem,
   PostDetail,
@@ -8,15 +9,18 @@ import type {
   PageResponse,
 } from '../types/board';
 
-const getUserId = (): number => {
-  const id = process.env.EXPO_PUBLIC_USER_ID;
-  if (id != null && id !== '') return Number(id);
-  return 1;
+/** 기본 헤더 (조회용) */
+const getHeaders = (): HeadersInit => {
+  return { 'Content-Type': 'application/json' };
 };
 
-const getHeaders = (): HeadersInit => {
+/** 인증 헤더 (작성/수정/삭제용) */
+const getAuthHeaders = async (): Promise<HeadersInit> => {
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  headers['X-User-Id'] = String(getUserId());
+  const token = await getAccessToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   return headers;
 };
 
@@ -71,38 +75,59 @@ export async function getPostById(id: number | string): Promise<PostDetail> {
   return res.json();
 }
 
-/** 게시글 작성 */
+/** 게시글 작성 (로그인 필요) */
 export async function createPost(body: PostRequest): Promise<PostDetail> {
+  const headers = await getAuthHeaders();
+  if (!headers['Authorization']) {
+    throw new Error('로그인이 필요합니다');
+  }
   const url = `${API_BASE_URL}/api/posts`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: getHeaders(),
+    headers,
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`createPost failed: ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 401) throw new Error('로그인이 필요합니다');
+    throw new Error(`createPost failed: ${res.status}`);
+  }
   return res.json();
 }
 
-/** 게시글 수정 */
+/** 게시글 수정 (로그인 필요) */
 export async function updatePost(
   id: number | string,
   body: PostRequest
 ): Promise<PostDetail> {
+  const headers = await getAuthHeaders();
+  if (!headers['Authorization']) {
+    throw new Error('로그인이 필요합니다');
+  }
   const url = `${API_BASE_URL}/api/posts/${id}`;
   const res = await fetch(url, {
     method: 'PUT',
-    headers: getHeaders(),
+    headers,
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`updatePost failed: ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 401) throw new Error('로그인이 필요합니다');
+    throw new Error(`updatePost failed: ${res.status}`);
+  }
   return res.json();
 }
 
-/** 게시글 삭제 */
+/** 게시글 삭제 (로그인 필요) */
 export async function deletePost(id: number | string): Promise<void> {
+  const headers = await getAuthHeaders();
+  if (!headers['Authorization']) {
+    throw new Error('로그인이 필요합니다');
+  }
   const url = `${API_BASE_URL}/api/posts/${id}`;
-  const res = await fetch(url, { method: 'DELETE', headers: getHeaders() });
-  if (!res.ok) throw new Error(`deletePost failed: ${res.status}`);
+  const res = await fetch(url, { method: 'DELETE', headers });
+  if (!res.ok) {
+    if (res.status === 401) throw new Error('로그인이 필요합니다');
+    throw new Error(`deletePost failed: ${res.status}`);
+  }
 }
 
 /** 댓글 목록 */
