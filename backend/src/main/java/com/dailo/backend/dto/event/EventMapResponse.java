@@ -24,6 +24,8 @@ public class EventMapResponse {
     private LocalDateTime endAt;
     private String placeName;
     private String placeAddress;
+    /** 지역명 (서울, 충북 충주 등) → 현재 위치 지역 필터용 */
+    private String regionName;
     /** 규모/달력 필터 (CHUNGJU_CITY, UNIVERSITY, COLLEGE, CLUB 등) → 마커 색상용 */
     private String filterGroup;
 
@@ -45,6 +47,7 @@ public class EventMapResponse {
                 .endAt(event.getEndAt())
                 .placeName(event.getPlaceName())
                 .placeAddress(event.getPlaceAddress())
+                .regionName(event.getRegionName())
                 .filterGroup(event.getFilterGroup())
                 .build();
     }

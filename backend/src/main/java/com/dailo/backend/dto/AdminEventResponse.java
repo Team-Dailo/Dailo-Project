@@ -15,6 +15,8 @@ public class AdminEventResponse {
     private Long id;
     private String title;
     private String placeName;
+    private String placeAddress;
+    private String regionName;
     private Double latitude;
     private Double longitude;
     private LocalDateTime startAt;
@@ -33,6 +35,8 @@ public class AdminEventResponse {
                 .id(event.getId())
                 .title(event.getTitle())
                 .placeName(event.getPlaceName())
+                .placeAddress(event.getPlaceAddress())
+                .regionName(event.getRegionName())
                 .latitude(event.getLatitude())
                 .longitude(event.getLongitude())
                 .startAt(event.getStartAt())
