@@ -12,6 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -44,9 +46,10 @@ public class PostController {
 
     @PostMapping
     public ResponseEntity<PostResponseDto> createPost(
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody PostRequestDto requestDto) {
 
+        Long userId = Long.parseLong(userDetails.getUsername());
         PostResponseDto response = postService.createPost(requestDto, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -54,17 +57,19 @@ public class PostController {
     @PutMapping("/{id}")
     public ResponseEntity<PostResponseDto> updatePost(
             @PathVariable Long id,
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody PostRequestDto requestDto) {
 
+        Long userId = Long.parseLong(userDetails.getUsername());
         return ResponseEntity.ok(postService.updatePost(id, requestDto, userId));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePost(
             @PathVariable Long id,
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
+        Long userId = Long.parseLong(userDetails.getUsername());
         postService.deletePost(id, userId);
         return ResponseEntity.noContent().build();
     }
