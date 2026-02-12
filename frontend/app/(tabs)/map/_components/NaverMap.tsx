@@ -1,6 +1,6 @@
 // app/(tabs)/map/_components/NaverMap.tsx
 import React, { forwardRef, useMemo } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View, Text, Image } from 'react-native';
 import {
   NaverMapView,
   NaverMapMarkerOverlay,
@@ -9,6 +9,11 @@ import {
 } from '@mj-studio/react-native-naver-map';
 import type { Event } from '../../../../types/event';
 import { MAP_UI } from '../../../../constants/colors';
+
+/** 마커 아이콘 이미지 (흰색 실루엣 → tintColor로 규모별 색 적용) */
+const MARKER_ICON = require('../../../../assets/images/marker-pin.png');
+const MARKER_WIDTH = 36;
+const MARKER_HEIGHT = 48;
 
 /** 규모(scale) → 마커 tint 색상 (규모 범례와 동일) */
 const SCALE_COLORS: Record<Event['scale'], string> = {
@@ -120,25 +125,30 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
       {eventsWithCoords.map((event) => {
         const daysLeft = getDaysUntilStart(event.startAt);
         const daysText = daysLeft > 0 ? String(daysLeft) : '0';
+        // 축제 규모(시·군·구/대학교/단과대/동아리/개인)별 마커 색상
+        const scaleColor = SCALE_COLORS[event.scale] ?? MAP_UI.scaleBadge[4];
         return (
           <NaverMapMarkerOverlay
             key={event.id}
             latitude={event.latitude}
             longitude={event.longitude}
-            image={{ symbol: 'red' }}
-            tintColor={SCALE_COLORS[event.scale] ?? MAP_UI.scaleBadge[4]}
+            width={MARKER_WIDTH}
+            height={MARKER_HEIGHT}
             anchor={{ x: 0.5, y: 1 }}
-            caption={{
-              text: daysText,
-              align: 'Center',
-              color: '#FFFFFF',
-              haloColor: '#000000',
-              textSize: 12,
-            }}
-            subCaption={event.title ? { text: event.title, textSize: 10 } : undefined}
             onTap={() => onMarkerPress(event)}
             globalZIndex={200001}
-          />
+          >
+            <View key={`${event.id}-${daysText}-${scaleColor}`} collapsable={false} style={styles.markerWithNumber}>
+              <Image
+                source={MARKER_ICON}
+                style={[styles.markerPinImage, { tintColor: scaleColor }]}
+                resizeMode="contain"
+              />
+              <View style={styles.markerNumberWrap}>
+                <Text style={styles.markerNumberText}>{daysText}</Text>
+              </View>
+            </View>
+          </NaverMapMarkerOverlay>
         );
       })}
       {selectedEvent != null &&
@@ -199,5 +209,30 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
+  },
+  markerWithNumber: {
+    width: MARKER_WIDTH,
+    height: MARKER_HEIGHT,
+  },
+  markerPinImage: {
+    width: MARKER_WIDTH,
+    height: MARKER_HEIGHT,
+    position: 'absolute',
+    left: 0,
+    top: 0,
+  },
+  markerNumberWrap: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: MARKER_WIDTH,
+    height: MARKER_WIDTH,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  markerNumberText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
   },
 });
