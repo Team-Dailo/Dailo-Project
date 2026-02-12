@@ -17,6 +17,7 @@ public class PostListResponseDto {
 
     private Long id;
     private Long authorId;
+    private String authorNickname;
     private String title;
     @JsonProperty("contentPreview")
     private String contentPreview;
@@ -26,13 +27,14 @@ public class PostListResponseDto {
     private Integer commentCount;
     private LocalDateTime createdAt;
 
-    public static PostListResponseDto from(Post post) {
+    public static PostListResponseDto from(Post post, String authorNickname) {
         String content = post.getContent();
         if (content == null) content = "";
         String contentPreview = content.length() > 120 ? content.substring(0, 120) + "…" : content;
         return PostListResponseDto.builder()
                 .id(post.getId())
                 .authorId(post.getAuthorId())
+                .authorNickname(authorNickname)
                 .title(post.getTitle())
                 .contentPreview(contentPreview)
                 .categoryType(post.getCategoryType())

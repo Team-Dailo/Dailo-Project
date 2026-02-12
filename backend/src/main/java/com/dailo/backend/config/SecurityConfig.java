@@ -48,9 +48,12 @@ public class SecurityConfig {
                         // 행사 조회
                         .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
 
-                        // 게시판·댓글 (비로그인 허용, X-User-Id로 작성자 구분)
+                        // 게시판 조회는 비로그인 허용
                         .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/posts", "/api/posts/*/comments").permitAll()
+                        // 게시판 작성/수정/삭제는 인증 필요
+                        .requestMatchers(HttpMethod.POST, "/api/posts/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/posts/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/posts/**").authenticated()
 
                         // 관리자 페이지 등 (필요하면 유지)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

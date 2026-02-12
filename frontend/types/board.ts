@@ -6,6 +6,7 @@
 export type PostListItem = {
   id: number;
   authorId: number;
+  authorNickname?: string;
   title: string;
   /** 목록 미리보기용 본문 일부 */
   contentPreview?: string;
