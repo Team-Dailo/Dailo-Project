@@ -55,6 +55,10 @@ public class EventSeedRunner implements ApplicationRunner {
             eventRepository.save(buildKkuChungjuFestival());
             log.info("시드 데이터 저장: 건국대 충주캠퍼스 축제");
         }
+        if (!eventRepository.existsByTitleContaining("충주시 축제 중앙탑")) {
+            eventRepository.save(buildChungjuJungangtapEvent());
+            log.info("시드 데이터 저장: 충주시 축제 중앙탑 행사");
+        }
     }
 
     /** 한국교통대학교 충주캠퍼스 - 대축제 */
@@ -125,6 +129,30 @@ public class EventSeedRunner implements ApplicationRunner {
                 .posterUrls(List.of())
                 .description("건국대학교 글로컬캠퍼스(충주) 축제입니다. 공연, 부스, 이벤트가 준비되어 있습니다.")
                 .hostContact("043-840-3114")
+                .isAdminManaged(true)
+                .build();
+    }
+
+    /** 충주시 축제 - 중앙탑에서 열리는 행사 */
+    private Event buildChungjuJungangtapEvent() {
+        LocalDateTime start = LocalDateTime.now().plusDays(7).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime end = start.plusDays(1).withHour(20).withMinute(0).withSecond(0).withNano(0);
+        return Event.builder()
+                .title("충주시 축제 중앙탑 행사")
+                .regionName("충북 충주")
+                .filterGroup("CHUNGJU_CITY")
+                .placeName("충주 중앙탑사적공원")
+                .placeAddress("충청북도 충주시 중앙탑면 탑정안길 6")
+                .latitude(36.6352)
+                .longitude(127.4897)
+                .startAt(start)
+                .endAt(end)
+                .thumbnailUrl("https://picsum.photos/seed/chungju-jungangtap/400/300")
+                .categories(List.of(EventCategory.FESTIVAL))
+                .status(EventStatus.ACTIVE)
+                .posterUrls(List.of())
+                .description("충주시 축제의 중앙탑 행사입니다. 중앙탑사적공원에서 다양한 공연과 부스가 준비되어 있습니다.")
+                .hostContact("충주시청 043-850-5000")
                 .isAdminManaged(true)
                 .build();
     }
