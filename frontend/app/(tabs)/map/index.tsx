@@ -18,6 +18,7 @@ import {
   Keyboard,
   ImageBackground,
   FlatList,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -56,7 +57,7 @@ import { startStay, completeStay } from '../../../services/location.service';
 import { useFestivalParticipation } from '../../../hooks/useFestivalParticipation';
 import { distanceKm } from '../../../utils/geo';
 
-/** 지역명 → 지도 중심 좌표 (지도 탭 검색용) */
+/** 지역명 → 지도 중심 좌표 (지도 탭 검색용 + 현재 위치 지역 판별용) */
 const REGION_CENTERS: Record<string, { latitude: number; longitude: number }> = {
   충주: { latitude: 36.991, longitude: 127.926 },
   충주시: { latitude: 36.991, longitude: 127.926 },
@@ -70,6 +71,22 @@ const REGION_CENTERS: Record<string, { latitude: number; longitude: number }> = 
   광주: { latitude: 35.1595, longitude: 126.8526 },
   한국: { latitude: 36.3504, longitude: 127.3845 },
 };
+
+/** 현재 위치(lat,lng)에서 가장 가까운 지역 키 반환 (한국 제외). 없으면 null */
+function getCurrentRegionKey(lat: number, lng: number): string | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  let minKey: string | null = null;
+  let minKm = Infinity;
+  for (const [key, pos] of Object.entries(REGION_CENTERS)) {
+    if (key === '한국') continue;
+    const km = distanceKm(lat, lng, pos.latitude, pos.longitude);
+    if (km < minKm) {
+      minKm = km;
+      minKey = key;
+    }
+  }
+  return minKey;
+}
 
 type SheetMode = 'collapsed' | 'expanded';
 
@@ -410,7 +427,14 @@ export default function MapScreen() {
   }, [distanceFilter]);
   const distanceFilterCenter = distanceFilter !== 'all' ? (demoLocation ?? currentLocation) : null;
 
-  // 거리 + 날짜 + 카테고리 필터 적용
+  /** 현재 위치 기준 지역 키 (목록/마커를 이 지역 행사만 보이게 할 때 사용) */
+  const currentRegionKey = useMemo(() => {
+    const pos = demoLocation ?? currentLocation ?? null;
+    if (!pos) return null;
+    return getCurrentRegionKey(pos.latitude, pos.longitude);
+  }, [demoLocation, currentLocation]);
+
+  // 거리 + 현재 지역 + 날짜 + 카테고리 필터 적용
   const filteredEvents = useMemo(() => {
     let list = events ?? [];
     if (distanceKmLimit != null) {
@@ -423,6 +447,13 @@ export default function MapScreen() {
         });
       }
     }
+    if (currentRegionKey) {
+      list = list.filter((e) => {
+        const r = e.regionName?.trim();
+        if (!r) return true;
+        return r === currentRegionKey || r.includes(currentRegionKey);
+      });
+    }
     if (dateFilter) {
       list = list.filter((e) => eventOverlapsDateRange(e.startAt, e.endAt, dateFilter.start, dateFilter.end));
     }
@@ -433,32 +464,24 @@ export default function MapScreen() {
       list = list.filter((e) => (e.scale ?? 'PERSONAL') === scaleFilter);
     }
     return list;
-  }, [events, distanceKmLimit, demoLocation, currentLocation, dateFilter, categoryFilter, scaleFilter, eventOverlapsDateRange]);
+  }, [events, distanceKmLimit, demoLocation, currentLocation, currentRegionKey, dateFilter, categoryFilter, scaleFilter, eventOverlapsDateRange]);
 
   const MAX_EVENT_LIST_ITEMS = 20;
-  /** 축제 목록 시트: 지도 카메라 영역(events) + 날짜/카테고리/규모 필터 → 카메라 중심에서 가까운 순, 최대 20개 */
+  /** 축제 목록 시트: 거리 지정 시 해당 거리 내 행사만, 아니면 카메라 영역 행사 + 날짜/카테고리/규모 필터 → 기준점에서 가까운 순, 최대 20개 */
   const eventListFiltered = useMemo(() => {
-    const center = listSheetCameraCenter
+    const center = distanceFilterCenter
+      ?? listSheetCameraCenter
       ?? (region
         ? { latitude: region.latitude + region.latitudeDelta / 2, longitude: region.longitude + region.longitudeDelta / 2 }
         : { latitude: 37.5665, longitude: 126.978 });
-    let list = events ?? [];
-    if (dateFilter) {
-      list = list.filter((e) => eventOverlapsDateRange(e.startAt, e.endAt, dateFilter.start, dateFilter.end));
-    }
-    if (categoryFilter !== 'all') {
-      list = list.filter((e) => (e.category ?? 'ETC') === categoryFilter);
-    }
-    if (scaleFilter !== 'all') {
-      list = list.filter((e) => (e.scale ?? 'PERSONAL') === scaleFilter);
-    }
+    const list = filteredEvents ?? [];
     const withDist = list.map((e) => ({
       event: e,
       km: distanceKm(center.latitude, center.longitude, e.latitude ?? 0, e.longitude ?? 0),
     }));
     withDist.sort((a, b) => a.km - b.km);
     return withDist.slice(0, MAX_EVENT_LIST_ITEMS).map((x) => x.event);
-  }, [events, listSheetCameraCenter, region, dateFilter, categoryFilter, scaleFilter, eventOverlapsDateRange]);
+  }, [filteredEvents, distanceFilterCenter, listSheetCameraCenter, region]);
 
   const cameraIdleFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -941,11 +964,10 @@ export default function MapScreen() {
                           i === legendItems.length - 1 && { marginBottom: 0 },
                         ]}
                       >
-                        <View
-                          style={[
-                            styles.scalePopupBadge,
-                            { backgroundColor: it.color },
-                          ]}
+                        <Image
+                          source={require('../../../assets/images/marker-pin.png')}
+                          style={[styles.scalePopupMarkerIcon, { tintColor: it.color }]}
+                          resizeMode="contain"
                         />
                         <Text style={styles.scalePopupLabel}>{it.label}</Text>
                       </View>
@@ -1514,19 +1536,19 @@ const styles = StyleSheet.create({
   scalePopupRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: SPACING.popupRowHeight,
+    minHeight: 40,
     marginBottom: SPACING.popupRowGap,
   },
-  scalePopupBadge: {
-    width: SPACING.badgeSize,
-    height: SPACING.badgeSize,
-    borderRadius: 10,
+  scalePopupMarkerIcon: {
+    width: 24,
+    height: 32,
     marginRight: SPACING.badgeTextGap,
   },
   scalePopupLabel: {
     fontSize: 14,
     fontWeight: '500',
     color: MAP_UI.textDark,
+    flex: 1,
   },
 
   // 하단: 축제 목록 + 현재 위치. 아래쪽 맞춤(축제목록보기·현재위치 버튼 하단 일치)

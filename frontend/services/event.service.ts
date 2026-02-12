@@ -150,6 +150,7 @@ type EventMapResponseItem = {
   endAt?: string | number[] | null;
   placeName?: string | null;
   placeAddress?: string | null;
+  regionName?: string | null;
 };
 
 function filterGroupToScale(fg: string | null | undefined): EventScale {
@@ -176,6 +177,7 @@ function eventMapItemToEvent(item: EventMapResponseItem): Event {
     longitude: item.longitude ?? 0,
     address: item.placeAddress ?? '',
     placeName: item.placeName ?? '',
+    regionName: item.regionName ?? undefined,
     thumbnailUrl: item.thumbnailUrl ?? undefined,
     isBookmarked: false,
   };

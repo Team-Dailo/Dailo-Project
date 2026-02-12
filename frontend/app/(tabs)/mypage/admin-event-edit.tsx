@@ -116,6 +116,8 @@ export default function AdminEventEditScreen() {
         const res = await adminService.getAdminEventDetail(eventId);
         setTitle(res.title ?? "");
         setPlaceName(res.placeName ?? "");
+        setPlaceAddress(res.placeAddress ?? "");
+        setRegionName(res.regionName ?? "");
         setLatitude(res.latitude != null ? String(res.latitude) : "");
         setLongitude(res.longitude != null ? String(res.longitude) : "");
         setStartAt(res.startAt ? res.startAt.slice(0, 16) : defaultStart());
@@ -250,7 +252,7 @@ export default function AdminEventEditScreen() {
         <Field label="제목 *" value={title} onChangeText={setTitle} placeholder="행사 제목" />
         <Field label="장소명" value={placeName} onChangeText={setPlaceName} placeholder="장소 이름" />
         <Field label="상세 주소" value={placeAddress} onChangeText={setPlaceAddress} placeholder="주소" />
-        <Field label="지역명" value={regionName} onChangeText={setRegionName} placeholder="예: 서울, 경기" />
+        <Field label="지역 *" value={regionName} onChangeText={setRegionName} placeholder="예: 충북 충주, 서울 (현재 위치 기준 목록/지도 필터용)" />
         <Text style={styles.label}>위도·경도 (지도 표시용) *</Text>
         <Pressable
           style={styles.locationPickRow}

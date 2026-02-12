@@ -27,6 +27,8 @@ export interface Event {
   longitude: number;
   address: string;
   placeName: string;
+  /** 지역명 (서울, 충북 충주 등) — 현재 위치 지역 필터용 */
+  regionName?: string;
   thumbnailUrl?: string;
   isBookmarked?: boolean;
 }

@@ -52,6 +52,8 @@ export type AdminEventResponse = {
   id: number;
   title: string;
   placeName?: string | null;
+  placeAddress?: string | null;
+  regionName?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   startAt: string;
