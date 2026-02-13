@@ -1,28 +1,15 @@
 import { API_BASE_URL } from '../constants/api';
-import * as authService from './auth.service';
+import { getAccessToken } from './auth.service';
 
-const getDefaultUserId = (): number => {
-  const id = process.env.EXPO_PUBLIC_USER_ID;
-  if (id != null && id !== '') return Number(id);
-  return 1;
-};
-
-const getHeaders = async (): Promise<HeadersInit> => {
-  const token = await authService.getAccessToken();
-  let id = await authService.getStoredUserId();
-  if (id == null && token) {
-    const me = await authService.getMe();
-    if (me?.id != null && me.id > 0) {
-      id = me.id;
-      await authService.setStoredUserId(me.id);
-    }
-  }
-  id = id ?? getDefaultUserId();
+/** 인증 헤더 (JWT 토큰 필수) */
+const getAuthHeaders = async (): Promise<HeadersInit> => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'X-User-Id': String(id),
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const token = await getAccessToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   return headers;
 };
 
@@ -54,7 +41,7 @@ export type ChatMessageResponse = {
 
 /** 채팅방 생성 - POST /api/chat/rooms (로그인 필요) */
 export async function createRoom(targetUserId: number): Promise<ChatRoomResponse> {
-  const headers = await getHeaders();
+  const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/chat/rooms`, {
     method: 'POST',
     headers,
@@ -82,7 +69,7 @@ export async function createRoom(targetUserId: number): Promise<ChatRoomResponse
 /** 내 채팅방 목록 - GET /api/chat/rooms */
 export async function getMyRooms(): Promise<ChatRoomResponse[]> {
   const res = await fetch(`${API_BASE_URL}/api/chat/rooms`, {
-    headers: await getHeaders(),
+    headers: await getAuthHeaders(),
   });
   if (!res.ok) throw new Error(`get rooms failed: ${res.status}`);
   const data = await res.json();
@@ -92,7 +79,7 @@ export async function getMyRooms(): Promise<ChatRoomResponse[]> {
 /** 채팅방 상세 - GET /api/chat/rooms/{roomId} */
 export async function getRoom(roomId: number): Promise<ChatRoomResponse> {
   const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}`, {
-    headers: await getHeaders(),
+    headers: await getAuthHeaders(),
   });
   if (!res.ok) throw new Error(`get room failed: ${res.status}`);
   return res.json();
@@ -102,7 +89,7 @@ export async function getRoom(roomId: number): Promise<ChatRoomResponse> {
 export async function leaveRoom(roomId: number): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}`, {
     method: 'DELETE',
-    headers: await getHeaders(),
+    headers: await getAuthHeaders(),
   });
   if (!res.ok) throw new Error(`leave room failed: ${res.status}`);
 }
@@ -116,7 +103,7 @@ export async function getMessages(
   const size = params?.size ?? 50;
   const res = await fetch(
     `${API_BASE_URL}/api/chat/rooms/${roomId}/messages?page=${page}&size=${size}`,
-    { headers: await getHeaders() }
+    { headers: await getAuthHeaders() }
   );
   if (!res.ok) throw new Error(`get messages failed: ${res.status}`);
   return res.json();
@@ -129,7 +116,7 @@ export async function sendMessage(
 ): Promise<ChatMessageResponse> {
   const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/messages`, {
     method: 'POST',
-    headers: await getHeaders(),
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ content, messageType: 'TEXT' }),
   });
   if (!res.ok) throw new Error(`send message failed: ${res.status}`);
