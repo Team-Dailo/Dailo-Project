@@ -94,9 +94,17 @@ public class PostService {
             throw new RuntimeException("You are not the author of this post");
         }
 
-        post.update(requestDto.getTitle(), requestDto.getContent(), requestDto.getCategoryType());
+        post.update(requestDto.getTitle(), requestDto.getContent(), requestDto.getCategoryType(), requestDto.getEventId());
         String nickname = memberRepository.findById(post.getAuthorId()).map(Member::getNickname).orElse(null);
         return PostResponseDto.from(post, nickname);
+    }
+
+    /** 행사별 후기 게시글 목록 (eventId 로 조회) */
+    public Page<PostListResponseDto> getPostsByEventId(Long eventId, Long userId, Pageable pageable) {
+        Page<Post> page = postRepository.findByEventId(eventId, pageable);
+        List<Post> posts = page.getContent();
+        Map<Long, String> nicknameMap = getAuthorNicknameMap(posts);
+        return page.map(post -> PostListResponseDto.from(post, nicknameMap.get(post.getAuthorId())));
     }
 
     @Transactional

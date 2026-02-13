@@ -20,6 +20,8 @@ public class PostListResponseDto {
     private String authorNickname;
     private String title;
     private String categoryType;
+    /** 후기일 때 연관 행사 ID */
+    private Long eventId;
     private Integer viewCount;
     private Integer likeCount;
     private Integer commentCount;
@@ -36,6 +38,7 @@ public class PostListResponseDto {
                 .authorNickname(authorNickname != null ? authorNickname : "알 수 없음")
                 .title(post.getTitle())
                 .categoryType(post.getCategoryType())
+                .eventId(post.getEventId())
                 .viewCount(post.getViewCount())
                 .likeCount(post.getLikeCount())
                 .commentCount(post.getCommentCount())

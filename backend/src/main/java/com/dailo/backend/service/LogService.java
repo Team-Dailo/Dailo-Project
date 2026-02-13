@@ -4,6 +4,7 @@ import com.dailo.backend.dto.ClickLogRequestDto;
 import com.dailo.backend.dto.ClickLogResponseDto;
 import com.dailo.backend.dto.SearchLogRequestDto;
 import com.dailo.backend.dto.SearchLogResponseDto;
+import com.dailo.backend.dto.TopSearchKeywordDto;
 import com.dailo.backend.entity.ClickLog;
 import com.dailo.backend.entity.SearchLog;
 import com.dailo.backend.repository.ClickLogRepository;
@@ -52,6 +53,18 @@ public class LogService {
         return searchLogRepository.findTopKeywords(since, PageRequest.of(0, limit))
                 .stream()
                 .map(row -> (String) row[0])
+                .collect(Collectors.toList());
+    }
+
+    /** 인기 검색어 + 검색 수 (최근 7일, 클릭·검색 수 기준 순위) */
+    public List<TopSearchKeywordDto> getTopKeywordsWithCount(int limit) {
+        LocalDateTime since = LocalDateTime.now().minusDays(7);
+        return searchLogRepository.findTopKeywords(since, PageRequest.of(0, limit))
+                .stream()
+                .map(row -> TopSearchKeywordDto.builder()
+                        .keyword((String) row[0])
+                        .count(((Number) row[1]).longValue())
+                        .build())
                 .collect(Collectors.toList());
     }
 

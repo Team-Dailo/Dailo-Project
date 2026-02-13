@@ -70,16 +70,23 @@ public class EventService {
     // 리스트 조회 (검색/필터/정렬 통합)
     public Page<EventListResponse> getEventList(EventListRequest request) {
 
-        // 동적 정렬 처리 (프론트에서 "startAt,desc" 처럼 보내면 그걸 적용)
-        Sort sort = Sort.by(Sort.Direction.ASC, "startAt"); // 기본값
+        // 동적 정렬: 인기/추천 키워드 매핑 (trending=7일 조회수, views=30일 조회수, popular=좋아요)
+        String sortParam = request.sort() != null ? request.sort().trim() : "";
+        if ("trending".equalsIgnoreCase(sortParam)) {
+            sortParam = "viewCount7d,desc";
+        } else if ("views".equalsIgnoreCase(sortParam)) {
+            sortParam = "viewCount30d,desc";
+        } else if ("popular".equalsIgnoreCase(sortParam)) {
+            sortParam = "likeCount,desc";
+        }
 
-        if (request.sort() != null && !request.sort().isBlank()) {
-            String[] sortParams = request.sort().split(",");
-            String property = sortParams[0];
-            Sort.Direction direction = (sortParams.length > 1 && sortParams[1].equalsIgnoreCase("desc"))
+        Sort sort = Sort.by(Sort.Direction.ASC, "startAt"); // 기본값
+        if (!sortParam.isBlank()) {
+            String[] parts = sortParam.split(",");
+            String property = parts[0].trim();
+            Sort.Direction direction = (parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim()))
                     ? Sort.Direction.DESC
                     : Sort.Direction.ASC;
-
             sort = Sort.by(direction, property);
         }
 
