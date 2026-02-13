@@ -27,6 +27,9 @@
 hs_err_pid*
 replay_pid*
 
+# Firebase Admin SDK Key
+src/main/resources/firebase/*.json
+
 ### Docker ###
 .env
 .env.local
@@ -76,3 +79,4 @@ backend/docs/
 # Logs
 **/logs/
 .vscode/
+
