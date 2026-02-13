@@ -22,6 +22,8 @@ public class PostResponseDto {
     private String title;
     private String content;
     private String categoryType;
+    /** 후기일 때 연관 행사 ID */
+    private Long eventId;
     private Integer viewCount;
     private Integer likeCount;
     private Integer commentCount;
@@ -47,6 +49,7 @@ public class PostResponseDto {
                 .title(post.getTitle())
                 .content(post.getContent())
                 .categoryType(post.getCategoryType())
+                .eventId(post.getEventId())
                 .viewCount(post.getViewCount())
                 .likeCount(post.getLikeCount())
                 .commentCount(post.getCommentCount())

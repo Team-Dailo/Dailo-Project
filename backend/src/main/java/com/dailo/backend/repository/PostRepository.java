@@ -18,6 +18,9 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     Page<Post> findByCategoryType(String categoryType, Pageable pageable);
 
+    /** 행사별 후기 목록 (event_id 로 조회) */
+    Page<Post> findByEventId(Long eventId, Pageable pageable);
+
     Page<Post> findByTitleContaining(String keyword, Pageable pageable);
 
     // 차단 필터 적용된 조회 쿼리

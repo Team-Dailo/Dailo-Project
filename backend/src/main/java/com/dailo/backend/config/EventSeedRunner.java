@@ -59,6 +59,19 @@ public class EventSeedRunner implements ApplicationRunner {
             eventRepository.save(buildChungjuJungangtapEvent());
             log.info("시드 데이터 저장: 충주시 축제 중앙탑 행사");
         }
+        // 2.20 다양한 카테고리 행사 3건
+        if (!eventRepository.existsByTitleContaining("충주 시민 미술 전시")) {
+            eventRepository.save(buildChungjuArtExhibition());
+            log.info("시드 데이터 저장: 충주 시민 미술 전시");
+        }
+        if (!eventRepository.existsByTitleContaining("금요일 라이브 공연")) {
+            eventRepository.save(buildFridayLivePerformance());
+            log.info("시드 데이터 저장: 금요일 라이브 공연");
+        }
+        if (!eventRepository.existsByTitleContaining("주말 푸드트럭 페스타")) {
+            eventRepository.save(buildWeekendFoodTruckFesta());
+            log.info("시드 데이터 저장: 주말 푸드트럭 페스타");
+        }
     }
 
     /** 한국교통대학교 충주캠퍼스 - 대축제 */
@@ -153,6 +166,78 @@ public class EventSeedRunner implements ApplicationRunner {
                 .posterUrls(List.of())
                 .description("충주시 축제의 중앙탑 행사입니다. 중앙탑사적공원에서 다양한 공연과 부스가 준비되어 있습니다.")
                 .hostContact("충주시청 043-850-5000")
+                .isAdminManaged(true)
+                .build();
+    }
+
+    /** 2.20 전시 - 충주 시민 미술 전시 */
+    private Event buildChungjuArtExhibition() {
+        LocalDateTime start = LocalDateTime.of(2026, 2, 20, 9, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 2, 22, 18, 0, 0);
+        return Event.builder()
+                .title("충주 시민 미술 전시")
+                .regionName("충북 충주")
+                .filterGroup("CHUNGJU_CITY")
+                .placeName("충주시립미술관")
+                .placeAddress("충청북도 충주시 중앙탑면 탑정안길 6")
+                .latitude(36.6340)
+                .longitude(127.4900)
+                .startAt(start)
+                .endAt(end)
+                .thumbnailUrl("https://picsum.photos/seed/chungju-art/400/300")
+                .categories(List.of(EventCategory.EXHIBITION))
+                .status(EventStatus.ACTIVE)
+                .posterUrls(List.of())
+                .description("충주 시민 작가들의 미술 전시회. 회화, 조소, 사진 등 다양한 작품을 만나보세요.")
+                .hostContact("충주시립미술관 043-850-3XXX")
+                .isAdminManaged(true)
+                .build();
+    }
+
+    /** 2.20 공연 - 금요일 라이브 공연 */
+    private Event buildFridayLivePerformance() {
+        LocalDateTime start = LocalDateTime.of(2026, 2, 20, 19, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 2, 20, 22, 0, 0);
+        return Event.builder()
+                .title("금요일 라이브 공연")
+                .regionName("충북 충주")
+                .filterGroup("CLUB")
+                .placeName("건국대 글로컬캠퍼스 중앙광장")
+                .placeAddress("충청북도 충주시 충주대학로 268")
+                .latitude(36.9705)
+                .longitude(127.9320)
+                .startAt(start)
+                .endAt(end)
+                .thumbnailUrl("https://picsum.photos/seed/live-performance/400/300")
+                .categories(List.of(EventCategory.PERFORMANCE))
+                .status(EventStatus.ACTIVE)
+                .posterUrls(List.of())
+                .description("동아리 밴드와 뮤지션들의 금요일 저녁 라이브 공연. 무료 관람.")
+                .hostContact("건국대 동아리연합회")
+                .isAdminManaged(true)
+                .build();
+    }
+
+    /** 2.20 푸드트럭 - 주말 푸드트럭 페스타 (개인 = 파란색) */
+    private Event buildWeekendFoodTruckFesta() {
+        LocalDateTime start = LocalDateTime.of(2026, 2, 20, 11, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 2, 21, 20, 0, 0);
+        return Event.builder()
+                .title("주말 푸드트럭 페스타")
+                .regionName("충북 충주")
+                .filterGroup("")
+                .placeName("충주 호반 씨네마 앞 광장")
+                .placeAddress("충청북도 충주시 호반로 123")
+                .latitude(36.9910)
+                .longitude(127.9260)
+                .startAt(start)
+                .endAt(end)
+                .thumbnailUrl("https://picsum.photos/seed/foodtruck/400/300")
+                .categories(List.of(EventCategory.FOOD_TRUCK))
+                .status(EventStatus.ACTIVE)
+                .posterUrls(List.of())
+                .description("다양한 푸드트럭이 모이는 주말 페스타. 타코, 버거, 디저트, 음료 등 맛집 트럭을 만나보세요.")
+                .hostContact("충주시 상인회 043-8XX-XXXX")
                 .isAdminManaged(true)
                 .build();
     }

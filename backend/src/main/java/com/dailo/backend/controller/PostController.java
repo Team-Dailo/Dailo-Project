@@ -69,6 +69,18 @@ public class PostController {
         return ResponseEntity.noContent().build();
     }
 
+    /** 행사별 후기 목록 (해당 행사에 연결된 게시글) */
+    @GetMapping("/event/{eventId}")
+    public ResponseEntity<Page<PostListResponseDto>> getPostsByEventId(
+            @PathVariable Long eventId,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(postService.getPostsByEventId(eventId, userId, pageable));
+    }
+
     @GetMapping("/category/{categoryType}")
     public ResponseEntity<Page<PostListResponseDto>> getPostsByCategory(
             @PathVariable String categoryType,
