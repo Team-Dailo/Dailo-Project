@@ -46,47 +46,19 @@ public class EventService {
                 .collect(Collectors.toList());
     }
 
-    /** 지도/검색: 키워드(행사명·장소·설명)로 행사 검색, 위경도 있는 것만 반환 (지도 검색 결과용) */
-    public List<EventMapResponse> searchEventsByKeyword(String keyword, int size) {
-        if (keyword == null || keyword.isBlank()) {
-            return Collections.emptyList();
-        }
-        Pageable pageable = PageRequest.of(0, Math.min(size, 100), Sort.by(Sort.Direction.ASC, "startAt"));
-        Page<Event> page = eventRepository.searchEvents(
-                EventStatus.ACTIVE,
-                null,
-                null,
-                null,
-                null,
-                keyword.trim(),
-                pageable
-        );
-        return page.getContent().stream()
-                .filter(e -> e.getLatitude() != null && e.getLongitude() != null)
-                .map(EventMapResponse::from)
-                .collect(Collectors.toList());
-    }
-
     // 리스트 조회 (검색/필터/정렬 통합)
     public Page<EventListResponse> getEventList(EventListRequest request) {
 
-        // 동적 정렬: 인기/추천 키워드 매핑 (trending=7일 조회수, views=30일 조회수, popular=좋아요)
-        String sortParam = request.sort() != null ? request.sort().trim() : "";
-        if ("trending".equalsIgnoreCase(sortParam)) {
-            sortParam = "viewCount7d,desc";
-        } else if ("views".equalsIgnoreCase(sortParam)) {
-            sortParam = "viewCount30d,desc";
-        } else if ("popular".equalsIgnoreCase(sortParam)) {
-            sortParam = "likeCount,desc";
-        }
-
+        // 동적 정렬 처리 (프론트에서 "startAt,desc" 처럼 보내면 그걸 적용)
         Sort sort = Sort.by(Sort.Direction.ASC, "startAt"); // 기본값
-        if (!sortParam.isBlank()) {
-            String[] parts = sortParam.split(",");
-            String property = parts[0].trim();
-            Sort.Direction direction = (parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim()))
+
+        if (request.sort() != null && !request.sort().isBlank()) {
+            String[] sortParams = request.sort().split(",");
+            String property = sortParams[0];
+            Sort.Direction direction = (sortParams.length > 1 && sortParams[1].equalsIgnoreCase("desc"))
                     ? Sort.Direction.DESC
                     : Sort.Direction.ASC;
+
             sort = Sort.by(direction, property);
         }
 

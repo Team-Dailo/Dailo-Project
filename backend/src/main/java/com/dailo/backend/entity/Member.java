@@ -44,10 +44,6 @@ public class Member {
         this.status = MemberStatus.DELETED;
     }
 
-    public void setRole(Role role) {
-        this.role = role;
-    }
-
     @Builder
     public Member(String email, String password, String nickname, Role role) {
         this.email = email;
