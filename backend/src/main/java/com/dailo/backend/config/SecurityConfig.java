@@ -45,6 +45,12 @@ public class SecurityConfig {
                         // 행사 조회
                         .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
 
+                        //------------------------------------
+                        //  알림 관련 API 허용 (테스트 및 토큰 등록용)
+                        .requestMatchers("/api/notification/**").permitAll()
+                        //------------------------------------
+
+
                         // 게시판·댓글 조회 (비로그인도 목록/상세/댓글 읽기 가능)
                         .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
                         // 게시판 작성/수정/삭제는 인증 필요
