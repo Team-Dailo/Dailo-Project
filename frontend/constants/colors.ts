@@ -22,3 +22,27 @@ export const MAP_UI = {
   // Scale legend pin colors (5 items, 사진 참고): 시·군·구, 대학교, 단과대/학생회, 동아리/소모임, 개인
   scaleBadge: ['#F86E6E', '#F89B6B', '#F8C76B', '#5BE09B', '#6294F8'] as const,
 };
+
+/** 관리자·지도·캘린더 공통: 백엔드 filterGroup → 마커/점 색상 (동일 규칙) */
+export function getEventColorByFilterGroup(filterGroup: string | null | undefined): string {
+  const idx = getScaleIndexByFilterGroup(filterGroup);
+  return MAP_UI.scaleBadge[idx];
+}
+
+/** filterGroup → scaleBadge 인덱스 (0=시군구, 1=대학교, 2=단과대/학생회, 3=동아리, 4=개인) */
+export function getScaleIndexByFilterGroup(filterGroup: string | null | undefined): number {
+  if (filterGroup == null || String(filterGroup).trim() === '') return 4;
+  switch (String(filterGroup).trim()) {
+    case 'CHUNGJU_CITY':
+      return 0;
+    case 'UNIVERSITY':
+      return 1;
+    case 'COLLEGE':
+    case 'STUDENT_COUNCIL':
+      return 2;
+    case 'CLUB':
+      return 3;
+    default:
+      return 4;
+  }
+}

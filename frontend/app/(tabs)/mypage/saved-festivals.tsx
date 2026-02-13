@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,16 +8,35 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  TextInput,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as scrapService from "../../../services/scrap.service";
-import { formatDate } from "../../../utils/formatDate";
 
-function formatPeriod(startAt: string, endAt: string): string {
+/** 2026.02.20 금요일 */
+function formatDate(iso: string): string {
   try {
-    return `${formatDate(startAt)} ~ ${formatDate(endAt)}`;
+    const d = new Date(iso);
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${["일", "월", "화", "수", "목", "금", "토"][d.getDay()]}요일`;
+  } catch {
+    return "";
+  }
+}
+
+/** 09:00 ~ 18:00 */
+function formatTimeRange(startIso: string, endIso?: string): string {
+  try {
+    const start = new Date(startIso);
+    const startStr = `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`;
+    if (endIso) {
+      const end = new Date(endIso);
+      const endStr = `${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
+      return `${startStr} ~ ${endStr}`;
+    }
+    return `${startStr} ~`;
   } catch {
     return "";
   }
@@ -28,6 +47,7 @@ export default function SavedFestivalsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -54,6 +74,16 @@ export default function SavedFestivalsScreen() {
     setRefreshing(true);
     load();
   }, [load]);
+
+  const filteredList = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (item) =>
+        (item.title ?? "").toLowerCase().includes(q) ||
+        (item.placeName ?? "").toLowerCase().includes(q)
+    );
+  }, [list, searchQuery]);
 
   const handleRemoveScrap = useCallback(
     (item: scrapService.ScrapEventItem) => {
@@ -83,68 +113,140 @@ export default function SavedFestivalsScreen() {
     []
   );
 
-  return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
-      <View style={styles.container}>
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.replace('/(tabs)/mypage')}>
+          <Pressable onPress={() => router.replace("/(tabs)/mypage")}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
           <Text style={styles.headerTitle}>저장한 축제</Text>
           <View style={{ width: 22 }} />
         </View>
+        <View style={styles.center}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-        {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color="#2563EB" />
-          </View>
-        ) : error ? (
-          <View style={styles.center}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : list.length === 0 ? (
-          <View style={styles.center}>
-            <Ionicons name="bookmark-outline" size={48} color="#D1D5DB" />
-            <Text style={styles.emptyText}>저장한 축제가 없습니다</Text>
-          </View>
-        ) : (
-          <ScrollView
-            contentContainerStyle={styles.contents}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-          >
-            {list.map((item) => (
-              <View key={item.id} style={styles.card}>
-                <Pressable
-                  style={styles.cardMain}
-                  onPress={() => {
-                    const eventId = item?.id ?? 0;
-                    if (!eventId) return;
-                    router.push(
-                      `/event/${String(eventId)}?source=list` as import("expo-router").Href
-                    );
-                  }}
-                >
-                  <Text style={styles.cardTitle}>{item.title}</Text>
-                  <Text style={styles.cardSub}>
-                    {[item.placeName, formatPeriod(item.startAt, item.endAt)]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={styles.unscrapButton}
-                  onPress={() => handleRemoveScrap(item)}
-                >
-                  <Ionicons name="bookmark" size={20} color="#2563EB" />
-                  <Text style={styles.unscrapText}>찜 해제</Text>
-                </Pressable>
-              </View>
-            ))}
-          </ScrollView>
-        )}
+  return (
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.replace("/(tabs)/mypage")}>
+          <Ionicons name="arrow-back" size={22} color="#111827" />
+        </Pressable>
+        <Text style={styles.headerTitle}>저장한 축제</Text>
+        <View style={{ width: 22 }} />
       </View>
+
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#2563EB" />
+        </View>
+      ) : list.length === 0 ? (
+        <View style={styles.center}>
+          <Ionicons name="bookmark-outline" size={48} color="#D1D5DB" />
+          <Text style={styles.emptyText}>저장한 축제가 없습니다</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.section}>
+            {/* 검색창 - 행사 리스트와 동일 */}
+            <View style={styles.searchBarWrap}>
+              <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="행사명 또는 장소 검색"
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 ? (
+                <Pressable
+                  onPress={() => setSearchQuery("")}
+                  style={styles.searchClear}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                </Pressable>
+              ) : null}
+            </View>
+
+            <View style={styles.eventCardList}>
+              {filteredList.length === 0 ? (
+                <Text style={styles.eventCardEmpty}>
+                  {searchQuery.trim() ? "조건에 맞는 저장 행사가 없어요" : "저장한 축제가 없습니다"}
+                </Text>
+              ) : (
+                filteredList.map((item) => {
+                  const dateStr = formatDate(item.startAt);
+                  const timeStr = formatTimeRange(item.startAt, item.endAt);
+                  return (
+                    <View key={item.id} style={styles.eventCard}>
+                      <Pressable
+                        style={styles.eventCardInner}
+                        onPress={() =>
+                          router.push(`/event/${String(item.id)}?source=list` as import("expo-router").Href)
+                        }
+                      >
+                        <Image
+                          source={{
+                            uri: item.thumbnailUrl ?? "https://via.placeholder.com/200x300.png?text=Poster",
+                          }}
+                          style={styles.eventImage}
+                        />
+                        <View style={styles.eventInfo}>
+                          <View style={styles.eventInfoHeader}>
+                            <Text style={styles.eventCategory}>저장</Text>
+                            <Pressable
+                              onPress={() => handleRemoveScrap(item)}
+                              hitSlop={8}
+                              style={styles.unscrapWrap}
+                            >
+                              <Ionicons name="bookmark" size={16} color="#2563EB" />
+                              <Text style={styles.unscrapText}>찜 해제</Text>
+                            </Pressable>
+                          </View>
+                          <Text style={styles.eventTitle} numberOfLines={2}>
+                            {item.title}
+                          </Text>
+                          <View style={styles.eventMeta}>
+                            {dateStr ? (
+                              <Text style={styles.eventDate}>{dateStr}</Text>
+                            ) : null}
+                            {timeStr ? (
+                              <Text style={styles.eventTime}>{timeStr}</Text>
+                            ) : null}
+                          </View>
+                          <View style={styles.eventCardFooter}>
+                            <View style={styles.eventCardFooterCenter}>
+                              <Text style={styles.detailButtonText}>자세히 보기</Text>
+                            </View>
+                            <Ionicons
+                              name="chevron-forward"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                          </View>
+                        </View>
+                      </Pressable>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </View>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -153,10 +255,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#ffffff",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#F3F4F6",
   },
   header: {
     flexDirection: "row",
@@ -174,6 +272,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
   },
+  container: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
+  content: {
+    paddingBottom: 24,
+  },
+  section: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
   center: {
     flex: 1,
     justifyContent: "center",
@@ -190,41 +299,125 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#9CA3AF",
   },
-  contents: {
-    padding: 16,
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
   },
-  card: {
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#111827",
+    paddingVertical: 8,
+    paddingRight: 8,
+  },
+  searchClear: {
+    padding: 4,
+  },
+  eventCardList: {
+    gap: 0,
+  },
+  eventCardEmpty: {
+    paddingVertical: 24,
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
+  eventCard: {
+    borderRadius: 0,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+    borderBottomColor: "#E5E7EB",
+  },
+  eventCardInner: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    padding: 14,
+  },
+  eventImage: {
+    width: 96,
+    minWidth: 96,
+    height: 128,
+    borderRadius: 0,
+    marginRight: 14,
+    backgroundColor: "#E5E7EB",
+  },
+  eventInfo: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 128,
+    justifyContent: "space-between",
+    paddingVertical: 2,
+  },
+  eventInfoHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  cardMain: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "600",
     marginBottom: 4,
-    color: "#111827",
   },
-  cardSub: {
-    fontSize: 13,
+  eventCategory: {
+    fontSize: 11,
+    fontWeight: "600",
     color: "#6B7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  unscrapButton: {
+  unscrapWrap: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
   },
   unscrapText: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#2563EB",
     fontWeight: "500",
+  },
+  eventTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111827",
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  eventMeta: {
+    gap: 2,
+    marginBottom: 4,
+  },
+  eventDate: {
+    fontSize: 12,
+    color: "#374151",
+  },
+  eventTime: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  eventCardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 12,
+  },
+  eventCardFooterCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  detailButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

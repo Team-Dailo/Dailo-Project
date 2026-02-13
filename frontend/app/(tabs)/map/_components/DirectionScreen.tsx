@@ -17,10 +17,12 @@ import type { Event } from '../../../../types/event';
 type Props = {
   visible: boolean;
   event: Event | null;
+  /** 출발지(현재 위치). 있으면 네이버 지도 길찾기 시 출발지로 지정 */
+  startLocation?: { latitude: number; longitude: number } | null;
   onClose: () => void;
 };
 
-export function DirectionScreen({ visible, event, onClose }: Props) {
+export function DirectionScreen({ visible, event, startLocation, onClose }: Props) {
   const insets = useSafeAreaInsets();
 
   if (!event) return null;
@@ -49,23 +51,40 @@ export function DirectionScreen({ visible, event, onClose }: Props) {
     }
   };
 
-  /** 네이버 지도 앱 길찾기 (nmap URL 스킴) */
+  /** 네이버 지도 웹: 목적지 검색 (브라우저/크롬에서 화면이 뜨도록 https 사용, 앱 미설치 시 대체) */
+  const openNaverMapWeb = () => {
+    const query = encodeURIComponent(destination);
+    Linking.openURL(`https://map.naver.com/v5/search/${query}`).catch(() => {});
+  };
+
+  /** 네이버 지도 앱 길찾기 (nmap 스킴). 실패 시 웹으로 열어서 크롬 빈 화면 방지 */
   const openInNaverMap = () => {
-    const appname = 'com.anonymous.app';
-    if (hasCoords) {
-      const dname = encodeURIComponent(destination);
-      const url = `nmap://route/car?dlat=${event.latitude}&dlng=${event.longitude}&dname=${dname}&appname=${appname}`;
-      Linking.openURL(url).catch(() => {
-        Linking.openURL(
-          `https://play.google.com/store/apps/details?id=com.nhn.android.nmap`
-        ).catch(() => {});
-      });
-    } else {
-      const query = encodeURIComponent(destination);
-      Linking.openURL(
-        `https://map.naver.com/v5/search/${query}`
-      ).catch(() => {});
+    if (!hasCoords) {
+      openNaverMapWeb();
+      return;
     }
+    const appname = 'com.dailo.app';
+    const dname = encodeURIComponent(destination);
+    const params = new URLSearchParams({
+      dlat: String(event.latitude!),
+      dlng: String(event.longitude!),
+      dname,
+      appname,
+    });
+    if (startLocation?.latitude != null && startLocation?.longitude != null) {
+      params.set('slat', String(startLocation.latitude));
+      params.set('slng', String(startLocation.longitude));
+      params.set('sname', '현재 위치');
+    }
+    const nmapUrl = `nmap://route/car?${params.toString()}`;
+
+    // 웹/WebView에서는 nmap 스킴이 크롬에서 빈 화면이 뜨므로 바로 웹 URL 사용
+    if (Platform.OS === 'web') {
+      openNaverMapWeb();
+      return;
+    }
+
+    Linking.openURL(nmapUrl).catch(openNaverMapWeb);
   };
 
   return (

@@ -30,7 +30,7 @@ type Props = {
   onPressGuide?: () => void;
 };
 
-const DRAWER_WIDTH = 280;
+const DRAWER_WIDTH = 300;
 const CONTENT_PADDING_H = 16;
 const TOP_MARGIN = 14;
 

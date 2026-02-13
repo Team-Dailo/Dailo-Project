@@ -1,5 +1,5 @@
 // app/(tabs)/mypage/stay-mission-history.tsx
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -7,40 +7,27 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  Modal,
+  TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { getCompletedStaySessions, type StaySessionResponseDto } from "../../../services/location.service";
-
-function formatDateTime(isoOrArray: string | number[] | null): string {
-  if (!isoOrArray) return "-";
-  if (typeof isoOrArray === "string") {
-    const d = new Date(isoOrArray);
-    return Number.isFinite(d.getTime()) ? d.toLocaleString("ko-KR") : "-";
-  }
-  if (Array.isArray(isoOrArray) && isoOrArray.length >= 6) {
-    const [y, mo, d, h, min] = isoOrArray;
-    const date = new Date(Number(y), Number(mo) - 1, Number(d), Number(h ?? 0), Number(min ?? 0));
-    return Number.isFinite(date.getTime()) ? date.toLocaleString("ko-KR") : "-";
-  }
-  return "-";
-}
-
-function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes}분`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
-}
+import {
+  formatSessionDate,
+  formatSessionTime,
+  formatDuration,
+} from "../../../utils/staySessionFormat";
 
 export default function StayMissionHistoryScreen() {
   const [list, setList] = useState<StaySessionResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<StaySessionResponseDto | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -51,12 +38,12 @@ export default function StayMissionHistoryScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       load();
-    }, [])
+    }, [load])
   );
 
   return (
@@ -84,31 +71,86 @@ export default function StayMissionHistoryScreen() {
               <Text style={styles.empty}>체류 기록이 없습니다.</Text>
             ) : (
               list.map((item) => (
-                <View key={item.id} style={styles.card}>
+                <Pressable
+                  key={item.id}
+                  style={styles.card}
+                  onPress={() => setSelected(item)}
+                >
                   <Text style={styles.cardTitle}>{item.eventTitle}</Text>
                   <Text style={styles.cardSub}>
-                    진입 {formatDateTime(item.startTime)} · 체류 {formatDuration(item.durationMinutes)}
+                    {item.placeName || "장소 없음"}
                   </Text>
-                </View>
+                  <Text style={styles.cardMeta}>
+                    {formatSessionDate(item.startTime)} · 진입 {formatSessionTime(item.startTime)} · 체류 {formatDuration(item.durationMinutes)}
+                  </Text>
+                </Pressable>
               ))
             )}
           </ScrollView>
         )}
       </View>
+
+      {/* 상세 모달: 진입시간, 퇴장시간, 체류시간, 날짜 */}
+      <Modal
+        visible={selected != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelected(null)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setSelected(null)}>
+          <Pressable style={styles.modalBox} onPress={(e) => e.stopPropagation()}>
+            {selected != null && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>체류 기록 상세</Text>
+                  <TouchableOpacity onPress={() => setSelected(null)} hitSlop={12}>
+                    <Ionicons name="close" size={24} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.modalBody}>
+                  <Text style={styles.detailLabel}>행사명</Text>
+                  <Text style={styles.detailValue}>{selected.eventTitle}</Text>
+
+                  <Text style={styles.detailLabel}>장소</Text>
+                  <Text style={styles.detailValue}>{selected.placeName || "-"}</Text>
+
+                  <Text style={styles.detailLabel}>참여일</Text>
+                  <Text style={styles.detailValue}>{formatSessionDate(selected.startTime)}</Text>
+
+                  <Text style={styles.detailLabel}>진입 시간</Text>
+                  <Text style={styles.detailValue}>{formatSessionTime(selected.startTime)}</Text>
+
+                  <Text style={styles.detailLabel}>퇴장 시간</Text>
+                  <Text style={styles.detailValue}>
+                    {selected.endTime != null ? formatSessionTime(selected.endTime) : "-"}
+                  </Text>
+
+                  <Text style={styles.detailLabel}>체류 시간</Text>
+                  <Text style={styles.detailValue}>{formatDuration(selected.durationMinutes)}</Text>
+                </View>
+                <View style={styles.modalFooter}>
+                  <Pressable
+                    style={styles.primaryButton}
+                    onPress={() => {
+                      setSelected(null);
+                      router.push(`/event/${selected.eventId}?source=mypage` as import("expo-router").Href);
+                    }}
+                  >
+                    <Text style={styles.primaryButtonText}>행사 상세 보기</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-/** 스타일 */
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#F3F4F6",
-  },
+  safeArea: { flex: 1, backgroundColor: "#ffffff" },
+  container: { flex: 1, backgroundColor: "#F3F4F6" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -125,9 +167,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
   },
-  contents: {
-    padding: 16,
-  },
+  contents: { padding: 16 },
   card: {
     backgroundColor: "#FFFFFF",
     padding: 16,
@@ -135,7 +175,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
     marginBottom: 4,
     color: "#111827",
@@ -143,6 +183,11 @@ const styles = StyleSheet.create({
   cardSub: {
     fontSize: 13,
     color: "#6B7280",
+    marginBottom: 4,
+  },
+  cardMeta: {
+    fontSize: 12,
+    color: "#9CA3AF",
   },
   centered: {
     flex: 1,
@@ -150,14 +195,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 24,
   },
-  errorText: {
-    color: "#DC2626",
-    fontSize: 14,
+  errorText: { color: "#DC2626", fontSize: 14 },
+  empty: { color: "#6B7280", textAlign: "center", marginTop: 24, fontSize: 14 },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
   },
-  empty: {
-    color: "#6B7280",
-    textAlign: "center",
-    marginTop: 24,
-    fontSize: 14,
+  modalBox: {
+    width: "100%",
+    maxWidth: 400,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    overflow: "hidden",
   },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5E7EB",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#111827" },
+  modalBody: { padding: 20 },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#9CA3AF",
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  detailValue: { fontSize: 15, color: "#111827", marginBottom: 4 },
+  modalFooter: { padding: 20, paddingTop: 8 },
+  primaryButton: {
+    backgroundColor: "#2563EB",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  primaryButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
 });

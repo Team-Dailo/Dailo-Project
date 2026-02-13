@@ -19,6 +19,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { EventDetail } from "../../types/event";
 import * as logService from "../../services/log.service";
+import * as eventReminder from "../../services/eventReminder.service";
 
 const DEFAULT_POSTER_URI =
   "https://images.unsplash.com/photo-1485550409059-9afb054cada4?w=800";
@@ -62,9 +63,11 @@ interface Props {
   /** 좋아요 (하트) - 선택 */
   isLiked?: boolean;
   onLike?: () => void;
+  /** 로그인 여부 - 알림 아이콘은 로그인 시에만 동작 */
+  isLoggedIn?: boolean;
 }
 
-export default function EventDetailHeader({ id, event, loading, error, onShare, onSave, isLiked = false, onLike }: Props) {
+export default function EventDetailHeader({ id, event, loading, error, onShare, onSave, isLiked = false, onLike, isLoggedIn = false }: Props) {
   const router = useRouter();
   const posterUri = event?.posterUrls?.[0] ?? DEFAULT_POSTER_URI;
   const [clickCount, setClickCount] = useState<number | null>(null);
@@ -143,6 +146,46 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     if (url) Linking.openURL(url).catch(() => {});
   };
 
+  const handleAlarmPress = () => {
+    if (!isLoggedIn) {
+      Alert.alert("로그인 필요", "행사 알림은 로그인 후 이용할 수 있어요.");
+      return;
+    }
+    Alert.alert(
+      "행사 알림",
+      "언제 알림을 받을까요?",
+      [
+        {
+          text: "3일 전 알림",
+          onPress: async () => {
+            const id = await eventReminder.scheduleEventReminder(
+              String(event.id),
+              event.title,
+              event.startAt,
+              3
+            );
+            if (id) Alert.alert("알림 설정", "3일 전에 알림을 보내드립니다.");
+            else Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
+          },
+        },
+        {
+          text: "1일 전 알림",
+          onPress: async () => {
+            const id = await eventReminder.scheduleEventReminder(
+              String(event.id),
+              event.title,
+              event.startAt,
+              1
+            );
+            if (id) Alert.alert("알림 설정", "1일 전에 알림을 보내드립니다.");
+            else Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
+          },
+        },
+        { text: "취소", style: "cancel" },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" />
@@ -173,7 +216,12 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
 
       <View style={styles.infoCard}>
         {dateStr ? <Text style={styles.dateText}>{dateStr}</Text> : null}
-        <Text style={styles.titleText}>{event.title}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.titleText}>{event.title}</Text>
+          <Pressable onPress={handleAlarmPress} style={styles.alarmButton} hitSlop={8}>
+            <Ionicons name="notifications-outline" size={22} color="#374151" />
+          </Pressable>
+        </View>
 
         {/* 시간 · 장소 · 주최자 (아이콘 + 한 줄씩) */}
         <View style={styles.infoBlock}>
@@ -272,10 +320,20 @@ const styles = StyleSheet.create({
     color: "#777",
     marginBottom: 2,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+    gap: 12,
+  },
   titleText: {
+    flex: 1,
     fontSize: 20,
     fontWeight: "bold",
-    marginBottom: 6,
+  },
+  alarmButton: {
+    padding: 6,
   },
   infoBlock: {
     marginTop: 4,

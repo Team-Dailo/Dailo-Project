@@ -88,6 +88,9 @@ function getCurrentRegionKey(lat: number, lng: number): string | null {
   return minKey;
 }
 
+/** 축제 목록 시트에서 같은 지역 행사 전부 보여주기 위한 bounds 델타 (도 단위) */
+const REGION_LIST_DELTA = 0.45;
+
 type SheetMode = 'collapsed' | 'expanded';
 
 /** Expo Go에서는 네이버 지도 네이티브 모듈이 없어 크래시됨 → 안내만 표시 */
@@ -131,6 +134,7 @@ export default function MapScreen() {
   const [distanceFilter, setDistanceFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<{ start: string; end: string } | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [popularFilter, setPopularFilter] = useState<string>('all');
   const [scaleFilter, setScaleFilter] = useState<string>('all');
   const [isEventListSheetVisible, setIsEventListSheetVisible] = useState(false);
   /** 축제 목록 시트 열 때의 지도 카메라 중심 (정렬·범위 기준) */
@@ -147,7 +151,6 @@ export default function MapScreen() {
   // 축제 참여 배너 (로그인 + 축제 범위 진입 시 표시)
   const { isLoggedIn } = useAuth();
   const [isFestivalActive, setIsFestivalActive] = useState(false);
-  const [festivalChipHeight, setFestivalChipHeight] = useState(0);
   const wasInFestivalZoneRef = useRef(false);
   const { entry: festivalEntry, elapsedFormatted: festivalElapsed, isCompleted: festivalIsCompleted, refresh: refreshFestivalParticipation } = useFestivalParticipation();
 
@@ -366,6 +369,8 @@ export default function MapScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  /** 축제 목록 시트용: 같은 지역 전체 행사 (카메라에 안 잡혀도 목록에 표시) */
+  const [listSheetEvents, setListSheetEvents] = useState<Event[] | null>(null);
 
   const stayCompletedSentRef = useRef(false);
   const mapRef = useRef<React.ComponentRef<typeof NaverMap> | null>(null);
@@ -467,21 +472,47 @@ export default function MapScreen() {
   }, [events, distanceKmLimit, demoLocation, currentLocation, currentRegionKey, dateFilter, categoryFilter, scaleFilter, eventOverlapsDateRange]);
 
   const MAX_EVENT_LIST_ITEMS = 20;
-  /** 축제 목록 시트: 거리 지정 시 해당 거리 내 행사만, 아니면 카메라 영역 행사 + 날짜/카테고리/규모 필터 → 기준점에서 가까운 순, 최대 20개 */
+  /** 축제 목록 시트: 같은 지역이면 지역 전체 행사(listSheetEvents), 아니면 카메라 영역 행사(filteredEvents) + 날짜/카테고리/규모/거리 필터 → 가까운 순, 최대 20개 */
   const eventListFiltered = useMemo(() => {
     const center = distanceFilterCenter
       ?? listSheetCameraCenter
       ?? (region
         ? { latitude: region.latitude + region.latitudeDelta / 2, longitude: region.longitude + region.longitudeDelta / 2 }
         : { latitude: 37.5665, longitude: 126.978 });
-    const list = filteredEvents ?? [];
+    let list = (listSheetEvents != null ? listSheetEvents : filteredEvents) ?? [];
+    if (distanceKmLimit != null) {
+      const myPos = demoLocation ?? currentLocation ?? null;
+      if (myPos) {
+        list = list.filter((e) => {
+          const lat = e.latitude ?? 0;
+          const lng = e.longitude ?? 0;
+          return Number.isFinite(lat) && Number.isFinite(lng) && distanceKm(myPos.latitude, myPos.longitude, lat, lng) <= distanceKmLimit;
+        });
+      }
+    }
+    if (currentRegionKey) {
+      list = list.filter((e) => {
+        const r = e.regionName?.trim();
+        if (!r) return true;
+        return r === currentRegionKey || r.includes(currentRegionKey);
+      });
+    }
+    if (dateFilter) {
+      list = list.filter((e) => eventOverlapsDateRange(e.startAt, e.endAt, dateFilter.start, dateFilter.end));
+    }
+    if (categoryFilter !== 'all') {
+      list = list.filter((e) => (e.category ?? 'ETC') === categoryFilter);
+    }
+    if (scaleFilter !== 'all') {
+      list = list.filter((e) => (e.scale ?? 'PERSONAL') === scaleFilter);
+    }
     const withDist = list.map((e) => ({
       event: e,
       km: distanceKm(center.latitude, center.longitude, e.latitude ?? 0, e.longitude ?? 0),
     }));
     withDist.sort((a, b) => a.km - b.km);
     return withDist.slice(0, MAX_EVENT_LIST_ITEMS).map((x) => x.event);
-  }, [filteredEvents, distanceFilterCenter, listSheetCameraCenter, region]);
+  }, [listSheetEvents, filteredEvents, distanceFilterCenter, listSheetCameraCenter, region, distanceKmLimit, demoLocation, currentLocation, currentRegionKey, dateFilter, categoryFilter, scaleFilter, eventOverlapsDateRange]);
 
   const cameraIdleFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -701,30 +732,57 @@ export default function MapScreen() {
     setIsEntryModalVisible(true);
   };
 
-  /** 지도 카메라가 비추는 지역 기준으로 목록 시트 오픈 (가까운 순·최대 20개) */
+  /** 지도 카메라가 비추는 지역 기준으로 목록 시트 오픈. 같은 지역이면 해당 지역 전체 행사 조회 후 표시 (카메라에 안 잡혀도 조건 맞으면 목록에 표시) */
   const onPressFestivalList = () => {
     const center = region
       ? { latitude: region.latitude + region.latitudeDelta / 2, longitude: region.longitude + region.longitudeDelta / 2 }
       : { latitude: 37.5665, longitude: 126.978 };
     setListSheetCameraCenter(center);
+    if (currentRegionKey) {
+      const regCenter = REGION_CENTERS[currentRegionKey];
+      if (regCenter) {
+        const d = REGION_LIST_DELTA / 2;
+        getEventsOnMap({
+          swLat: regCenter.latitude - d,
+          neLat: regCenter.latitude + d,
+          swLng: regCenter.longitude - d,
+          neLng: regCenter.longitude + d,
+        })
+          .then(setListSheetEvents)
+          .catch(() => setListSheetEvents([]));
+      } else {
+        setListSheetEvents(null);
+      }
+    } else {
+      setListSheetEvents(null);
+    }
     setIsEventListSheetVisible(true);
   };
 
-  const handleSelectEventFromList = (event: Event) => {
+  const closeEventListSheet = useCallback(() => {
     setIsEventListSheetVisible(false);
+    setListSheetEvents(null);
+  }, []);
+
+  const handleSelectEventFromList = (event: Event) => {
+    closeEventListSheet();
     handleMarkerPress(event);
     setSheetMode('collapsed');
   };
 
-  // 규모·북마크: 필터 칩 줄 바로 아래 10dp (로그인 + 축제 참여 중일 때만 칩이 있으므로 그때만 밀기)
-  const chipPush = isLoggedIn && festivalEntry != null ? (festivalChipHeight || 60) + 10 : 0;
-  const scaleTop = filterBottomY + 10 + chipPush;
+  // 행사 참여 칩: 왼쪽 상단 (필터 칩 아래 10dp). 규모·북마크: 칩이 있으면 칩 아래에 배치.
+  const ACTIVE_CHIP_HEIGHT = 46;
+  const CHIP_TO_BUTTON_GAP = 10;
+  const row1Top = filterBottomY + 10;
   const scaleLeft = SPACING.scaleButtonLeft;
-  const bookmarkTop = scaleTop;
+  const SCALE_BTN_WIDTH = 56;
+  const scaleTop =
+    isLoggedIn && festivalEntry != null ? row1Top + ACTIVE_CHIP_HEIGHT + CHIP_TO_BUTTON_GAP : row1Top;
+  // 북마크: 항상 오른쪽 위, 필터 칩 바로 아래
+  const bookmarkTop = row1Top;
   const bookmarkRight = SPACING.base;
 
   // 규모 팝업: 규모 버튼 오른쪽 10dp, 팝업 상단은 버튼 상단보다 2dp 아래
-  const SCALE_BTN_WIDTH = 56;
   const popupLeft = scaleLeft + SCALE_BTN_WIDTH + SPACING.popupGap;
   const popupTop = scaleTop + 2;
 
@@ -881,13 +939,12 @@ export default function MapScreen() {
                 style={[
                   styles.activeChip,
                   {
-                    top: Math.max(filterBottomY + 10, 70),
+                    top: row1Top,
                     left: SPACING.base,
                     zIndex: 12,
                     elevation: 12,
                   },
                 ]}
-                onLayout={(e) => setFestivalChipHeight(e.nativeEvent.layout.height)}
               >
                 <View style={styles.activeChipLeft}>
                   <View style={styles.activeChipIconCircle}>
@@ -1094,7 +1151,7 @@ export default function MapScreen() {
               {mapSearching ? (
                 <ActivityIndicator size="small" color="#6366F1" />
               ) : (
-                <Ionicons name="search" size={20} color="#6366F1" />
+                <Ionicons name="search" size={20} color="#000000" />
               )}
             </TouchableOpacity>
           </View>
@@ -1152,10 +1209,11 @@ export default function MapScreen() {
         />
       </View>
 
-      {/* 길찾기 화면 (큰 카드 → 길찾기 버튼) */}
+      {/* 길찾기 화면 (큰 카드 → 길찾기 버튼): 출발=현재위치, 도착=행사장소 */}
       <DirectionScreen
         visible={isDirectionOpen}
         event={selectedEvent}
+        startLocation={demoLocation ?? currentLocation ?? undefined}
         onClose={() => setIsDirectionOpen(false)}
       />
 
@@ -1211,6 +1269,11 @@ export default function MapScreen() {
       <PopularFilterModal
         visible={activeFilter === 'popular'}
         onClose={() => setActiveFilter(null)}
+        selectedValue={popularFilter}
+        onSelect={(v) => {
+          setPopularFilter(v);
+          setActiveFilter(null);
+        }}
       />
       <DistanceFilterModal
         visible={activeFilter === 'distance'}
@@ -1236,13 +1299,13 @@ export default function MapScreen() {
         visible={isEventListSheetVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setIsEventListSheetVisible(false)}
+        onRequestClose={closeEventListSheet}
       >
-        <Pressable style={styles.eventListBackdrop} onPress={() => setIsEventListSheetVisible(false)} />
+        <Pressable style={styles.eventListBackdrop} onPress={closeEventListSheet} />
         <View style={[styles.eventListSheet, { paddingBottom: (insets.bottom || 0) + 16 }]}>
           <View style={styles.eventListSheetHeader}>
             <Text style={styles.eventListSheetTitle}>축제 목록</Text>
-            <TouchableOpacity onPress={() => setIsEventListSheetVisible(false)} hitSlop={8}>
+            <TouchableOpacity onPress={closeEventListSheet} hitSlop={8}>
               <Ionicons name="close" size={24} color="#111827" />
             </TouchableOpacity>
           </View>

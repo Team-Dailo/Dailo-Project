@@ -55,6 +55,19 @@ export async function getPostListByCategory(
   return res.json();
 }
 
+/** 행사별 후기 목록 (해당 행사에 연결된 게시글) */
+export async function getPostsByEventId(
+  eventId: number,
+  params?: { page?: number; size?: number }
+): Promise<PageResponse<PostListItem>> {
+  const page = params?.page ?? 0;
+  const size = params?.size ?? 20;
+  const url = `${API_BASE_URL}/api/posts/event/${eventId}?page=${page}&size=${size}`;
+  const res = await fetch(url, { headers: await getHeaders() });
+  if (!res.ok) throw new Error(`getPostsByEventId failed: ${res.status}`);
+  return res.json();
+}
+
 /** 게시글 검색 */
 export async function searchPosts(
   keyword: string,

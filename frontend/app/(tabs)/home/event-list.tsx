@@ -1,5 +1,5 @@
-// app/(tabs)/home/event-list.tsx - 행사 리스트 전체 (참고 이미지 스타일)
-import React from "react";
+// app/(tabs)/home/event-list.tsx - 행사 리스트 (지도 탭과 동일 필터 칩 + 검색)
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,11 +9,23 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEventList } from "../../../hooks/useEvent";
+import type { EventListSort } from "../../../services/event.service";
 import type { Event } from "../../../types/event";
+import { FilterChips } from "../map/_components/FilterChips";
+import {
+  DateFilterModal,
+  CategoryFilterModal,
+  PopularFilterModal,
+  DistanceFilterModal,
+  ScaleFilterModal,
+  type DateRange,
+} from "../map/_components/FilterModals";
+import { getDemoLocation } from "../../../services/demoLocationStorage";
 
 /** 2025.11.20 목요일 */
 function formatDate(iso: string): string {
@@ -55,16 +67,98 @@ function categoryLabel(cat: string | undefined): string {
   return (cat && map[cat]) || "기타";
 }
 
+/** 행사가 날짜 범위 [start, end]와 하루라도 겹치는지 */
+function eventOverlapsDateRange(event: Event, range: DateRange): boolean {
+  const eventStart = event.startAt.slice(0, 10);
+  const eventEnd = event.endAt ? event.endAt.slice(0, 10) : eventStart;
+  return eventStart <= range.end && eventEnd >= range.start;
+}
+
+/** 두 점 거리(km) 대략 계산 (Haversine 아님, 위도·경도 차이 근사) */
+function approxKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 export default function EventListScreen() {
   const router = useRouter();
-  const { events, loading, error, refetch } = useEventList({ size: 50 });
-  const [refreshing, setRefreshing] = React.useState(false);
+  const sort: EventListSort =
+    popularFilter === "all" ? null : (popularFilter as EventListSort);
+  const { events, loading, error, refetch } = useEventList({ size: 50, sort });
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<
+    "date" | "category" | "popular" | "distance" | "scale" | null
+  >(null);
+  const [dateRange, setDateRange] = useState<DateRange | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [popularFilter, setPopularFilter] = useState<string>("all");
+  const [distanceFilter, setDistanceFilter] = useState<string>("all");
+  const [scaleFilter, setScaleFilter] = useState<string>("all");
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-  const onRefresh = React.useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const demo = await getDemoLocation();
+      if (cancelled) return;
+      if (demo) setUserLocation({ lat: demo.latitude, lng: demo.longitude });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   }, [refetch]);
+
+  /** 날짜·카테고리·규모·검색·정렬(거리) 적용 */
+  const filteredEvents = useMemo(() => {
+    let list = events;
+    if (dateRange) {
+      list = list.filter((e) => eventOverlapsDateRange(e, dateRange));
+    }
+    if (categoryFilter !== "all") {
+      list = list.filter((e) => (e.category ?? "ETC") === categoryFilter);
+    }
+    if (scaleFilter !== "all") {
+      list = list.filter((e) => (e.scale ?? "PERSONAL") === scaleFilter);
+    }
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (e) =>
+          (e.title ?? "").toLowerCase().includes(q) ||
+          (e.placeName ?? "").toLowerCase().includes(q) ||
+          (e.address ?? "").toLowerCase().includes(q)
+      );
+    }
+    if (distanceFilter !== "all" && userLocation) {
+      list = [...list].sort(
+        (a, b) =>
+          approxKm(userLocation.lat, userLocation.lng, a.latitude, a.longitude) -
+          approxKm(userLocation.lat, userLocation.lng, b.latitude, b.longitude)
+      );
+    }
+    return list;
+  }, [
+    events,
+    dateRange,
+    categoryFilter,
+    scaleFilter,
+    searchQuery,
+    distanceFilter,
+    userLocation,
+  ]);
 
   if (error) {
     return (
@@ -84,20 +178,59 @@ export default function EventListScreen() {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
+      keyboardShouldPersistTaps="handled"
     >
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>행사 리스트</Text>
         </View>
+
+        {/* 검색창 */}
+        <View style={styles.searchBarWrap}>
+          <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="행사명 또는 장소 검색"
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 ? (
+            <Pressable
+              onPress={() => setSearchQuery("")}
+              style={styles.searchClear}
+              hitSlop={8}
+            >
+              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {/* 지도 탭과 동일한 필터 칩 (날짜·카테고리·인기/추천·거리·규모) */}
+        <View style={styles.filterChipsWrap}>
+          <FilterChips
+            onPressDate={() => setActiveFilter("date")}
+            onPressCategory={() => setActiveFilter("category")}
+            onPressPopular={() => setActiveFilter("popular")}
+            onPressDistance={() => setActiveFilter("distance")}
+            onPressScale={() => setActiveFilter("scale")}
+          />
+        </View>
+
         <View style={styles.eventCardList}>
           {loading ? (
             <View style={styles.eventCardLoading}>
               <ActivityIndicator size="small" color="#6366F1" />
             </View>
-          ) : events.length === 0 ? (
-            <Text style={styles.eventCardEmpty}>등록된 행사가 없어요</Text>
+          ) : filteredEvents.length === 0 ? (
+            <Text style={styles.eventCardEmpty}>
+              {events.length === 0
+                ? "등록된 행사가 없어요"
+                : "조건에 맞는 행사가 없어요"}
+            </Text>
           ) : (
-            events.map((event: Event) => {
+            filteredEvents.map((event: Event) => {
               const dateStr = formatDate(event.startAt);
               const timeStr = formatTimeRange(event.startAt, event.endAt);
               return (
@@ -128,7 +261,9 @@ export default function EventListScreen() {
                       ) : null}
                     </View>
                     <View style={styles.eventCardFooter}>
-                      <Text style={styles.detailButtonText}>자세히 보기</Text>
+                      <View style={styles.eventCardFooterCenter}>
+                        <Text style={styles.detailButtonText}>자세히 보기</Text>
+                      </View>
                       <Ionicons
                         name="chevron-forward"
                         size={16}
@@ -142,6 +277,50 @@ export default function EventListScreen() {
           )}
         </View>
       </View>
+
+      {/* 필터 모달 (지도 탭과 동일) */}
+      <DateFilterModal
+        visible={activeFilter === "date"}
+        onClose={() => setActiveFilter(null)}
+        selectedDateRange={dateRange}
+        onSelectDateRange={setDateRange}
+      />
+      <CategoryFilterModal
+        visible={activeFilter === "category"}
+        onClose={() => setActiveFilter(null)}
+        selectedValue={categoryFilter}
+        onSelect={(v) => {
+          setCategoryFilter(v);
+          setActiveFilter(null);
+        }}
+      />
+      <PopularFilterModal
+        visible={activeFilter === "popular"}
+        onClose={() => setActiveFilter(null)}
+        selectedValue={popularFilter}
+        onSelect={(v) => {
+          setPopularFilter(v);
+          setActiveFilter(null);
+        }}
+      />
+      <DistanceFilterModal
+        visible={activeFilter === "distance"}
+        onClose={() => setActiveFilter(null)}
+        selectedValue={distanceFilter}
+        onSelect={(v) => {
+          setDistanceFilter(v);
+          setActiveFilter(null);
+        }}
+      />
+      <ScaleFilterModal
+        visible={activeFilter === "scale"}
+        onClose={() => setActiveFilter(null)}
+        selectedValue={scaleFilter}
+        onSelect={(v) => {
+          setScaleFilter(v);
+          setActiveFilter(null);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -185,8 +364,34 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
   },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#111827",
+    paddingVertical: 8,
+    paddingRight: 8,
+  },
+  searchClear: {
+    padding: 4,
+  },
+  filterChipsWrap: {
+    marginHorizontal: -4,
+    marginBottom: 12,
+  },
   eventCardList: {
-    gap: 12,
+    gap: 0,
   },
   eventCardLoading: {
     paddingVertical: 24,
@@ -202,29 +407,27 @@ const styles = StyleSheet.create({
   eventCard: {
     flexDirection: "row",
     alignItems: "stretch",
-    borderRadius: 14,
+    borderRadius: 0,
     backgroundColor: "#FFFFFF",
     padding: 14,
     overflow: "hidden",
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+    borderBottomColor: "#E5E7EB",
   },
   eventImage: {
     width: 96,
     minWidth: 96,
-    aspectRatio: 2 / 3,
-    borderRadius: 10,
+    height: 128,
+    borderRadius: 0,
     marginRight: 14,
     backgroundColor: "#E5E7EB",
   },
   eventInfo: {
     flex: 1,
     minWidth: 0,
+    minHeight: 128,
     justifyContent: "space-between",
     paddingVertical: 2,
   },
@@ -241,11 +444,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
     lineHeight: 20,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   eventMeta: {
     gap: 2,
-    marginBottom: 10,
+    marginBottom: 4,
   },
   eventDate: {
     fontSize: 12,
@@ -258,11 +461,16 @@ const styles = StyleSheet.create({
   eventCardFooter: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
+    justifyContent: "space-between",
     height: 36,
     borderRadius: 10,
     backgroundColor: "#2563EB",
+    paddingHorizontal: 12,
+  },
+  eventCardFooterCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   detailButtonText: {
     color: "#FFFFFF",

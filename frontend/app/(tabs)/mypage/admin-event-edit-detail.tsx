@@ -16,6 +16,8 @@ import {
   Platform,
   Linking,
   TouchableOpacity,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, router } from "expo-router";
@@ -58,6 +60,24 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "ENDED", label: "종료됨" },
   { value: "INACTIVE", label: "비활성화" },
 ];
+
+/** 지역 피커: 도(광역) → 도시. 우선 충청북도만 */
+const REGION_PROVINCES = ["충청북도"];
+const REGION_CITIES_BY_PROVINCE: Record<string, string[]> = {
+  충청북도: [
+    "충주시",
+    "제천시",
+    "청주시",
+    "괴산군",
+    "단양군",
+    "보은군",
+    "영동군",
+    "옥천군",
+    "음성군",
+    "증평군",
+    "진천군",
+  ],
+};
 
 // --- 소식/타임테이블/부스 (extraJson으로 API 저장) ---
 export type NewsItemEdit = { id: string; title: string; body: string; date: string };
@@ -131,6 +151,8 @@ export default function AdminEventEditDetailScreen() {
   // API 연동 필드
   const [title, setTitle] = useState("");
   const [placeName, setPlaceName] = useState("");
+  const [placeAddress, setPlaceAddress] = useState("");
+  const [regionName, setRegionName] = useState("");
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
   const [hostContact, setHostContact] = useState("");
@@ -170,6 +192,7 @@ export default function AdminEventEditDetailScreen() {
     | { type: "title" }
     | { type: "time" }
     | { type: "place" }
+    | { type: "region" }
     | { type: "host" }
     | { type: "coords" }
     | { type: "categories" }
@@ -188,6 +211,8 @@ export default function AdminEventEditDetailScreen() {
       const res = await adminService.getAdminEventDetail(eventId);
       setTitle(res.title ?? "");
       setPlaceName(res.placeName ?? "");
+      setPlaceAddress(res.placeAddress ?? "");
+      setRegionName(res.regionName ?? "");
       setStartAt(res.startAt ? res.startAt.slice(0, 16) : "");
       setEndAt(res.endAt ? res.endAt.slice(0, 16) : "");
       setHostContact(res.hostContact ?? "");
@@ -260,6 +285,8 @@ export default function AdminEventEditDetailScreen() {
       const body: adminService.AdminEventCreateRequest = {
         title: title.trim(),
         placeName: placeName.trim() || undefined,
+        placeAddress: placeAddress.trim() || undefined,
+        regionName: regionName.trim() || undefined,
         latitude: lat,
         longitude: lng,
         startAt: start,
@@ -385,6 +412,11 @@ export default function AdminEventEditDetailScreen() {
               <Text style={styles.infoText} numberOfLines={1}>{placeStr}</Text>
               <Ionicons name="pencil" size={14} color="#9CA3AF" />
             </Pressable>
+            <Pressable style={styles.infoRow} onPress={() => setEditTarget({ type: "region" })}>
+              <Ionicons name="map-outline" size={18} color="#6B7280" style={styles.infoIcon} />
+              <Text style={styles.infoText} numberOfLines={1}>{regionName.trim() || "지역 입력 (목록/지도 필터용)"}</Text>
+              <Ionicons name="pencil" size={14} color="#9CA3AF" />
+            </Pressable>
             <Pressable style={styles.infoRow} onPress={() => setEditTarget({ type: "host" })}>
               <Ionicons name="information-circle-outline" size={18} color="#6B7280" style={styles.infoIcon} />
               <Text style={styles.infoText} numberOfLines={1}>{hostStr}</Text>
@@ -394,8 +426,8 @@ export default function AdminEventEditDetailScreen() {
               <Ionicons name="navigate-outline" size={18} color="#6B7280" style={styles.infoIcon} />
               <Text style={styles.infoText} numberOfLines={1}>
                 {latitude.trim() && longitude.trim()
-                  ? `위도 ${latitude} / 경도 ${longitude}`
-                  : "위도·경도 입력 (지도 표시용)"}
+                  ? "위치 설정됨 (탭하여 주소 검색 또는 지도에서 다시 선택)"
+                  : "주소 검색 또는 지도에서 위치 선택 (탭하여 편집)"}
               </Text>
               <Ionicons name="pencil" size={14} color="#9CA3AF" />
             </Pressable>
@@ -490,6 +522,7 @@ export default function AdminEventEditDetailScreen() {
           timeStart: startAt,
           timeEnd: endAt,
           place: placeName,
+          region: regionName,
           host: hostContact,
           latitude,
           longitude,
@@ -506,6 +539,7 @@ export default function AdminEventEditDetailScreen() {
           setTitle,
           setEndAt,
           setPlaceName,
+          setRegionName,
           setHostContact,
           setLatitude,
           setLongitude,
@@ -684,6 +718,14 @@ function EditModal({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedFilterGroup, setSelectedFilterGroup] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("DRAFT");
+  /** 지역 피커 휠: 도·도시 인덱스 (다이얼처럼 돌려서 선택) */
+  const [selectedRegionProvinceIndex, setSelectedRegionProvinceIndex] = useState(0);
+  const [selectedRegionCityIndex, setSelectedRegionCityIndex] = useState(0);
+  const regionProvinceScrollRef = useRef<ScrollView>(null);
+  const regionCityScrollRef = useRef<ScrollView>(null);
+
+  const WHEEL_ITEM_HEIGHT = 44;
+  const WHEEL_VISIBLE_COUNT = 5;
 
   useEffect(() => {
     if (!editTarget) return;
@@ -698,6 +740,19 @@ function EditModal({
     }
     if (editTarget.type === "title") setText((values.title as string) ?? "");
     if (editTarget.type === "place") setText((values.place as string) ?? "");
+    if (editTarget.type === "region") {
+      const regionStr = (values.region as string) ?? "";
+      setText(regionStr);
+      const s = regionStr.trim();
+      const pi = REGION_PROVINCES.findIndex((p) => s.startsWith(p));
+      if (pi >= 0) {
+        setSelectedRegionProvinceIndex(pi);
+        const rest = s.slice(REGION_PROVINCES[pi].length).trim();
+        const cities = REGION_CITIES_BY_PROVINCE[REGION_PROVINCES[pi]] ?? [];
+        const ci = cities.findIndex((c) => rest === c || rest.startsWith(c));
+        setSelectedRegionCityIndex(ci >= 0 ? ci : 0);
+      }
+    }
     if (editTarget.type === "host") setText((values.host as string) ?? "");
     if (editTarget.type === "coords") {
       setText((values.latitude as string) ?? "");
@@ -752,11 +807,28 @@ function EditModal({
     }
   }, [editTarget, values]);
 
+  // 지역 휠 초기 스크롤 위치
+  useEffect(() => {
+    if (editTarget?.type !== "region") return;
+    const t = setTimeout(() => {
+      regionProvinceScrollRef.current?.scrollTo({
+        y: selectedRegionProvinceIndex * WHEEL_ITEM_HEIGHT,
+        animated: false,
+      });
+      regionCityScrollRef.current?.scrollTo({
+        y: selectedRegionCityIndex * WHEEL_ITEM_HEIGHT,
+        animated: false,
+      });
+    }, 100);
+    return () => clearTimeout(t);
+  }, [editTarget?.type, selectedRegionProvinceIndex, selectedRegionCityIndex]);
+
   if (!editTarget) return null;
 
   const handleConfirm = () => {
     if (editTarget.type === "title") onSave.setTitle(text);
     if (editTarget.type === "place") onSave.setPlaceName(text);
+    if (editTarget.type === "region") onSave.setRegionName?.(text);
     if (editTarget.type === "host") onSave.setHostContact(text);
     if (editTarget.type === "coords") {
       onSave.setLatitude?.(text);
@@ -834,6 +906,7 @@ function EditModal({
     title: "축제 이름",
     time: "시작/종료 시간",
     place: "장소",
+    region: "지역",
     host: "주최",
     coords: "위도 / 경도",
     categories: "카테고리",
@@ -928,6 +1001,7 @@ function EditModal({
               placeholder={
                 editTarget?.type === "title" ? "축제 이름" :
                 editTarget?.type === "place" ? "장소" :
+                editTarget?.type === "region" ? "직접 입력 또는 아래 휠에서 선택 (목록/지도 필터용)" :
                 editTarget?.type === "host" ? "주최" :
                 editTarget?.type === "coords" ? "위도 (예: 37.5665)" :
                 editTarget?.type === "date" ? "예: 2025-02-15T10:00" :
@@ -937,6 +1011,69 @@ function EditModal({
               placeholderTextColor="#9CA3AF"
               keyboardType={editTarget?.type === "coords" ? "decimal-pad" : "default"}
             />
+            )}
+            {editTarget?.type === "region" && (
+              <View style={styles.regionWheelWrap}>
+                <Text style={styles.regionWheelLabel}>도 · 도시 선택 (휠)</Text>
+                <View style={styles.regionWheelRow}>
+                  <View style={styles.regionWheelColumn}>
+                    <Text style={styles.regionWheelColumnTitle}>도</Text>
+                    <ScrollView
+                      ref={regionProvinceScrollRef}
+                      style={[styles.regionWheelScroll, { height: WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_COUNT }]}
+                      contentContainerStyle={{ paddingVertical: WHEEL_ITEM_HEIGHT * 2 }}
+                      showsVerticalScrollIndicator={false}
+                      snapToInterval={WHEEL_ITEM_HEIGHT}
+                      snapToAlignment="center"
+                      decelerationRate="fast"
+                      onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+                        const y = e.nativeEvent.contentOffset.y;
+                        const index = Math.round(y / WHEEL_ITEM_HEIGHT);
+                        const i = Math.max(0, Math.min(index, REGION_PROVINCES.length - 1));
+                        setSelectedRegionProvinceIndex(i);
+                        const prov = REGION_PROVINCES[i];
+                        const cities = REGION_CITIES_BY_PROVINCE[prov] ?? [];
+                        const j = Math.min(selectedRegionCityIndex, cities.length - 1);
+                        setSelectedRegionCityIndex(j);
+                        setText(cities[j] ? `${prov} ${cities[j]}` : prov);
+                      }}
+                    >
+                      {REGION_PROVINCES.map((p, i) => (
+                        <View key={p} style={[styles.regionWheelItem, { height: WHEEL_ITEM_HEIGHT }]}>
+                          <Text style={styles.regionWheelItemText}>{p}</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                  <View style={styles.regionWheelColumn}>
+                    <Text style={styles.regionWheelColumnTitle}>도시</Text>
+                    <ScrollView
+                      ref={regionCityScrollRef}
+                      style={[styles.regionWheelScroll, { height: WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_COUNT }]}
+                      contentContainerStyle={{ paddingVertical: WHEEL_ITEM_HEIGHT * 2 }}
+                      showsVerticalScrollIndicator={false}
+                      snapToInterval={WHEEL_ITEM_HEIGHT}
+                      snapToAlignment="center"
+                      decelerationRate="fast"
+                      onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+                        const y = e.nativeEvent.contentOffset.y;
+                        const index = Math.round(y / WHEEL_ITEM_HEIGHT);
+                        const prov = REGION_PROVINCES[selectedRegionProvinceIndex];
+                        const cities = REGION_CITIES_BY_PROVINCE[prov] ?? [];
+                        const j = Math.max(0, Math.min(index, cities.length - 1));
+                        setSelectedRegionCityIndex(j);
+                        setText(cities[j] ? `${prov} ${cities[j]}` : prov);
+                      }}
+                    >
+                      {(REGION_CITIES_BY_PROVINCE[REGION_PROVINCES[selectedRegionProvinceIndex]] ?? []).map((c, i) => (
+                        <View key={c} style={[styles.regionWheelItem, { height: WHEEL_ITEM_HEIGHT }]}>
+                          <Text style={styles.regionWheelItemText}>{c}</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                </View>
+              </View>
             )}
             {(editTarget?.type === "time" || editTarget?.type === "coords" || editTarget?.type === "news" || editTarget?.type === "timeline" || editTarget?.type === "booth") && (
               <TextInput
@@ -1129,6 +1266,14 @@ const styles = StyleSheet.create({
   modalChipTextSelected: { color: "#FFF", fontWeight: "600" },
   filterGroupBadge: { width: 12, height: 12, borderRadius: 6, marginLeft: 4 },
   filterGroupChipBadge: { width: 14, height: 14, borderRadius: 7 },
+  regionWheelWrap: { marginTop: 16, marginBottom: 8 },
+  regionWheelLabel: { fontSize: 13, color: "#6B7280", marginBottom: 8 },
+  regionWheelRow: { flexDirection: "row", gap: 12 },
+  regionWheelColumn: { flex: 1 },
+  regionWheelColumnTitle: { fontSize: 12, color: "#9CA3AF", marginBottom: 4, textAlign: "center" },
+  regionWheelScroll: { backgroundColor: "#F3F4F6", borderRadius: 12 },
+  regionWheelItem: { justifyContent: "center", alignItems: "center" },
+  regionWheelItemText: { fontSize: 16, color: "#111827", fontWeight: "500" },
   modalActions: { flexDirection: "row", gap: 12, marginTop: 8 },
   modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: "center" },
   modalBtnPrimary: { backgroundColor: "#2563EB" },

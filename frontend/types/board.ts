@@ -12,6 +12,8 @@ export type PostListItem = {
   /** 목록 미리보기용 본문 일부 */
   contentPreview?: string;
   categoryType: string;
+  /** 후기일 때 연관 행사 ID */
+  eventId?: number | null;
   viewCount: number;
   likeCount: number;
   commentCount: number;
@@ -32,6 +34,8 @@ export type PostRequest = {
   title: string;
   content: string;
   categoryType: string;
+  /** 후기 카테고리일 때 연관 행사 ID (선택) */
+  eventId?: number | null;
 };
 
 /** 댓글 (CommentResponseDto) */

@@ -39,6 +39,20 @@ export async function getTopSearchKeywords(limit = 10): Promise<string[]> {
   return Array.isArray(data) ? data : [];
 }
 
+/** 인기 검색어 + 검색 수 (순위·검색수 표시용) - GET /api/logs/search/top-with-count */
+export type TopSearchKeywordItem = { keyword: string; count: number };
+
+export async function getTopSearchKeywordsWithCount(limit = 10): Promise<TopSearchKeywordItem[]> {
+  const res = await fetch(`${API_BASE_URL}/api/logs/search/top-with-count?limit=${limit}`);
+  if (!res.ok) throw new Error(`top keywords with count failed: ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+  return data.map((x: { keyword?: string; count?: number }) => ({
+    keyword: x.keyword ?? '',
+    count: typeof x.count === 'number' ? x.count : 0,
+  }));
+}
+
 /** 클릭 로그 기록 - POST /api/logs/click */
 export async function logClick(body: {
   eventId: number;

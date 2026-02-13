@@ -8,8 +8,12 @@ import {
   TouchableOpacity,
   Pressable,
   Alert,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { MAP_UI } from '../../../../constants/colors';
+
+const MARKER_ICON = require('../../../../assets/images/marker-pin.png');
 
 type CommonProps = {
   visible: boolean;
@@ -197,7 +201,7 @@ export function DateFilterModal({ visible, onClose, selectedDateRange, onSelectD
    공통 리스트 모달
    =========================== */
 
-type ListOption = { label: string; value: string };
+type ListOption = { label: string; value: string; /** 규모 모달용: 마커 tint 색상 */ iconColor?: string };
 
 type ListModalProps = CommonProps & {
   title: string;
@@ -231,7 +235,7 @@ function ListFilterModal({
             </TouchableOpacity>
           </View>
 
-          {/* 옵션 리스트 */}
+          {/* 옵션 리스트 (iconColor 있으면 왼쪽에 마커 아이콘 표시) */}
           {options.map(option => {
             const active = selectedValue === option.value;
             return (
@@ -241,7 +245,16 @@ function ListFilterModal({
                 onPress={() => onSelect(option.value)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.optionLabel}>{option.label}</Text>
+                <View style={styles.optionLabelWrap}>
+                  {option.iconColor != null ? (
+                    <Image
+                      source={MARKER_ICON}
+                      style={[styles.optionMarkerIcon, { tintColor: option.iconColor }]}
+                      resizeMode="contain"
+                    />
+                  ) : null}
+                  <Text style={styles.optionLabel}>{option.label}</Text>
+                </View>
                 {active && (
                   <View style={styles.radioOuter}>
                     <View style={styles.radioInner} />
@@ -283,14 +296,18 @@ export function CategoryFilterModal({ selectedValue, onSelect, ...rest }: Catego
   );
 }
 
-export function PopularFilterModal(props: CommonProps) {
-  const [selected, setSelected] = useState('all');
+type PopularModalProps = CommonProps & {
+  selectedValue: string;
+  onSelect: (value: string) => void;
+};
+
+export function PopularFilterModal({ selectedValue, onSelect, ...rest }: PopularModalProps) {
   return (
     <ListFilterModal
-      {...props}
+      {...rest}
       title="인기 추천"
-      selectedValue={selected}
-      onSelect={setSelected}
+      selectedValue={selectedValue}
+      onSelect={onSelect}
       options={[
         { label: '전체', value: 'all' },
         { label: '지금 뜨는 축제', value: 'trending' },
@@ -340,11 +357,11 @@ export function ScaleFilterModal({ selectedValue, onSelect, ...rest }: ScaleModa
       onSelect={onSelect}
       options={[
         { label: '전체', value: 'all' },
-        { label: '시·군·구', value: 'CITY' },
-        { label: '대학교', value: 'UNIVERSITY' },
-        { label: '단과대/학생회', value: 'DEPARTMENT' },
-        { label: '동아리/소모임', value: 'CLUB' },
-        { label: '개인', value: 'PERSONAL' },
+        { label: '시·군·구', value: 'CITY', iconColor: MAP_UI.scaleBadge[0] },
+        { label: '대학교', value: 'UNIVERSITY', iconColor: MAP_UI.scaleBadge[1] },
+        { label: '단과대/학생회', value: 'DEPARTMENT', iconColor: MAP_UI.scaleBadge[2] },
+        { label: '동아리/소모임', value: 'CLUB', iconColor: MAP_UI.scaleBadge[3] },
+        { label: '개인', value: 'PERSONAL', iconColor: MAP_UI.scaleBadge[4] },
       ]}
     />
   );
@@ -515,6 +532,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     height: 44,
+  },
+  optionLabelWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  optionMarkerIcon: {
+    width: 20,
+    height: 26,
   },
   optionLabel: {
     fontSize: 14,

@@ -1,5 +1,5 @@
 // app/(tabs)/calendar/index.tsx
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,44 +8,40 @@ import {
   Pressable,
   ActivityIndicator,
   Dimensions,
+  PanResponder,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { getCalendarEvents, type CalendarEventItem } from "../../../services/event.service";
+import { getEventColorByFilterGroup, MAP_UI } from "../../../constants/colors";
 
+/** 요일: 일-토 순서 */
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const BOTTOM_SHEET_MAX_RATIO = 0.4;
-/** 달력·하단시트 공통 가로 여백 (가로 크기 넘지 않게) */
-const HORIZONTAL_PADDING = 20;
+const BOTTOM_SHEET_MAX_RATIO = 0.34;
+const BOTTOM_SHEET_EXPANDED_RATIO = 0.72;
+/** 달력·하단시트 공통 가로 여백 (줄인 여백) */
+const HORIZONTAL_PADDING = 12;
 const CONTENT_MAX_WIDTH = SCREEN_WIDTH - HORIZONTAL_PADDING * 2;
 
-/** 카테고리 필터 (사진처럼) */
+/** 카테고리 필터 색상: 지도·관리자와 동일 (MAP_UI.scaleBadge) */
 const FILTER_CATEGORIES = [
-  { id: "충주시", label: "충주시", borderColor: "#EF4444" },
-  { id: "대학교", label: "대학교", borderColor: "#F97316" },
-  { id: "총학생회", label: "총학생회", borderColor: "#EAB308" },
-  { id: "단과대", label: "단과대", borderColor: "#0EA5E9" },
-  { id: "동아리", label: "동아리", borderColor: "#22C55E" },
+  { id: "충주시", label: "충주시", color: MAP_UI.scaleBadge[0], bgLight: "#FEE2E2" },
+  { id: "대학교", label: "대학교", color: MAP_UI.scaleBadge[1], bgLight: "#FFEDD5" },
+  { id: "총학생회", label: "학생회", color: MAP_UI.scaleBadge[2], bgLight: "#FEF9C3" },
+  { id: "동아리", label: "동아리", color: MAP_UI.scaleBadge[3], bgLight: "#DCFCE7" },
+  { id: "개인", label: "개인", color: MAP_UI.scaleBadge[4], bgLight: "#DBEAFE" },
 ] as const;
 
-/** 달력 필터 id(충주시 등) → 백엔드 filterGroup enum 값 (행사 등록 시 지정한 구분으로 필터) */
-const FILTER_ID_TO_GROUP: Record<string, string> = {
+/** 달력 필터 id → 백엔드 filterGroup (관리자 규모와 동일: 단과대/학생회 = COLLEGE) */
+const FILTER_ID_TO_GROUP: Record<string, string | null> = {
   충주시: "CHUNGJU_CITY",
   대학교: "UNIVERSITY",
-  총학생회: "STUDENT_COUNCIL",
-  단과대: "COLLEGE",
+  총학생회: "COLLEGE",
   동아리: "CLUB",
-};
-
-/** filterGroup → 칩/카드 공통 색상 (칩 선택 시 보이는 색과 카드 색이 동일하게) */
-const FILTER_GROUP_TO_COLOR: Record<string, string> = {
-  CHUNGJU_CITY: "#EF4444",   // 충주시
-  UNIVERSITY: "#F97316",      // 대학교 주황
-  STUDENT_COUNCIL: "#EAB308", // 총학생회
-  COLLEGE: "#0EA5E9",         // 단과대
-  CLUB: "#22C55E",            // 동아리
+  개인: "",
 };
 
 type DayCell = { day: number; currentMonth: boolean; date: Date };
@@ -65,16 +61,10 @@ function getCategoryColor(category: string): string {
   return CATEGORY_COLORS[category] ?? CATEGORY_COLORS.ETC;
 }
 
-/** 규모(filterGroup)에 따른 색상 - 필터 칩과 동일한 색으로 카드·도트 표시 */
-function getFilterGroupColor(filterGroup: string | null | undefined): string {
-  if (!filterGroup) return "#6B7280";
-  return FILTER_GROUP_TO_COLOR[filterGroup] ?? "#6B7280";
-}
-
-/** 이벤트 표시 색상: 규모(filterGroup) 우선, 없으면 카테고리 (칩 선택 색과 동일) */
+/** 이벤트 표시 색상: 규모(filterGroup) 우선·지도/관리자와 동일, 없을 때만 카테고리 */
 function getEventColor(ev: CalendarEventItem): string {
-  if (ev.filterGroup != null && ev.filterGroup !== "") {
-    return getFilterGroupColor(ev.filterGroup);
+  if (ev.filterGroup !== undefined) {
+    return getEventColorByFilterGroup(ev.filterGroup);
   }
   return getCategoryColor(ev.category);
 }
@@ -103,6 +93,28 @@ function getDayFromIso(iso: string): number {
   }
 }
 
+/** 행사가 해당 월에 걸쳐 있는 모든 날(일) 목록. 2일 이상이면 여러 날 반환 */
+function getEventDaysInMonth(ev: CalendarEventItem, year: number, month: number): number[] {
+  try {
+    const start = new Date(ev.startAt);
+    const end = ev.endAt ? new Date(ev.endAt) : new Date(ev.startAt);
+    const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const endDate = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    const days: number[] = [];
+    const cur = new Date(startDate.getTime());
+    while (cur <= endDate) {
+      if (cur.getFullYear() === year && cur.getMonth() === month - 1) {
+        days.push(cur.getDate());
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    return days;
+  } catch {
+    const d = getDayFromIso(ev.startAt);
+    return d ? [d] : [];
+  }
+}
+
 /** 백엔드 LocalDateTime이 배열 [y,mo,d,h,min,s]로 올 수 있음 → ISO 문자열로 통일 */
 function toIsoString(v: unknown): string {
   if (v == null) return "";
@@ -126,6 +138,7 @@ function normalizeCalendarItem(raw: CalendarEventItem & { filter_group?: string 
   };
 }
 
+/** 일요일 시작 주 (일-토 순서) */
 function buildCalendarWeeks(year: number, month: number): DayCell[][] {
   const first = new Date(year, month - 1, 1);
   const last = new Date(year, month, 0);
@@ -181,6 +194,35 @@ export default function CalendarScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+  const sheetHeightAnim = useRef(
+    new Animated.Value(SCREEN_HEIGHT * BOTTOM_SHEET_MAX_RATIO)
+  ).current;
+
+  const animateSheetHeight = useCallback((expand: boolean) => {
+    const toValue = expand
+      ? SCREEN_HEIGHT * BOTTOM_SHEET_EXPANDED_RATIO
+      : SCREEN_HEIGHT * BOTTOM_SHEET_MAX_RATIO;
+    Animated.timing(sheetHeightAnim, {
+      toValue,
+      duration: 250,
+      useNativeDriver: false,
+    }).start();
+    setSheetExpanded(expand);
+  }, [sheetHeightAnim]);
+
+  const sheetPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dy) > 8,
+      onPanResponderRelease: (_, gestureState) => {
+        const { dy } = gestureState;
+        if (dy < -25) animateSheetHeight(true);
+        else if (dy > 25) animateSheetHeight(false);
+      },
+    })
+  ).current;
 
   const fetchEvents = useCallback(async (year: number, month: number) => {
     setLoading(true);
@@ -205,37 +247,43 @@ export default function CalendarScreen() {
     [viewYear, viewMonth]
   );
 
-  /** 달력 위 점(dots): 카테고리 선택 시 해당 카테고리 행사만 표시 (해당 색 점만) */
+  /** 달력 위 점(dots): 카테고리 선택 시 해당 카테고리 행사만 표시. 2일 이상 행사는 해당하는 모든 날에 점 표시 */
   const eventsByDayForDots = useMemo(() => {
     const filterGroupValue =
       selectedCategory != null ? FILTER_ID_TO_GROUP[selectedCategory] ?? null : null;
     const filtered =
       filterGroupValue === null
         ? events
-        : events.filter(
-            (ev) =>
-              ev.filterGroup != null &&
-              String(ev.filterGroup).trim() === String(filterGroupValue).trim()
-          );
+        : filterGroupValue === ""
+          ? events.filter((ev) => !ev.filterGroup || String(ev.filterGroup).trim() === "")
+          : events.filter(
+              (ev) =>
+                ev.filterGroup != null &&
+                String(ev.filterGroup).trim() === String(filterGroupValue).trim()
+            );
     const map: Record<number, CalendarEventItem[]> = {};
     filtered.forEach((ev) => {
-      const d = getDayFromIso(ev.startAt);
-      if (!map[d]) map[d] = [];
-      map[d].push(ev);
+      const daysInMonth = getEventDaysInMonth(ev, viewYear, viewMonth);
+      daysInMonth.forEach((d) => {
+        if (!map[d]) map[d] = [];
+        map[d].push(ev);
+      });
     });
     return map;
-  }, [events, selectedCategory]);
+  }, [events, selectedCategory, viewYear, viewMonth]);
 
-  /** 상세보기 칸: 해당 날짜의 모든 행사 (카테고리 필터 무관) */
+  /** 상세보기 칸: 해당 날짜의 모든 행사 (카테고리 필터 무관). 2일 이상 행사는 해당하는 모든 날에 표시 */
   const eventsByDayAll = useMemo(() => {
     const map: Record<number, CalendarEventItem[]> = {};
     events.forEach((ev) => {
-      const d = getDayFromIso(ev.startAt);
-      if (!map[d]) map[d] = [];
-      map[d].push(ev);
+      const daysInMonth = getEventDaysInMonth(ev, viewYear, viewMonth);
+      daysInMonth.forEach((d) => {
+        if (!map[d]) map[d] = [];
+        map[d].push(ev);
+      });
     });
     return map;
-  }, [events]);
+  }, [events, viewYear, viewMonth]);
 
   const selectedEvents = useMemo(() => {
     return eventsByDayAll[selectedDay] ?? [];
@@ -261,8 +309,15 @@ export default function CalendarScreen() {
   };
 
   const handleDayPress = (cell: DayCell) => {
-    if (!cell.currentMonth) return;
-    setSelectedDay(cell.day);
+    if (cell.currentMonth) {
+      setSelectedDay(cell.day);
+    } else {
+      // 옅게 보이는 이전달/다음달 날짜 터치 시 해당 달로 이동
+      setViewYear(cell.date.getFullYear());
+      setViewMonth(cell.date.getMonth() + 1);
+      setSelectedDay(cell.day);
+    }
+    animateSheetHeight(false);
   };
 
   const isToday = (cell: DayCell) =>
@@ -276,10 +331,29 @@ export default function CalendarScreen() {
     return WEEKDAYS[d.getDay()];
   }, [viewYear, viewMonth, selectedDay]);
 
+  const SWIPE_THRESHOLD = 50;
+  const monthNavRef = useRef({ handlePrevMonth: () => {}, handleNextMonth: () => {} });
+  monthNavRef.current.handlePrevMonth = handlePrevMonth;
+  monthNavRef.current.handleNextMonth = handleNextMonth;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const { dx, dy } = gestureState;
+        return Math.abs(dx) > 25 && Math.abs(dx) > Math.abs(dy);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const { dx } = gestureState;
+        if (dx < -SWIPE_THRESHOLD) monthNavRef.current.handleNextMonth();
+        else if (dx > SWIPE_THRESHOLD) monthNavRef.current.handlePrevMonth();
+      },
+    })
+  ).current;
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        {/* 헤더 */}
+        {/* 헤더: 꺾쇠는 벽쪽, 년월은 가운데 */}
         <View style={styles.header}>
           <View style={styles.monthSwitcher}>
             <Pressable
@@ -308,7 +382,7 @@ export default function CalendarScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* 카테고리 칩 (가운데 정렬) */}
+          {/* 카테고리: 윤곽선 없음, 연한 배경, 글씨 옆 동그라미 (사진처럼) */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -325,13 +399,10 @@ export default function CalendarScreen() {
                   }
                   style={[
                     styles.filterChip,
-                    { borderColor: cat.borderColor },
-                    selected && {
-                      backgroundColor: cat.borderColor,
-                      borderColor: cat.borderColor,
-                    },
+                    { backgroundColor: selected ? cat.color : cat.bgLight },
                   ]}
                 >
+                  <View style={[styles.filterChipCircle, { backgroundColor: cat.color }]} />
                   <Text
                     style={[
                       styles.filterChipText,
@@ -345,8 +416,8 @@ export default function CalendarScreen() {
             })}
           </ScrollView>
 
-          {/* 요일 + 날짜 카드 (연한 회색 배경) */}
-          <View style={styles.calendarCard}>
+          {/* 요일 + 날짜 카드: 좌우 스와이프로 이전/다음 달 이동 */}
+          <View style={styles.calendarCard} {...panResponder.panHandlers}>
             <View style={styles.weekdayRow}>
               {WEEKDAYS.map((w, i) => (
                 <View key={w} style={styles.weekdayCell}>
@@ -374,12 +445,6 @@ export default function CalendarScreen() {
                   const dayEvents = cell.currentMonth
                     ? eventsByDayForDots[cell.day] ?? []
                   : [];
-                  const dotColor =
-                    selectedCategory != null
-                      ? FILTER_CATEGORIES.find(
-                          (c) => c.id === selectedCategory
-                        )?.borderColor
-                      : null;
 
                   return (
                     <Pressable
@@ -393,44 +458,42 @@ export default function CalendarScreen() {
                           !cell.currentMonth && styles.dayOutsideMonth,
                         ]}
                       >
-                        {todayCell && (
-                          <View style={styles.todayBadge}>
-                            <Text style={styles.todayText}>{cell.day}</Text>
-                          </View>
-                        )}
-                        {!todayCell && isSelected && (
-                          <View style={styles.selectedDayBox}>
-                            <Text style={styles.selectedDayText}>
-                              {cell.day}
-                            </Text>
-                          </View>
-                        )}
-                        {!todayCell && !isSelected && (
+                        <View style={styles.dayNumberSlot}>
+                          {todayCell && (
+                            <View style={[StyleSheet.absoluteFillObject, styles.todayBadgeFill]} />
+                          )}
+                          {!todayCell && isSelected && (
+                            <View style={[StyleSheet.absoluteFillObject, styles.selectedDayBoxSquare]} />
+                          )}
                           <Text
                             style={[
                               styles.dayText,
+                              todayCell && styles.todayText,
+                              !todayCell && isSelected && styles.selectedDayText,
                               !cell.currentMonth && styles.dayTextOutside,
-                              colIndex === 0 && styles.sundayText,
-                              colIndex === 6 && styles.saturdayText,
+                              !todayCell && colIndex === 0 && styles.sundayText,
+                              !todayCell && colIndex === 6 && styles.saturdayText,
                             ]}
                           >
                             {cell.day}
                           </Text>
-                        )}
+                        </View>
                         {dayEvents.length > 0 && cell.currentMonth && (
                           <View style={styles.eventDots}>
-                            {dayEvents.slice(0, 3).map((ev) => (
-                              <View
-                                key={ev.id}
-                                style={[
-                                  styles.eventDot,
-                                  {
-                                    backgroundColor:
-                                      dotColor ?? getEventColor(ev),
-                                  },
-                                ]}
-                              />
-                            ))}
+                            <View style={styles.eventDotsRow}>
+                              {dayEvents.slice(0, 3).map((ev) => (
+                                <View
+                                  key={ev.id}
+                                  style={[
+                                    styles.eventDot,
+                                    { backgroundColor: getEventColor(ev) },
+                                  ]}
+                                />
+                              ))}
+                            </View>
+                            {dayEvents.length >= 4 && (
+                              <Text style={styles.eventDotsPlus}>+</Text>
+                            )}
                           </View>
                         )}
                       </View>
@@ -443,20 +506,22 @@ export default function CalendarScreen() {
           </View>
         </ScrollView>
 
-        {/* 하단 시트: 탭 바로 위쪽부터 시작, 그림자 위쪽 */}
-        <View
+        {/* 하단 시트: 터치로 위로 당기면 확장되어 카드 전체 표시 */}
+        <Animated.View
           style={[
             styles.bottomSheet,
             {
-              height: SCREEN_HEIGHT * BOTTOM_SHEET_MAX_RATIO,
+              height: sheetHeightAnim,
               bottom: 0,
             },
           ]}
         >
-          <View style={styles.bottomSheetHandle} />
-          <Text style={styles.bottomSheetTitle}>
-            {selectedDay}일 {selectedWeekday}
-          </Text>
+          <View style={styles.bottomSheetHandleWrap} {...sheetPanResponder.panHandlers}>
+            <View style={styles.bottomSheetHandle} />
+            <Text style={styles.bottomSheetTitle}>
+              {selectedDay}일 {selectedWeekday}
+            </Text>
+          </View>
 
           {loading ? (
             <View style={styles.loadingWrap}>
@@ -524,7 +589,7 @@ export default function CalendarScreen() {
               </View>
             </ScrollView>
           )}
-        </View>
+        </Animated.View>
       </View>
     </SafeAreaView>
   );
@@ -537,29 +602,30 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
   },
   monthSwitcher: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
+    justifyContent: "space-between",
+    width: "100%",
   },
   monthNavBtn: {
     padding: 4,
+    minWidth: 40,
   },
   monthText: {
     fontSize: 18,
     fontWeight: "700",
     color: "#111827",
-    minWidth: 100,
+    flex: 1,
     textAlign: "center",
   },
   scroll: {
@@ -568,11 +634,11 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: 20,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
     paddingBottom: 24 + SCREEN_HEIGHT * BOTTOM_SHEET_MAX_RATIO,
   },
   filterChipsScroll: {
-    marginBottom: 20,
+    marginBottom: 10,
     marginTop: 0,
     marginHorizontal: -HORIZONTAL_PADDING,
   },
@@ -583,41 +649,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   filterChip: {
-    minWidth: 60,
-    height: 28,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
+    minWidth: 60,
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    gap: 6,
+    justifyContent: "center",
+  },
+  filterChipCircle: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   filterChipText: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#111827",
   },
   filterChipTextSelected: {
     color: "#FFFFFF",
-    fontWeight: "700",
+    fontWeight: "600",
   },
   calendarCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingHorizontal: 8,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
   },
   weekdayRow: {
     flexDirection: "row",
-    marginBottom: 6,
+    paddingBottom: 6,
+    marginBottom: 0,
   },
   weekdayCell: {
     flex: 1,
@@ -633,11 +696,14 @@ const styles = StyleSheet.create({
   sundayText: { color: "#EF4444" },
   saturdayText: { color: "#3B82F6" },
   calendarGrid: {
-    paddingVertical: 4,
+    paddingVertical: 0,
   },
   weekRow: {
     flexDirection: "row",
-    marginVertical: 4,
+    paddingTop: 6,
+    paddingBottom: 9,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
   },
   dayCellWrapper: {
     flex: 1,
@@ -645,10 +711,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   dayCell: {
-    width: 36,
-    height: 36,
+    minWidth: 44,
+    height: 48,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    paddingTop: 4,
   },
   dayOutsideMonth: { opacity: 0.35 },
   dayText: {
@@ -657,45 +724,56 @@ const styles = StyleSheet.create({
     color: "#374151",
   },
   dayTextOutside: { color: "#9CA3AF" },
-  todayBadge: {
+  /** 날짜 숫자 고정 슬롯 (선택/오늘 여부와 관계없이 같은 위치) */
+  dayNumberSlot: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: "#EEF2FF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  /** 오늘: 윤곽선 없이 채워진 연한 회색 원 */
+  todayBadgeFill: {
+    borderRadius: 16,
+    backgroundColor: "#E5E7EB",
   },
   todayText: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#6366F1",
+    fontWeight: "600",
+    color: "#6B7280",
   },
-  selectedDayBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#6366F1",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+  /** 선택한 날짜: 둥근 정사각형 배경 */
+  selectedDayBoxSquare: {
+    borderRadius: 8,
+    backgroundColor: "#DBEAFE",
+    borderWidth: 1,
+    borderColor: "#3B82F6",
   },
   selectedDayText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: "#1E40AF",
   },
   eventDots: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 3,
+    gap: 2,
     marginTop: 4,
+  },
+  eventDotsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
   },
   eventDot: {
     width: 5,
     height: 5,
     borderRadius: 2.5,
+  },
+  eventDotsPlus: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#6B7280",
   },
   bottomSheet: {
     position: "absolute",
@@ -715,20 +793,25 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 12,
   },
+  bottomSheetHandleWrap: {
+    alignSelf: "stretch",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+  },
   bottomSheetHandle: {
     width: 36,
     height: 4,
     borderRadius: 2,
     backgroundColor: "#E5E7EB",
     alignSelf: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   bottomSheetTitle: {
     fontSize: 17,
     fontWeight: "700",
     color: "#111827",
-    marginBottom: 14,
-    marginLeft: 12,
+    marginLeft: 0,
   },
   bottomSheetScroll: {
     flex: 1,

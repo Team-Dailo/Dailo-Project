@@ -253,7 +253,7 @@ export default function AdminEventEditScreen() {
         <Field label="장소명" value={placeName} onChangeText={setPlaceName} placeholder="장소 이름" />
         <Field label="상세 주소" value={placeAddress} onChangeText={setPlaceAddress} placeholder="주소" />
         <Field label="지역 *" value={regionName} onChangeText={setRegionName} placeholder="예: 충북 충주, 서울 (현재 위치 기준 목록/지도 필터용)" />
-        <Text style={styles.label}>위도·경도 (지도 표시용) *</Text>
+        <Text style={styles.label}>위치 (지도 표시용) *</Text>
         <Pressable
           style={styles.locationPickRow}
           onPress={() => {
@@ -268,10 +268,9 @@ export default function AdminEventEditScreen() {
         >
           <Text style={styles.locationPickText} numberOfLines={1}>
             {latitude.trim() && longitude.trim()
-              ? `위도 ${latitude} / 경도 ${longitude}`
-              : "지도에서 위치 선택 (탭하여 열기)"}
+              ? "위치 설정됨 (탭하여 주소 검색 또는 지도에서 다시 선택)"
+              : "주소 검색 또는 지도에서 위치 선택 (탭하여 열기)"}
           </Text>
-          <Text style={styles.locationPickHint}>지도에서 마커를 눌러 위치 지정</Text>
         </Pressable>
         <Field
           label="시작 일시 *"

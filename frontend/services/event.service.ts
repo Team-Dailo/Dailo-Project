@@ -54,21 +54,30 @@ type PageResponse<T> = {
 };
 
 /**
+ * 인기/추천 정렬: trending=지금 뜨는 축제(7일 조회수), views=조회수 많은 순(30일), popular=인기순(좋아요)
+ */
+export type EventListSort = 'trending' | 'views' | 'popular' | null;
+
+/**
  * 이벤트 목록 조회 (리스트/지도 공통)
- * - keyword 있으면 행사명·장소명·내용(description) 기준 검색
+ * - keyword: 행사명·장소명·내용(description) 기준 검색
+ * - sort: trending(7일 조회수) | views(30일 조회수) | popular(좋아요) | null(기본 startAt)
  */
 export async function getEventList(params?: {
   page?: number;
   size?: number;
   keyword?: string | null;
+  sort?: EventListSort;
 }): Promise<Event[]> {
   const page = params?.page ?? 1;
   const size = params?.size ?? 100;
   const keyword = params?.keyword?.trim();
+  const sort = params?.sort ?? null;
   const searchParams = new URLSearchParams();
   searchParams.set('page', String(page));
   searchParams.set('size', String(size));
   if (keyword) searchParams.set('keyword', keyword);
+  if (sort) searchParams.set('sort', sort);
   const url = `${API_BASE_URL}/api/events?${searchParams.toString()}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`events list failed: ${res.status}`);
