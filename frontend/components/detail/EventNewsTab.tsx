@@ -1,48 +1,104 @@
 // frontend/components/detail/EventNewsTab.tsx
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
+import { useRouter } from "expo-router";
+import type { EventNewsItem } from "../../types/event";
+import type { PostListItem } from "../../types/board";
+import * as boardService from "../../services/board.service";
 
-interface NewsItem {
-  id: string;
-  title: string;
-  body: string;
-  date: string;
+interface EventNewsTabProps {
+  /** 저장된 소식 목록 (없으면 빈 화면) */
+  news?: EventNewsItem[] | null;
+  /** 행사 ID - 이 행사에 대한 후기 목록을 소식 아래에 표시 */
+  eventId?: number | null;
 }
 
-const MOCK_NEWS: NewsItem[] = [
-  {
-    id: "1",
-    title: "공연 시작 시간 안내",
-    body: "공연 시작 시간은 19:00 입니다. 앱을 통해 소식을 접하고 빠르게 입장하세요!",
-    date: "2025.11.10",
-  },
-  {
-    id: "2",
-    title: "우천 시 행사 안내",
-    body: "우천시에도 행사는 예정대로 진행되며, 실내 프로그램이 강화될 예정 입니다.",
-    date: "2025.11.10",
-  },
-  {
-    id: "3",
-    title: "공지 사항 안내",
-    body: "축제 사전 예약이 시작되었습니다. 앱을 통해 미리 예약하고 빠르게 입장하세요!",
-    date: "2025.11.10",
-  },
-];
+function formatDate(createdAt: string): string {
+  try {
+    const d = new Date(createdAt);
+    return d.toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return createdAt;
+  }
+}
 
-export default function EventNewsTab() {
+export default function EventNewsTab({ news, eventId }: EventNewsTabProps) {
+  const router = useRouter();
+  const list = news && news.length > 0 ? news : [];
+
+  const [reviews, setReviews] = useState<PostListItem[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+
+  useEffect(() => {
+    if (eventId == null || !Number.isFinite(eventId)) {
+      setReviews([]);
+      return;
+    }
+    let cancelled = false;
+    setReviewsLoading(true);
+    boardService
+      .getPostsByEventId(eventId, { page: 0, size: 20 })
+      .then((res) => {
+        if (!cancelled) setReviews(res.content ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setReviews([]);
+      })
+      .finally(() => {
+        if (!cancelled) setReviewsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
+
   return (
     <View>
       <Text style={styles.sectionTitle}>최신 소식</Text>
+      {list.length === 0 ? (
+        <Text style={styles.emptyText}>등록된 소식이 없습니다.</Text>
+      ) : (
+        list.map((item) => (
+          <NewsCard
+            key={item.id}
+            title={item.title}
+            body={item.body}
+            date={item.date}
+          />
+        ))
+      )}
 
-      {MOCK_NEWS.map((item) => (
-        <NewsCard
-          key={item.id}
-          title={item.title}
-          body={item.body}
-          date={item.date}
-        />
-      ))}
+      {/* 행사 후기 (게시판에서 이 행사로 작성한 후기) */}
+      {eventId != null && (
+        <View style={styles.reviewSection}>
+          <Text style={styles.sectionTitle}>후기</Text>
+          {reviewsLoading ? (
+            <ActivityIndicator size="small" color="#2563EB" style={styles.loader} />
+          ) : reviews.length === 0 ? (
+            <Text style={styles.emptyText}>아직 등록된 후기가 없습니다.</Text>
+          ) : (
+            reviews.map((post) => (
+              <Pressable
+                key={post.id}
+                style={styles.reviewCard}
+                onPress={() => router.push(`/board/${post.id}`)}
+              >
+                <Text style={styles.reviewTitle}>{post.title}</Text>
+                <View style={styles.reviewMeta}>
+                  <Text style={styles.reviewAuthor}>{post.authorNickname ?? "알 수 없음"}</Text>
+                  <Text style={styles.reviewDate}>{formatDate(post.createdAt)}</Text>
+                </View>
+              </Pressable>
+            ))
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -117,5 +173,44 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#aaa",
     marginLeft: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+    paddingVertical: 24,
+  },
+  reviewSection: {
+    marginTop: 28,
+  },
+  loader: {
+    paddingVertical: 20,
+  },
+  reviewCard: {
+    borderRadius: 12,
+    backgroundColor: "#f8fafc",
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  reviewTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  reviewMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  reviewAuthor: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  reviewDate: {
+    fontSize: 11,
+    color: "#9CA3AF",
   },
 });

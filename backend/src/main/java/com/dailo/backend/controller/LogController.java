@@ -4,6 +4,7 @@ import com.dailo.backend.dto.ClickLogRequestDto;
 import com.dailo.backend.dto.ClickLogResponseDto;
 import com.dailo.backend.dto.SearchLogRequestDto;
 import com.dailo.backend.dto.SearchLogResponseDto;
+import com.dailo.backend.dto.TopSearchKeywordDto;
 import com.dailo.backend.service.LogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -46,6 +47,17 @@ public class LogController {
             @RequestParam(defaultValue = "10") int limit) {
         List<String> keywords = logService.getTopKeywords(limit);
         return ResponseEntity.ok(keywords);
+    }
+
+    /**
+     * 인기 검색어 + 검색 수 (순위·검색수 표시용)
+     * GET /api/logs/search/top-with-count
+     */
+    @GetMapping("/search/top-with-count")
+    public ResponseEntity<List<TopSearchKeywordDto>> getTopKeywordsWithCount(
+            @RequestParam(defaultValue = "10") int limit) {
+        List<TopSearchKeywordDto> list = logService.getTopKeywordsWithCount(limit);
+        return ResponseEntity.ok(list);
     }
 
     // ==================== Click Log ====================

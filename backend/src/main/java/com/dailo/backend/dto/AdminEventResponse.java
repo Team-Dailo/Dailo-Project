@@ -15,6 +15,8 @@ public class AdminEventResponse {
     private Long id;
     private String title;
     private String placeName;
+    private String placeAddress;
+    private String regionName;
     private Double latitude;
     private Double longitude;
     private LocalDateTime startAt;
@@ -23,6 +25,8 @@ public class AdminEventResponse {
     private List<EventCategory> categories;
 
     private EventStatus status;
+    /** 규모(지도·달력 마커 색상): CHUNGJU_CITY, UNIVERSITY, STUDENT_COUNCIL, COLLEGE, CLUB — 관리자 화면·지도 표시 일치용 */
+    private String filterGroup;
     private String thumbnailUrl;
     private String description;
     private String hostContact;
@@ -33,12 +37,15 @@ public class AdminEventResponse {
                 .id(event.getId())
                 .title(event.getTitle())
                 .placeName(event.getPlaceName())
+                .placeAddress(event.getPlaceAddress())
+                .regionName(event.getRegionName())
                 .latitude(event.getLatitude())
                 .longitude(event.getLongitude())
                 .startAt(event.getStartAt())
                 .endAt(event.getEndAt())
                 .categories(event.getCategories())
                 .status(event.getStatus())
+                .filterGroup(event.getFilterGroup())
                 .thumbnailUrl(event.getThumbnailUrl())
                 .description(event.getDescription())
                 .hostContact(event.getHostContact())

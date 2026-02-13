@@ -1,30 +1,412 @@
 // app/board/write.tsx
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Pressable,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  Alert,
+  ActivityIndicator,
+  Modal,
+  FlatList,
+} from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import * as boardService from "../../services/board.service";
+import * as authService from "../../services/auth.service";
+import * as eventService from "../../services/event.service";
+import { useMyUserId } from "../../hooks/useAuth";
+import { API_BASE_URL } from "../../constants/api";
+import type { Event } from "../../types/event";
+
+const CATEGORIES = ["후기", "질문", "자유"] as const;
+type Category = (typeof CATEGORIES)[number];
 
 export default function PostWriteScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ edit?: string }>();
+  const editId = params.edit ? String(params.edit).trim() : undefined;
+  const userId = useMyUserId();
+
+  const [category, setCategory] = useState<Category>("자유");
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [loadingEdit, setLoadingEdit] = useState(!!editId);
+  /** 후기 카테고리일 때 선택한 행사 */
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [selectedEventTitle, setSelectedEventTitle] = useState<string>("");
+  const [eventPickerVisible, setEventPickerVisible] = useState(false);
+  const [eventList, setEventList] = useState<Event[]>([]);
+  const [eventListLoading, setEventListLoading] = useState(false);
+
+  useEffect(() => {
+    const show = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hide = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const subShow = Keyboard.addListener(show, (e) => setKeyboardHeight(e.endCoordinates.height));
+    const subHide = Keyboard.addListener(hide, () => setKeyboardHeight(0));
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!editId) {
+      setLoadingEdit(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const post = await boardService.getPostById(editId);
+        if (!cancelled) {
+          setTitle(post.title ?? "");
+          setContent(post.content ?? "");
+          const cat = (post.categoryType ?? "자유") as Category;
+          setCategory(CATEGORIES.includes(cat) ? cat : "자유");
+          if (post.eventId != null) {
+            setSelectedEventId(post.eventId);
+            setSelectedEventTitle(""); // 제목은 선택 모달에서만 표시
+          }
+        }
+      } catch {
+        if (!cancelled) Alert.alert("오류", "게시물을 불러올 수 없습니다.");
+      } finally {
+        if (!cancelled) setLoadingEdit(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editId]);
+
+  const handleCancel = () => router.back();
+
+  const openEventPicker = useCallback(async () => {
+    setEventPickerVisible(true);
+    setEventListLoading(true);
+    try {
+      const list = await eventService.getEventList({ page: 1, size: 100 });
+      setEventList(list ?? []);
+      const found = (list ?? []).find((e) => e.id === selectedEventId);
+      if (found) setSelectedEventTitle(found.title ?? "");
+    } catch {
+      setEventList([]);
+    } finally {
+      setEventListLoading(false);
+    }
+  }, [selectedEventId]);
+
+  const handleShare = async () => {
+    const trimmedTitle = title.trim();
+    const trimmedContent = content.trim();
+    if (!trimmedTitle || !trimmedContent) {
+      Alert.alert("알림", "제목과 내용을 입력해주세요.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // 작성자 ID: getMe() → 저장값 → context. 없어도 토큰 있으면 백엔드가 JWT로 작성자 처리하므로 진행
+      const me = await authService.getMe();
+      let authorId: number | null =
+        me?.id != null && me.id > 0 ? me.id : (await authService.getStoredUserId()) ?? (userId ?? null);
+      const hasToken = !!(await authService.getAccessToken());
+      if ((authorId == null || authorId <= 0) && !hasToken) {
+        Alert.alert("로그인 필요", "글을 쓰려면 로그인해 주세요.");
+        setSubmitting(false);
+        return;
+      }
+      const authorIdOrUndefined = authorId != null && authorId > 0 ? authorId : undefined;
+      const eventId = category === "후기" ? selectedEventId ?? undefined : undefined;
+      const body = { title: trimmedTitle, content: trimmedContent, categoryType: category, eventId };
+      if (editId) {
+        await boardService.updatePost(editId, body, authorIdOrUndefined);
+        router.replace(`/board/${editId}`);
+      } else {
+        const created = await boardService.createPost(body, authorIdOrUndefined);
+        router.replace(`/board/${created.id}`);
+      }
+    } catch (e) {
+      const isNetworkError =
+        e instanceof Error &&
+        (e.message?.includes("failed") ||
+          e.message?.includes("Network") ||
+          e.message?.includes("fetch"));
+      const msg = isNetworkError
+        ? `서버에 연결할 수 없습니다.\n\n연결 시도 주소: ${API_BASE_URL}\n\n• 백엔드 실행: backend 폴더에서\n  ./gradlew bootRun --args='--spring.profiles.active=local'\n• 에뮬레이터: .env에 http://10.0.2.2:8080\n• 실기기: .env의 EXPO_PUBLIC_API_URL을 PC IP로 (예: http://192.168.0.10:8080)\n• 설정 변경 후 앱 완전 종료 후 다시 실행`
+        : editId ? "게시물 수정에 실패했습니다." : "게시물을 등록할 수 없습니다.";
+      Alert.alert(editId ? "수정 실패" : "게시물 등록 실패", msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>게시글 작성</Text>
-      <Text style={styles.text}>제목, 내용, 카테고리 등을 입력하는 폼이 들어올 자리입니다.</Text>
-    </View>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
+      >
+        {/* 헤더: 취소 | 새 게시물 | 공유 */}
+        <View style={styles.header}>
+          <Pressable onPress={handleCancel} hitSlop={12}>
+            <Text style={styles.headerCancel}>취소</Text>
+          </Pressable>
+          <Text style={styles.headerTitle}>{editId ? "게시물 수정" : "새 게시물"}</Text>
+          <Pressable onPress={handleShare} hitSlop={12} disabled={submitting || loadingEdit}>
+            {submitting || loadingEdit ? (
+              <ActivityIndicator size="small" color="#2563EB" />
+            ) : (
+              <Text style={styles.headerShare}>{editId ? "저장" : "공유"}</Text>
+            )}
+          </Pressable>
+        </View>
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 카테고리: 후기 / 질문 / 자유 - 게시판 탭과 비슷한 크기, 파란색 */}
+          <View style={styles.categoryRow}>
+            {CATEGORIES.map((cat) => {
+              const selected = category === cat;
+              return (
+                <Pressable
+                  key={cat}
+                  onPress={() => {
+                    setCategory(cat);
+                    if (cat !== "후기") {
+                      setSelectedEventId(null);
+                      setSelectedEventTitle("");
+                    }
+                  }}
+                  style={[styles.categoryChip, selected && styles.categoryChipSelected]}
+                >
+                  <Text style={[styles.categoryChipText, selected && styles.categoryChipTextSelected]}>
+                    {cat}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* 후기일 때: 어떤 행사에 대한 후기인지 선택 */}
+          {category === "후기" && (
+            <View style={styles.eventSelectRow}>
+              <Text style={styles.eventSelectLabel}>어떤 행사에 대한 후기인가요?</Text>
+              <Pressable style={styles.eventSelectBtn} onPress={openEventPicker}>
+                <Text style={styles.eventSelectBtnText} numberOfLines={1}>
+                  {selectedEventId != null && selectedEventTitle
+                    ? selectedEventTitle
+                    : selectedEventId != null
+                      ? `행사 #${selectedEventId}`
+                      : "행사 선택하기"}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color="#6B7280" />
+              </Pressable>
+            </View>
+          )}
+
+          {/* 제목 - 라벨 없음, 플레이스홀더만 "제목" 크게 */}
+          <TextInput
+            style={styles.titleInput}
+            placeholder="제목을 입력해주세요"
+            placeholderTextColor="#9CA3AF"
+            value={title}
+            onChangeText={setTitle}
+          />
+
+          {/* 내용 - 라벨 없음 */}
+          <TextInput
+            style={styles.contentInput}
+            placeholder="자유롭게 기록해보세요!"
+            placeholderTextColor="#9CA3AF"
+            value={content}
+            onChangeText={setContent}
+            multiline
+            textAlignVertical="top"
+          />
+        </ScrollView>
+
+        {/* 행사 선택 모달 */}
+        <Modal
+          visible={eventPickerVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setEventPickerVisible(false)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setEventPickerVisible(false)}>
+            <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>행사 선택</Text>
+                <Pressable onPress={() => setEventPickerVisible(false)} hitSlop={12}>
+                  <Text style={styles.modalClose}>닫기</Text>
+                </Pressable>
+              </View>
+              {eventListLoading ? (
+                <ActivityIndicator size="small" color="#2563EB" style={styles.modalLoader} />
+              ) : (
+                <FlatList
+                  data={eventList}
+                  keyExtractor={(item) => String(item.id)}
+                  style={styles.modalList}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      style={styles.modalItem}
+                      onPress={() => {
+                        setSelectedEventId(item.id);
+                        setSelectedEventTitle(item.title ?? "");
+                        setEventPickerVisible(false);
+                      }}
+                    >
+                      <Text style={styles.modalItemTitle} numberOfLines={1}>{item.title}</Text>
+                      {item.placeName ? (
+                        <Text style={styles.modalItemSub} numberOfLines={1}>{item.placeName}</Text>
+                      ) : null}
+                    </Pressable>
+                  )}
+                  ListEmptyComponent={<Text style={styles.emptyList}>행사 목록이 없습니다.</Text>}
+                />
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* 사진/동영상, 태그 - 키보드 없을 땐 하단, 키보드 뜨면 키보드 위에 여유 간격 */}
+        <View style={[styles.attachRow, { bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 0 }]}>
+          <Pressable style={styles.attachBtn}>
+            <Ionicons name="image-outline" size={22} color="#6B7280" />
+            <Text style={styles.attachText}>사진/동영상</Text>
+          </Pressable>
+          <Pressable style={styles.attachBtn}>
+            <Text style={styles.hash}>#</Text>
+            <Text style={styles.attachText}>태그</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: { flex: 1 },
+  safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  headerCancel: { fontSize: 16, color: "#6B7280" },
+  headerTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
+  headerShare: { fontSize: 16, fontWeight: "600", color: "#2563EB" },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 72 },
+  categoryRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
+  categoryChipSelected: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+  },
+  categoryChipText: { fontSize: 13, color: "#4B5563", fontWeight: "500" },
+  categoryChipTextSelected: { color: "#FFFFFF" },
+  titleInput: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    paddingVertical: 12,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  contentInput: {
+    minHeight: 160,
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+    fontSize: 15,
+    color: "#111827",
+    lineHeight: 22,
+  },
+  attachRow: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    gap: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    zIndex: 10,
+    elevation: 10,
+  },
+  attachBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 4 },
+  attachText: { fontSize: 14, color: "#6B7280" },
+  hash: { fontSize: 16, color: "#6B7280", fontWeight: "600" },
+  eventSelectRow: { marginBottom: 16 },
+  eventSelectLabel: { fontSize: 13, color: "#6B7280", marginBottom: 8 },
+  eventSelectBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
+  },
+  eventSelectBtnText: { fontSize: 15, color: "#111827", flex: 1 },
+  modalOverlay: {
     flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    backgroundColor: '#ffffff',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 12,
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: "70%",
   },
-  text: {
-    fontSize: 14,
-    color: '#444444',
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
   },
+  modalTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
+  modalClose: { fontSize: 16, color: "#2563EB" },
+  modalLoader: { paddingVertical: 24 },
+  modalList: { maxHeight: 360 },
+  modalItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  modalItemTitle: { fontSize: 15, fontWeight: "500", color: "#111827" },
+  modalItemSub: { fontSize: 13, color: "#6B7280", marginTop: 2 },
+  emptyList: { textAlign: "center", paddingVertical: 24, color: "#9CA3AF" },
 });

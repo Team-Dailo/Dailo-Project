@@ -14,6 +14,9 @@ import type { Booth } from "./EventBoothTab"; // 아래에서 export 해줄 거�
 interface Props {
   visible: boolean;
   booth: Booth | null;
+  eventId?: number;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
   onClose: (e?: GestureResponderEvent) => void;
   onPressLocation?: () => void;
 }
@@ -21,6 +24,9 @@ interface Props {
 export default function BoothDetailModal({
   visible,
   booth,
+  eventId,
+  isFavorite = false,
+  onToggleFavorite,
   onClose,
   onPressLocation,
 }: Props) {
@@ -44,7 +50,19 @@ export default function BoothDetailModal({
               <Text style={styles.metaText}>주최: {booth.host}</Text>
             )}
           </View>
-          <Text style={styles.star}>★</Text>
+          {eventId != null && onToggleFavorite ? (
+            <Pressable
+              onPress={onToggleFavorite}
+              hitSlop={10}
+              style={styles.starButton}
+            >
+              <Text style={[styles.star, isFavorite && styles.starActive]}>
+                ★
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.star}>★</Text>
+          )}
         </View>
 
         {/* 내용 영역 */}
@@ -139,10 +157,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
   },
+  starButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
   star: {
     fontSize: 20,
+    color: "#D1D5DB",
+  },
+  starActive: {
     color: "#ffcc00",
-    marginLeft: 8,
   },
   section: {
     marginTop: 10,

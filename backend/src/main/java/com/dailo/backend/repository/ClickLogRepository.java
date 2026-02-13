@@ -32,6 +32,12 @@ public interface ClickLogRepository extends JpaRepository<ClickLog, Long> {
            "GROUP BY c.eventId ORDER BY cnt DESC")
     List<Object[]> findTopClickedEvents(@Param("since") LocalDateTime since, Pageable pageable);
 
+    /** 기간 내 이벤트별 클릭 수 전체 (스케줄러로 Event.viewCount7d/30d 갱신용) */
+    @Query("SELECT c.eventId, COUNT(c) as cnt FROM ClickLog c " +
+           "WHERE c.createdAt >= :since " +
+           "GROUP BY c.eventId")
+    List<Object[]> findClickCountsByEventSince(@Param("since") LocalDateTime since);
+
     // 요청 ID로 조회 (검색-클릭 전환 분석용)
     List<ClickLog> findByRequestId(String requestId);
 }
