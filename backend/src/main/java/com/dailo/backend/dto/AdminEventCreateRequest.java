@@ -41,6 +41,9 @@ public class AdminEventCreateRequest {
 
     private EventStatus status; // DRAFT, ACTIVE 등 (안 보내면 기본값 처리 예정)
 
+    /** 규모/달력 필터 (CHUNGJU_CITY, UNIVERSITY, COLLEGE, CLUB 등) → 지도 마커 색상 */
+    private String filterGroup;
+
     private String thumbnailUrl;
     private List<String> posterUrls;
     private String description;

@@ -1,5 +1,6 @@
 package com.dailo.backend.controller;
 
+import com.dailo.backend.dto.PostLikeResponseDto;
 import com.dailo.backend.dto.PostListResponseDto;
 import com.dailo.backend.dto.PostRequestDto;
 import com.dailo.backend.dto.PostResponseDto;
@@ -11,6 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -43,9 +46,10 @@ public class PostController {
 
     @PostMapping
     public ResponseEntity<PostResponseDto> createPost(
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody PostRequestDto requestDto) {
 
+        Long userId = Long.parseLong(userDetails.getUsername());
         PostResponseDto response = postService.createPost(requestDto, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -53,19 +57,33 @@ public class PostController {
     @PutMapping("/{id}")
     public ResponseEntity<PostResponseDto> updatePost(
             @PathVariable Long id,
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody PostRequestDto requestDto) {
 
+        Long userId = Long.parseLong(userDetails.getUsername());
         return ResponseEntity.ok(postService.updatePost(id, requestDto, userId));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePost(
             @PathVariable Long id,
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
+        Long userId = Long.parseLong(userDetails.getUsername());
         postService.deletePost(id, userId);
         return ResponseEntity.noContent().build();
+    }
+
+    /** 행사별 후기 목록 (해당 행사에 연결된 게시글) */
+    @GetMapping("/event/{eventId}")
+    public ResponseEntity<Page<PostListResponseDto>> getPostsByEventId(
+            @PathVariable Long eventId,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(postService.getPostsByEventId(eventId, userId, pageable));
     }
 
     @GetMapping("/category/{categoryType}")
@@ -88,5 +106,19 @@ public class PostController {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return ResponseEntity.ok(postService.searchPosts(keyword, userId, pageable));
+    }
+
+    /** 게시글 좋아요 토글 (로그인 필요). 기록 저장 후 좋아요 상태·개수 반환 */
+    @PostMapping("/{id}/like")
+    public ResponseEntity<PostLikeResponseDto> toggleLike(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        boolean liked = postService.togglePostLike(id, userId);
+        int likeCount = postService.getLikeCount(id);
+        return ResponseEntity.ok(new PostLikeResponseDto(liked, likeCount));
     }
 }

@@ -37,6 +37,10 @@ public class Post {
     @Column(name = "category_type", length = 50)
     private String categoryType;
 
+    /** 후기 카테고리일 때 연관 행사 ID (nullable) */
+    @Column(name = "event_id")
+    private Long eventId;
+
     @Column(name = "view_count")
     @Builder.Default
     private Integer viewCount = 0;
@@ -79,11 +83,22 @@ public class Post {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void setAuthorId(Long authorId) {
+        this.authorId = authorId;
+    }
+
     // 비즈니스 메서드
     public void update(String title, String content, String categoryType) {
         this.title = title;
         this.content = content;
         this.categoryType = categoryType;
+    }
+
+    public void update(String title, String content, String categoryType, Long eventId) {
+        this.title = title;
+        this.content = content;
+        this.categoryType = categoryType;
+        this.eventId = eventId;
     }
 
     public void increaseViewCount() {

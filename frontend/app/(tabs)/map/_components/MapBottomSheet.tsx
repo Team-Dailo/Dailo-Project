@@ -11,7 +11,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import type { Event } from '../../../../types/event';
+import type { Event, EventCategory } from '../../../../types/event';
+import { formatDate, formatDateTimeRange } from '../../../../utils/formatDate';
+import { formatTime, formatTimeRange } from '../../../../utils/formatTime';
+
+const CATEGORY_LABEL: Record<EventCategory, string> = {
+  FESTIVAL: '축제',
+  EXHIBITION: '전시',
+  PERFORMANCE: '공연',
+  EXPERIENCE_BOOTH: '체험부스',
+  FOOD_TRUCK: '푸드트럭',
+  TRAFFIC: '교통',
+  CONSTRUCTION: '공사',
+  ETC: '기타',
+};
 
 type SheetMode = 'collapsed' | 'expanded';
 
@@ -23,6 +36,10 @@ type Props = {
   onClose: () => void;
   onPressMore: () => void;
   onPressDirection: () => void;
+  onPressBack: () => void; // 한 단계씩 뒤로 (expanded→collapsed, collapsed→닫기)
+  onCollapsedHeightChange?: (height: number) => void; // 작은 카드 영역 높이 (현재 위치 버튼 위치용)
+  renderRightButton?: () => React.ReactNode; // 작은 카드 시 축제 목록 보기와 같은 줄 오른쪽 (현재 위치 등)
+  onPressCurrentLocation?: () => void; // 현재 위치 버튼 직접 콜백 (터치 보장용)
 };
 
 export function MapBottomSheet({
@@ -33,6 +50,10 @@ export function MapBottomSheet({
   onClose,
   onPressMore,
   onPressDirection,
+  onPressBack,
+  onCollapsedHeightChange,
+  renderRightButton,
+  onPressCurrentLocation,
 }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -42,13 +63,27 @@ export function MapBottomSheet({
   const isCollapsed = mode === 'collapsed';
 
   const handlePressDetail = () => {
-    router.push(`/event/${event.id}`);
+    router.push(`/event/${event.id}?source=map`);
     onClose();
   };
 
-  const dateText = `${event.startAt} ~ ${event.endAt}`;
-  const timeText = 'PM 19:00 ~ 21:00'; // TODO: 실제 시간 파싱
-  const placeText = event.address || event.placeName;
+  const hasStart = event.startAt && !Number.isNaN(new Date(event.startAt).getTime());
+  const hasEnd = event.endAt && !Number.isNaN(new Date(event.endAt).getTime());
+  const dateText =
+    hasStart && hasEnd
+      ? formatDateTimeRange(event.startAt, event.endAt)
+      : hasStart
+        ? formatDate(event.startAt)
+        : '날짜 없음';
+  const timeText =
+    hasStart && hasEnd
+      ? formatTimeRange(event.startAt, event.endAt)
+      : hasStart
+        ? formatTime(event.startAt)
+        : '시간 없음';
+  const placeText = event.address || event.placeName || '위치 없음';
+  const categoryLabel =
+    (event.category && CATEGORY_LABEL[event.category as EventCategory]) ?? '기타';
 
   // 큰 카드 상단 위치: 필터 칩 아래 + 8px 정도 여백
   const expandedTop = filterBottomY + 8;
@@ -62,24 +97,18 @@ export function MapBottomSheet({
             styles.collapsedContainer,
             { paddingBottom: insets.bottom },
           ]}
+          onLayout={(e) =>
+            onCollapsedHeightChange?.(e.nativeEvent.layout.height)
+          }
         >
-          {/* 파란 축제 목록 버튼 (작은 카드 위쪽) */}
-          <View style={styles.listButtonWrapperOnSheet}>
-            <TouchableOpacity style={styles.listButton} activeOpacity={0.85}>
-              <Text style={styles.listButtonText}>축제 목록 보기</Text>
-            </TouchableOpacity>
-          </View>
-
+          {/* 축제 목록 보기·현재위치·확대축소는 지도 오버레이에서 카드 위로 올려서 표시 → 여기서는 작은 카드만 */}
           {/* 작은 카드 */}
           <View style={styles.cardSmall}>
             <View style={styles.cardHeader}>
-              <Text style={styles.category}>공연</Text>
+              <Text style={styles.category}>{categoryLabel}</Text>
             </View>
 
             <Text style={styles.title}>{event.title}</Text>
-            <Text style={styles.subtitle} numberOfLines={1}>
-              즐겁고 힐링할 수 있도록 준비한 공연
-            </Text>
 
             <View style={styles.metaRow}>
               <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
@@ -91,7 +120,7 @@ export function MapBottomSheet({
             </View>
             <View style={styles.metaRow}>
               <Ionicons name="location-outline" size={14} color="#9CA3AF" />
-              <Text style={styles.metaText}>{placeText}</Text>
+              <Text style={styles.metaText} numberOfLines={2}>{placeText}</Text>
             </View>
 
             <View style={styles.smallBottomRow}>
@@ -121,7 +150,7 @@ export function MapBottomSheet({
               left: 16,
               right: 16,
               top: expandedTop,
-              bottom: insets.bottom ,
+              bottom: insets.bottom,
             },
           ]}
         >
@@ -130,13 +159,15 @@ export function MapBottomSheet({
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.cardHeader}>
-              <Text style={styles.category}>공연</Text>
+              <Text style={styles.category}>{categoryLabel}</Text>
             </View>
 
             <Text style={styles.title}>{event.title}</Text>
-            <Text style={styles.subtitle}>
-              즐겁고 힐링할 수 있도록 준비한 공연
-            </Text>
+            {placeText !== '위치 없음' ? (
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {placeText}
+              </Text>
+            ) : null}
 
             <View style={[styles.metaRow, { marginTop: 12 }]}>
               <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
@@ -151,23 +182,11 @@ export function MapBottomSheet({
               <Text style={styles.metaText}>{placeText}</Text>
             </View>
 
-            {/* 본문 영역 */}
+            {/* 상세 내용은 상세보기에서 */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                총 90분간 진행되며, 중간에 관객 이벤트가 있습니다
+                자세한 일정과 소개는 아래 상세보기에서 확인할 수 있습니다.
               </Text>
-              <Text style={styles.bulletTitle}>
-                1부: 18:00 ~ 18:40 사랑이 시작될 때
-              </Text>
-              <Text style={styles.bulletText}>
-                · 사랑을 전하는 다함께 떼창 - 10cm
-              </Text>
-              <Text style={styles.bulletText}>· 너의 의미 - 아이유</Text>
-
-              <Text style={[styles.bulletTitle, { marginTop: 8 }]}>
-                2부: 18:50 ~ 19:30 위로가 필요한 밤
-              </Text>
-              <Text style={styles.bulletText}>· 감성 발라드 공연</Text>
             </View>
 
             {/* 포스터 영역 */}
@@ -243,9 +262,24 @@ const styles = StyleSheet.create({
   collapsedContainer: {
     marginHorizontal: 16,
   },
-  listButtonWrapperOnSheet: {
+  listButtonRowOnSheet: {
+    flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10, // 파란 버튼과 카드 사이 간격
+  },
+  listButtonCenterOnSheet: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currentLocationButtonInSheet: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E5EDFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
   },
   listButton: {
     paddingHorizontal: 24,

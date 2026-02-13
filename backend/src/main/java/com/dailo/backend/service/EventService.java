@@ -89,7 +89,8 @@ public class EventService {
                 event.getThumbnailUrl(),
                 event.getStartAt(),
                 event.getEndAt(),
-                event.getPlaceName()
+                event.getPlaceName(),
+                event.getCategories() != null ? event.getCategories() : List.of()
         );
     }
 
@@ -113,8 +114,8 @@ public class EventService {
                 .map(event -> EventCalendarResponse.builder()
                         .id(event.getId())
                         .title(event.getTitle())
-                        // 카테고리가 여러 개면 첫 번째 것을 대표 색상으로 사용 (없으면 ETC)
                         .category(event.getCategories().isEmpty() ? EventCategory.ETC : event.getCategories().get(0))
+                        .filterGroup(event.getFilterGroup())
                         .startAt(event.getStartAt())
                         .endAt(event.getEndAt() != null ? event.getEndAt() : event.getStartAt())
                         .isBookmarked(scrappedEventIds.contains(event.getId()))
