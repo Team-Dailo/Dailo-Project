@@ -30,7 +30,6 @@ public record EventListRequest(
         return categories != null && !categories.isEmpty();
     }
 
-    // [수정] 변수명이 바뀌었으니 여기도 startAt, endAt으로 변경
     public boolean hasDateFilter() {
         return startAt != null && endAt != null;
     }
