@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { EventDetail, Event } from '../types/event';
+import type { EventListSort } from '../services/event.service';
 import * as eventService from '../services/event.service';
 import * as logService from '../services/log.service';
 
@@ -30,8 +31,8 @@ export function usePopularEvents(size: number = 3) {
   return { events, loading, error, refetch: fetchList };
 }
 
-/** 행사 목록 (홈·행사 리스트 화면) */
-export function useEventList(params?: { page?: number; size?: number }) {
+/** 행사 목록 (홈·행사 리스트 화면). sort: trending(7일 조회수) | views(30일 조회수) | popular(좋아요) */
+export function useEventList(params?: { page?: number; size?: number; sort?: EventListSort }) {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -43,6 +44,7 @@ export function useEventList(params?: { page?: number; size?: number }) {
       const data = await eventService.getEventList({
         page: params?.page ?? 1,
         size: params?.size ?? 50,
+        sort: params?.sort ?? null,
       });
       setEvents(data ?? []);
     } catch (e) {
@@ -51,7 +53,7 @@ export function useEventList(params?: { page?: number; size?: number }) {
     } finally {
       setLoading(false);
     }
-  }, [params?.page, params?.size]);
+  }, [params?.page, params?.size, params?.sort]);
 
   useEffect(() => {
     fetchList();

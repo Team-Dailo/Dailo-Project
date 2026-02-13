@@ -146,6 +146,15 @@ export default function MyPageScreen() {
                 : router.push("/login")
             }
           />
+          <MenuItem
+            icon="notifications-outline"
+            label="알림 예약한 행사"
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/saved-reminders")
+                : router.push("/login")
+            }
+          />
         </Section>
 
         {/* 섹션: 신고/차단 */}

@@ -15,6 +15,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import EventDetailHeader from "../../components/detail/EventDetailHeader";
+import { useAuth } from "../../hooks/useAuth";
 import { useEventDetail } from "../../hooks/useEvent";
 import EventDetailTabs, { TabKey } from "../../components/detail/EventDetailTabs";
 import * as scrapService from "../../services/scrap.service";
@@ -29,6 +30,7 @@ const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
+  const { isLoggedIn } = useAuth();
   const { id, source, tab: tabParam } = useLocalSearchParams<{
     id: string;
     source?: string;
@@ -163,6 +165,7 @@ export default function EventDetailScreen() {
           onSave={handleSave}
           isLiked={isLiked}
           onLike={handleLike}
+          isLoggedIn={isLoggedIn}
         />
 
         <View
@@ -173,7 +176,12 @@ export default function EventDetailScreen() {
         </View>
 
         <View style={styles.body}>
-          {tab === "news" && <EventNewsTab news={extra.news} />}
+          {tab === "news" && (
+            <EventNewsTab
+              news={extra.news}
+              eventId={event?.id != null ? Number(event.id) : undefined}
+            />
+          )}
           {tab === "timeline" && (
             <Timeline dateLabel={timelineDateLabel} items={extra.timeline} />
           )}

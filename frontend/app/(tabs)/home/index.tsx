@@ -1,6 +1,6 @@
 // app/(tabs)/home/index.tsx
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ScrollView,
   View,
@@ -13,16 +13,22 @@ import {
   FlatList,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Alert,
+  InteractionManager,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
+import * as Location from "expo-location";
 import { useHomePopularPosts } from "../../../hooks/useBoard";
 import { useEventList, usePopularEvents } from "../../../hooks/useEvent";
 import type { PopularEventItem } from "../../../services/event.service";
 import type { Event } from "../../../types/event";
+import { useAuth } from "../../../hooks/useAuth";
+import { getDemoLocation } from "../../../services/demoLocationStorage";
+import * as eventReminder from "../../../services/eventReminder.service";
 
 const CAROUSEL_SIZE = 3;
 
@@ -63,10 +69,47 @@ function formatDday(startAt: string): string {
 export default function HomeScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { isLoggedIn } = useAuth();
   const { posts: popularPosts, loading: popularLoading } = useHomePopularPosts();
   const { events: eventList, loading: eventListLoading, refetch: refetchEventList } = useEventList({ size: 6 });
   const { events: popularEvents, loading: popularLoadingEvents, refetch: refetchPopular } = usePopularEvents(CAROUSEL_SIZE);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const carouselRef = useRef<FlatList>(null);
+  const carouselIndexRef = useRef(0);
+  const carouselIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /** 캐러셀 5초마다 다음 슬라이드로 자동 이동 */
+  useEffect(() => {
+    carouselIndexRef.current = carouselIndex;
+  }, [carouselIndex]);
+
+  useEffect(() => {
+    const items = carouselItems ?? [];
+    if (items.length <= 1) return;
+    const len = items.length;
+    const cancel = InteractionManager.runAfterInteractions(() => {
+      if (carouselIntervalRef.current) clearInterval(carouselIntervalRef.current);
+      carouselIntervalRef.current = setInterval(() => {
+        const nextIndex = (carouselIndexRef.current + 1) % len;
+        carouselIndexRef.current = nextIndex;
+        setCarouselIndex(nextIndex);
+        const list = carouselRef.current;
+        if (list) {
+          list.scrollToOffset({
+            offset: nextIndex * BANNER_WIDTH,
+            animated: true,
+          });
+        }
+      }, 5000);
+    });
+    return () => {
+      cancel.cancel();
+      if (carouselIntervalRef.current) {
+        clearInterval(carouselIntervalRef.current);
+        carouselIntervalRef.current = null;
+      }
+    };
+  }, [carouselItems?.length ?? 0]);
 
   useFocusEffect(
     useCallback(() => {
@@ -78,20 +121,65 @@ export default function HomeScreen() {
   const onCarouselScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
     const index = Math.round(x / BANNER_WIDTH);
+    carouselIndexRef.current = index;
     setCarouselIndex(index);
   }, []);
 
   // 캐러셀: 인기순 3개 있으면 사용, 없으면 행사 리스트에서 앞 3개 사용 (항상 3개 노출)
   const carouselItems: PopularEventItem[] = useMemo(() => {
-    if (popularEvents.length >= CAROUSEL_SIZE) return popularEvents.slice(0, CAROUSEL_SIZE);
-    if (eventList.length > 0) {
-      return eventList.slice(0, CAROUSEL_SIZE).map(toCarouselItem);
+    const popular = popularEvents ?? [];
+    const list = eventList ?? [];
+    if (popular.length >= CAROUSEL_SIZE) return popular.slice(0, CAROUSEL_SIZE);
+    if (list.length > 0) {
+      return list.slice(0, CAROUSEL_SIZE).map(toCarouselItem);
     }
-    return popularEvents;
+    return popular;
   }, [popularEvents, eventList]);
 
   const carouselLoading = popularLoadingEvents && eventListLoading;
   const carouselEmpty = !carouselLoading && carouselItems.length === 0;
+
+  const handleRegionAlarmPress = useCallback(async () => {
+    if (!isLoggedIn) {
+      Alert.alert("로그인 필요", "본인 지역 행사 알림은 로그인 후 이용할 수 있어요.");
+      return;
+    }
+    let lat: number;
+    let lng: number;
+    const demo = await getDemoLocation();
+    if (demo) {
+      lat = demo.latitude;
+      lng = demo.longitude;
+    } else {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== Location.PermissionStatus.GRANTED) {
+          Alert.alert("위치 권한", "본인 지역 행사 알림을 받으려면 위치 권한을 허용해 주세요.");
+          return;
+        }
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Low,
+          mayShowUserSettingsDialog: false,
+        });
+        lat = loc.coords.latitude;
+        lng = loc.coords.longitude;
+      } catch {
+        Alert.alert("위치 확인 실패", "위치를 가져올 수 없어요. 지도 탭에서 현재 위치를 설정해 보세요.");
+        return;
+      }
+    }
+    const result = await eventReminder.scheduleRegionEventReminders(lat, lng);
+    if (result.ok) {
+      Alert.alert(
+        "알림 설정 완료",
+        result.count > 0
+          ? `${result.regionName} 지역 행사 ${result.count}건에 대해 1일 전 알림을 예약했어요.`
+          : `${result.regionName} 지역에 예정된 행사가 없어요. 나중에 다시 시도해 주세요.`
+      );
+    } else {
+      Alert.alert("알림 설정", result.message);
+    }
+  }, [isLoggedIn]);
 
   return (
     <SafeAreaView
@@ -111,7 +199,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.headerRight}>
-            <Pressable style={styles.headerIconBtn}>
+            <Pressable style={styles.headerIconBtn} onPress={handleRegionAlarmPress}>
               <Ionicons
                 name="notifications-outline"
                 size={20}
@@ -140,10 +228,16 @@ export default function HomeScreen() {
           ) : (
             <>
               <FlatList
+                ref={carouselRef}
                 data={carouselItems}
                 keyExtractor={(item) => String(item.id)}
                 horizontal
                 pagingEnabled
+                getItemLayout={(_: unknown, index: number) => ({
+                  length: BANNER_WIDTH,
+                  offset: index * BANNER_WIDTH,
+                  index,
+                })}
                 onMomentumScrollEnd={onCarouselScroll}
                 showsHorizontalScrollIndicator={false}
                 renderItem={({ item }: { item: PopularEventItem }) => (
@@ -189,7 +283,9 @@ export default function HomeScreen() {
         {/* 인기 게시물 섹션 */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>인기 게시물</Text>
+            <Text style={styles.sectionTitle}>
+              <Text style={styles.sectionTitleAccent}>인기</Text> 게시물
+            </Text>
             <Pressable
               onPress={() => {
                 (navigation as { navigate: (name: string, params?: object) => void }).navigate(
@@ -234,7 +330,9 @@ export default function HomeScreen() {
         {/* 행사 리스트 섹션 (GET /api/events) */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>행사 리스트</Text>
+            <Text style={styles.sectionTitle}>
+              <Text style={styles.sectionTitleAccent}>행사</Text> 리스트
+            </Text>
             <Pressable onPress={() => router.push("./home/event-list")}>
               <Text style={styles.sectionMore}>더 보기 &gt;</Text>
             </Pressable>
@@ -302,7 +400,9 @@ export default function HomeScreen() {
                         {timeStr ? <Text style={styles.eventTime}>{timeStr}</Text> : null}
                       </View>
                       <View style={styles.eventCardFooter}>
-                        <Text style={styles.detailButtonText}>자세히 보기</Text>
+                        <View style={styles.eventCardFooterCenter}>
+                          <Text style={styles.detailButtonText}>자세히 보기</Text>
+                        </View>
                         <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
                       </View>
                     </View>
@@ -465,6 +565,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
   },
+  sectionTitleAccent: {
+    color: "#2563EB",
+  },
   sectionMore: {
     fontSize: 12,
     color: "#6B7280",
@@ -533,9 +636,9 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
 
-  /* 행사 카드 리스트 */
+  /* 행사 카드 리스트 (회색선만 위·아래, 직사각형, 그림자 없음) */
   eventCardList: {
-    gap: 12,
+    gap: 0,
   },
   eventCardLoading: {
     paddingVertical: 24,
@@ -551,29 +654,27 @@ const styles = StyleSheet.create({
   eventCard: {
     flexDirection: "row",
     alignItems: "stretch",
-    borderRadius: 14,
+    borderRadius: 0,
     backgroundColor: "#FFFFFF",
     padding: 14,
     overflow: "hidden",
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+    borderBottomColor: "#E5E7EB",
   },
   eventImage: {
     width: 96,
     minWidth: 96,
-    aspectRatio: 2 / 3,
-    borderRadius: 10,
+    height: 128,
+    borderRadius: 0,
     marginRight: 14,
     backgroundColor: "#E5E7EB",
   },
   eventInfo: {
     flex: 1,
     minWidth: 0,
+    minHeight: 128,
     justifyContent: "space-between",
     paddingVertical: 2,
   },
@@ -590,11 +691,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
     lineHeight: 20,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   eventMeta: {
     gap: 2,
-    marginBottom: 10,
+    marginBottom: 4,
   },
   eventDate: {
     fontSize: 12,
@@ -607,11 +708,16 @@ const styles = StyleSheet.create({
   eventCardFooter: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
+    justifyContent: "space-between",
     height: 36,
     borderRadius: 10,
     backgroundColor: "#2563EB",
+    paddingHorizontal: 12,
+  },
+  eventCardFooterCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   detailButtonText: {
     color: "#FFFFFF",

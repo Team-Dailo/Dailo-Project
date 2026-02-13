@@ -45,18 +45,19 @@ export default function SearchScreen() {
     : '행사명, 내용, 키워드 검색';
 
   const [keyword, setKeyword] = useState('');
-  const [topKeywords, setTopKeywords] = useState<string[]>([]);
+  /** 인기 검색어 (최대 10개, 검색수 기준 순위) */
+  const [topKeywordsWithCount, setTopKeywordsWithCount] = useState<logService.TopSearchKeywordItem[]>([]);
   const [topLoading, setTopLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   /** 홈에서 검색 시 행사 검색 결과 (null = 아직 검색 안 함) */
   const [eventResults, setEventResults] = useState<Event[] | null>(null);
 
   useEffect(() => {
-    logService.getTopSearchKeywords(10).then(setTopKeywords).catch(() => {}).finally(() => setTopLoading(false));
+    logService.getTopSearchKeywordsWithCount(10).then(setTopKeywordsWithCount).catch(() => setTopKeywordsWithCount([])).finally(() => setTopLoading(false));
   }, []);
 
-  const handleSubmit = async () => {
-    const k = keyword.trim();
+  const handleSubmit = async (overrideKeyword?: string) => {
+    const k = (overrideKeyword ?? keyword).trim();
     if (!k) return;
 
     if (fromMap) {
@@ -139,18 +140,25 @@ export default function SearchScreen() {
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </Pressable>
           <View style={styles.searchBox}>
-            <Ionicons name="search" size={18} color="#9ca3af" />
             <TextInput
               style={styles.input}
               placeholder={placeholder}
               placeholderTextColor="#9ca3af"
               value={keyword}
               onChangeText={setKeyword}
-              onSubmitEditing={handleSubmit}
+              onSubmitEditing={() => handleSubmit()}
               returnKeyType="search"
               autoFocus
               editable={!searching}
             />
+            <Pressable
+              onPress={() => handleSubmit()}
+              style={styles.searchIconButton}
+              hitSlop={8}
+              disabled={searching}
+            >
+              <Ionicons name="search" size={20} color={searching ? '#9ca3af' : '#111827'} />
+            </Pressable>
           </View>
         </View>
 
@@ -202,15 +210,31 @@ export default function SearchScreen() {
           </Text>
           {topLoading ? (
             <ActivityIndicator size="small" color="#6366F1" style={{ marginVertical: 8 }} />
-          ) : topKeywords.length === 0 ? (
-            <Text style={styles.emptyText}>인기 검색어가 없습니다.</Text>
           ) : (
-            <View style={styles.chipRow}>
-              {topKeywords.map((k) => (
-                <Pressable key={k} style={styles.chip} onPress={() => setKeyword(k)}>
-                  <Text style={styles.chipText}>{k}</Text>
-                </Pressable>
-              ))}
+            <View style={styles.rankList}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((rank) => {
+                const item = topKeywordsWithCount[rank - 1];
+                const label = item ? `${item.keyword} ${item.count}` : '-';
+                const hasData = !!item;
+                return (
+                  <Pressable
+                    key={rank}
+                    style={[styles.rankRow, !hasData && styles.rankRowEmpty]}
+                    onPress={() => {
+                      if (hasData) {
+                        setKeyword(item!.keyword);
+                        handleSubmit(item!.keyword);
+                      }
+                    }}
+                    disabled={!hasData}
+                  >
+                    <Text style={styles.rankNum}>{rank}</Text>
+                    <Text style={[styles.rankLabel, !hasData && styles.rankLabelEmpty]} numberOfLines={1}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           )}
         </ScrollView>
@@ -246,14 +270,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 999,
     backgroundColor: '#f3f4f6',
-    paddingHorizontal: 12,
+    paddingLeft: 12,
+    paddingRight: 4,
     height: 40,
   },
   input: {
     flex: 1,
-    marginLeft: 6,
+    marginRight: 4,
     fontSize: 14,
     paddingVertical: 0,
+  },
+  searchIconButton: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
@@ -285,6 +316,34 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 14,
     color: '#374151',
+  },
+  rankList: {
+    gap: 0,
+  },
+  rankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  rankRowEmpty: {
+    opacity: 0.6,
+  },
+  rankNum: {
+    width: 28,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  rankLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: '#111827',
+  },
+  rankLabelEmpty: {
+    color: '#9CA3AF',
   },
   resultSection: {
     marginBottom: 8,
