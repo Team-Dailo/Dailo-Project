@@ -1,0 +1,30 @@
+name: "CI: PR Check (Stage)"
+
+on:
+  pull_request: 
+    branches: [ "stage" ]
+    paths:
+      - "backend/**"
+      - ".github/workflows/ci-pr-stage.yml"
+
+jobs:
+  build-and-test: 
+    name: Build and Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      # 💡 실무에서는 여기서 테스트 코드를 반드시 실행합니다 (-x test 제거 권장)
+      - name: Build with Gradle
+        run: ./gradlew clean build -x test
