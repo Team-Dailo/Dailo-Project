@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @NoArgsConstructor
@@ -32,16 +33,22 @@ public class PostResponseDto {
     private LocalDateTime updatedAt;
     /** 로그인 사용자가 이 게시글에 좋아요를 눌렀는지 */
     private Boolean isLiked;
+    /** 이미지 Presigned URL 목록 */
+    private List<String> imageUrls;
 
     public static PostResponseDto from(Post post) {
-        return from(post, null, null);
+        return from(post, null, null, null);
     }
 
     public static PostResponseDto from(Post post, String authorNickname) {
-        return from(post, authorNickname, null);
+        return from(post, authorNickname, null, null);
     }
 
     public static PostResponseDto from(Post post, String authorNickname, Boolean isLiked) {
+        return from(post, authorNickname, isLiked, null);
+    }
+
+    public static PostResponseDto from(Post post, String authorNickname, Boolean isLiked, List<String> imageUrls) {
         return PostResponseDto.builder()
                 .id(post.getId())
                 .authorId(post.getAuthorId())
@@ -57,6 +64,7 @@ public class PostResponseDto {
                 .createdAt(post.getCreatedAt())
                 .updatedAt(post.getUpdatedAt())
                 .isLiked(isLiked)
+                .imageUrls(imageUrls)
                 .build();
     }
 }

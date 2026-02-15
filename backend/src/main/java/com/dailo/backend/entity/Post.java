@@ -72,6 +72,12 @@ public class Post {
     @Builder.Default
     private List<Comment> comments = new ArrayList<>();
 
+    @ElementCollection
+    @CollectionTable(name = "post_images", joinColumns = @JoinColumn(name = "post_id"))
+    @Column(name = "image_key")
+    @Builder.Default
+    private List<String> imageKeys = new ArrayList<>();
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -99,6 +105,18 @@ public class Post {
         this.content = content;
         this.categoryType = categoryType;
         this.eventId = eventId;
+    }
+
+    public void update(String title, String content, String categoryType, Long eventId, List<String> imageKeys) {
+        this.title = title;
+        this.content = content;
+        this.categoryType = categoryType;
+        this.eventId = eventId;
+        this.imageKeys = imageKeys != null ? imageKeys : new ArrayList<>();
+    }
+
+    public void setImageKeys(List<String> imageKeys) {
+        this.imageKeys = imageKeys != null ? imageKeys : new ArrayList<>();
     }
 
     public void increaseViewCount() {
