@@ -171,12 +171,13 @@ module "rds" {
 # ------------------------------------------------------------------------------
 module "cdn" {
   source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=main"
-
+  
   name        = local.name
   bucket_name = local.static_bucket_name
   domain_name     = local.domain_name
   static_path_pattern = "/static/*"
   alb_dns_name = module.ecs.alb_dns_name
+
 
   route53_zone_id = data.aws_route53_zone.selected.zone_id
   cloudfront_cert_arn = data.aws_acm_certificate.global_cert.arn

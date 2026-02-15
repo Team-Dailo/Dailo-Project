@@ -27,6 +27,9 @@
 hs_err_pid*
 replay_pid*
 
+# Firebase Admin SDK Key
+src/main/resources/firebase/*.json
+
 ### Docker ###
 .env
 .env.local
@@ -57,6 +60,9 @@ application-local.properties
 *.env
 .env
 
+### Backend 내부 문서 (PRD, TASK 등) ###
+backend/docs/
+
 ### OS / IDE / Build artifacts ###
 .DS_Store
 **/.DS_Store
@@ -72,3 +78,5 @@ application-local.properties
 
 # Logs
 **/logs/
+.vscode/
+
