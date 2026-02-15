@@ -29,6 +29,7 @@ public class PostService {
     private final MemberRepository memberRepository;
     private final PostLikeRepository postLikeRepository;
     private final BlockService blockService;
+    private final S3UploadService s3UploadService;
 
     /** authorId 목록으로 닉네임 맵 조회 (N+1 방지) */
     private Map<Long, String> getAuthorNicknameMap(List<Post> posts) {
@@ -65,7 +66,15 @@ public class PostService {
                 .map(Member::getNickname)
                 .orElse(null);
         Boolean isLiked = (userId != null && postLikeRepository.existsByMemberIdAndPostId(userId, id));
-        return PostResponseDto.from(post, nickname, isLiked);
+        List<String> imageUrls = convertKeysToUrls(post.getImageKeys());
+        return PostResponseDto.from(post, nickname, isLiked, imageUrls);
+    }
+
+    private List<String> convertKeysToUrls(List<String> keys) {
+        if (keys == null || keys.isEmpty()) return List.of();
+        return keys.stream()
+                .map(s3UploadService::getPresignedUrl)
+                .collect(Collectors.toList());
     }
 
     private void validateVisible(Post post, Long userId) {
@@ -82,7 +91,8 @@ public class PostService {
         Post post = requestDto.toEntity(authorId);
         Post savedPost = postRepository.save(post);
         String nickname = memberRepository.findById(authorId).map(Member::getNickname).orElse(null);
-        return PostResponseDto.from(savedPost, nickname);
+        List<String> imageUrls = convertKeysToUrls(savedPost.getImageKeys());
+        return PostResponseDto.from(savedPost, nickname, null, imageUrls);
     }
 
     @Transactional
@@ -94,9 +104,11 @@ public class PostService {
             throw new RuntimeException("You are not the author of this post");
         }
 
-        post.update(requestDto.getTitle(), requestDto.getContent(), requestDto.getCategoryType(), requestDto.getEventId());
+        post.update(requestDto.getTitle(), requestDto.getContent(), requestDto.getCategoryType(),
+                requestDto.getEventId(), requestDto.getImageKeys());
         String nickname = memberRepository.findById(post.getAuthorId()).map(Member::getNickname).orElse(null);
-        return PostResponseDto.from(post, nickname);
+        List<String> imageUrls = convertKeysToUrls(post.getImageKeys());
+        return PostResponseDto.from(post, nickname, null, imageUrls);
     }
 
     /** 행사별 후기 게시글 목록 (eventId 로 조회) */

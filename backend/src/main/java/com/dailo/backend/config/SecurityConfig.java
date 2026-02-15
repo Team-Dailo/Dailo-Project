@@ -61,6 +61,9 @@ public class SecurityConfig {
                         // 이용 안내 등 앱 콘텐츠 조회 (비로그인 포함)
                         .requestMatchers(HttpMethod.GET, "/api/content/**").permitAll()
 
+                        // 파일 업로드 (인증 필요)
+                        .requestMatchers("/api/files/**").authenticated()
+
                         // 관리자 페이지 등 (필요하면 유지)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 

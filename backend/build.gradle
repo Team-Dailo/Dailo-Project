@@ -54,6 +54,10 @@ dependencies {
 
 	// Firebase Admin SDK (푸시 알림 발송용)
 	implementation 'com.google.firebase:firebase-admin:9.2.0'
+
+	// AWS SDK v2 for S3
+	implementation platform('software.amazon.awssdk:bom:2.20.0')
+	implementation 'software.amazon.awssdk:s3'
 }
 
 tasks.named('test') {
