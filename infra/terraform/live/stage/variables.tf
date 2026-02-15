@@ -3,3 +3,13 @@ variable "db_password" {
   type        = string
   sensitive   = true 
 }
+
+variable "discord_webhook_url" {
+  description = "Discord Webhook URL for Grafana alerts"
+  type        = string
+}
+
+variable "grafana_admin_password" {
+  description = "Grafana Admin Password"
+  type        = string
+}
