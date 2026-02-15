@@ -44,6 +44,14 @@ data "aws_ecr_repository" "dailo" {
   name = "dailo" 
 }
 
+data "aws_acm_certificate" "global_cert" {
+  provider    = aws.virginia
+  domain      = "dailoapp.com"
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
+
 # module "ecr" {
 #   source = "../../global/ecr"
 #   name   = "dailo" 
@@ -87,7 +95,6 @@ module "ecs" {
 
   bucket_name        = local.static_bucket_name # IAM 정책 연결용
   ecr_repository_url = data.aws_ecr_repository.dailo.repository_url # 이미지 Pull용
-  # ecr_repository_url = module.ecr.repository_url # 이미지 Pull용
 
   # [EC2 설정]
   key_name      = "prod_key" 
@@ -164,18 +171,17 @@ module "rds" {
 # ------------------------------------------------------------------------------
 module "cdn" {
   source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=main"
-
-  providers = {
-    aws.virginia = aws.virginia
-  }
-
+  
   name        = local.name
   bucket_name = local.static_bucket_name
-
   domain_name     = local.domain_name
-  route53_zone_id = data.aws_route53_zone.selected.zone_id
-
+  static_path_pattern = "/static/*"
   alb_dns_name = module.ecs.alb_dns_name
+
+
+  route53_zone_id = data.aws_route53_zone.selected.zone_id
+  cloudfront_cert_arn = data.aws_acm_certificate.global_cert.arn
+
 }
 
 # ------------------------------------------------------------------------------
@@ -213,11 +219,11 @@ module "monitoring" {
   grafana_container_env = [
     { name = "GF_DATABASE_TYPE", value = "mysql" },
     { name = "GF_DATABASE_HOST", value = "${module.rds.endpoint}" },
-    { name = "GF_SERVER_ROOT_URL", value = "https://grafana.${local.domain_name}" },
-    { name = "GF_SERVER_DOMAIN", value = "grafana.${local.domain_name}" },
+    { name = "GF_SERVER_ROOT_URL", value = "https://${local.domain_name}/grafana/" },
+    { name = "GF_SERVER_SERVE_FROM_SUB_PATH", value = "true" },
     { name = "GF_DATABASE_PASSWORD", value = var.db_password },
     { name = "GF_DATABASE_NAME", value = "grafana" },
     { name = "GF_DATABASE_USER", value = local.db_username },
-     
+
   ]
 }

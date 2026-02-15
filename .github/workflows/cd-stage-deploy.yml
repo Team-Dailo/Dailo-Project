@@ -1,0 +1,72 @@
+name: "CD: Deploy to ECS (Stage)"
+
+on:
+  workflow_run:
+    workflows: ["Terraform Infrastructure"] 
+    types:
+      - completed
+    branches: ["stage"]
+  push: 
+    branches: [ "stage" ] 
+    paths:
+      - "backend/**"
+      - ".github/workflows/cd-stage-deploy.yml"
+
+jobs: 
+  deploy:
+    name: Build & Deploy to ECS
+    runs-on: ubuntu-latest 
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Grant execute permission for gradlew
+        working-directory: ./backend
+        run: chmod +x gradlew
+      
+      - name: Build with Gradle
+        working-directory: ./backend
+        run: ./gradlew clean build -x test
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Check Infrastructure Readiness
+        run: |
+          echo "Checking if ECS cluster 'dailo-stage-cluster' exists and is ACTIVE..."
+          CLUSTER_STATUS=$(aws ecs describe-clusters --clusters dailo-stage-cluster --query "clusters[0].status" --output text)
+          
+          if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
+            echo "Error: ECS Cluster 'dailo-stage-cluster' is not ACTIVE or does not exist."
+            exit 1 
+          fi
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        working-directory: ./backend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: dailo 
+          IMAGE_TAG: stage-latest
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Deploy to Amazon ECS
+        run: |
+          aws ecs update-service --cluster dailo-stage-cluster --service dailo-stage-service --force-new-deployment
