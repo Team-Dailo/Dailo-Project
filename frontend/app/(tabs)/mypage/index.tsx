@@ -105,6 +105,7 @@ export default function MyPageScreen() {
 
         {/* 섹션: 활동 기록 (비로그인 시 로그인 화면으로) */}
         <Section title="활동 기록">
+          {/* 참여 서버 기록 비노출
           <MenuItem
             icon="list-outline"
             label="참여 서버 기록"
@@ -114,6 +115,7 @@ export default function MyPageScreen() {
                 : router.push("/login")
             }
           />
+          */}
           <MenuItem
             icon="calendar-outline"
             label="참여한 축제"
