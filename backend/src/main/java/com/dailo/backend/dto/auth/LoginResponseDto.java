@@ -6,33 +6,26 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 로그인 API 응답.
- * - 일반 로그인: tokenDto 있음, requiresEmailVerification false
- * - 관리자 이메일 확인 로그인: tokenDto null, requiresEmailVerification true
- */
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class LoginResponseDto {
-    private TokenDto tokenDto;
-    private boolean requiresEmailVerification;
-    private String message;
+    private String grantType;
+    private String accessToken;
+    private String refreshToken;
+    private Long accessTokenExpiresIn;
+    private String nickname;
+    private Long userId;
 
-    public static LoginResponseDto withToken(TokenDto tokenDto) {
+    public static LoginResponseDto of(TokenDto tokenDto, String nickname, Long userId) {
         return LoginResponseDto.builder()
-                .tokenDto(tokenDto)
-                .requiresEmailVerification(false)
-                .message(null)
-                .build();
-    }
-
-    public static LoginResponseDto emailVerificationRequired(String message) {
-        return LoginResponseDto.builder()
-                .tokenDto(null)
-                .requiresEmailVerification(true)
-                .message(message != null ? message : "이메일에서 확인 링크를 눌러 주세요.")
+                .grantType(tokenDto.getGrantType())
+                .accessToken(tokenDto.getAccessToken())
+                .refreshToken(tokenDto.getRefreshToken())
+                .accessTokenExpiresIn(tokenDto.getAccessTokenExpiresIn())
+                .nickname(nickname != null ? nickname : "")
+                .userId(userId != null ? userId : 0L)
                 .build();
     }
 }
