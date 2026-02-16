@@ -14,7 +14,6 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Alert,
-  InteractionManager,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -79,7 +78,7 @@ export default function HomeScreen() {
   const carouselIndexRef = useRef(0);
   const carouselIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  /** 캐러셀 5초마다 다음 슬라이드로 자동 이동 */
+  /** 캐러셀 5초마다 다음 슬라이드로 자동 이동 (실기기에서 runAfterInteractions 지연 이슈 방지를 위해 setTimeout 사용) */
   useEffect(() => {
     carouselIndexRef.current = carouselIndex;
   }, [carouselIndex]);
@@ -88,7 +87,7 @@ export default function HomeScreen() {
     const items = carouselItems ?? [];
     if (items.length <= 1) return;
     const len = items.length;
-    const cancel = InteractionManager.runAfterInteractions(() => {
+    const startTimer = () => {
       if (carouselIntervalRef.current) clearInterval(carouselIntervalRef.current);
       carouselIntervalRef.current = setInterval(() => {
         const nextIndex = (carouselIndexRef.current + 1) % len;
@@ -102,9 +101,10 @@ export default function HomeScreen() {
           });
         }
       }, 5000);
-    });
+    };
+    const timeoutId = setTimeout(startTimer, 400);
     return () => {
-      cancel.cancel();
+      clearTimeout(timeoutId);
       if (carouselIntervalRef.current) {
         clearInterval(carouselIntervalRef.current);
         carouselIntervalRef.current = null;

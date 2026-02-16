@@ -26,7 +26,7 @@ export default function MyPageSettingsScreen() {
         options={{
           title: '설정',
           headerShown: true,
-          headerTitleAlign: 'left',
+          headerTitleAlign: 'center',
           headerLeft: () => (
             <Pressable
               onPress={() => router.back()}

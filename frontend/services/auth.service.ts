@@ -18,10 +18,11 @@ export type TokenDto = {
   accessTokenExpiresIn: number;
 };
 
-/** 백엔드 로그인 응답 (토큰 + 닉네임 + 회원 id) */
-export type LoginResponseDto = TokenDto & {
-  nickname: string;
-  userId?: number;
+/** 백엔드 로그인 응답 (일반: tokenDto 있음 / 이메일 확인 필요: requiresEmailVerification true) */
+export type LoginResponseDto = (TokenDto & { nickname?: string; userId?: number }) & {
+  tokenDto?: TokenDto | null;
+  requiresEmailVerification?: boolean;
+  message?: string | null;
 };
 
 /** 백엔드 로그인 요청 (LoginRequestDto: email, password) */
@@ -77,8 +78,12 @@ export async function loginApi(body: LoginRequest): Promise<LoginResponseDto> {
         : `로그인 실패 (${res.status})`;
     throw new Error(getErrorMessage(text, res.status, fallback));
   }
-  const json = JSON.parse(text) as Record<string, unknown>;
-  return json as LoginResponseDto;
+  const json = JSON.parse(text) as LoginResponseDto & Record<string, unknown>;
+  if (json.requiresEmailVerification) {
+    const msg = (json.message && String(json.message).trim()) || '로그인 확인 이메일을 발송했습니다. Gmail에서 확인 링크를 눌러 주세요.';
+    throw new Error('EMAIL_VERIFICATION_REQUIRED:' + msg);
+  }
+  return json;
 }
 
 /**
@@ -166,23 +171,27 @@ export async function login(
 ): Promise<{ name: string; id?: number; email: string }> {
   const dto = await loginApi({ email: email.trim(), password });
   const trimmed = email.trim();
-  const token = (dto as Record<string, unknown>).accessToken ?? dto.accessToken;
+  const tokenDto = (dto as Record<string, unknown>).tokenDto ?? (dto.accessToken ? dto : null);
+  const token = tokenDto && typeof tokenDto === 'object' && tokenDto !== null
+    ? (tokenDto as Record<string, unknown>).accessToken as string
+    : (dto as Record<string, unknown>).accessToken ?? dto.accessToken;
   if (!token || typeof token !== 'string' || !token.trim()) {
     throw new Error('로그인 응답에 토큰이 없습니다. 서버 설정을 확인해 주세요.');
   }
+  const raw = tokenDto && typeof tokenDto === 'object' ? (tokenDto as Record<string, unknown>) : (dto as Record<string, unknown>);
+  const refresh = (raw.refreshToken as string) ?? '';
   const dtoAny = dto as Record<string, unknown>;
   const id = parseUserIdFromLoginResponse(dtoAny);
 
   const storageItems: [string, string][] = [
     [ACCESS_TOKEN_KEY, String(token)],
-    [REFRESH_TOKEN_KEY, (dto as Record<string, unknown>).refreshToken ?? dto.refreshToken ?? ''],
+    [REFRESH_TOKEN_KEY, refresh],
     [USER_EMAIL_KEY, trimmed],
   ];
   if (id != null && id > 0) {
     storageItems.push([USER_ID_KEY, String(id)]);
   }
   await AsyncStorage.multiSet(storageItems);
-  // 계정 전환 시 이전 계정 id 제거 (없으면 삭제해서 다른 계정 글이 안 섞이게)
   if (id != null && id > 0) {
     await setStoredUserId(id);
   } else {
@@ -196,6 +205,49 @@ export async function login(
     '사용자';
   await saveNicknameForEmail(trimmed, name);
   return { name, id, email: trimmed };
+}
+
+/** 이메일 확인 링크에서 받은 토큰으로 로그인 완료 (딥링크용) */
+export async function exchangeLoginToken(
+  oneTimeToken: string
+): Promise<{ name: string; id?: number; email: string; role?: string; profileImageUrl?: string | null }> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/exchange-login-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: oneTimeToken }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(getErrorMessage(text, res.status, '로그인 확인이 만료되었거나 이미 사용된 링크입니다.'));
+  }
+  const tokenDto = JSON.parse(text) as TokenDto;
+  await AsyncStorage.multiSet([
+    [ACCESS_TOKEN_KEY, tokenDto.accessToken],
+    [REFRESH_TOKEN_KEY, tokenDto.refreshToken ?? ''],
+  ]);
+  const me = await getMe();
+  if (!me) {
+    throw new Error('회원 정보를 불러올 수 없습니다.');
+  }
+  const storageItems: [string, string][] = [
+    [USER_EMAIL_KEY, me.email ?? ''],
+  ];
+  const id = me.id != null && me.id > 0 ? me.id : undefined;
+  if (id != null) {
+    storageItems.push([USER_ID_KEY, String(id)]);
+    await setStoredUserId(id);
+  }
+  await AsyncStorage.multiSet(storageItems);
+  const name = me.nickname?.trim() || (await getStoredNickname(me.email ?? '')) || me.email?.split('@')[0] || me.email || '사용자';
+  await saveNicknameForEmail(me.email ?? '', name);
+  const profileImageUrl = (me as { profileImageUrl?: string | null }).profileImageUrl;
+  return {
+    name,
+    id,
+    email: me.email ?? '',
+    role: me.role ?? undefined,
+    profileImageUrl: profileImageUrl ?? undefined,
+  };
 }
 
 /**

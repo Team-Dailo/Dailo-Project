@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '../contexts/AuthContext';
+import { LoginVerifiedHandler } from '../components/LoginVerifiedHandler';
 
 // 스플래시를 첫 프레임 그린 뒤 숨기기 (넘어가지 않는 현상 방지)
 SplashScreen.preventAutoHideAsync();
@@ -27,6 +28,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
+    <LoginVerifiedHandler />
     <Stack screenOptions={{ headerShown: false }}>
       {/* 하단 탭 그룹 */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -36,7 +38,6 @@ export default function RootLayout() {
       <Stack.Screen name="event" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="profile" options={{ headerShown: false }} />
-      <Stack.Screen name="settings" options={{ headerShown: false }} />
     </Stack>
     </AuthProvider>
   );

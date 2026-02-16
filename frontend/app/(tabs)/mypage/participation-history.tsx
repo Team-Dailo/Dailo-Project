@@ -68,11 +68,13 @@ export default function ParticipationHistoryScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()}>
+          <Pressable style={styles.headerBack} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
-          <Text style={styles.headerTitle}>참여 서버 기록</Text>
-          <View style={{ width: 22 }} />
+          <View style={styles.headerTitleWrap} pointerEvents="box-none">
+            <Text style={styles.headerTitle}>참여 서버 기록</Text>
+          </View>
+          <View style={styles.headerRight} />
         </View>
 
         <Text style={styles.subtitle}>입장·퇴장이 기록된 모든 축제 참여 내역입니다.</Text>
@@ -197,10 +199,29 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
   },
+  headerBack: {
+    position: "absolute",
+    left: 0,
+    zIndex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  headerTitleWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerRight: {
+    position: "absolute",
+    right: 0,
+    width: 44,
+    height: 56,
+  },
   headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    marginLeft: 20,
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",

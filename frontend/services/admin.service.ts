@@ -432,7 +432,17 @@ export type AdminMemberListItemDto = {
   nickname: string | null;
   role: string | null;
   status: string | null;
+  createdAt: string | null;
 };
+
+export async function withdrawMember(memberId: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/members/${memberId}/withdraw`, { method: 'POST' });
+  if (!res.ok) {
+    const msg = await res.text().then((t) => t || `탈퇴 처리 실패 (${res.status})`);
+    if (res.status === 403) throw new Error('관리자 권한이 필요합니다.');
+    throw new Error(msg);
+  }
+}
 
 export async function getAdminMemberList(params?: {
   page?: number;

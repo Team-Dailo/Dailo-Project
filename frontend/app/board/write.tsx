@@ -454,7 +454,7 @@ export default function PostWriteScreen() {
           </Pressable>
         </Modal>
 
-        {/* 사진, 태그 - 키보드 없을 땐 하단, 키보드 뜨면 키보드 위에 여유 간격 */}
+        {/* 사진 - 키보드 없을 땐 하단, 키보드 뜨면 키보드 위에 여유 간격 */}
         <View style={[styles.attachRow, { bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 0 }]}>
           <Pressable
             style={styles.attachBtn}
@@ -474,10 +474,6 @@ export default function PostWriteScreen() {
             >
               사진 {(existingImageUrls.length + selectedImageUris.length) > 0 ? `(${existingImageUrls.length + selectedImageUris.length}/${MAX_IMAGES})` : ""}
             </Text>
-          </Pressable>
-          <Pressable style={styles.attachBtn}>
-            <Text style={styles.hash}>#</Text>
-            <Text style={styles.attachText}>태그</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -572,7 +568,6 @@ const styles = StyleSheet.create({
   attachBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 4 },
   attachText: { fontSize: 14, color: "#6B7280" },
   attachTextDisabled: { color: "#D1D5DB" },
-  hash: { fontSize: 16, color: "#6B7280", fontWeight: "600" },
   eventSelectRow: { marginBottom: 16 },
   eventSelectLabel: { fontSize: 13, color: "#6B7280", marginBottom: 8 },
   eventSelectBtn: {

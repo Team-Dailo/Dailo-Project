@@ -10,18 +10,28 @@ import {
   Dimensions,
   PanResponder,
   Animated,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { getCalendarEvents, type CalendarEventItem } from "../../../services/event.service";
+import * as scrapService from "../../../services/scrap.service";
 import { getEventColorByFilterGroup, MAP_UI } from "../../../constants/colors";
 
 /** 요일: 일-토 순서 */
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const BOTTOM_SHEET_MAX_RATIO = 0.34;
+/** 하단 시트 3단계: 최소(날짜만) / 기본 / 전체 */
+const BOTTOM_SHEET_MIN_RATIO = 0.12;
+const BOTTOM_SHEET_DEFAULT_RATIO = 0.3;
 const BOTTOM_SHEET_EXPANDED_RATIO = 0.72;
+const SHEET_HEIGHTS = [
+  SCREEN_HEIGHT * BOTTOM_SHEET_MIN_RATIO,
+  SCREEN_HEIGHT * BOTTOM_SHEET_DEFAULT_RATIO,
+  SCREEN_HEIGHT * BOTTOM_SHEET_EXPANDED_RATIO,
+] as const;
+type SheetLevel = 0 | 1 | 2;
 /** 달력·하단시트 공통 가로 여백 (줄인 여백) */
 const HORIZONTAL_PADDING = 12;
 const CONTENT_MAX_WIDTH = SCREEN_WIDTH - HORIZONTAL_PADDING * 2;
@@ -128,13 +138,16 @@ function toIsoString(v: unknown): string {
   return "";
 }
 
-/** API 응답 정규화: startAt/endAt → ISO 문자열, filterGroup → 칩/카드 색상용 */
-function normalizeCalendarItem(raw: CalendarEventItem & { filter_group?: string | null }): CalendarEventItem {
+/** API 응답 정규화: startAt/endAt → ISO 문자열, filterGroup → 칩/카드 색상용, isBookmarked */
+function normalizeCalendarItem(
+  raw: CalendarEventItem & { filter_group?: string | null; bookmarked?: boolean }
+): CalendarEventItem {
   return {
     ...raw,
     startAt: toIsoString(raw.startAt) || raw.startAt,
     endAt: toIsoString(raw.endAt) || raw.endAt,
     filterGroup: raw.filterGroup ?? raw.filter_group ?? null,
+    isBookmarked: raw.isBookmarked ?? raw.bookmarked ?? false,
   };
 }
 
@@ -194,22 +207,27 @@ export default function CalendarScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [sheetLevel, setSheetLevel] = useState<SheetLevel>(1);
+  const sheetLevelRef = useRef<SheetLevel>(1);
+  sheetLevelRef.current = sheetLevel;
   const sheetHeightAnim = useRef(
-    new Animated.Value(SCREEN_HEIGHT * BOTTOM_SHEET_MAX_RATIO)
+    new Animated.Value(SHEET_HEIGHTS[1])
   ).current;
 
-  const animateSheetHeight = useCallback((expand: boolean) => {
-    const toValue = expand
-      ? SCREEN_HEIGHT * BOTTOM_SHEET_EXPANDED_RATIO
-      : SCREEN_HEIGHT * BOTTOM_SHEET_MAX_RATIO;
-    Animated.timing(sheetHeightAnim, {
-      toValue,
-      duration: 250,
-      useNativeDriver: false,
-    }).start();
-    setSheetExpanded(expand);
-  }, [sheetHeightAnim]);
+  const animateSheetToLevel = useCallback(
+    (level: SheetLevel) => {
+      const toValue = SHEET_HEIGHTS[level];
+      Animated.timing(sheetHeightAnim, {
+        toValue,
+        duration: 250,
+        useNativeDriver: false,
+      }).start(() => {
+        setSheetLevel(level);
+        sheetLevelRef.current = level;
+      });
+    },
+    [sheetHeightAnim]
+  );
 
   const sheetPanResponder = useRef(
     PanResponder.create({
@@ -218,8 +236,16 @@ export default function CalendarScreen() {
         Math.abs(gestureState.dy) > 8,
       onPanResponderRelease: (_, gestureState) => {
         const { dy } = gestureState;
-        if (dy < -25) animateSheetHeight(true);
-        else if (dy > 25) animateSheetHeight(false);
+        const current = sheetLevelRef.current;
+        let next: SheetLevel = current;
+        if (dy < -25) {
+          if (current === 0) next = 1;
+          else if (current === 1) next = 2;
+        } else if (dy > 25) {
+          if (current === 2) next = 1;
+          else if (current === 1) next = 0;
+        }
+        if (next !== current) animateSheetToLevel(next);
       },
     })
   ).current;
@@ -289,6 +315,18 @@ export default function CalendarScreen() {
     return eventsByDayAll[selectedDay] ?? [];
   }, [eventsByDayAll, selectedDay]);
 
+  const handleToggleBookmark = useCallback(async (ev: CalendarEventItem) => {
+    try {
+      const isNowSaved = await scrapService.toggleScrap(ev.id);
+      setEvents((prev) =>
+        prev.map((e) => (e.id === ev.id ? { ...e, isBookmarked: isNowSaved } : e))
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "저장할 수 없습니다.";
+      Alert.alert("알림", msg.includes("로그인") ? "로그인 후 저장할 수 있어요." : msg);
+    }
+  }, []);
+
   const handlePrevMonth = () => {
     if (viewMonth === 1) {
       setViewYear((y) => y - 1);
@@ -317,7 +355,7 @@ export default function CalendarScreen() {
       setViewMonth(cell.date.getMonth() + 1);
       setSelectedDay(cell.day);
     }
-    animateSheetHeight(false);
+    animateSheetToLevel(1);
   };
 
   const isToday = (cell: DayCell) =>
@@ -379,7 +417,7 @@ export default function CalendarScreen() {
         {/* 달력 영역만 스크롤 (전체 흰 배경) */}
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + SHEET_HEIGHTS[sheetLevel] }]}
           showsVerticalScrollIndicator={false}
         >
           {/* 카테고리: 윤곽선 없음, 연한 배경, 글씨 옆 동그라미 (사진처럼) */}
@@ -547,12 +585,11 @@ export default function CalendarScreen() {
                 {selectedEvents.map((ev) => {
                   const color = getEventColor(ev);
                   return (
-                    <Pressable
-                      key={ev.id}
-                      style={[styles.eventCard, { borderColor: color }]}
-                      onPress={() => router.push(`/event/${ev.id}?source=calendar`)}
-                    >
-                      <View style={styles.eventLeft}>
+                    <View key={ev.id} style={[styles.eventCard, { borderColor: color }]}>
+                      <Pressable
+                        style={styles.eventLeft}
+                        onPress={() => router.push(`/event/${ev.id}?source=calendar`)}
+                      >
                         <View
                           style={[
                             styles.eventIcon,
@@ -576,13 +613,19 @@ export default function CalendarScreen() {
                             {formatTimeRange(ev.startAt, ev.endAt)}
                           </Text>
                         </View>
-                      </View>
-                      <Ionicons
-                        name={ev.isBookmarked ? "bookmark" : "bookmark-outline"}
-                        size={20}
-                        color={ev.isBookmarked ? "#6366F1" : "#9CA3AF"}
-                      />
-                    </Pressable>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleToggleBookmark(ev)}
+                        style={styles.eventBookmarkBtn}
+                        hitSlop={8}
+                      >
+                        <Ionicons
+                          name={ev.isBookmarked ? "bookmark" : "bookmark-outline"}
+                          size={22}
+                          color={ev.isBookmarked ? "#6366F1" : "#9CA3AF"}
+                        />
+                      </Pressable>
+                    </View>
                   );
                 })}
               </View>
@@ -634,7 +677,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: 20,
     backgroundColor: "#FFFFFF",
-    paddingBottom: 24 + SCREEN_HEIGHT * BOTTOM_SHEET_MAX_RATIO,
   },
   filterChipsScroll: {
     marginBottom: 10,
@@ -861,6 +903,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     flex: 1,
+    minWidth: 0,
+  },
+  eventBookmarkBtn: {
+    padding: 6,
+    margin: -6,
   },
   eventIcon: {
     width: 36,

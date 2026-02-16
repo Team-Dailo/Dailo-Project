@@ -1026,8 +1026,8 @@ export default function MapScreen() {
     []
   );
 
-  // 하단 탭 바 높이 + safe area만큼 올려서 탭과 겹치지 않게
-  const TAB_BAR_HEIGHT = 60;
+  // 하단 탭 바 높이 + safe area만큼 올려서 탭과 겹치지 않게 (_layout.tsx tabBar height 72와 동일)
+  const TAB_BAR_HEIGHT = 72;
   const bottomInset = insets.bottom ?? 0;
   const tabBarOffset = TAB_BAR_HEIGHT + bottomInset;
 
@@ -1062,7 +1062,9 @@ export default function MapScreen() {
             <View style={styles.mapFallback}>
               <Text style={styles.mapFallbackText}>지도는 개발 빌드에서만 이용할 수 있습니다.</Text>
               <Text style={styles.mapFallbackSub}>
-                터미널에서 {'npx expo run:android'} 로 실행해 주세요.
+                실기기에서 지도를 보려면:{'\n'}
+                1) 터미널에서 npx expo start --tunnel 실행{'\n'}
+                2) 다른 터미널에서 npx expo run:android 로 기기에서 앱 실행
               </Text>
             </View>
           ) : (

@@ -270,7 +270,7 @@ function MenuItem({ icon, label, onPress }: MenuItemProps) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     flex: 1,
