@@ -70,23 +70,23 @@ interface RowProps {
 }
 
 function TimelineRow({ item, isLast }: RowProps) {
+  const timeStr = `${item.startTime}${item.endTime ? ` ~ ${item.endTime}` : ""}`;
   return (
     <View style={styles.row}>
       <View style={styles.lineCol}>
         <View style={styles.circle} />
         {!isLast && <View style={styles.line} />}
       </View>
-      <View style={styles.card}>
-        <Text style={styles.timeText}>
-          {item.startTime}
-          {item.endTime ? ` ~ ${item.endTime}` : ""}
-        </Text>
-        <Text style={styles.titleText}>{item.title}</Text>
-        {item.details?.map((d) => (
-          <Text key={d} style={styles.detailText}>
-            • {d}
-          </Text>
-        ))}
+      <View style={styles.cardWrap}>
+        <Text style={styles.timeText}>{timeStr}</Text>
+        <View style={styles.card}>
+          <Text style={styles.titleText}>{item.title}</Text>
+          {item.details?.map((d) => (
+            <Text key={d} style={styles.detailText}>
+              • {d}
+            </Text>
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -136,8 +136,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#e0f2f1",
     marginTop: 2,
   },
-  card: {
+  cardWrap: {
     flex: 1,
+  },
+  timeText: {
+    fontSize: 12,
+    color: "#888",
+    marginBottom: 6,
+  },
+  card: {
     borderRadius: 12,
     backgroundColor: "#ffffff",
     borderWidth: 1,
@@ -149,11 +156,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 4,
     elevation: 1,
-  },
-  timeText: {
-    fontSize: 12,
-    color: "#888",
-    marginBottom: 4,
   },
   titleText: {
     fontSize: 14,

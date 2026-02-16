@@ -79,6 +79,10 @@ public class Event {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    /** 소식/타임테이블/푸드트럭/축제부스 등 JSON (관리자 입력, 행사 상세 탭에서 사용) */
+    @Column(name = "extra_json", columnDefinition = "TEXT")
+    private String extraJson;
+
     // --- 관리자 기능 및 감사(Audit) 필드 ---
 
     // 주최측 연락처
@@ -117,6 +121,8 @@ public class Event {
     /** 스케줄러: 최근 7일/30일 조회수 갱신용 */
     public void setViewCount7d(Integer viewCount7d) { this.viewCount7d = viewCount7d != null ? viewCount7d : 0; }
     public void setViewCount30d(Integer viewCount30d) { this.viewCount30d = viewCount30d != null ? viewCount30d : 0; }
+
+    public void setExtraJson(String extraJson) { this.extraJson = extraJson; }
 
     public void updateEvent(String title, String placeName, String placeAddress, String regionName,
                             Double latitude, Double longitude,

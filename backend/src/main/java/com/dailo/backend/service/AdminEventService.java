@@ -5,13 +5,20 @@ import com.dailo.backend.entity.EventHistory;
 import com.dailo.backend.domain.enums.EventStatus;
 import com.dailo.backend.dto.AdminEventCreateRequest;
 import com.dailo.backend.dto.AdminEventResponse;
+import com.dailo.backend.dto.admin.AdminEventLikeCountDto;
 import com.dailo.backend.repository.EventRepository;
 import com.dailo.backend.repository.EventHistoryRepository;
+import com.dailo.backend.repository.EventLikeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +27,7 @@ public class AdminEventService {
 
     private final EventRepository eventRepository;
     private final EventHistoryRepository eventHistoryRepository;
+    private final EventLikeRepository eventLikeRepository;
 
     // 행사 생성
     @Transactional // 쓰기 모드
@@ -43,6 +51,7 @@ public class AdminEventService {
                 .posterUrls(request.getPosterUrls())
                 .description(request.getDescription())
                 .hostContact(request.getHostContact())
+                .extraJson(request.getExtraJson())
                 .isAdminManaged(true)
                 .build();
 
@@ -87,8 +96,10 @@ public class AdminEventService {
                 request.getHostContact(),
                 request.getFilterGroup()
         );
-
-        return event.getId();
+        if (request.getExtraJson() != null) {
+            event.setExtraJson(request.getExtraJson());
+        }
+        return eventRepository.save(event).getId();
     }
 
     // 행사 삭제
@@ -108,11 +119,39 @@ public class AdminEventService {
         return AdminEventResponse.from(event);
     }
 
-    //행사 목록 조회 (페이징)
-    public Page<AdminEventResponse> getEventList(Pageable pageable) {
-        // Entity List -> AdminResponse List 변환
+    // 행사 목록 조회 (페이징, 키워드 없으면 전체)
+    public Page<AdminEventResponse> getEventList(Pageable pageable, String keyword) {
+        if (keyword != null && !keyword.isBlank()) {
+            return eventRepository.searchByKeywordAdmin(keyword.trim(), pageable)
+                    .map(AdminEventResponse::from);
+        }
         return eventRepository.findAll(pageable)
                 .map(AdminEventResponse::from);
+    }
+
+    /** 행사별 좋아요 수 (관리자용) - 좋아요 많은 순 */
+    public List<AdminEventLikeCountDto> getEventLikeCounts() {
+        List<Object[]> rows = eventLikeRepository.countGroupByEventId();
+        if (rows.isEmpty()) return new ArrayList<>();
+
+        List<Long> eventIds = rows.stream()
+                .map(r -> ((Number) r[0]).longValue())
+                .collect(Collectors.toList());
+        Map<Long, Event> eventMap = eventRepository.findAllById(eventIds).stream()
+                .collect(Collectors.toMap(Event::getId, e -> e));
+
+        List<AdminEventLikeCountDto> result = new ArrayList<>();
+        for (Object[] row : rows) {
+            Long eventId = ((Number) row[0]).longValue();
+            long count = ((Number) row[1]).longValue();
+            String title = eventMap.containsKey(eventId) ? eventMap.get(eventId).getTitle() : "(삭제된 행사)";
+            result.add(AdminEventLikeCountDto.builder()
+                    .eventId(eventId)
+                    .title(title)
+                    .likeCount(count)
+                    .build());
+        }
+        return result;
     }
 
     // 날짜 검증 로직

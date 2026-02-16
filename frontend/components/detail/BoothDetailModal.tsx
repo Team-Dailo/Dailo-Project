@@ -7,7 +7,9 @@ import {
   StyleSheet,
   Pressable,
   GestureResponderEvent,
+  Linking,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import type { Booth } from "./EventBoothTab"; // 아래에서 export 해줄 거라 이 경로 그대로 사용
 
@@ -18,7 +20,6 @@ interface Props {
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
   onClose: (e?: GestureResponderEvent) => void;
-  onPressLocation?: () => void;
 }
 
 export default function BoothDetailModal({
@@ -28,7 +29,6 @@ export default function BoothDetailModal({
   isFavorite = false,
   onToggleFavorite,
   onClose,
-  onPressLocation,
 }: Props) {
   if (!visible || !booth) return null;
 
@@ -56,12 +56,14 @@ export default function BoothDetailModal({
               hitSlop={10}
               style={styles.starButton}
             >
-              <Text style={[styles.star, isFavorite && styles.starActive]}>
-                ★
-              </Text>
+              <Ionicons
+                name={isFavorite ? "star" : "star-outline"}
+                size={24}
+                color={isFavorite ? "#EAB308" : "#D1D5DB"}
+              />
             </Pressable>
           ) : (
-            <Text style={styles.star}>★</Text>
+            <Ionicons name="star-outline" size={24} color="#D1D5DB" />
           )}
         </View>
 
@@ -108,13 +110,26 @@ export default function BoothDetailModal({
           </>
         )}
 
-        {/* 위치 보기 버튼 */}
-        <Pressable
-          style={styles.locationButton}
-          onPress={onPressLocation ?? onClose}
-        >
-          <Text style={styles.locationButtonText}>위치 보기</Text>
-        </Pressable>
+        {/* 외부 링크 (맨 아래) */}
+        {booth.externalLink && booth.externalLink.trim() && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>외부 링크</Text>
+            <Pressable
+              onPress={() => {
+                const url = booth.externalLink!.trim();
+                const toOpen = url.startsWith("http") ? url : `https://${url}`;
+                Linking.openURL(toOpen).catch(() => {});
+              }}
+              style={styles.linkRow}
+            >
+              <Ionicons name="link" size={16} color="#4C8BF5" />
+              <Text style={styles.linkText} numberOfLines={1}>
+                {booth.externalLink!.trim()}
+              </Text>
+              <Ionicons name="open-outline" size={14} color="#4C8BF5" />
+            </Pressable>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -161,13 +176,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
-  star: {
-    fontSize: 20,
-    color: "#D1D5DB",
-  },
-  starActive: {
-    color: "#ffcc00",
-  },
   section: {
     marginTop: 10,
   },
@@ -181,17 +189,15 @@ const styles = StyleSheet.create({
     color: "#444",
     lineHeight: 18,
   },
-  locationButton: {
-    marginTop: 16,
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#111",
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
   },
-  locationButtonText: {
-    color: "#fff",
+  linkText: {
     fontSize: 13,
-    fontWeight: "bold",
+    color: "#4C8BF5",
+    flex: 1,
   },
 });

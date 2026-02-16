@@ -2,17 +2,21 @@ package com.dailo.backend.controller;
 
 import com.dailo.backend.dto.event.EventCalendarResponse; // [추가]
 import com.dailo.backend.dto.event.EventDetailResponse;
+import com.dailo.backend.dto.event.EventLikeStatusDto;
 import com.dailo.backend.dto.event.EventListRequest;
 import com.dailo.backend.dto.event.EventListResponse;
 import com.dailo.backend.dto.event.EventMapResponse;
+import com.dailo.backend.service.EventLikeService;
 import com.dailo.backend.service.EventService;
+import com.dailo.backend.util.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal; // [추가] Security 사용 시
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +28,7 @@ import java.util.List;
 public class EventController {
 
     private final EventService eventService;
+    private final EventLikeService eventLikeService;
 
     /**
      * 지도 마커 조회 (Bounds 기반)
@@ -98,6 +103,41 @@ public class EventController {
             @Parameter(description = "조회할 이벤트 ID", required = true)
             @PathVariable Long id
     ) {
-        return ResponseEntity.ok(eventService.getEventDetail(id));
+        Long memberId = SecurityUtil.getCurrentMemberId();
+        return ResponseEntity.ok(eventService.getEventDetail(id, memberId));
+    }
+
+    /**
+     * 행사 좋아요 상태 조회 (현재 사용자 좋아요 여부 + 전체 좋아요 수)
+     * [GET] /api/events/{id}/like — 비로그인 시 liked=false, likeCount만 반환
+     */
+    @Operation(summary = "행사 좋아요 상태 조회", description = "해당 행사의 좋아요 수와, 로그인한 경우 내가 좋아요 했는지 반환합니다.")
+    @GetMapping("/{id}/like")
+    public ResponseEntity<EventLikeStatusDto> getEventLikeStatus(
+            @Parameter(description = "행사 ID", required = true) @PathVariable Long id
+    ) {
+        Long memberId = SecurityUtil.getCurrentMemberId();
+        boolean liked = memberId != null && eventLikeService.isLiked(memberId, id);
+        long likeCount = eventLikeService.getLikeCount(id);
+        return ResponseEntity.ok(EventLikeStatusDto.builder().liked(liked).likeCount(likeCount).build());
+    }
+
+    /**
+     * 행사 좋아요 토글 (로그인 사용자만)
+     * [POST] /api/events/{id}/like
+     */
+    @Operation(summary = "행사 좋아요 토글", description = "해당 행사에 대한 좋아요를 누르거나 해제합니다. 로그인 필요.")
+    @PostMapping("/{id}/like")
+    public ResponseEntity<EventLikeStatusDto> toggleEventLike(
+            @Parameter(description = "행사 ID", required = true) @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        if (userDetails == null) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).build();
+        }
+        Long memberId = Long.parseLong(userDetails.getUsername());
+        boolean liked = eventLikeService.toggleLike(memberId, id);
+        long likeCount = eventLikeService.getLikeCount(id);
+        return ResponseEntity.ok(EventLikeStatusDto.builder().liked(liked).likeCount(likeCount).build());
     }
 }

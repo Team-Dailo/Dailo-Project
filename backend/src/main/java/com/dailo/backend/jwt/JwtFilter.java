@@ -1,5 +1,6 @@
 package com.dailo.backend.jwt;
 
+import com.dailo.backend.repository.MemberRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,6 +20,7 @@ public class JwtFilter extends OncePerRequestFilter {
     public static final String BEARER_PREFIX = "Bearer ";
 
     private final TokenProvider tokenProvider;
+    private final MemberRepository memberRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -30,6 +32,15 @@ public class JwtFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
             // 토큰에서 인증 정보(Authentication)
             Authentication authentication = tokenProvider.getAuthentication(jwt);
+
+            // 정지 회원: DB에서 재조회하여 정지 여부 확인 후 403
+            try {
+                Long memberId = Long.parseLong(authentication.getName());
+                if (memberRepository.findById(memberId).filter(m -> m.isSuspended()).isPresent()) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    return;
+                }
+            } catch (NumberFormatException ignored) { }
 
             // SecurityContext에 저장
             SecurityContextHolder.getContext().setAuthentication(authentication);

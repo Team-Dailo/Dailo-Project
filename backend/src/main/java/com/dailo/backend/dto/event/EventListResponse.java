@@ -12,5 +12,6 @@ public record EventListResponse(
         LocalDateTime startAt,
         LocalDateTime endAt,
         String placeName,
-        List<EventCategory> categories
+        List<EventCategory> categories,
+        String regionName
 ) {}

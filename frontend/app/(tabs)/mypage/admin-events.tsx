@@ -9,27 +9,33 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  TextInput,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as adminService from "../../../services/admin.service";
+import { formatDateTimeAdmin } from "../../../utils/formatDate";
 
 export default function AdminEventsScreen() {
   const [page, setPage] = useState({ content: [] as adminService.AdminEventResponse[], totalPages: 0, number: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [keyword, setKeyword] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const load = async (refresh = false) => {
+  const load = useCallback(async (refresh = false, searchKeyword?: string) => {
     if (refresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
+    const q = searchKeyword !== undefined ? searchKeyword : searchQuery;
     try {
       const res = await adminService.getAdminEventList({
         page: refresh ? 0 : page.number,
         size: 20,
         sort: "id,desc",
+        keyword: q.trim() || undefined,
       });
       setPage({
         content: res.content ?? [],
@@ -42,13 +48,23 @@ export default function AdminEventsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+  }, [page.number, searchQuery]);
+
+  const handleSearch = () => {
+    setSearchQuery(keyword.trim());
+    load(true, keyword.trim());
   };
 
-  // 행사 추가/수정 후 돌아올 때마다 목록 새로고침
+  const handleClearSearch = () => {
+    setKeyword("");
+    setSearchQuery("");
+    load(true, "");
+  };
+
   useFocusEffect(
     useCallback(() => {
-      load(true);
-    }, [])
+      load(true, searchQuery);
+    }, [load, searchQuery])
   );
 
   const handleDelete = (id: number, title: string) => {
@@ -60,7 +76,7 @@ export default function AdminEventsScreen() {
         onPress: async () => {
           try {
             await adminService.deleteAdminEvent(id);
-            load(true);
+            load(true, searchQuery);
           } catch (e) {
             Alert.alert("오류", e instanceof Error ? e.message : "삭제 실패");
           }
@@ -72,7 +88,7 @@ export default function AdminEventsScreen() {
   if (loading && page.content.length === 0) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#4C8BF5" />
       </View>
     );
   }
@@ -82,9 +98,36 @@ export default function AdminEventsScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />
+        <RefreshControl refreshing={refreshing} onRefresh={() => load(true, searchQuery)} />
       }
     >
+      <View style={styles.searchBarWrap}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="행사명, 장소, 설명으로 검색"
+          placeholderTextColor="#9CA3AF"
+          value={keyword}
+          onChangeText={setKeyword}
+          onSubmitEditing={handleSearch}
+          returnKeyType="search"
+        />
+        {keyword.length > 0 ? (
+          <Pressable onPress={handleClearSearch} style={styles.searchClear} hitSlop={8}>
+            <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+          </Pressable>
+        ) : null}
+        <Pressable onPress={handleSearch} style={styles.searchIconBtn} hitSlop={8}>
+          <Ionicons name="search" size={22} color="#111827" />
+        </Pressable>
+      </View>
+      {searchQuery ? (
+        <View style={styles.searchTagRow}>
+          <Text style={styles.searchTag}>"{searchQuery}"</Text>
+          <Pressable onPress={handleClearSearch} hitSlop={8}>
+            <Text style={styles.clearSearchText}>검색 초기화</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {error ? (
         <Text style={styles.error}>{error}</Text>
       ) : null}
@@ -103,7 +146,7 @@ export default function AdminEventsScreen() {
                   {ev.placeName ?? "-"} · {ev.status ?? "-"}
                 </Text>
                 <Text style={styles.meta}>
-                  {ev.startAt} ~ {ev.endAt}
+                  {formatDateTimeAdmin(ev.startAt)} ~ {formatDateTimeAdmin(ev.endAt)}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
@@ -141,6 +184,34 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F4F6" },
   content: { padding: 16 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#111827",
+    paddingVertical: 8,
+    paddingRight: 8,
+  },
+  searchClear: { padding: 4 },
+  searchIconBtn: { padding: 4, marginLeft: 4 },
+  searchTagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  searchTag: { fontSize: 13, color: "#6B7280" },
+  clearSearchText: { fontSize: 13, color: "#4C8BF5", fontWeight: "500" },
   error: { color: "#DC2626", marginBottom: 12, fontSize: 14 },
   empty: { color: "#6B7280", textAlign: "center", marginTop: 24 },
   card: {
@@ -155,7 +226,7 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12, color: "#6B7280", marginTop: 4 },
   actions: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
   actionBtn: { flex: 1, paddingVertical: 10, alignItems: "center" },
-  actionText: { fontSize: 14, color: "#2563EB", fontWeight: "500" },
+  actionText: { fontSize: 14, color: "#4C8BF5", fontWeight: "500" },
   deleteBtn: {},
   deleteText: { color: "#DC2626" },
   addBtn: {
@@ -166,7 +237,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
   },
   addBtnText: { fontSize: 16, color: "#FFF", fontWeight: "600" },
 });

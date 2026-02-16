@@ -33,15 +33,19 @@ async function requestPermission(): Promise<boolean> {
   return status === "granted";
 }
 
+export type ReminderOrigin = "booked" | "region";
+
 /**
  * 행사 시작일(ISO)과 제목으로 3일 전 / 1일 전 알림 스케줄
  * 알림 시간: 해당일 오전 9시
+ * origin: 'booked' = 행사 상세에서 예약, 'region' = 지역 행사 알림
  */
 export async function scheduleEventReminder(
   eventId: string,
   eventTitle: string,
   startAtIso: string,
-  daysBefore: 1 | 3
+  daysBefore: 1 | 3,
+  origin: ReminderOrigin = "booked"
 ): Promise<string | null> {
   const granted = await requestPermission();
   if (!granted) return null;
@@ -64,7 +68,7 @@ export async function scheduleEventReminder(
       body: daysBefore === 3
         ? `3일 후, "${eventTitle}" 행사가 있습니다.`
         : `내일, "${eventTitle}" 행사가 있습니다.`,
-      data: { eventId, daysBefore },
+      data: { eventId, daysBefore, origin },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -76,7 +80,7 @@ export async function scheduleEventReminder(
 }
 
 /**
- * 이미 예약된 해당 행사 알림 취소 (선택)
+ * 이미 예약된 해당 행사 알림 전부 취소 (예약한 행사 목록에서 알림 취소 시)
  */
 export async function cancelEventReminders(eventId: string): Promise<void> {
   const pending = await Notifications.getAllScheduledNotificationsAsync();
@@ -89,23 +93,56 @@ export async function cancelEventReminders(eventId: string): Promise<void> {
 }
 
 /**
- * 예약된 행사 알림에 해당하는 이벤트 ID 목록 (중복 제거)
- * 마이페이지 "알림 예약한 행사" 목록용
+ * 해당 행사의 특정 출처(region/booked) 알림만 취소 (지역 재스케줄 시 region만 제거)
  */
-export async function getScheduledEventIds(): Promise<string[]> {
+export async function cancelEventRemindersForOrigin(eventId: string, origin: ReminderOrigin): Promise<void> {
+  const pending = await Notifications.getAllScheduledNotificationsAsync();
+  for (const n of pending) {
+    const data = n.content.data as { eventId?: string; origin?: ReminderOrigin } | undefined;
+    if (data?.eventId === eventId && data?.origin === origin) {
+      await Notifications.cancelScheduledNotificationAsync(n.identifier);
+    }
+  }
+}
+
+/**
+ * 예약된 행사 알림에 해당하는 이벤트 ID 목록 (중복 제거)
+ * origin 지정 시 해당 출처만, 미지정 시 전체
+ * 마이페이지 "알림 예약한 행사" 목록용 → getScheduledEventIds('booked')
+ */
+export async function getScheduledEventIds(origin?: ReminderOrigin): Promise<string[]> {
   const pending = await Notifications.getAllScheduledNotificationsAsync();
   const ids = new Set<string>();
   for (const n of pending) {
-    const data = n.content.data as { eventId?: string } | undefined;
+    const data = n.content.data as { eventId?: string; origin?: ReminderOrigin } | undefined;
     if (data?.eventId && typeof data.eventId === "string") {
-      ids.add(data.eventId);
+      const o = data.origin;
+      if (origin == null || o === origin || (origin === "booked" && o == null)) {
+        ids.add(data.eventId);
+      }
     }
   }
   return Array.from(ids);
 }
 
+/**
+ * 출처(예약/지역)별로 예약된 알림 전부 취소
+ * 'booked' 시 origin 없음(구 알림)도 함께 취소
+ */
+export async function cancelScheduledByOrigin(origin: ReminderOrigin): Promise<void> {
+  const pending = await Notifications.getAllScheduledNotificationsAsync();
+  for (const n of pending) {
+    const data = n.content.data as { origin?: ReminderOrigin } | undefined;
+    const o = data?.origin;
+    const match = o === origin || (origin === "booked" && o == null);
+    if (match) {
+      await Notifications.cancelScheduledNotificationAsync(n.identifier);
+    }
+  }
+}
+
 export type ScheduleRegionRemindersResult =
-  | { ok: true; regionName: string; count: number }
+  | { ok: true; regionName: string; regionKey: string; count: number }
   | { ok: false; message: string };
 
 /**
@@ -159,8 +196,68 @@ export async function scheduleRegionEventReminders(
 
   let scheduled = 0;
   for (const ev of inRegion) {
-    await cancelEventReminders(ev.id);
-    const id = await scheduleEventReminder(ev.id, ev.title, ev.startAt, 1);
+    await cancelEventRemindersForOrigin(ev.id, "region");
+    const id = await scheduleEventReminder(ev.id, ev.title, ev.startAt, 1, "region");
+    if (id) scheduled++;
+  }
+
+  const regionLabel = regionKey === "충청북도" ? "충청북도" : regionKey;
+  return {
+    ok: true,
+    regionName: regionLabel,
+    regionKey,
+    count: scheduled,
+  };
+}
+
+/**
+ * 지역 키로 해당 지역 행사 1일 전 알림 예약 (알림설정에서 지역 선택 시)
+ * 기존 지역 알림은 취소 후 새 지역으로 스케줄
+ */
+export async function scheduleRegionEventRemindersByRegionKey(
+  regionKey: string
+): Promise<ScheduleRegionRemindersResult> {
+  const granted = await requestPermission();
+  if (!granted) {
+    return { ok: false, message: "알림 권한을 허용해 주세요." };
+  }
+  await ensureChannel();
+
+  const center = REGION_CENTERS[regionKey];
+  if (!center) return { ok: false, message: "선택한 지역 정보를 불러올 수 없어요." };
+
+  await cancelScheduledByOrigin("region");
+
+  const d = REGION_BOUNDS_DELTA / 2;
+  let events;
+  try {
+    events = await getEventsOnMap({
+      swLat: center.latitude - d,
+      neLat: center.latitude + d,
+      swLng: center.longitude - d,
+      neLng: center.longitude + d,
+    });
+  } catch {
+    return { ok: false, message: "행사 목록을 불러오지 못했어요." };
+  }
+
+  const now = Date.now();
+  const inRegion = events.filter((e) => {
+    const r = e.regionName?.trim();
+    if (!r) return false;
+    const match = r === regionKey || r.includes(regionKey);
+    if (!match) return false;
+    try {
+      const start = new Date(e.startAt).getTime();
+      return start > now;
+    } catch {
+      return false;
+    }
+  });
+
+  let scheduled = 0;
+  for (const ev of inRegion) {
+    const id = await scheduleEventReminder(ev.id, ev.title, ev.startAt, 1, "region");
     if (id) scheduled++;
   }
 

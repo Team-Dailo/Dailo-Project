@@ -15,11 +15,15 @@ import {
   ActivityIndicator,
   Linking,
 } from "react-native";
+import * as Location from "expo-location";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import type { EventDetail } from "../../types/event";
 import * as logService from "../../services/log.service";
 import * as eventReminder from "../../services/eventReminder.service";
+
+const EVENT_REMINDER_BOOKED_KEY = "@mypage/notification_event_reminder_booked";
 
 const DEFAULT_POSTER_URI =
   "https://images.unsplash.com/photo-1485550409059-9afb054cada4?w=800";
@@ -30,11 +34,28 @@ function formatEventDate(iso: string): string {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
     const day = d.getDate();
-    const weekdays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+    const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
     const w = weekdays[d.getDay()];
     return `${y}.${m}.${day} ${w}`;
   } catch {
     return "";
+  }
+}
+
+/** 같은 날이면 하나, 2일 이상이면 "시작일 ~ 종료일" */
+function formatEventDateRange(startIso: string, endIso?: string | null): string {
+  const startStr = formatEventDate(startIso);
+  if (!endIso || !startStr) return startStr;
+  try {
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+    if (startDay === endDay) return startStr;
+    const endStr = formatEventDate(endIso);
+    return `${startStr} ~ ${endStr}`;
+  } catch {
+    return startStr;
   }
 }
 
@@ -60,17 +81,21 @@ interface Props {
   error?: Error | null;
   onShare?: () => void;
   onSave?: () => void;
-  /** 좋아요 (하트) - 선택 */
+  /** 좋아요 (하트) - 선택. 로컬 전용이면 likeCount는 0 또는 1 */
   isLiked?: boolean;
+  likeCount?: number;
   onLike?: () => void;
   /** 로그인 여부 - 알림 아이콘은 로그인 시에만 동작 */
   isLoggedIn?: boolean;
+  /** 저장(스크랩) 여부 - 본인 계정에서만 채워진 북마크 표시 */
+  isScraped?: boolean;
 }
 
-export default function EventDetailHeader({ id, event, loading, error, onShare, onSave, isLiked = false, onLike, isLoggedIn = false }: Props) {
+export default function EventDetailHeader({ id, event, loading, error, onShare, onSave, isLiked = false, likeCount, onLike, isLoggedIn = false, isScraped = false }: Props) {
   const router = useRouter();
   const posterUri = event?.posterUrls?.[0] ?? DEFAULT_POSTER_URI;
   const [clickCount, setClickCount] = useState<number | null>(null);
+  const [hasReminder, setHasReminder] = useState(false);
 
   useEffect(() => {
     if (!id || !event) return;
@@ -78,6 +103,11 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     if (!Number.isFinite(eventIdNum)) return;
     logService.getEventClickCount(eventIdNum).then(setClickCount).catch(() => {});
   }, [id, event]);
+
+  useEffect(() => {
+    if (!id) return;
+    eventReminder.getScheduledEventIds("booked").then((ids) => setHasReminder(ids.includes(String(id))));
+  }, [id]);
 
   const defaultShare = async () => {
     try {
@@ -136,14 +166,56 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     );
   }
 
-  const dateStr = formatEventDate(event.startAt);
+  const dateStr = formatEventDateRange(event.startAt, event.endAt);
   const timeStr = formatEventTimeRange(event.startAt, event.endAt);
   const placeStr = event.placeName?.trim() || "장소 미정";
   const organizerStr = event.hostContact?.trim() || "—";
 
-  const openMap = () => {
-    const url = event.naverMapUrl;
-    if (url) Linking.openURL(url).catch(() => {});
+  /** 네이버 지도 길찾기: 출발=현재위치, 도착=행사 주소 (앱 또는 웹) */
+  const openNaverDirection = async () => {
+    const destination = (event.placeAddress || event.placeName || event.title || "").trim() || "행사 장소";
+    const hasCoords = event.latitude != null && event.longitude != null && Number.isFinite(event.latitude) && Number.isFinite(event.longitude);
+
+    const openNaverWeb = () => {
+      Linking.openURL(`https://map.naver.com/v5/search/${encodeURIComponent(destination)}`).catch(() => {});
+    };
+
+    if (Platform.OS === "web") {
+      openNaverWeb();
+      return;
+    }
+
+    if (!hasCoords) {
+      openNaverWeb();
+      return;
+    }
+
+    let startLat: number | null = null;
+    let startLng: number | null = null;
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === Location.PermissionStatus.GRANTED) {
+        const { coords } = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        startLat = coords.latitude;
+        startLng = coords.longitude;
+      }
+    } catch {
+      // 위치 없이 목적지만 열기
+    }
+
+    const params = new URLSearchParams({
+      dlat: String(event.latitude),
+      dlng: String(event.longitude),
+      dname: destination,
+      appname: "com.dailo.app",
+    });
+    if (startLat != null && startLng != null) {
+      params.set("slat", String(startLat));
+      params.set("slng", String(startLng));
+      params.set("sname", "현재 위치");
+    }
+    const nmapUrl = `nmap://route/car?${params.toString()}`;
+    Linking.openURL(nmapUrl).catch(openNaverWeb);
   };
 
   const handleAlarmPress = () => {
@@ -151,39 +223,54 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
       Alert.alert("로그인 필요", "행사 알림은 로그인 후 이용할 수 있어요.");
       return;
     }
-    Alert.alert(
-      "행사 알림",
-      "언제 알림을 받을까요?",
-      [
-        {
-          text: "3일 전 알림",
-          onPress: async () => {
-            const id = await eventReminder.scheduleEventReminder(
-              String(event.id),
-              event.title,
-              event.startAt,
-              3
-            );
-            if (id) Alert.alert("알림 설정", "3일 전에 알림을 보내드립니다.");
-            else Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
+    AsyncStorage.getItem(EVENT_REMINDER_BOOKED_KEY).then((value) => {
+      if (value !== "true") {
+        Alert.alert(
+          "알림 설정",
+          "알림설정에서 '예약한 행사 알림'을 켜주세요. 마이페이지 → 알림설정에서 설정할 수 있어요."
+        );
+        return;
+      }
+      Alert.alert(
+        "행사 알림",
+        "언제 알림을 받을까요?",
+        [
+          {
+            text: "3일 전 알림",
+            onPress: async () => {
+              const notifId = await eventReminder.scheduleEventReminder(
+                String(event.id),
+                event.title,
+                event.startAt,
+                3,
+                "booked"
+              );
+              if (notifId) {
+                setHasReminder(true);
+                Alert.alert("알림 설정", "3일 전에 알림을 보내드립니다.");
+              } else Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
+            },
           },
-        },
-        {
-          text: "1일 전 알림",
-          onPress: async () => {
-            const id = await eventReminder.scheduleEventReminder(
-              String(event.id),
-              event.title,
-              event.startAt,
-              1
-            );
-            if (id) Alert.alert("알림 설정", "1일 전에 알림을 보내드립니다.");
-            else Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
+          {
+            text: "1일 전 알림",
+            onPress: async () => {
+              const notifId = await eventReminder.scheduleEventReminder(
+                String(event.id),
+                event.title,
+                event.startAt,
+                1,
+                "booked"
+              );
+              if (notifId) {
+                setHasReminder(true);
+                Alert.alert("알림 설정", "1일 전에 알림을 보내드립니다.");
+              } else Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
+            },
           },
-        },
-        { text: "취소", style: "cancel" },
-      ]
-    );
+          { text: "취소", style: "cancel" },
+        ]
+      );
+    });
   };
 
   return (
@@ -197,19 +284,28 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
 
         <View style={styles.rightGroup}>
           {onLike ? (
-            <Pressable onPress={onLike} style={styles.iconButton} hitSlop={10}>
-              <Ionicons
-                name={isLiked ? "heart" : "heart-outline"}
-                size={22}
-                color={isLiked ? "#EF4444" : "#111827"}
-              />
-            </Pressable>
+            <View style={styles.likeButtonWrap}>
+              <Pressable onPress={onLike} style={styles.iconButton} hitSlop={12}>
+                <Ionicons
+                  name={isLiked ? "heart" : "heart-outline"}
+                  size={22}
+                  color={isLiked ? "#EF4444" : "#111827"}
+                />
+              </Pressable>
+              {likeCount != null && likeCount > 0 ? (
+                <Text style={styles.likeCountBadge}>{likeCount}</Text>
+              ) : null}
+            </View>
           ) : null}
           <Pressable onPress={handlePressShare} style={styles.iconButton} hitSlop={10}>
             <Ionicons name="share-outline" size={22} color="#111827" />
           </Pressable>
           <Pressable onPress={handlePressSave} style={styles.iconButton} hitSlop={10}>
-            <Ionicons name="bookmark-outline" size={22} color="#111827" />
+            <Ionicons
+              name={isScraped ? "bookmark" : "bookmark-outline"}
+              size={22}
+              color={isScraped ? "#6366F1" : "#111827"}
+            />
           </Pressable>
         </View>
       </View>
@@ -219,7 +315,11 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
         <View style={styles.titleRow}>
           <Text style={styles.titleText}>{event.title}</Text>
           <Pressable onPress={handleAlarmPress} style={styles.alarmButton} hitSlop={8}>
-            <Ionicons name="notifications-outline" size={22} color="#374151" />
+            <Ionicons
+              name={hasReminder ? "notifications" : "notifications-outline"}
+              size={22}
+              color={hasReminder ? "#6366F1" : "#374151"}
+            />
           </Pressable>
         </View>
 
@@ -234,11 +334,9 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
           <View style={styles.infoRow}>
             <Ionicons name="location-outline" size={18} color="#6B7280" style={styles.infoIcon} />
             <Text style={styles.infoText} numberOfLines={1}>{placeStr}</Text>
-            {event.naverMapUrl ? (
-              <Pressable onPress={openMap} style={styles.mapButton} hitSlop={8}>
-                <Ionicons name="navigate" size={18} color="#FFFFFF" />
-              </Pressable>
-            ) : null}
+            <Pressable onPress={openNaverDirection} style={styles.mapButton} hitSlop={8}>
+              <Ionicons name="navigate" size={18} color="#FFFFFF" />
+            </Pressable>
           </View>
           <View style={styles.infoRow}>
             <Ionicons name="information-circle-outline" size={18} color="#6B7280" style={styles.infoIcon} />
@@ -268,12 +366,14 @@ const styles = StyleSheet.create({
   /* 🔹 상단 버튼 레이아웃 */
   iconRow: {
     position: "absolute",
-    top: 40, // 상태바랑 겹치지 않게 여백
+    top: 40,
     left: 16,
     right: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    zIndex: 10,
+    elevation: 10,
   },
 
   rightGroup: {
@@ -281,6 +381,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
+  likeButtonWrap: {
+    position: "relative",
+  },
   iconButton: {
     width: 36,
     height: 36,
@@ -293,6 +396,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 3,
     elevation: 2,
+  },
+  likeCountBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#EF4444",
+    backgroundColor: "#fff",
+    minWidth: 14,
+    textAlign: "center",
+    borderRadius: 7,
+    overflow: "hidden",
   },
 
   iconText: {
@@ -324,7 +440,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 4,
     gap: 12,
   },
   titleText: {
@@ -336,13 +452,14 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   infoBlock: {
-    marginTop: 4,
-    gap: 4,
+    marginTop: 0,
+    gap: 0,
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
     minHeight: 20,
+    paddingVertical: 1,
   },
   infoIcon: {
     marginRight: 10,
@@ -357,13 +474,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
   },
   clickCount: {
-    marginTop: 10,
+    marginTop: 6,
     fontSize: 12,
     color: "#9CA3AF",
   },

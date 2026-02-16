@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   retryBtn: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     borderRadius: 8,
   },
   retryText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     paddingHorizontal: 12,
   },
   eventCardFooterCenter: {

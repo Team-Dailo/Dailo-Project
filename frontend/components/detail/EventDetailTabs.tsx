@@ -32,7 +32,7 @@ export default function EventDetailTabs({ value, onChange }: Props) {
             flex: 1,
             paddingVertical: 12,
             borderBottomWidth: value === t.key ? 2 : 0,
-            borderColor: "#2563EB", // 피그마 블루 느낌
+            borderColor: "#4C8BF5", // 피그마 블루 느낌
           }}
         >
           <Text

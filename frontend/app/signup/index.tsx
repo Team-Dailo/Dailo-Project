@@ -156,6 +156,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#111827',
+    marginLeft: 20,
   },
   headerRight: {
     width: 24,
@@ -194,7 +195,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4C8BF5',
     marginTop: 8,
   },
   submitButtonPressed: {
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
   },
   loginLinkText: {
     fontSize: 14,
-    color: '#2563EB',
+    color: '#4C8BF5',
     fontWeight: '500',
   },
 });

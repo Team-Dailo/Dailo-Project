@@ -133,7 +133,7 @@ export function MapBottomSheet({
                 <Ionicons
                   name="chevron-up-outline"
                   size={16}
-                  color="#2563EB"
+                  color="#4C8BF5"
                 />
                 <Text style={styles.moreButtonText}>더보기</Text>
               </TouchableOpacity>
@@ -202,7 +202,7 @@ export function MapBottomSheet({
               onPress={onPressDirection}
               activeOpacity={0.85}
             >
-              <Ionicons name="navigate-outline" size={16} color="#2563EB" />
+              <Ionicons name="navigate-outline" size={16} color="#4C8BF5" />
               <Text style={styles.directionText}>길찾기</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   moreButtonText: {
     marginLeft: 4,
     fontSize: 13,
-    color: '#2563EB',
+    color: '#4C8BF5',
     fontWeight: '600',
   },
 
@@ -397,13 +397,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   detailBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4C8BF5',
     marginLeft: 8,
   },
   directionText: {
     marginLeft: 4,
     fontSize: 14,
-    color: '#2563EB',
+    color: '#4C8BF5',
     fontWeight: '600',
   },
   detailText: {

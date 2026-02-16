@@ -6,10 +6,25 @@ import com.dailo.backend.entity.Report;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.util.List;
 
 @Repository
 public interface ReportRepository extends JpaRepository<Report, Long> {
+
+    /** 신고된 게시물 ID별 신고 수 (targetType=POST, PENDING만) */
+    @Query("SELECT r.targetId, COUNT(r) FROM Report r WHERE r.targetType = :type AND r.status = :status GROUP BY r.targetId")
+    List<Object[]> countByTargetTypeAndStatusGroupByTargetId(@Param("type") ReportType type, @Param("status") ReportStatus status);
+
+    /** 특정 대상에 대한 신고 수 (상태 무관, 자동 삭제 판단용) */
+    long countByTargetTypeAndTargetId(ReportType type, Long targetId);
+
+    /** 신고된 게시물 ID별 신고 수 (targetType=POST, 상태 무관 - 신고 기록용) */
+    @Query("SELECT r.targetId, COUNT(r) FROM Report r WHERE r.targetType = :type GROUP BY r.targetId")
+    List<Object[]> countByTargetTypeGroupByTargetId(@Param("type") ReportType type);
 
     // 내 신고 목록
     Page<Report> findByReporterId(Long reporterId, Pageable pageable);

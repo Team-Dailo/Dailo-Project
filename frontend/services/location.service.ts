@@ -56,9 +56,17 @@ export async function completeStay(eventId: number, latitude: number, longitude:
   }
 }
 
-/** 완료된 체류 세션 목록 (참여한 축제 / 체류 미션 기록) */
+/** 완료된 체류 세션 목록 (참여한 축제: 1초라도 있었으면, 같은 날 같은 행사 1건) */
 export async function getCompletedStaySessions(): Promise<StaySessionResponseDto[]> {
   const res = await authFetch('/api/location/stay-sessions/completed');
+  if (!res.ok) throw new Error(await res.text().then((t) => t || `조회 실패 (${res.status})`));
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+/** 체류 미션 기록: 30분 이상 체류한 세션만 (진입·퇴장 시간) */
+export async function getStayMissionSessions(): Promise<StaySessionResponseDto[]> {
+  const res = await authFetch('/api/location/stay-sessions/stay-mission');
   if (!res.ok) throw new Error(await res.text().then((t) => t || `조회 실패 (${res.status})`));
   const data = await res.json();
   return Array.isArray(data) ? data : [];

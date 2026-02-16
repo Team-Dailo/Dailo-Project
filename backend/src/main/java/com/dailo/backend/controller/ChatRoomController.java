@@ -50,7 +50,18 @@ public class ChatRoomController {
         return ResponseEntity.ok(chatRoomService.getRoom(roomId, userId));
     }
 
-    // 4. 채팅방 나가기
+    // 4. 읽음 처리 (미읽음 수 0으로)
+    @PutMapping("/{roomId}/read")
+    public ResponseEntity<Void> markAsRead(
+            @PathVariable Long roomId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        Long userId = Long.parseLong(userDetails.getUsername());
+        chatRoomService.markAsRead(roomId, userId);
+        return ResponseEntity.ok().build();
+    }
+
+    // 5. 채팅방 나가기
     @DeleteMapping("/{roomId}")
     public ResponseEntity<Void> leaveRoom(
             @PathVariable Long roomId,

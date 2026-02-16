@@ -9,12 +9,14 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
 import {
   NaverMapView,
   NaverMapMarkerOverlay,
+  NaverMapCircleOverlay,
   type NaverMapViewRef,
 } from "@mj-studio/react-native-naver-map";
 import { setPickedLocation } from "../../../services/eventLocationPickStore";
@@ -23,14 +25,25 @@ import { geocodeAddress } from "../../../services/geocoding.service";
 
 const DEFAULT_LAT = 36.991;
 const DEFAULT_LNG = 127.926;
+const MAP_MIN_HEIGHT = Dimensions.get("window").height * 0.5;
+const PICKER_CIRCLE_RADIUS_M = 80;
+const PICKER_CIRCLE_COLOR = "rgba(76, 139, 245, 0.25)";
+const PICKER_CIRCLE_OUTLINE = 2;
+const PICKER_CIRCLE_OUTLINE_COLOR = "rgba(76, 139, 245, 0.7)";
 
 export default function EventLocationPickerScreen() {
   const params = useLocalSearchParams<{
     initialLat?: string;
     initialLng?: string;
     for?: string;
+    forBoothId?: string;
+    forBoothType?: "food" | "experience";
+    forArea?: "food" | "experience";
   }>();
   const isDemoLocation = params.for === "demolocation";
+  const forBoothId = params.forBoothId ?? undefined;
+  const forBoothType = params.forBoothType as "food" | "experience" | undefined;
+  const forArea = params.forArea as "food" | "experience" | undefined;
   const initialLat = params.initialLat != null ? Number(params.initialLat) : DEFAULT_LAT;
   const initialLng = params.initialLng != null ? Number(params.initialLng) : DEFAULT_LNG;
 
@@ -91,7 +104,7 @@ export default function EventLocationPickerScreen() {
       router.back();
       return;
     }
-    setPickedLocation(lat, lng);
+    setPickedLocation(lat, lng, forBoothId, forBoothType, forArea);
     router.back();
   };
 
@@ -133,7 +146,7 @@ export default function EventLocationPickerScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.mapWrap}>
+      <View style={[styles.mapWrap, { minHeight: MAP_MIN_HEIGHT }]}>
         <NaverMapView
           ref={mapRef}
           style={styles.map}
@@ -142,6 +155,7 @@ export default function EventLocationPickerScreen() {
           isShowZoomControls={true}
           isShowLocationButton={false}
           initialCamera={initialCamera}
+          camera={{ latitude: lat, longitude: lng, zoom: 16 }}
           onTapMap={handleTapMap}
         >
           <NaverMapMarkerOverlay
@@ -150,6 +164,16 @@ export default function EventLocationPickerScreen() {
             longitude={lng}
             image={{ symbol: "red" }}
             anchor={{ x: 0.5, y: 1 }}
+          />
+          <NaverMapCircleOverlay
+            key="picker-area-circle"
+            latitude={lat}
+            longitude={lng}
+            radius={PICKER_CIRCLE_RADIUS_M}
+            color={PICKER_CIRCLE_COLOR}
+            outlineWidth={PICKER_CIRCLE_OUTLINE}
+            outlineColor={PICKER_CIRCLE_OUTLINE_COLOR}
+            zIndex={5}
           />
         </NaverMapView>
       </View>
@@ -163,7 +187,7 @@ export default function EventLocationPickerScreen() {
           activeOpacity={0.85}
         >
           <Text style={styles.confirmBtnText}>
-          {isDemoLocation ? "시범용 현재위치로 저장" : "이 위치로 설정"}
+          {isDemoLocation ? "시범용 현재위치로 저장" : forArea === "food" ? "푸드트럭 영역으로 설정" : forArea === "experience" ? "체험부스 영역으로 설정" : forBoothId ? "이 위치로 부스 설정" : "이 위치로 설정"}
         </Text>
         </TouchableOpacity>
       </View>
@@ -199,7 +223,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 10,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -223,7 +247,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   confirmBtn: {
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",

@@ -72,7 +72,7 @@ export default function MyReportsScreen() {
         >
           {loading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color="#2563EB" />
+              <ActivityIndicator size="large" color="#4C8BF5" />
               <Text style={styles.loadingText}>불러오는 중...</Text>
             </View>
           ) : error ? (
@@ -90,8 +90,10 @@ export default function MyReportsScreen() {
             reports.map((r) => (
               <View key={r.id} style={styles.card}>
                 <View style={styles.cardRow}>
-                  <Text style={styles.targetType}>
-                    {TARGET_LABEL[r.targetType] ?? r.targetType} #{r.targetId}
+                  <Text style={styles.targetType} numberOfLines={2}>
+                    {r.targetDisplay != null && r.targetDisplay !== ""
+                      ? (TARGET_LABEL[r.targetType] ?? r.targetType) + ": " + r.targetDisplay
+                      : `${TARGET_LABEL[r.targetType] ?? r.targetType} #${r.targetId}`}
                   </Text>
                   <View style={[styles.statusBadge, r.status === "RESOLVED" && styles.statusResolved]}>
                     <Text style={styles.statusText}>
@@ -128,6 +130,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
+    marginLeft: 20,
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
@@ -149,7 +152,7 @@ const styles = StyleSheet.create({
   retryBtn: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     borderRadius: 8,
   },
   retryText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
@@ -176,7 +179,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 6,
   },
-  targetType: { fontSize: 15, fontWeight: "600", color: "#111827" },
+  targetType: { fontSize: 15, fontWeight: "600", color: "#111827", flex: 1, marginRight: 8 },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,

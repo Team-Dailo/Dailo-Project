@@ -34,6 +34,12 @@ public class EventDetailResponse {
     // 네이버 지도 길찾기 URL (웹용)
     private String naverMapUrl;
 
+    /** 소식/타임테이블/푸드트럭/축제부스 JSON (행사 상세 탭 표시용) */
+    private String extraJson;
+
+    /** 로그인한 사용자가 이 행사를 저장(스크랩)했는지 (본인 계정에서만 true) */
+    private Boolean isBookmarked;
+
     public static EventDetailResponse from(Event event) {
 
         // 1. 장소명 or 제목 가져오기
@@ -78,6 +84,30 @@ public class EventDetailResponse {
                 .hostContact(event.getHostContact())
                 .status(event.getStatus().name())
                 .naverMapUrl(generatedMapUrl)
+                .extraJson(event.getExtraJson())
+                .isBookmarked(null)
+                .build();
+    }
+
+    public static EventDetailResponse from(Event event, boolean isBookmarked) {
+        EventDetailResponse base = from(event);
+        return EventDetailResponse.builder()
+                .id(base.getId())
+                .title(base.getTitle())
+                .posterUrls(base.getPosterUrls())
+                .startAt(base.getStartAt())
+                .endAt(base.getEndAt())
+                .placeName(base.getPlaceName())
+                .placeAddress(base.getPlaceAddress())
+                .latitude(base.getLatitude())
+                .longitude(base.getLongitude())
+                .description(base.getDescription())
+                .categories(base.getCategories())
+                .hostContact(base.getHostContact())
+                .status(base.getStatus())
+                .naverMapUrl(base.getNaverMapUrl())
+                .extraJson(base.getExtraJson())
+                .isBookmarked(isBookmarked)
                 .build();
     }
 }

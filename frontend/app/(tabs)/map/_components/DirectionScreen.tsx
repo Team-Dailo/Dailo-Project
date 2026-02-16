@@ -169,6 +169,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#111827',
+    marginLeft: 20,
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -204,7 +205,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4C8BF5',
     gap: 8,
   },
   primaryButtonText: {

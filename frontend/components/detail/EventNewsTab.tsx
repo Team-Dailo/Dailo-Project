@@ -79,7 +79,7 @@ export default function EventNewsTab({ news, eventId }: EventNewsTabProps) {
         <View style={styles.reviewSection}>
           <Text style={styles.sectionTitle}>후기</Text>
           {reviewsLoading ? (
-            <ActivityIndicator size="small" color="#2563EB" style={styles.loader} />
+            <ActivityIndicator size="small" color="#4C8BF5" style={styles.loader} />
           ) : reviews.length === 0 ? (
             <Text style={styles.emptyText}>아직 등록된 후기가 없습니다.</Text>
           ) : (

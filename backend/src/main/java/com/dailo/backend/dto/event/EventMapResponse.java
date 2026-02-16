@@ -28,8 +28,15 @@ public class EventMapResponse {
     private String regionName;
     /** 규모/달력 필터 (CHUNGJU_CITY, UNIVERSITY, COLLEGE, CLUB 등) → 마커 색상용 */
     private String filterGroup;
+    /** 좋아요 수 (인기순 목록 표시용) */
+    private Integer likeCount;
 
     public static EventMapResponse from(Event event) {
+        return from(event, event.getLikeCount() != null ? event.getLikeCount().longValue() : 0L);
+    }
+
+    /** 실제 좋아요 수(event_like 집계)를 넣을 때 사용 (지도/검색 응답) */
+    public static EventMapResponse from(Event event, long likeCount) {
         String mainCategory = "ETC";
         if (event.getCategories() != null && !event.getCategories().isEmpty()) {
             mainCategory = event.getCategories().get(0).name();
@@ -49,6 +56,7 @@ public class EventMapResponse {
                 .placeAddress(event.getPlaceAddress())
                 .regionName(event.getRegionName())
                 .filterGroup(event.getFilterGroup())
+                .likeCount((int) Math.min(likeCount, Integer.MAX_VALUE))
                 .build();
     }
 }

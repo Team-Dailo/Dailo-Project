@@ -62,6 +62,12 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     // (관리자용 전체 조회는 필요하다면 남겨둡니다)
     Page<Event> findAll(Pageable pageable);
 
+    /** 관리자 행사 목록 검색: 제목·장소명·설명에 키워드 포함 (대소문자 무시) */
+    @Query("SELECT e FROM Event e WHERE LOWER(e.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR LOWER(e.placeName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR (e.description IS NOT NULL AND LOWER(e.description) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<Event> searchByKeywordAdmin(@Param("keyword") String keyword, Pageable pageable);
+
     //  캘린더 월별 조회
     //  해당 월(start~end)에 조금이라도 걸쳐 있는 모든 이벤트를 조회합니다.
     //        N+1 문제를 방지하기 위해 카테고리를 함께 가져옵니다 (JOIN FETCH).
@@ -78,8 +84,5 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     /** 제목이 정확히 일치하는 이벤트 목록 (이전 시드 삭제용) */
     List<Event> findByTitleIn(List<String> titles);
-
-    // 특정 기간 사이에 시작하는 행사 찾기
-    List<Event> findByStartAtBetween(LocalDateTime start, LocalDateTime end);
 }
 

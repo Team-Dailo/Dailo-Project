@@ -5,7 +5,7 @@ import {
   type FestivalParticipation,
 } from '../services/festivalParticipationStorage';
 
-/** 30분 이상 체류 시 "참여 완료"로 표시 */
+/** 30분 이상 체류 시 "축제 참여 완료"로 표시, 0~30분은 "축제 참여중" */
 const PARTICIPATION_COMPLETE_SECONDS = 30 * 60;
 
 /** 진입 시점 타이머 + 행사명. 칩/사이드메뉴/마이페이지에서 사용 */

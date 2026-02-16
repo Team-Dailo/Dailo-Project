@@ -3,6 +3,8 @@ import React, { useState, useRef, useMemo, useCallback, useEffect } from "react"
 import {
   ScrollView,
   View,
+  Text,
+  Pressable,
   StyleSheet,
   Platform,
   ToastAndroid,
@@ -11,7 +13,9 @@ import {
   NativeScrollEvent,
   Dimensions,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import EventDetailHeader from "../../components/detail/EventDetailHeader";
@@ -27,6 +31,32 @@ import { parseEventExtra } from "../../utils/eventExtra";
 
 const STICKY_THRESHOLD_PX = 2;
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
+/** 행사 기간(시작~종료) 일자별 라벨 "M.D(요일)" 배열. 2일 이상일 때 타임테이블 날짜 선택용 */
+function getEventDayLabels(startAt?: string | null, endAt?: string | null): string[] {
+  if (!startAt || !endAt) return [];
+  try {
+    const start = new Date(startAt);
+    const end = new Date(endAt);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return [];
+    const labels: string[] = [];
+    const cur = new Date(start);
+    cur.setHours(0, 0, 0, 0);
+    const endDay = new Date(end);
+    endDay.setHours(0, 0, 0, 0);
+    while (cur <= endDay) {
+      const m = cur.getMonth() + 1;
+      const d = cur.getDate();
+      const w = WEEKDAY_KO[cur.getDay()];
+      labels.push(`${m}.${d}(${w})`);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return labels;
+  } catch {
+    return [];
+  }
+}
 
 export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -56,27 +86,76 @@ export default function EventDetailScreen() {
     return event?.startAt ? formatEventDate(event.startAt) : null;
   }, [extra.timeline, event?.startAt]);
 
+  const eventDayLabels = useMemo(
+    () => getEventDayLabels(event?.startAt ?? null, event?.endAt ?? null),
+    [event?.startAt, event?.endAt]
+  );
+  const isMultiDayTimeline = eventDayLabels.length >= 2;
+  const [selectedTimelineDateIndex, setSelectedTimelineDateIndex] = useState(0);
+  const selectedTimelineDateLabel = eventDayLabels[selectedTimelineDateIndex] ?? eventDayLabels[0] ?? timelineDateLabel ?? "";
+  const timelineItemsForDay = useMemo(() => {
+    const list = extra.timeline ?? [];
+    if (!isMultiDayTimeline) return list;
+    return list.filter((i) => (i.dateLabel ?? "") === selectedTimelineDateLabel);
+  }, [extra.timeline, isMultiDayTimeline, selectedTimelineDateLabel]);
+
   const [tab, setTab] = useState<TabKey>(initialTab);
   const [isLiked, setIsLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [scrapedOverride, setScrapedOverride] = useState<boolean | null>(null);
 
   const eventIdNum = id ? Number(id) : NaN;
   const hasValidId = Number.isFinite(eventIdNum);
 
+  // 서버에서 '현재 사용자' 기준 좋아요 여부 + 전체 좋아요 수 조회 (다른 계정이면 빈 하트)
+  const fetchLikeStatus = useCallback(() => {
+    if (!hasValidId) return;
+    eventService.getEventLikeStatus(eventIdNum).then(({ liked, likeCount: count }) => {
+      setIsLiked(liked);
+      setLikeCount(count);
+    }).catch(() => {
+      setIsLiked(false);
+      setLikeCount(0);
+    });
+  }, [hasValidId, eventIdNum]);
+
   useEffect(() => {
-    setIsLiked(event?.isLiked ?? false);
-  }, [event?.isLiked]);
+    fetchLikeStatus();
+  }, [fetchLikeStatus]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasValidId) fetchLikeStatus();
+    }, [hasValidId, fetchLikeStatus])
+  );
+
+  useEffect(() => {
+    setScrapedOverride(null);
+  }, [event?.id, event?.isBookmarked]);
+
+  useEffect(() => {
+    if (eventDayLabels.length > 0 && selectedTimelineDateIndex >= eventDayLabels.length) {
+      setSelectedTimelineDateIndex(0);
+    }
+  }, [eventDayLabels.length, selectedTimelineDateIndex]);
 
   const handleLike = useCallback(async () => {
     if (!hasValidId) return;
-    try {
-      const res = await eventService.toggleEventLike(eventIdNum);
-      setIsLiked(res.liked);
+    if (!isLoggedIn) {
       if (Platform.OS === "android") {
-        ToastAndroid.show(res.liked ? "좋아요" : "좋아요 취소", ToastAndroid.SHORT);
+        ToastAndroid.show("로그인 후 좋아요를 누를 수 있습니다.", ToastAndroid.SHORT);
       } else {
-        Alert.alert(res.liked ? "좋아요" : "좋아요 취소");
+        Alert.alert("로그인 필요", "로그인 후 좋아요를 누를 수 있습니다.");
       }
-      refetchDetail();
+      return;
+    }
+    try {
+      const { liked, likeCount: count } = await eventService.toggleEventLike(eventIdNum);
+      setIsLiked(liked);
+      setLikeCount(count);
+      if (Platform.OS === "android") {
+        ToastAndroid.show(liked ? "좋아요" : "좋아요 해제", ToastAndroid.SHORT);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "처리에 실패했습니다.";
       if (Platform.OS === "android") {
@@ -85,7 +164,7 @@ export default function EventDetailScreen() {
         Alert.alert("알림", msg);
       }
     }
-  }, [hasValidId, eventIdNum, refetchDetail]);
+  }, [hasValidId, eventIdNum, isLoggedIn]);
 
   const scrollRef = useRef<ScrollView | null>(null);
   const [tabsOffsetY, setTabsOffsetY] = useState(0);
@@ -125,6 +204,8 @@ export default function EventDetailScreen() {
     if (!Number.isFinite(eventId)) return;
     try {
       const added = await scrapService.toggleScrap(eventId);
+      setScrapedOverride(added);
+      refetchDetail();
       if (Platform.OS === "android") {
         ToastAndroid.show(
           added ? "저장되었습니다" : "저장이 해제되었습니다",
@@ -141,7 +222,7 @@ export default function EventDetailScreen() {
         Alert.alert("알림", msg);
       }
     }
-  }, [id]);
+  }, [id, refetchDetail]);
 
   return (
     <View style={styles.container}>
@@ -164,8 +245,10 @@ export default function EventDetailScreen() {
           error={error}
           onSave={handleSave}
           isLiked={isLiked}
+          likeCount={likeCount}
           onLike={handleLike}
           isLoggedIn={isLoggedIn}
+          isScraped={scrapedOverride ?? event?.isBookmarked ?? false}
         />
 
         <View
@@ -182,16 +265,62 @@ export default function EventDetailScreen() {
               eventId={event?.id != null ? Number(event.id) : undefined}
             />
           )}
-          {tab === "timeline" && (
-            <Timeline dateLabel={timelineDateLabel} items={extra.timeline} />
-          )}
-          {tab === "booths" && (
-            <EventBoothTab
-              eventId={event?.id != null ? Number(event.id) : undefined}
-              eventTitle={event?.title ?? ""}
-              foodBooths={extra.foodBooths}
-              experienceBooths={extra.experienceBooths}
-            />
+          {(tab === "timeline" || tab === "booths") && (
+            <View style={styles.timelineWrap}>
+              {tab === "timeline" && isMultiDayTimeline && (
+                <View style={styles.timelineDateNavRow}>
+                  <Pressable
+                    onPress={() => setSelectedTimelineDateIndex((i) => Math.max(0, i - 1))}
+                    style={styles.timelineDateNavBtn}
+                    disabled={selectedTimelineDateIndex <= 0}
+                  >
+                    <Ionicons
+                      name="chevron-back"
+                      size={24}
+                      color={selectedTimelineDateIndex <= 0 ? "#D1D5DB" : "#374151"}
+                    />
+                  </Pressable>
+                  <Text style={styles.timelineDateNavLabel}>{selectedTimelineDateLabel}</Text>
+                  <Pressable
+                    onPress={() =>
+                      setSelectedTimelineDateIndex((i) =>
+                        Math.min(eventDayLabels.length - 1, i + 1)
+                      )
+                    }
+                    style={styles.timelineDateNavBtn}
+                    disabled={selectedTimelineDateIndex >= eventDayLabels.length - 1}
+                  >
+                    <Ionicons
+                      name="chevron-forward"
+                      size={24}
+                      color={
+                        selectedTimelineDateIndex >= eventDayLabels.length - 1
+                          ? "#D1D5DB"
+                          : "#374151"
+                      }
+                    />
+                  </Pressable>
+                </View>
+              )}
+              {tab === "timeline" && (
+                <Timeline
+                  dateLabel={isMultiDayTimeline ? null : timelineDateLabel}
+                  items={timelineItemsForDay}
+                />
+              )}
+              {tab === "booths" && (
+                <EventBoothTab
+                  eventId={event?.id != null ? Number(event.id) : undefined}
+                  eventTitle={event?.title ?? ""}
+                  foodBooths={extra.foodBooths}
+                  experienceBooths={extra.experienceBooths}
+                  eventLatitude={event?.latitude ?? null}
+                  eventLongitude={event?.longitude ?? null}
+                  foodArea={extra.foodArea}
+                  experienceArea={extra.experienceArea}
+                />
+              )}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -224,9 +353,29 @@ const styles = StyleSheet.create({
   },
   body: {
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 10,
     paddingBottom: 20,
     minHeight: SCREEN_HEIGHT * 0.5,
+  },
+  timelineWrap: { flex: 1 },
+  timelineDateNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+    paddingVertical: 2,
+    paddingBottom: 8,
+    gap: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  timelineDateNavBtn: { padding: 2 },
+  timelineDateNavLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    minWidth: 100,
+    textAlign: "center",
   },
   stickyTabs: {
     position: "absolute",

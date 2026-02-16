@@ -22,6 +22,8 @@ export type BlockResponse = {
   id: number;
   blockerId: number;
   blockedId: number;
+  /** 차단한 사용자 닉네임 (목록 표시용) */
+  blockedNickname?: string | null;
   createdAt: string;
 };
 

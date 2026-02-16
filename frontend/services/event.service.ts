@@ -2,7 +2,7 @@ import { API_BASE_URL } from '../constants/api';
 import { getAccessToken } from './auth.service';
 import type { Event, EventDetail, EventScale } from '../types/event';
 
-/** 백엔드 이벤트 리스트 응답 (EventListResponse: id, title, thumbnailUrl, startAt, endAt, placeName) */
+/** 백엔드 이벤트 리스트 응답 (EventListResponse: id, title, thumbnailUrl, startAt, endAt, placeName, regionName) */
 type EventListResponseItem = {
   id: number;
   title: string;
@@ -16,6 +16,7 @@ type EventListResponseItem = {
   latitude?: number | null;
   longitude?: number | null;
   categories?: string[] | null;
+  regionName?: string | null;
 };
 
 /** 백엔드 카테고리 → 프론트 표시용 (그대로 사용, 없으면 ETC) */
@@ -41,6 +42,7 @@ function toEvent(item: EventListResponseItem): Event {
     placeName: item.placeName ?? '',
     thumbnailUrl: item.thumbnailUrl ?? undefined,
     isBookmarked: false,
+    regionName: item.regionName ?? undefined,
   };
 }
 
@@ -160,6 +162,7 @@ type EventMapResponseItem = {
   placeName?: string | null;
   placeAddress?: string | null;
   regionName?: string | null;
+  likeCount?: number | null;
 };
 
 function filterGroupToScale(fg: string | null | undefined): EventScale {
@@ -189,6 +192,7 @@ function eventMapItemToEvent(item: EventMapResponseItem): Event {
     regionName: item.regionName ?? undefined,
     thumbnailUrl: item.thumbnailUrl ?? undefined,
     isBookmarked: false,
+    likeCount: item.likeCount ?? 0,
   };
 }
 
@@ -212,13 +216,13 @@ export async function getEventsOnMap(params: {
   return list.map(eventMapItemToEvent);
 }
 
-/** 백엔드 상세 응답 (EventDetailResponse) - startAt/endAt ISO 문자열로 수신 */
+/** 백엔드 상세 응답 (EventDetailResponse) - startAt/endAt은 ISO 문자열 또는 배열로 올 수 있음 */
 type EventDetailResponseRaw = {
   id: number;
   title: string;
   posterUrls: string[] | null;
-  startAt: string;
-  endAt: string;
+  startAt: string | number[];
+  endAt: string | number[];
   placeName: string | null;
   placeAddress: string | null;
   latitude: number | null;
@@ -231,6 +235,7 @@ type EventDetailResponseRaw = {
   extraJson?: string | null;
   likeCount?: number;
   isLiked?: boolean;
+  isBookmarked?: boolean;
 };
 
 /**
@@ -244,13 +249,13 @@ export async function getEventDetail(id: string): Promise<EventDetail> {
   });
   if (!res.ok) throw new Error(`event detail failed: ${res.status}`);
   const raw: EventDetailResponseRaw = await res.json();
-  if (__DEV__) console.log('[Event API] detail ok:', raw?.id ?? id);
+  if (__DEV__) console.log('[Event API] detail ok:', raw?.id ?? id, 'extraJson:', raw?.extraJson ? 'present' : 'null');
   return {
     id: raw.id,
     title: raw.title,
     posterUrls: raw.posterUrls ?? [],
-    startAt: raw.startAt,
-    endAt: raw.endAt,
+    startAt: typeof raw.startAt === 'string' ? raw.startAt : toIsoDateString(raw.startAt),
+    endAt: typeof raw.endAt === 'string' ? raw.endAt : toIsoDateString(raw.endAt),
     placeName: raw.placeName ?? null,
     placeAddress: raw.placeAddress ?? null,
     latitude: raw.latitude ?? null,
@@ -263,6 +268,7 @@ export async function getEventDetail(id: string): Promise<EventDetail> {
     extraJson: raw.extraJson ?? null,
     likeCount: raw.likeCount ?? 0,
     isLiked: raw.isLiked ?? false,
+    isBookmarked: raw.isBookmarked ?? false,
   };
 }
 
@@ -320,12 +326,29 @@ export async function getPopularEvents(size: number = 3): Promise<PopularEventIt
   return data ?? [];
 }
 
+/** 행사 좋아요 상태 (GET /api/events/{id}/like 응답) */
+export type EventLikeStatus = { liked: boolean; likeCount: number };
+
+/**
+ * 행사 좋아요 상태 조회 (현재 사용자 좋아요 여부 + 전체 좋아요 수)
+ * GET /api/events/{eventId}/like — 로그인 시 토큰 전달하면 '내가 좋아요 했는지' 반환
+ */
+export async function getEventLikeStatus(eventId: number): Promise<EventLikeStatus> {
+  const token = await getAccessToken();
+  const headers: HeadersInit = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE_URL}/api/events/${eventId}/like`, { headers });
+  if (!res.ok) throw new Error(`좋아요 상태 조회 실패 (${res.status})`);
+  const data = await res.json();
+  return { liked: !!data.liked, likeCount: Number(data.likeCount) ?? 0 };
+}
+
 /**
  * 좋아요 토글 (로그인 필요)
  * POST /api/events/{eventId}/like
  * @returns { liked, likeCount }
  */
-export async function toggleEventLike(eventId: number): Promise<{ liked: boolean; likeCount: number }> {
+export async function toggleEventLike(eventId: number): Promise<EventLikeStatus> {
   const token = await getAccessToken();
   if (!token) throw new Error('로그인이 필요합니다.');
   const res = await fetch(`${API_BASE_URL}/api/events/${eventId}/like`, {

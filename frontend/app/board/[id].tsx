@@ -12,6 +12,8 @@ import {
   KeyboardAvoidingView,
   Share,
   ActivityIndicator,
+  Image,
+  useWindowDimensions,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -25,6 +27,7 @@ import * as reportService from "../../services/report.service";
 import * as authService from "../../services/auth.service";
 import * as blockService from "../../services/block.service";
 import * as chatService from "../../services/chat.service";
+import * as savedPostService from "../../services/savedPost.service";
 
 type CommentDisplay = {
   id: string;
@@ -34,10 +37,13 @@ type CommentDisplay = {
   likes: number;
 };
 
-function toCommentDisplay(c: { id: number; authorId: number; content: string; likeCount: number; createdAt: string }): CommentDisplay {
+function toCommentDisplay(c: { id: number; authorId: number; authorNickname?: string; content: string; likeCount: number; createdAt: string }): CommentDisplay {
+  const raw = c as Record<string, unknown>;
+  const nick = (c.authorNickname ?? raw.author_nickname) as string | undefined;
+  const author = (typeof nick === "string" && nick.trim()) ? nick.trim() : `user_${c.authorId}`;
   return {
     id: String(c.id),
-    author: `user_${c.authorId}`,
+    author,
     time: formatRelativeTime(c.createdAt),
     content: c.content,
     likes: c.likeCount ?? 0,
@@ -47,7 +53,8 @@ function toCommentDisplay(c: { id: number; authorId: number; content: string; li
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { isLoggedIn, user } = useAuthContext();
+  const { width: winWidth } = useWindowDimensions();
+  const { isLoggedIn, user, logout } = useAuthContext();
   const [menuVisible, setMenuVisible] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
@@ -65,6 +72,12 @@ export default function PostDetailScreen() {
   const postAuthorId = post ? Number((post as Record<string, unknown>).author_id ?? post.authorId ?? 0) : 0;
   const isMyPost = Boolean(post && user?.id != null && postAuthorId !== 0 && Number(postAuthorId) === Number(user.id));
   const [blockCheck, setBlockCheck] = useState<{ iBlockedThem: boolean; theyBlockedMe: boolean } | null>(null);
+  const [isSavedPost, setIsSavedPost] = useState(false);
+
+  useEffect(() => {
+    if (!id || !Number.isFinite(Number(id))) return;
+    savedPostService.isSavedPost(Number(id)).then(setIsSavedPost);
+  }, [id]);
 
   useEffect(() => {
     if (!post || postAuthorId <= 0 || isMyPost) {
@@ -85,6 +98,24 @@ export default function PostDetailScreen() {
   useEffect(() => {
     setLiked(post?.isLiked ?? false);
   }, [post?.id, post?.isLiked]);
+
+  const handleSavePost = async () => {
+    setMenuVisible(false);
+    if (!id || !post) return;
+    const postId = Number(id);
+    if (!Number.isFinite(postId)) return;
+    try {
+      const added = await savedPostService.toggleSavedPost(
+        postId,
+        post.title ?? "",
+        (post as Record<string, unknown>).createdAt as string | undefined
+      );
+      setIsSavedPost(added);
+      Alert.alert(added ? "저장됨" : "저장 해제", added ? "게시글을 저장했습니다." : "저장을 해제했습니다.");
+    } catch {
+      Alert.alert("오류", "저장 처리에 실패했습니다.");
+    }
+  };
 
   const handleCopyLink = async () => {
     setMenuVisible(false);
@@ -170,6 +201,7 @@ export default function PostDetailScreen() {
     ]);
   };
 
+  /* 채팅 기능 주석 처리
   const handleSendChat = () => {
     setMenuVisible(false);
     const targetId = post?.authorId ?? postAuthorId;
@@ -181,11 +213,24 @@ export default function PostDetailScreen() {
     }
     (async () => {
       try {
-        const hasToken = !!(await authService.getAccessToken());
-        if (!hasToken) {
+        const token = await authService.getAccessToken();
+        if (!token?.trim()) {
+          await logout();
           Alert.alert(
             "로그인 필요",
-            "채팅을 사용하려면 로그인이 필요합니다. 마이페이지에서 로그인해 주세요."
+            "채팅을 사용하려면 로그인이 필요합니다. 마이페이지에서 로그인해 주세요.",
+            [{ text: "확인", onPress: () => router.push("/login") }]
+          );
+          return;
+        }
+        const me = await authService.getMe();
+        if (!me) {
+          await authService.clearAuthStorage();
+          await logout();
+          Alert.alert(
+            "로그인 필요",
+            "로그인이 만료되었습니다. 다시 로그인해 주세요.",
+            [{ text: "확인", onPress: () => router.push("/login") }]
           );
           return;
         }
@@ -193,10 +238,20 @@ export default function PostDetailScreen() {
         router.push(`/board/chat/${room.id}`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "채팅방을 열 수 없습니다.";
-        Alert.alert("오류", msg);
+        const isAuthError = msg.includes("로그인이 만료") || msg.includes("로그인");
+        if (isAuthError) {
+          await authService.clearAuthStorage();
+          await logout();
+        }
+        Alert.alert(
+          isAuthError ? "로그인 필요" : "오류",
+          msg,
+          isAuthError ? [{ text: "확인", onPress: () => router.push("/login") }] : undefined
+        );
       }
     })();
   };
+  */
 
   const handleEditPost = () => {
     setMenuVisible(false);
@@ -226,6 +281,17 @@ export default function PostDetailScreen() {
 
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !id) return;
+    if (!isLoggedIn) {
+      Alert.alert(
+        "로그인이 필요합니다",
+        "댓글을 달려면 로그인해 주세요.",
+        [
+          { text: "취소", style: "cancel" },
+          { text: "로그인", onPress: () => router.push("/login") },
+        ]
+      );
+      return;
+    }
     setSubmittingComment(true);
     try {
       await boardService.createComment(id, { content: commentText.trim() });
@@ -354,7 +420,7 @@ export default function PostDetailScreen() {
         >
           {postLoading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color="#2563EB" />
+              <ActivityIndicator size="large" color="#4C8BF5" />
               <Text style={styles.loadingText}>불러오는 중...</Text>
             </View>
           ) : postError || !post ? (
@@ -376,6 +442,33 @@ export default function PostDetailScreen() {
                   </View>
                 </View>
                 {post.title ? <Text style={styles.postTitle}>{post.title}</Text> : null}
+                {post.categoryType === "후기" && (post.eventTitle ?? (post as Record<string, unknown>).event_title) ? (
+                  <View style={styles.eventBadge}>
+                    <Ionicons name="calendar-outline" size={14} color="#4C8BF5" />
+                    <Text style={styles.eventBadgeText}>
+                      {post.eventTitle ?? (post as Record<string, unknown>).event_title ?? ""}
+                    </Text>
+                  </View>
+                ) : null}
+                {(() => {
+                  const urls = post.imageUrls ?? (post as Record<string, unknown>).image_urls as string[] | undefined;
+                  const list = Array.isArray(urls) ? urls : [];
+                  if (list.length === 0) return null;
+                  const gap = 8;
+                  const size = Math.floor((winWidth - 32 - gap * 2) / 3);
+                  return (
+                    <View style={styles.postImagesWrap}>
+                      {list.map((uri) => (
+                        <Image
+                          key={uri}
+                          source={{ uri }}
+                          style={[styles.postImage, { width: size, height: size }]}
+                          resizeMode="cover"
+                        />
+                      ))}
+                    </View>
+                  );
+                })()}
                 <Text style={styles.postContent}>{post.content}</Text>
                 <View style={styles.postFooter}>
                   <Pressable style={styles.footerItem} onPress={toggleLike}>
@@ -409,7 +502,7 @@ export default function PostDetailScreen() {
               >
                 <Text style={styles.commentSectionTitle}>댓글</Text>
                 {commentsLoading ? (
-                  <ActivityIndicator size="small" color="#2563EB" style={{ marginVertical: 16 }} />
+                  <ActivityIndicator size="small" color="#4C8BF5" style={{ marginVertical: 16 }} />
                 ) : (
                   comments.map((c) => {
               const commentLiked = likedCommentIds.has(c.id);
@@ -432,9 +525,6 @@ export default function PostDetailScreen() {
                       )}
                     </View>
                     <Text style={styles.commentContent}>{c.content}</Text>
-                    <Pressable style={styles.replyBtn}>
-                      <Text style={styles.replyText}>답글달기</Text>
-                    </Pressable>
                   </View>
                   <View style={styles.commentRight}>
                     {commentMenuId === c.id && (
@@ -470,7 +560,7 @@ export default function PostDetailScreen() {
         {/* 댓글 입력 - 게시물 로드된 경우만 */}
         {post && (
         <View style={styles.inputRow}>
-          <Text style={styles.inputLabel}>Me</Text>
+          <Text style={styles.inputLabel}>{isLoggedIn && user?.name ? user.name : "Me"}</Text>
           <TextInput
             style={styles.input}
             placeholder="댓글을 입력하세요"
@@ -522,11 +612,14 @@ export default function PostDetailScreen() {
         </Pressable>
       </Modal>
 
-      {/* 더보기 메뉴: 수정/삭제(본인글) - 채팅 보내기 - 링크 복사 - 신고 - 차단하기 */}
+      {/* 더보기 메뉴: 본인글 → 저장, 수정, 삭제(빨간색) / 타인글 → 저장, 신고, 차단 */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
           <Pressable style={styles.menuCard} onPress={() => {}}>
-            {isMyPost && (
+            <Pressable style={styles.menuItem} onPress={handleSavePost}>
+              <Text style={styles.menuText}>{isSavedPost ? "저장 해제" : "저장"}</Text>
+            </Pressable>
+            {isMyPost ? (
               <>
                 <Pressable style={styles.menuItem} onPress={handleEditPost}>
                   <Text style={styles.menuText}>수정</Text>
@@ -535,30 +628,27 @@ export default function PostDetailScreen() {
                   <Text style={[styles.menuText, styles.menuTextDanger]}>삭제</Text>
                 </Pressable>
               </>
+            ) : (
+              <>
+                <Pressable style={styles.menuItem} onPress={handleReport}>
+                  <Text style={styles.menuText}>신고</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.menuItem}
+                  onPress={blockCheck?.iBlockedThem ? () => setMenuVisible(false) : handleBlock}
+                  disabled={blockCheck?.iBlockedThem}
+                >
+                  <Text
+                    style={[
+                      styles.menuText,
+                      blockCheck?.iBlockedThem ? styles.menuTextMuted : styles.menuTextDanger,
+                    ]}
+                  >
+                    {blockCheck?.iBlockedThem ? "이미 차단한 사용자" : "차단하기"}
+                  </Text>
+                </Pressable>
+              </>
             )}
-            <Pressable style={styles.menuItem} onPress={handleSendChat}>
-              <Text style={styles.menuText}>채팅 보내기</Text>
-            </Pressable>
-            <Pressable style={styles.menuItem} onPress={handleCopyLink}>
-              <Text style={styles.menuText}>링크 복사</Text>
-            </Pressable>
-            <Pressable style={styles.menuItem} onPress={handleReport}>
-              <Text style={styles.menuText}>신고</Text>
-            </Pressable>
-            <Pressable
-              style={styles.menuItem}
-              onPress={blockCheck?.iBlockedThem ? () => setMenuVisible(false) : handleBlock}
-              disabled={blockCheck?.iBlockedThem}
-            >
-              <Text
-                style={[
-                  styles.menuText,
-                  blockCheck?.iBlockedThem ? styles.menuTextMuted : styles.menuTextDanger,
-                ]}
-              >
-                {blockCheck?.iBlockedThem ? "이미 차단한 사용자" : "차단하기"}
-              </Text>
-            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -578,7 +668,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
-  headerTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
+  headerTitle: { fontSize: 17, fontWeight: "600", color: "#111827", marginLeft: 20 },
   headerMenuBtn: { padding: 8 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 16 },
@@ -594,6 +684,25 @@ const styles = StyleSheet.create({
   author: { fontSize: 15, fontWeight: "600", color: "#111827" },
   timeText: { fontSize: 12, color: "#9CA3AF", marginTop: 2 },
   postTitle: { fontSize: 17, fontWeight: "600", color: "#111827", marginBottom: 8 },
+  eventBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  eventBadgeText: { fontSize: 13, fontWeight: "500", color: "#1D4ED8" },
+  postImagesWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  postImage: { borderRadius: 8, backgroundColor: "#F3F4F6" },
   postContent: { fontSize: 14, color: "#374151", lineHeight: 20, marginBottom: 12 },
   postFooter: { flexDirection: "row", alignItems: "center", gap: 16 },
   footerItem: { flexDirection: "row", alignItems: "center", gap: 4 },
@@ -616,8 +725,6 @@ const styles = StyleSheet.create({
   commentAuthor: { fontSize: 13, fontWeight: "600", color: "#111827" },
   commentTime: { fontSize: 11, color: "#9CA3AF" },
   commentContent: { fontSize: 13, color: "#374151", lineHeight: 18 },
-  replyBtn: { marginTop: 6 },
-  replyText: { fontSize: 12, color: "#6B7280" },
   commentRight: { alignItems: "flex-end", gap: 4 },
   commentMenuBtn: { padding: 4, marginLeft: 4 },
   commentDropdown: {
@@ -676,7 +783,7 @@ const styles = StyleSheet.create({
   editCommentSave: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     borderRadius: 8,
   },
   editCommentSaveDisabled: { opacity: 0.5 },
@@ -705,7 +812,7 @@ const styles = StyleSheet.create({
   },
   postBtn: { paddingVertical: 8, paddingHorizontal: 14 },
   postBtnDisabled: { opacity: 0.5 },
-  postBtnText: { fontSize: 14, fontWeight: "600", color: "#2563EB" },
+  postBtnText: { fontSize: 14, fontWeight: "600", color: "#4C8BF5" },
   postBtnTextDisabled: { color: "#9CA3AF" },
   menuOverlay: {
     flex: 1,
@@ -733,6 +840,6 @@ const styles = StyleSheet.create({
   loadingText: { marginTop: 12, fontSize: 14, color: "#6B7280" },
   errorWrap: { paddingVertical: 48, alignItems: "center", justifyContent: "center" },
   errorText: { fontSize: 14, color: "#6B7280", marginBottom: 12 },
-  retryBtn: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#2563EB", borderRadius: 8 },
+  retryBtn: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#4C8BF5", borderRadius: 8 },
   retryText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
 });

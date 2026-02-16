@@ -80,7 +80,7 @@ export default function BlockListScreen() {
         >
           {loading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color="#2563EB" />
+              <ActivityIndicator size="large" color="#4C8BF5" />
               <Text style={styles.loadingText}>불러오는 중...</Text>
             </View>
           ) : error ? (
@@ -98,14 +98,14 @@ export default function BlockListScreen() {
             blocks.map((b) => (
               <View key={b.id} style={styles.card}>
                 <View style={styles.cardRow}>
-                  <Text style={styles.userLabel}>사용자 ID: {b.blockedId}</Text>
+                  <Text style={styles.userLabel}>{b.blockedNickname ?? `사용자 #${b.blockedId}`}</Text>
                   <Pressable
                     style={[styles.unblockBtn, unblockingId === b.blockedId && styles.unblockBtnDisabled]}
                     onPress={() => handleUnblock(b.blockedId)}
                     disabled={unblockingId === b.blockedId}
                   >
                     {unblockingId === b.blockedId ? (
-                      <ActivityIndicator size="small" color="#2563EB" />
+                      <ActivityIndicator size="small" color="#4C8BF5" />
                     ) : (
                       <Text style={styles.unblockBtnText}>차단 해제</Text>
                     )}
@@ -136,6 +136,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
+    marginLeft: 20,
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
   retryBtn: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     borderRadius: 8,
   },
   retryText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
@@ -192,6 +193,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
   },
   unblockBtnDisabled: { opacity: 0.7 },
-  unblockBtnText: { fontSize: 13, fontWeight: "600", color: "#2563EB" },
+  unblockBtnText: { fontSize: 13, fontWeight: "600", color: "#4C8BF5" },
   date: { fontSize: 12, color: "#9CA3AF" },
 });

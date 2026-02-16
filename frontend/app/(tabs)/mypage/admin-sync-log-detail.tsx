@@ -88,7 +88,7 @@ export default function AdminSyncLogDetailScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#4C8BF5" />
       </View>
     );
   }
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   value: { fontSize: 15, color: "#111827" },
   completeButton: {
     marginTop: 24,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: "700", color: "#111827", marginBottom: 16 },
   modalRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
   toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "#F3F4F6", alignItems: "center" },
-  toggleBtnActive: { backgroundColor: "#2563EB" },
+  toggleBtnActive: { backgroundColor: "#4C8BF5" },
   toggleText: { fontSize: 14, fontWeight: "600", color: "#6B7280" },
   toggleTextActive: { color: "#FFFFFF" },
   modalLabel: { fontSize: 13, color: "#6B7280", marginBottom: 6 },
@@ -263,6 +263,6 @@ const styles = StyleSheet.create({
   modalBtn: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 8 },
   modalBtnCancel: { backgroundColor: "#F3F4F6" },
   modalBtnCancelText: { fontSize: 14, fontWeight: "600", color: "#374151" },
-  modalBtnConfirm: { backgroundColor: "#2563EB" },
+  modalBtnConfirm: { backgroundColor: "#4C8BF5" },
   modalBtnConfirmText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
 });

@@ -2,12 +2,15 @@ package com.dailo.backend.dto;
 
 import com.dailo.backend.domain.enums.PostStatus;
 import com.dailo.backend.entity.Post;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 
 @Getter
@@ -15,6 +18,8 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class PostResponseDto {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private Long id;
     private Long authorId;
@@ -25,6 +30,10 @@ public class PostResponseDto {
     private String categoryType;
     /** 후기일 때 연관 행사 ID */
     private Long eventId;
+    /** 후기일 때 연관 행사 제목 (표시용) */
+    private String eventTitle;
+    /** 첨부 이미지 URL 목록 */
+    private List<String> imageUrls;
     private Integer viewCount;
     private Integer likeCount;
     private Integer commentCount;
@@ -33,8 +42,15 @@ public class PostResponseDto {
     private LocalDateTime updatedAt;
     /** 로그인 사용자가 이 게시글에 좋아요를 눌렀는지 */
     private Boolean isLiked;
-    /** 이미지 Presigned URL 목록 */
-    private List<String> imageUrls;
+
+    private static List<String> parseImageUrls(String imageUrlsJson) {
+        if (imageUrlsJson == null || imageUrlsJson.isBlank()) return Collections.emptyList();
+        try {
+            return OBJECT_MAPPER.readValue(imageUrlsJson, new TypeReference<>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
 
     public static PostResponseDto from(Post post) {
         return from(post, null, null, null);
@@ -48,7 +64,7 @@ public class PostResponseDto {
         return from(post, authorNickname, isLiked, null);
     }
 
-    public static PostResponseDto from(Post post, String authorNickname, Boolean isLiked, List<String> imageUrls) {
+    public static PostResponseDto from(Post post, String authorNickname, Boolean isLiked, String eventTitle) {
         return PostResponseDto.builder()
                 .id(post.getId())
                 .authorId(post.getAuthorId())
@@ -57,6 +73,8 @@ public class PostResponseDto {
                 .content(post.getContent())
                 .categoryType(post.getCategoryType())
                 .eventId(post.getEventId())
+                .eventTitle(eventTitle)
+                .imageUrls(parseImageUrls(post.getImageUrlsJson()))
                 .viewCount(post.getViewCount())
                 .likeCount(post.getLikeCount())
                 .commentCount(post.getCommentCount())
@@ -64,7 +82,6 @@ public class PostResponseDto {
                 .createdAt(post.getCreatedAt())
                 .updatedAt(post.getUpdatedAt())
                 .isLiked(isLiked)
-                .imageUrls(imageUrls)
                 .build();
     }
 }

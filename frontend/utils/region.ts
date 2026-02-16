@@ -35,3 +35,16 @@ export function getCurrentRegionKey(lat: number, lng: number): string | null {
 
 /** 지역 bounds 델타 (본인 지역 행사 조회용) */
 export const REGION_BOUNDS_DELTA = 0.45;
+
+/** 알림설정 지역 선택용 (한국 제외, 충주/충주시 → 충주로 통일) */
+export const REGION_PICKER_OPTIONS: { key: string; label: string }[] = [
+  { key: "서울", label: "서울" },
+  { key: "인천", label: "인천" },
+  { key: "대전", label: "대전" },
+  { key: "대구", label: "대구" },
+  { key: "부산", label: "부산" },
+  { key: "광주", label: "광주" },
+  { key: "충주", label: "충주" },
+  { key: "충북", label: "충북" },
+  { key: "충청북도", label: "충청북도" },
+];

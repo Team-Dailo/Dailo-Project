@@ -61,7 +61,8 @@ export default function BoardHistoryScreen() {
     (user?.id != null && user.id > 0 ? Number(user.id) : null) ??
     resolvedUserId ??
     userIdFromHook;
-  const { posts, loading, error, refetch } = useMyPostList(userId);
+  const isLoggedIn = !!(user || resolvedUserId || userIdFromHook);
+  const { posts, loading, error, refetch } = useMyPostList(isLoggedIn);
   const sortedPosts = useMemo(() => posts.map(toPostRow), [posts]);
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
 
@@ -149,6 +150,13 @@ export default function BoardHistoryScreen() {
     }, [user, user?.id, userIdFromHook])
   );
 
+  // 게시판 기록 화면에 들어올 때마다 내 글 목록 새로고침 (수정 후 반영)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (userId != null && userId > 0) refetch();
+    }, [userId, refetch])
+  );
+
   const handleRetryUserIdAndRefetch = React.useCallback(async () => {
     await refreshUser();
     const stored = await authService.getStoredUserId();
@@ -233,7 +241,7 @@ export default function BoardHistoryScreen() {
             </View>
           ) : loading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color="#2563EB" />
+              <ActivityIndicator size="large" color="#4C8BF5" />
               <Text style={styles.loadingText}>불러오는 중...</Text>
             </View>
           ) : error ? (
@@ -304,6 +312,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
+    marginLeft: 20,
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
@@ -330,7 +339,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   errorText: { fontSize: 14, color: "#6B7280", marginBottom: 12 },
-  retryBtn: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#2563EB", borderRadius: 8 },
+  retryBtn: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#4C8BF5", borderRadius: 8 },
   retryText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   emptyWrap: {
     paddingVertical: 48,
@@ -339,7 +348,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   emptyText: { fontSize: 14, color: "#6B7280", marginBottom: 16 },
-  loginBtn: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#2563EB", borderRadius: 8 },
+  loginBtn: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#4C8BF5", borderRadius: 8 },
   loginBtnText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   postRow: {
     flexDirection: "row",

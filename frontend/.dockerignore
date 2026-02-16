@@ -1,0 +1,43 @@
+# 의존성 (컨테이너에서 npm install로 새로 설치)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Expo / Metro 캐시
+.expo/
+dist/
+web-build/
+
+# 네이티브 빌드 (도커에서 쓰지 않음)
+android/
+ios/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# 빌드/테스트
+coverage/
+*.tsbuildinfo
+
+# Git
+.git/
+.gitignore
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# 환경 (보안, 로컬용)
+.env
+.env.*
+!.env.example
+
+# 기타
+*.log

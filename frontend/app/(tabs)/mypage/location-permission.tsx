@@ -34,7 +34,7 @@ export default function LocationPermissionScreen() {
           headerShown: true,
           headerTitleAlign: 'left',
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} hitSlop={8} style={{ paddingHorizontal: 4 }}>
+            <Pressable onPress={() => router.back()} hitSlop={8} style={styles.headerBackButton}>
               <Ionicons name="chevron-back" size={22} color="#111827" />
             </Pressable>
           ),
@@ -43,7 +43,7 @@ export default function LocationPermissionScreen() {
       <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
           <View style={styles.iconWrap}>
-            <Ionicons name="location-outline" size={48} color="#2563EB" />
+            <Ionicons name="location-outline" size={48} color="#4C8BF5" />
           </View>
           <Text style={styles.title}>위치 권한이 필요해요</Text>
           <Text style={styles.description}>
@@ -66,6 +66,7 @@ export default function LocationPermissionScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerBackButton: { paddingLeft: 4, paddingRight: 10 },
   safeArea: { flex: 1, backgroundColor: '#F9FAFB' },
   container: { flex: 1 },
   content: { padding: 24, paddingBottom: 32 },
@@ -101,7 +102,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   primaryButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4C8BF5',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

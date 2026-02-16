@@ -6,6 +6,7 @@ import com.dailo.backend.dto.AdminReportDetailResponseDto;
 import com.dailo.backend.dto.ReportActionRequestDto;
 import com.dailo.backend.dto.ReportActionResponseDto;
 import com.dailo.backend.dto.ReportResponseDto;
+import com.dailo.backend.dto.admin.ReportedPostSummaryDto;
 import com.dailo.backend.service.AdminReportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,12 +17,28 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/admin/reports")
 @RequiredArgsConstructor
 public class AdminReportController {
 
     private final AdminReportService adminReportService;
+
+    /** 신고된 게시물 목록 + 신고 수 (PENDING만, 처리 대기용) */
+    @GetMapping("/post-summary")
+    public ResponseEntity<List<ReportedPostSummaryDto>> getReportedPostsSummary(
+            @RequestHeader("X-User-Id") Long adminId) {
+        return ResponseEntity.ok(adminReportService.getReportedPostsSummary(adminId));
+    }
+
+    /** 신고 기록: 게시글별 누적 신고 수 (상태 무관) - 경로를 literal로 두어 /{reportId}와 충돌 방지 */
+    @GetMapping("/record/by-post")
+    public ResponseEntity<List<ReportedPostSummaryDto>> getReportRecord(
+            @RequestHeader("X-User-Id") Long adminId) {
+        return ResponseEntity.ok(adminReportService.getReportRecordSummary(adminId));
+    }
 
     // 신고 목록 조회 (필터링)
     @GetMapping

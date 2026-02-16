@@ -97,7 +97,7 @@ export default function SavedBoothsScreen() {
 
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#2563EB" />
+            <ActivityIndicator size="large" color="#4C8BF5" />
           </View>
         ) : list.length === 0 ? (
           <View style={styles.center}>
@@ -133,7 +133,7 @@ export default function SavedBoothsScreen() {
                   style={styles.unfavButton}
                   onPress={() => handleRemove(item)}
                 >
-                  <Ionicons name="bookmark" size={20} color="#2563EB" />
+                  <Ionicons name="bookmark" size={20} color="#4C8BF5" />
                   <Text style={styles.unfavText}>찜 해제</Text>
                 </Pressable>
               </View>
@@ -166,6 +166,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
+    marginLeft: 20,
     fontSize: 15,
     fontWeight: "600",
     color: "#111827",
@@ -221,7 +222,7 @@ const styles = StyleSheet.create({
   },
   unfavText: {
     fontSize: 13,
-    color: "#2563EB",
+    color: "#4C8BF5",
     fontWeight: "500",
   },
 });

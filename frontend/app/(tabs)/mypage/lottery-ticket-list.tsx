@@ -70,6 +70,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
+    marginLeft: 20,
     fontSize: 15,
     fontWeight: "600",
     color: "#111827",

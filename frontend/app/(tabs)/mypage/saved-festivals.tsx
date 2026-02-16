@@ -142,7 +142,7 @@ export default function SavedFestivalsScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color="#4C8BF5" />
         </View>
       ) : list.length === 0 ? (
         <View style={styles.center}>
@@ -212,7 +212,7 @@ export default function SavedFestivalsScreen() {
                               hitSlop={8}
                               style={styles.unscrapWrap}
                             >
-                              <Ionicons name="bookmark" size={16} color="#2563EB" />
+                              <Ionicons name="bookmark" size={16} color="#4C8BF5" />
                               <Text style={styles.unscrapText}>찜 해제</Text>
                             </Pressable>
                           </View>
@@ -271,6 +271,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#111827",
+    marginLeft: 20,
   },
   container: {
     flex: 1,
@@ -379,7 +380,7 @@ const styles = StyleSheet.create({
   },
   unscrapText: {
     fontSize: 12,
-    color: "#2563EB",
+    color: "#4C8BF5",
     fontWeight: "500",
   },
   eventTitle: {
@@ -407,7 +408,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     paddingHorizontal: 12,
   },
   eventCardFooterCenter: {

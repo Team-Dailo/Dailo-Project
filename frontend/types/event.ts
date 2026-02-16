@@ -31,6 +31,8 @@ export interface Event {
   regionName?: string;
   thumbnailUrl?: string;
   isBookmarked?: boolean;
+  /** 좋아요 수 (지도 인기순 목록 표시용) */
+  likeCount?: number;
 }
 
 /** 소식 한 건 (extraJson 내 news[]) */
@@ -64,6 +66,14 @@ export interface EventBoothItem {
   description?: string;
   rules?: string[];
   prizes?: string[];
+  /** 푸드트럭/부스 외부 링크 (예: 인스타, 예약 페이지) */
+  externalLink?: string;
+}
+
+/** 푸드트럭/체험부스 영역 위치 (위치 보기 지도용) */
+export interface BoothAreaLocation {
+  latitude: number;
+  longitude: number;
 }
 
 /** 상세 탭용 저장 데이터 (extraJson 파싱 결과) */
@@ -72,6 +82,10 @@ export interface EventExtra {
   timeline?: EventTimelineItem[];
   foodBooths?: EventBoothItem[];
   experienceBooths?: EventBoothItem[];
+  /** 푸드트럭 영역 중심 (위치 보기 지도) */
+  foodArea?: BoothAreaLocation;
+  /** 체험부스 영역 중심 (위치 보기 지도) */
+  experienceArea?: BoothAreaLocation;
 }
 
 /** 이벤트 상세 (GET /api/events/{id} 응답) */
@@ -96,4 +110,6 @@ export interface EventDetail {
   likeCount?: number;
   /** 현재 사용자 좋아요 여부 */
   isLiked?: boolean;
+  /** 현재 사용자 저장(스크랩) 여부 - 본인 계정에서만 true */
+  isBookmarked?: boolean;
 }

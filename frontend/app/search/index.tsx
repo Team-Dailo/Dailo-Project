@@ -45,16 +45,17 @@ export default function SearchScreen() {
     : '행사명, 내용, 키워드 검색';
 
   const [keyword, setKeyword] = useState('');
-  /** 인기 검색어 (최대 10개, 검색수 기준 순위) */
-  const [topKeywordsWithCount, setTopKeywordsWithCount] = useState<logService.TopSearchKeywordItem[]>([]);
-  const [topLoading, setTopLoading] = useState(true);
+  /** 인기 검색어 (최대 10개, 검색수 기준 순위) - 주석 처리됨 */
+  // const [topKeywordsWithCount, setTopKeywordsWithCount] = useState<logService.TopSearchKeywordItem[]>([]);
+  // const [topLoading, setTopLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   /** 홈에서 검색 시 행사 검색 결과 (null = 아직 검색 안 함) */
   const [eventResults, setEventResults] = useState<Event[] | null>(null);
 
-  useEffect(() => {
-    logService.getTopSearchKeywordsWithCount(10).then(setTopKeywordsWithCount).catch(() => setTopKeywordsWithCount([])).finally(() => setTopLoading(false));
-  }, []);
+  // 인기 검색어 주석 처리
+  // useEffect(() => {
+  //   logService.getTopSearchKeywordsWithCount(10).then(setTopKeywordsWithCount).catch(() => setTopKeywordsWithCount([])).finally(() => setTopLoading(false));
+  // }, []);
 
   const handleSubmit = async (overrideKeyword?: string) => {
     const k = (overrideKeyword ?? keyword).trim();
@@ -205,7 +206,8 @@ export default function SearchScreen() {
             </View>
           )}
 
-          <Text style={[styles.sectionTitle, !fromMap && eventResults !== null && { marginTop: 24 }]}>
+          {/* 인기 검색어 주석 처리 */}
+          {/* <Text style={[styles.sectionTitle, !fromMap && eventResults !== null && { marginTop: 24 }]}>
             인기 검색어
           </Text>
           {topLoading ? (
@@ -236,7 +238,7 @@ export default function SearchScreen() {
                 );
               })}
             </View>
-          )}
+          )} */}
         </ScrollView>
       </View>
     </KeyboardAvoidingView>

@@ -175,11 +175,13 @@ export async function getAdminEventList(params?: {
   page?: number;
   size?: number;
   sort?: string;
+  keyword?: string;
 }): Promise<PageResponse<AdminEventResponse>> {
   const q: Record<string, string> = {};
   if (params?.page != null) q.page = String(params.page);
   if (params?.size != null) q.size = String(params.size);
   if (params?.sort != null) q.sort = params.sort;
+  if (params?.keyword != null && params.keyword.trim() !== '') q.keyword = params.keyword.trim();
   const res = await adminFetch(`/api/admin/events${Object.keys(q).length ? '?' + new URLSearchParams(q).toString() : ''}`);
   if (!res.ok) {
     const msg = await res.text().then((t) => t || `목록 조회 실패 (${res.status})`);
@@ -192,6 +194,15 @@ export async function getAdminEventList(params?: {
 export async function getAdminEventDetail(eventId: number): Promise<AdminEventResponse> {
   const res = await adminFetch(`/api/admin/events/${eventId}`);
   if (!res.ok) throw new Error(await res.text().then((t) => t || `상세 조회 실패 (${res.status})`));
+  return res.json();
+}
+
+/** 행사별 좋아요 수 (관리자용) */
+export type AdminEventLikeCountDto = { eventId: number; title: string; likeCount: number };
+
+export async function getAdminEventLikeCounts(): Promise<AdminEventLikeCountDto[]> {
+  const res = await adminFetch('/api/admin/events/like-counts');
+  if (!res.ok) throw new Error(await res.text().then((t) => t || `조회 실패 (${res.status})`));
   return res.json();
 }
 
@@ -271,6 +282,21 @@ export async function uploadAdminEventImage(imageUri: string): Promise<string> {
 }
 
 // --- 신고 처리 (AdminReportController) ---
+
+/** 게시글별 신고 기록 (post-record API) */
+export type ReportedPostSummaryDto = {
+  postId: number;
+  reportCount: number;
+  title: string;
+  authorId: number;
+  authorNickname: string;
+};
+
+export async function getAdminReportRecord(): Promise<ReportedPostSummaryDto[]> {
+  const res = await adminFetch('/api/admin/reports/record/by-post');
+  if (!res.ok) throw new Error(await res.text().then((t) => t || `신고 기록 조회 실패 (${res.status})`));
+  return res.json();
+}
 
 export async function getAdminReports(params?: {
   status?: string;
@@ -390,4 +416,148 @@ export async function updatePostAuthor(postId: number, authorId: number): Promis
     body: JSON.stringify({ authorId }),
   });
   if (!res.ok) throw new Error(await res.text().then((t) => t || `작성자 변경 실패 (${res.status})`));
+}
+
+/** 관리자용: 신고된 게시글 삭제(소프트 삭제) */
+export async function deleteAdminPost(postId: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/posts/${postId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || `게시글 삭제 실패 (${res.status})`));
+}
+
+// --- 회원 목록 (AdminMemberController) ---
+
+export type AdminMemberListItemDto = {
+  id: number;
+  email: string;
+  nickname: string | null;
+  role: string | null;
+  status: string | null;
+};
+
+export async function getAdminMemberList(params?: {
+  page?: number;
+  size?: number;
+}): Promise<PageResponse<AdminMemberListItemDto>> {
+  const q: Record<string, string> = {};
+  if (params?.page != null) q.page = String(params.page);
+  if (params?.size != null) q.size = String(params.size);
+  const query = new URLSearchParams(q).toString();
+  const res = await adminFetch(`/api/admin/members${query ? '?' + query : ''}`);
+  if (!res.ok) {
+    const msg = await res.text().then((t) => t || `회원 목록 조회 실패 (${res.status})`);
+    if (res.status === 403) throw new Error('관리자 권한이 필요합니다. 로그아웃 후 관리자 계정으로 다시 로그인해 주세요.');
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  return {
+    content: data.content ?? [],
+    totalElements: data.totalElements ?? 0,
+    totalPages: data.totalPages ?? 0,
+    size: data.size ?? (params?.size ?? 10),
+    number: data.number ?? 0,
+    first: data.first ?? true,
+    last: data.last ?? true,
+  };
+}
+
+// --- 차단관리 (5회 이상 차단당한 회원, AdminBlockController / AdminMemberController suspend) ---
+
+export type HeavyBlockedMemberDto = {
+  memberId: number;
+  email: string;
+  nickname: string | null;
+  blockCount: number;
+  suspendedUntil: string | null;
+};
+
+export type SuspendType = '2W' | '1M' | '1Y' | 'PERMANENT' | 'NONE';
+
+export async function getHeavyBlockedList(): Promise<HeavyBlockedMemberDto[]> {
+  const res = await adminFetch('/api/admin/blocks/heavy-blocked');
+  if (!res.ok) {
+    const msg = await res.text().then((t) => t || `차단관리 목록 조회 실패 (${res.status})`);
+    if (res.status === 403) throw new Error('관리자 권한이 필요합니다.');
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+export async function suspendMember(memberId: number, type: SuspendType): Promise<void> {
+  const res = await adminFetch(`/api/admin/members/${memberId}/suspend`, {
+    method: 'PATCH',
+    body: JSON.stringify({ type }),
+  });
+  if (!res.ok) {
+    const msg = await res.text().then((t) => t || `정지 적용 실패 (${res.status})`);
+    if (res.status === 403) throw new Error('관리자 권한이 필요합니다.');
+    throw new Error(msg);
+  }
+}
+
+// --- 공지사항 관리 (AdminNoticeController) ---
+
+export type NoticeItem = {
+  id: number;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** 공지 목록 조회 (GET /api/notices, 공개 API) */
+export async function getNotices(params?: { page?: number; size?: number }): Promise<{
+  content: NoticeItem[];
+  totalPages: number;
+  totalElements: number;
+  number: number;
+}> {
+  const page = params?.page ?? 0;
+  const size = params?.size ?? 100;
+  const url = `${API_BASE_URL}/api/notices?page=${page}&size=${size}&sort=createdAt,desc`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`공지 목록 조회 실패: ${res.status}`);
+  const data = await res.json();
+  return {
+    content: (data.content ?? []).map((n: { id: number; title: string; content: string; createdAt: string; updatedAt: string }) => ({
+      id: n.id,
+      title: n.title ?? '',
+      content: n.content ?? '',
+      createdAt: n.createdAt ?? '',
+      updatedAt: n.updatedAt ?? '',
+    })),
+    totalPages: data.totalPages ?? 0,
+    totalElements: data.totalElements ?? 0,
+    number: data.number ?? 0,
+  };
+}
+
+export type NoticeCreateRequest = { title: string; content: string };
+
+export async function createNotice(body: NoticeCreateRequest): Promise<number> {
+  const res = await adminFetch('/api/admin/notices', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  const bodyRes = await res.text();
+  if (!bodyRes) return 0;
+  try {
+    return JSON.parse(bodyRes) as number;
+  } catch {
+    return Number(bodyRes) || 0;
+  }
+}
+
+export async function updateNotice(id: number, body: NoticeCreateRequest): Promise<number> {
+  const res = await adminFetch(`/api/admin/notices/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  return id;
+}
+
+export async function deleteNotice(id: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/notices/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '공지 삭제 실패'));
 }

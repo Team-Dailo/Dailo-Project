@@ -8,7 +8,7 @@ export default function BoardLayout() {
       <Stack.Screen name="[id]" />
       <Stack.Screen name="write" />
       <Stack.Screen name="search" />
-      <Stack.Screen name="chat" />
+      {/* 채팅 화면 주석 처리 <Stack.Screen name="chat" /> */}
       <Stack.Screen name="notice" />
     </Stack>
   );

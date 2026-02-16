@@ -44,4 +44,9 @@ public class EventLikeService {
         if (memberId == null) return false;
         return eventLikeRepository.existsByMemberIdAndEventId(memberId, eventId);
     }
+
+    /** 해당 행사 전체 좋아요 수 */
+    public long getLikeCount(Long eventId) {
+        return eventLikeRepository.countByEvent_Id(eventId);
+    }
 }

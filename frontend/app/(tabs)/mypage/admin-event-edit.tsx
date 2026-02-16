@@ -20,10 +20,12 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../../hooks/useAuth";
 import * as adminService from "../../../services/admin.service";
 import * as authService from "../../../services/auth.service";
+import { geocodeAddress, reverseGeocode } from "../../../services/geocoding.service";
 import {
   getPickedLocation,
   clearPickedLocation,
 } from "../../../services/eventLocationPickStore";
+import { DateTimePickerField } from "../../../components/common/DateTimePickerField";
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "FESTIVAL", label: "축제" },
@@ -81,8 +83,6 @@ export default function AdminEventEditScreen() {
   const [placeName, setPlaceName] = useState("");
   const [placeAddress, setPlaceAddress] = useState("");
   const [regionName, setRegionName] = useState("");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
   const [startAt, setStartAt] = useState(defaultStart());
   const [endAt, setEndAt] = useState(defaultEnd());
   const [categories, setCategories] = useState<string[]>([]);
@@ -95,6 +95,9 @@ export default function AdminEventEditScreen() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadDetail, setLoadDetail] = useState(isEdit);
+  /** 지도에서 선택한 경우의 위도·경도 (주소 입력만 있으면 빈 문자열) */
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
   const openedLocationPickerRef = useRef(false);
 
   useFocusEffect(
@@ -105,6 +108,9 @@ export default function AdminEventEditScreen() {
         setLongitude(String(picked.longitude));
         clearPickedLocation();
         openedLocationPickerRef.current = false;
+        reverseGeocode(picked.latitude, picked.longitude).then((addr) => {
+          if (addr) setPlaceAddress(addr);
+        });
       }
     }, [])
   );
@@ -180,12 +186,7 @@ export default function AdminEventEditScreen() {
     }
   };
 
-  const buildBody = (): adminService.AdminEventCreateRequest => {
-    const lat = latitude.trim() ? Number(latitude.trim()) : NaN;
-    const lng = longitude.trim() ? Number(longitude.trim()) : NaN;
-    if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      throw new Error("위도·경도를 숫자로 입력해 주세요.");
-    }
+  const buildBody = (lat: number, lng: number): adminService.AdminEventCreateRequest => {
     if (!title.trim()) throw new Error("제목을 입력해 주세요.");
     if (categories.length === 0) throw new Error("카테고리를 1개 이상 선택해 주세요.");
     const start = startAt.trim() || defaultStart();
@@ -209,9 +210,43 @@ export default function AdminEventEditScreen() {
   };
 
   const handleSubmit = async () => {
+    const hasMapCoords =
+      latitude.trim() !== "" &&
+      longitude.trim() !== "" &&
+      !Number.isNaN(Number(latitude)) &&
+      !Number.isNaN(Number(longitude));
+    const addr = placeAddress.trim();
+
+    if (!hasMapCoords && !addr) {
+      Alert.alert("입력 오류", "위치 주소를 입력하거나 지도에서 위치를 선택해 주세요.");
+      return;
+    }
+
+    let lat: number;
+    let lng: number;
+    if (hasMapCoords) {
+      lat = Number(latitude);
+      lng = Number(longitude);
+    } else {
+      try {
+        setLoading(true);
+        const geo = await geocodeAddress(addr);
+        if (!geo) {
+          Alert.alert("주소 검색 실패", "입력한 주소를 찾을 수 없습니다. 정확한 주소를 입력해 주세요.");
+          setLoading(false);
+          return;
+        }
+        lat = geo.latitude;
+        lng = geo.longitude;
+      } catch {
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
-      const body = buildBody();
       setLoading(true);
+      const body = buildBody(lat, lng);
       if (isEdit && eventId != null) {
         await adminService.updateAdminEvent(eventId, body);
         Alert.alert("완료", "행사가 수정되었습니다.", [
@@ -233,7 +268,7 @@ export default function AdminEventEditScreen() {
   if (loadDetail) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#4C8BF5" />
       </View>
     );
   }
@@ -251,11 +286,23 @@ export default function AdminEventEditScreen() {
       >
         <Field label="제목 *" value={title} onChangeText={setTitle} placeholder="행사 제목" />
         <Field label="장소명" value={placeName} onChangeText={setPlaceName} placeholder="장소 이름" />
-        <Field label="상세 주소" value={placeAddress} onChangeText={setPlaceAddress} placeholder="주소" />
-        <Field label="지역 *" value={regionName} onChangeText={setRegionName} placeholder="예: 충북 충주, 서울 (현재 위치 기준 목록/지도 필터용)" />
-        <Text style={styles.label}>위치 (지도 표시용) *</Text>
+        <Field
+          label="위치 주소 (지도 표시용) *"
+          value={placeAddress}
+          onChangeText={(text) => {
+            setPlaceAddress(text);
+            if (latitude !== "" || longitude !== "") {
+              setLatitude("");
+              setLongitude("");
+            }
+          }}
+          placeholder="예: 충청북도 충주시 호반로 123, 서울시청"
+        />
+        <Text style={styles.locationHint}>
+          주소를 입력하거나 아래 버튼으로 지도에서 위치를 선택할 수 있습니다.
+        </Text>
         <Pressable
-          style={styles.locationPickRow}
+          style={styles.mapPickBtn}
           onPress={() => {
             openedLocationPickerRef.current = true;
             const initialLat = latitude.trim() || "36.991";
@@ -266,23 +313,20 @@ export default function AdminEventEditScreen() {
             });
           }}
         >
-          <Text style={styles.locationPickText} numberOfLines={1}>
-            {latitude.trim() && longitude.trim()
-              ? "위치 설정됨 (탭하여 주소 검색 또는 지도에서 다시 선택)"
-              : "주소 검색 또는 지도에서 위치 선택 (탭하여 열기)"}
-          </Text>
+          <Text style={styles.mapPickBtnText}>지도에서 위치 선택</Text>
         </Pressable>
-        <Field
-          label="시작 일시 *"
-          value={startAt}
-          onChangeText={setStartAt}
-          placeholder="2025-02-15T10:00"
+        <Field label="지역 *" value={regionName} onChangeText={setRegionName} placeholder="예: 충북 충주, 서울 (현재 위치 기준 목록/지도 필터용)" />
+        <DateTimePickerField
+          label="시작일·시간 *"
+          value={startAt.slice(0, 16)}
+          onChange={(v) => setStartAt(v.length <= 16 ? v : v.slice(0, 16))}
+          placeholder="시작일·시간 선택"
         />
-        <Field
-          label="종료 일시 *"
-          value={endAt}
-          onChangeText={setEndAt}
-          placeholder="2025-02-16T18:00"
+        <DateTimePickerField
+          label="종료일·시간 *"
+          value={endAt.slice(0, 16)}
+          onChange={(v) => setEndAt(v.length <= 16 ? v : v.slice(0, 16))}
+          placeholder="종료일·시간 선택"
         />
 
         <Text style={styles.label}>규모 (지도·달력 마커 색상)</Text>
@@ -415,16 +459,18 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   field: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 8 },
-  locationPickRow: {
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
-    padding: 12,
+  locationHint: { fontSize: 12, color: "#6B7280", marginTop: -8, marginBottom: 8 },
+  mapPickBtn: {
+    alignSelf: "flex-start",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     marginBottom: 16,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
-  locationPickText: { fontSize: 14, color: "#374151" },
-  locationPickHint: { fontSize: 12, color: "#9CA3AF", marginTop: 4 },
+  mapPickBtnText: { fontSize: 14, color: "#4C8BF5", fontWeight: "500" },
   input: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -441,23 +487,23 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "#E5E7EB",
   },
-  chipSelected: { backgroundColor: "#2563EB" },
+  chipSelected: { backgroundColor: "#4C8BF5" },
   chipText: { fontSize: 14, color: "#374151" },
   chipTextSelected: { color: "#FFF", fontWeight: "600" },
   submitBtn: {
     marginTop: 8,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     alignItems: "center",
   },
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { color: "#FFF", fontSize: 16, fontWeight: "600" },
   photoSection: { marginBottom: 16 },
   photoPreview: { width: "100%", aspectRatio: 4 / 3, borderRadius: 12, backgroundColor: "#F3F4F6", marginBottom: 8 },
-  photoBtn: { paddingVertical: 12, borderRadius: 12, backgroundColor: "#2563EB", alignItems: "center" },
-  photoBtnOutlined: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#2563EB" },
+  photoBtn: { paddingVertical: 12, borderRadius: 12, backgroundColor: "#4C8BF5", alignItems: "center" },
+  photoBtnOutlined: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#4C8BF5" },
   photoBtnDisabled: { opacity: 0.6 },
   photoBtnText: { color: "#FFF", fontSize: 15, fontWeight: "600" },
-  photoBtnTextOutlined: { color: "#2563EB", fontSize: 15, fontWeight: "600" },
+  photoBtnTextOutlined: { color: "#4C8BF5", fontSize: 15, fontWeight: "600" },
 });

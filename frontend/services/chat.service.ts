@@ -28,6 +28,12 @@ export type ChatRoomResponse = {
   members: ChatMember[];
   createdAt: string;
   updatedAt: string;
+  /** 미읽음 메시지 수 (lastReadAt 이후) */
+  unreadCount?: number;
+  /** 채팅 목록용: 마지막 메시지 내용 */
+  lastMessageContent?: string | null;
+  /** 채팅 목록용: 마지막 메시지 시각 */
+  lastMessageAt?: string | null;
 };
 
 export type ChatMessageResponse = {
@@ -50,7 +56,7 @@ export async function createRoom(targetUserId: number): Promise<ChatRoomResponse
   if (!res.ok) {
     const status = res.status;
     let msg = `채팅방을 만들 수 없습니다. (${status})`;
-    if (status === 401) msg = '로그인이 만료되었을 수 있습니다. 로그아웃 후 다시 로그인해 주세요.';
+    if (status === 401 || status === 403) msg = '로그인이 만료되었을 수 있습니다. 로그아웃 후 다시 로그인해 주세요.';
     else {
       try {
         const text = await res.text();
@@ -83,6 +89,15 @@ export async function getRoom(roomId: number): Promise<ChatRoomResponse> {
   });
   if (!res.ok) throw new Error(`get room failed: ${res.status}`);
   return res.json();
+}
+
+/** 읽음 처리 (채팅방 입장 시 호출 → 미읽음 0) - PUT /api/chat/rooms/{roomId}/read */
+export async function markRoomAsRead(roomId: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read`, {
+    method: 'PUT',
+    headers: await getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(`mark read failed: ${res.status}`);
 }
 
 /** 채팅방 나가기 - DELETE /api/chat/rooms/{roomId} */

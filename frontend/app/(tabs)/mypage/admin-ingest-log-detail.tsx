@@ -32,7 +32,7 @@ export default function AdminIngestLogDetailScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#4C8BF5" />
       </View>
     );
   }

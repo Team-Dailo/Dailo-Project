@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -18,8 +17,8 @@ public class PostRequestDto {
     private String categoryType;
     /** 후기 카테고리일 때 연관 행사 ID (선택) */
     private Long eventId;
-    /** S3 이미지 key 목록 */
-    private List<String> imageKeys;
+    /** 첨부 이미지 URL 목록 (최대 4장) */
+    private List<String> imageUrls;
 
     public Post toEntity(Long authorId) {
         return Post.builder()
@@ -28,7 +27,6 @@ public class PostRequestDto {
                 .content(this.content)
                 .categoryType(this.categoryType)
                 .eventId(this.eventId)
-                .imageKeys(this.imageKeys != null ? this.imageKeys : new ArrayList<>())
                 .build();
     }
 }
