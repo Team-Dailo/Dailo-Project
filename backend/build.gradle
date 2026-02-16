@@ -50,6 +50,9 @@ dependencies {
 
 	// Swagger (Spring Boot 3용)
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0'
+
+	// 이메일 발송 (관리자 로그인 확인용)
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
 }
 
 tasks.named('test') {

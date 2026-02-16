@@ -62,7 +62,7 @@ public class SecurityConfig {
                         //  Swagger 문서는 누구나 접근 가능
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**").permitAll()
 
-                        // 로그인, 회원가입
+                        // 로그인, 회원가입, 이메일 확인 로그인(확인 링크·토큰 교환)
                         .requestMatchers("/api/auth/**").permitAll()
 
                         // 행사 조회
@@ -87,10 +87,11 @@ public class SecurityConfig {
                         // 공지사항 조회 (비로그인 포함)
                         .requestMatchers(HttpMethod.GET, "/api/notices/**").permitAll()
 
-                        // 회원 목록·차단관리: 인증만 필요, 컨트롤러에서 DB/설정 기준 ADMIN 여부 확인
+                        // 회원 목록·차단관리·탈퇴: 인증만 필요, 컨트롤러에서 DB/설정 기준 ADMIN 여부 확인
                         .requestMatchers(HttpMethod.GET, "/api/admin/members").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/admin/blocks/heavy-blocked").authenticated()
                         .requestMatchers(HttpMethod.PATCH, "/api/admin/members/*/suspend").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/admin/members/*/withdraw").authenticated()
                         // 그 외 관리자 API
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 

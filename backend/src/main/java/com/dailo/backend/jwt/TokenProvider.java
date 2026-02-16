@@ -66,6 +66,29 @@ public class TokenProvider {
                 .build();
     }
 
+    /** 회원 ID와 역할로 토큰 생성 (이메일 확인 로그인 완료 시 사용) */
+    public TokenDto generateTokenDtoForMember(String subjectId, String roleName) {
+        String authorities = "ROLE_" + (roleName != null && !roleName.isEmpty() ? roleName : "USER");
+        long now = (new Date()).getTime();
+        Date accessTokenExpiresIn = new Date(now + ACCESS_TOKEN_EXPIRE_TIME);
+        String accessToken = Jwts.builder()
+                .setSubject(subjectId)
+                .claim(AUTHORITIES_KEY, authorities)
+                .setExpiration(accessTokenExpiresIn)
+                .signWith(key, SignatureAlgorithm.HS512)
+                .compact();
+        String refreshToken = Jwts.builder()
+                .setExpiration(new Date(now + REFRESH_TOKEN_EXPIRE_TIME))
+                .signWith(key, SignatureAlgorithm.HS512)
+                .compact();
+        return TokenDto.builder()
+                .grantType(BEARER_TYPE)
+                .accessToken(accessToken)
+                .accessTokenExpiresIn(accessTokenExpiresIn.getTime())
+                .refreshToken(refreshToken)
+                .build();
+    }
+
     // 토큰에서 인증 정보 꺼내기
     public Authentication getAuthentication(String accessToken) {
         // 토큰 복호화
