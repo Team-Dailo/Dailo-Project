@@ -25,6 +25,8 @@ public class PostListResponseDto {
     /** 작성자 닉네임 (표시용) */
     private String authorNickname;
     private String title;
+    /** 목록 미리보기용 본문 일부 (최대 120자) */
+    private String contentPreview;
     private String categoryType;
     /** 후기일 때 연관 행사 ID */
     private Long eventId;
@@ -61,11 +63,14 @@ public class PostListResponseDto {
     }
 
     public static PostListResponseDto from(Post post, String authorNickname, Boolean liked, String eventTitle) {
+        String content = post.getContent() != null ? post.getContent() : "";
+        String preview = content.length() > 120 ? content.substring(0, 120) + "…" : content;
         return PostListResponseDto.builder()
                 .id(post.getId())
                 .authorId(post.getAuthorId())
                 .authorNickname(authorNickname != null ? authorNickname : "알 수 없음")
                 .title(post.getTitle())
+                .contentPreview(preview)
                 .categoryType(post.getCategoryType())
                 .eventId(post.getEventId())
                 .eventTitle(eventTitle)

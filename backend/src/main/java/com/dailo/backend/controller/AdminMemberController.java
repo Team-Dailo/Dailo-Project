@@ -59,6 +59,23 @@ public class AdminMemberController {
         return ResponseEntity.ok(page.map(AdminMemberListItemDto::from));
     }
 
+    /** 회원 탈퇴 처리 (목록에서는 삭제하지 않고 상태만 탈퇴자로 변경) */
+    @PostMapping("/{memberId}/withdraw")
+    public ResponseEntity<Void> withdraw(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long memberId) {
+        Member current = memberRepository.findById(Long.parseLong(userDetails.getUsername()))
+                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+        if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(current.getId())) {
+            return ResponseEntity.status(403).build();
+        }
+        Member target = memberRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("해당 회원을 찾을 수 없습니다."));
+        target.withdraw();
+        memberRepository.save(target);
+        return ResponseEntity.ok().build();
+    }
+
     /** 정지 적용: type = 2W, 1M, 1Y, PERMANENT, NONE(정지해제) */
     @PatchMapping("/{memberId}/suspend")
     public ResponseEntity<Void> suspend(

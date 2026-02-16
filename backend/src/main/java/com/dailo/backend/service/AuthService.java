@@ -1,6 +1,7 @@
 package com.dailo.backend.service;
 
 import com.dailo.backend.dto.auth.LoginRequestDto;
+import com.dailo.backend.dto.auth.LoginResponseDto;
 import com.dailo.backend.dto.auth.MemberRequestDto;
 import com.dailo.backend.dto.auth.MemberResponseDto;
 import com.dailo.backend.jwt.TokenDto;
@@ -22,6 +23,7 @@ public class AuthService {
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenProvider tokenProvider;
+    private final LoginVerifyService loginVerifyService;
 
     /**
      * 회원가입
@@ -37,18 +39,20 @@ public class AuthService {
     }
 
     /**
-     * 로그인
+     * 로그인. 관리자 이메일(yunajo5858@gmail.com)인 경우 이메일 확인 후 로그인 완료.
      */
     @Transactional
-    public TokenDto login(LoginRequestDto requestDto) {
-        // 1. Login ID/PW 를 기반으로 AuthenticationToken 생성
+    public LoginResponseDto login(LoginRequestDto requestDto) {
         UsernamePasswordAuthenticationToken authenticationToken = requestDto.toAuthentication();
-
-        // 2. 실제로 검증 (사용자 비밀번호 체크) 이 이루어지는 부분
-        //    authenticate 메서드가 실행이 될 때 CustomUserDetailsService 에서 만들었던 loadUserByUsername 메서드가 실행됨
         Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
 
-        // 3. 인증 정보를 기반으로 JWT 토큰 생성
-        return tokenProvider.generateTokenDto(authentication);
+        String email = requestDto.getEmail();
+        if (loginVerifyService.requiresEmailVerification(email)) {
+            loginVerifyService.createPendingAndSendEmail(email);
+            return LoginResponseDto.emailVerificationRequired("로그인 확인 이메일을 발송했습니다. Gmail에서 확인 링크를 눌러 주세요.");
+        }
+
+        TokenDto tokenDto = tokenProvider.generateTokenDto(authentication);
+        return LoginResponseDto.withToken(tokenDto);
     }
 }

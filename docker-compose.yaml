@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 1. MySQL 서비스
   mysql:
@@ -7,13 +5,13 @@ services:
     container_name: dailo-mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-changeme}
       MYSQL_DATABASE: dailo
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
       TZ: Asia/Seoul
     ports:
-      - "3306:3306"
+      - "3307:3306"   # 호스트 3307 사용 (로컬 MySQL 3306과 충돌 방지)
     volumes:
       - mysql-data:/var/lib/mysql
     networks:
@@ -35,7 +33,7 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/dailo?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-root}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
       TZ: Asia/Seoul
     ports:
       - "8080:8080"

@@ -7,6 +7,8 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
+import jakarta.persistence.PrePersist;
+
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -14,6 +16,9 @@ public class Member {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "created_at", updatable = false, nullable = true)
+    private LocalDateTime createdAt;
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -57,6 +62,13 @@ public class Member {
     /** 관리자 정지: 해제일 설정 (null = 정지해제) */
     public void setSuspendedUntil(LocalDateTime suspendedUntil) {
         this.suspendedUntil = suspendedUntil;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
     }
 
     /** 현재 정지 중인지 (suspendedUntil != null 이고 미래일 때) */
