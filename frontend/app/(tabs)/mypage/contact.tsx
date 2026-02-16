@@ -24,7 +24,7 @@ export default function ContactScreen() {
         options={{
           title: '문의하기',
           headerShown: true,
-          headerTitleAlign: 'left',
+          headerTitleAlign: 'center',
           headerLeft: () => (
             <Pressable onPress={() => router.back()} hitSlop={8} style={styles.headerBackButton}>
               <Ionicons name="chevron-back" size={22} color="#111827" />

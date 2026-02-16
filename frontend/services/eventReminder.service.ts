@@ -1,5 +1,5 @@
 /**
- * 행사 알림: 3일 전, 1일 전 로컬 알림 스케줄 + 본인 지역 행사 1일 전 알림
+ * 행사 알림: 원하는 N일 전 로컬 알림 스케줄 (기본 1일 전) + 본인 지역 행사 1일 전 알림
  */
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
@@ -35,18 +35,26 @@ async function requestPermission(): Promise<boolean> {
 
 export type ReminderOrigin = "booked" | "region";
 
+/** 알림 문구: N일 전 (1=내일, 그 외 N일 후) */
+function reminderBodyText(daysBefore: number, eventTitle: string): string {
+  if (daysBefore <= 1) return `내일, "${eventTitle}" 행사가 있습니다.`;
+  return `${daysBefore}일 후, "${eventTitle}" 행사가 있습니다.`;
+}
+
 /**
- * 행사 시작일(ISO)과 제목으로 3일 전 / 1일 전 알림 스케줄
+ * 행사 시작일(ISO)과 제목으로 N일 전 알림 스케줄 (기본 1일 전)
  * 알림 시간: 해당일 오전 9시
  * origin: 'booked' = 행사 상세에서 예약, 'region' = 지역 행사 알림
+ * daysBefore: 1~30 (기본 1)
  */
 export async function scheduleEventReminder(
   eventId: string,
   eventTitle: string,
   startAtIso: string,
-  daysBefore: 1 | 3,
+  daysBefore: number = 1,
   origin: ReminderOrigin = "booked"
 ): Promise<string | null> {
+  const days = Math.max(1, Math.min(30, Math.floor(daysBefore)) || 1);
   const granted = await requestPermission();
   if (!granted) return null;
   await ensureChannel();
@@ -55,7 +63,7 @@ export async function scheduleEventReminder(
   try {
     const start = new Date(startAtIso);
     triggerDate = new Date(start);
-    triggerDate.setDate(triggerDate.getDate() - daysBefore);
+    triggerDate.setDate(triggerDate.getDate() - days);
     triggerDate.setHours(9, 0, 0, 0);
     if (triggerDate.getTime() <= Date.now()) return null;
   } catch {
@@ -65,10 +73,8 @@ export async function scheduleEventReminder(
   const identifier = await Notifications.scheduleNotificationAsync({
     content: {
       title: "행사 알림",
-      body: daysBefore === 3
-        ? `3일 후, "${eventTitle}" 행사가 있습니다.`
-        : `내일, "${eventTitle}" 행사가 있습니다.`,
-      data: { eventId, daysBefore, origin },
+      body: reminderBodyText(days, eventTitle),
+      data: { eventId, daysBefore: days, origin },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,

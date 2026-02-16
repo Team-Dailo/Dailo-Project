@@ -79,7 +79,7 @@ export default function AdminGuideScreen() {
         options={{
           title: '이용 안내 수정',
           headerShown: true,
-          headerTitleAlign: 'left',
+          headerTitleAlign: 'center',
           headerLeft: () => (
             <Pressable onPress={() => router.back()} hitSlop={8} style={{ paddingHorizontal: 4 }}>
               <Ionicons name="chevron-back" size={22} color="#111827" />

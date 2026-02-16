@@ -218,9 +218,39 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     Linking.openURL(nmapUrl).catch(openNaverWeb);
   };
 
+  const scheduleReminder = async () => {
+    await eventReminder.cancelEventReminders(String(event.id));
+    const notifId = await eventReminder.scheduleEventReminder(
+      String(event.id),
+      event.title,
+      event.startAt,
+      1,
+      "booked"
+    );
+    if (notifId) {
+      setHasReminder(true);
+      Alert.alert("알림 예약", "1일 전에 알림을 보내드립니다.");
+    } else {
+      Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
+    }
+  };
+
+  const cancelReminder = async () => {
+    await eventReminder.cancelEventReminders(String(event.id));
+    setHasReminder(false);
+    Alert.alert("알림 해지", "예약된 알림이 해지되었어요.");
+  };
+
   const handleAlarmPress = () => {
     if (!isLoggedIn) {
       Alert.alert("로그인 필요", "행사 알림은 로그인 후 이용할 수 있어요.");
+      return;
+    }
+    if (hasReminder) {
+      Alert.alert("알림 예약 해지", "예약된 알림을 해지할까요?", [
+        { text: "취소", style: "cancel" },
+        { text: "예약 해지", onPress: cancelReminder },
+      ]);
       return;
     }
     AsyncStorage.getItem(EVENT_REMINDER_BOOKED_KEY).then((value) => {
@@ -231,45 +261,7 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
         );
         return;
       }
-      Alert.alert(
-        "행사 알림",
-        "언제 알림을 받을까요?",
-        [
-          {
-            text: "3일 전 알림",
-            onPress: async () => {
-              const notifId = await eventReminder.scheduleEventReminder(
-                String(event.id),
-                event.title,
-                event.startAt,
-                3,
-                "booked"
-              );
-              if (notifId) {
-                setHasReminder(true);
-                Alert.alert("알림 설정", "3일 전에 알림을 보내드립니다.");
-              } else Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
-            },
-          },
-          {
-            text: "1일 전 알림",
-            onPress: async () => {
-              const notifId = await eventReminder.scheduleEventReminder(
-                String(event.id),
-                event.title,
-                event.startAt,
-                1,
-                "booked"
-              );
-              if (notifId) {
-                setHasReminder(true);
-                Alert.alert("알림 설정", "1일 전에 알림을 보내드립니다.");
-              } else Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
-            },
-          },
-          { text: "취소", style: "cancel" },
-        ]
-      );
+      scheduleReminder();
     });
   };
 

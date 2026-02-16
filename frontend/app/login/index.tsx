@@ -23,10 +23,12 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [emailVerificationMessage, setEmailVerificationMessage] = useState('');
 
   const handleLogin = async () => {
     const trimmed = email.trim();
     setErrorMessage('');
+    setEmailVerificationMessage('');
     if (!trimmed || !password) {
       Alert.alert('입력 오류', '이메일과 비밀번호를 입력해 주세요.');
       return;
@@ -35,10 +37,16 @@ export default function LoginScreen() {
     try {
       const user = await authService.login(trimmed, password);
       login(user);
-      // refreshUser()는 getMe() 실패 시 저장을 지우므로, 로그인 직후에는 호출하지 않음
       router.back();
     } catch (e) {
       const message = e instanceof Error ? e.message : '로그인에 실패했습니다.';
+      if (message.startsWith('EMAIL_VERIFICATION_REQUIRED:')) {
+        const displayMsg = message.slice('EMAIL_VERIFICATION_REQUIRED:'.length).trim()
+          || '로그인 확인 이메일을 발송했습니다. Gmail에서 확인 링크를 눌러 주세요.';
+        setEmailVerificationMessage(displayMsg);
+        setErrorMessage('');
+        return;
+      }
       setErrorMessage(message);
       Alert.alert('로그인 실패', message, [{ text: '확인' }]);
     } finally {
@@ -93,6 +101,9 @@ export default function LoginScreen() {
             />
             {errorMessage ? (
               <Text style={styles.errorText}>{errorMessage}</Text>
+            ) : null}
+            {emailVerificationMessage ? (
+              <Text style={styles.emailVerifyText}>{emailVerificationMessage}</Text>
             ) : null}
           </View>
 
@@ -186,6 +197,13 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     marginTop: 6,
     marginLeft: 2,
+  },
+  emailVerifyText: {
+    fontSize: 13,
+    color: '#2563EB',
+    marginTop: 10,
+    marginLeft: 2,
+    lineHeight: 18,
   },
   loginButton: {
     flexDirection: 'row',

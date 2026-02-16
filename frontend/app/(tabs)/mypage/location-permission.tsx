@@ -32,7 +32,7 @@ export default function LocationPermissionScreen() {
         options={{
           title: '위치 권한',
           headerShown: true,
-          headerTitleAlign: 'left',
+          headerTitleAlign: 'center',
           headerLeft: () => (
             <Pressable onPress={() => router.back()} hitSlop={8} style={styles.headerBackButton}>
               <Ionicons name="chevron-back" size={22} color="#111827" />

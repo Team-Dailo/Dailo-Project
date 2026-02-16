@@ -117,11 +117,13 @@ export default function SavedFestivalsScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.replace("/(tabs)/mypage")}>
+          <Pressable style={styles.headerBack} onPress={() => router.replace("/(tabs)/mypage")}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
-          <Text style={styles.headerTitle}>저장한 축제</Text>
-          <View style={{ width: 22 }} />
+          <View style={styles.headerTitleWrap} pointerEvents="box-none">
+            <Text style={styles.headerTitle}>저장한 축제</Text>
+          </View>
+          <View style={styles.headerRight} />
         </View>
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
@@ -133,11 +135,13 @@ export default function SavedFestivalsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.replace("/(tabs)/mypage")}>
+        <Pressable style={styles.headerBack} onPress={() => router.replace("/(tabs)/mypage")}>
           <Ionicons name="arrow-back" size={22} color="#111827" />
         </Pressable>
-        <Text style={styles.headerTitle}>저장한 축제</Text>
-        <View style={{ width: 22 }} />
+        <View style={styles.headerTitleWrap} pointerEvents="box-none">
+          <Text style={styles.headerTitle}>저장한 축제</Text>
+        </View>
+        <View style={styles.headerRight} />
       </View>
 
       {loading ? (
@@ -265,13 +269,32 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
   },
+  headerBack: {
+    position: "absolute",
+    left: 0,
+    zIndex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  headerTitleWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerRight: {
+    position: "absolute",
+    right: 0,
+    width: 44,
+    height: 56,
+  },
   headerTitle: {
-    flex: 1,
-    textAlign: "center",
     fontSize: 15,
     fontWeight: "600",
     color: "#111827",
-    marginLeft: 20,
   },
   container: {
     flex: 1,

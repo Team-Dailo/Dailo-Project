@@ -72,7 +72,7 @@ export default function GuideScreen() {
         options={{
           title: '이용 안내',
           headerShown: true,
-          headerTitleAlign: 'left',
+          headerTitleAlign: 'center',
           headerLeft: () => (
             <Pressable
               onPress={() => router.replace('/(tabs)/mypage')}

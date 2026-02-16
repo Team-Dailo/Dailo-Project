@@ -7,9 +7,26 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Pressable,
+  Alert,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import * as adminService from "../../../services/admin.service";
+
+function formatCreatedAt(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  try {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${y}-${mo}-${day} ${h}:${min}`;
+  } catch {
+    return "-";
+  }
+}
 
 export default function AdminMembersScreen() {
   const [page, setPage] = useState({
@@ -21,6 +38,7 @@ export default function AdminMembersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [withdrawingId, setWithdrawingId] = useState<number | null>(null);
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
@@ -53,6 +71,34 @@ export default function AdminMembersScreen() {
     useCallback(() => {
       load(true);
     }, [])
+  );
+
+  const handleWithdraw = useCallback(
+    (memberId: number, email: string) => {
+      Alert.alert(
+        "탈퇴 처리",
+        `회원 "${email}"을(를) 탈퇴 처리하시겠습니까? 목록에서는 삭제되지 않고 '탈퇴자'로 표시됩니다.`,
+        [
+          { text: "취소", style: "cancel" },
+          {
+            text: "탈퇴 처리",
+            style: "destructive",
+            onPress: async () => {
+              setWithdrawingId(memberId);
+              try {
+                await adminService.withdrawMember(memberId);
+                await load(true);
+              } catch (e) {
+                Alert.alert("오류", e instanceof Error ? e.message : "탈퇴 처리에 실패했습니다.");
+              } finally {
+                setWithdrawingId(null);
+              }
+            },
+          },
+        ]
+      );
+    },
+    [load]
   );
 
   if (loading && page.content.length === 0) {
@@ -91,8 +137,10 @@ export default function AdminMembersScreen() {
                     </View>
                   ) : null}
                   {m.status ? (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{m.status}</Text>
+                    <View style={[styles.badge, m.status === "DELETED" && styles.badgeWithdrawn]}>
+                      <Text style={styles.badgeText}>
+                        {m.status === "DELETED" ? "탈퇴자" : m.status}
+                      </Text>
                     </View>
                   ) : null}
                 </View>
@@ -101,6 +149,20 @@ export default function AdminMembersScreen() {
               <Text style={styles.nickname}>
                 닉네임: {m.nickname ?? "-"}
               </Text>
+              <Text style={styles.createdAt}>
+                가입: {formatCreatedAt(m.createdAt)}
+              </Text>
+              {m.status !== "DELETED" ? (
+                <Pressable
+                  style={[styles.withdrawBtn, withdrawingId === m.id && styles.withdrawBtnDisabled]}
+                  onPress={() => handleWithdraw(m.id, m.email)}
+                  disabled={withdrawingId !== null}
+                >
+                  <Text style={styles.withdrawBtnText}>
+                    {withdrawingId === m.id ? "처리 중..." : "탈퇴하기"}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           ))}
         </>
@@ -146,7 +208,23 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
   },
   badgeAdmin: { backgroundColor: "#DBEAFE" },
+  badgeWithdrawn: { backgroundColor: "#FEE2E2" },
   badgeText: { fontSize: 11, fontWeight: "600", color: "#374151" },
+  createdAt: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  withdrawBtn: {
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: "#FEE2E2",
+  },
+  withdrawBtnDisabled: { opacity: 0.6 },
+  withdrawBtnText: { fontSize: 13, fontWeight: "600", color: "#DC2626" },
   email: {
     fontSize: 15,
     fontWeight: "600",
