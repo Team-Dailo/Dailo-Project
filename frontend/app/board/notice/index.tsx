@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
-  headerTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
+  headerTitle: { fontSize: 17, fontWeight: "600", color: "#111827", marginLeft: 20 },
   headerRight: { width: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 16, paddingBottom: 32 },

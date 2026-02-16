@@ -19,6 +19,8 @@ import {
   formatSessionDate,
   formatSessionTime,
   formatDuration,
+  getSessionDateKey,
+  formatDateKey,
 } from "../../../utils/staySessionFormat";
 
 export default function ParticipatedFestivalsScreen() {
@@ -40,6 +42,18 @@ export default function ParticipatedFestivalsScreen() {
     }
   }, []);
 
+  const byDate = React.useMemo(() => {
+    const map: Record<string, StaySessionResponseDto[]> = {};
+    for (const item of list) {
+      const key = getSessionDateKey(item.startTime);
+      if (!key) continue;
+      if (!map[key]) map[key] = [];
+      map[key].push(item);
+    }
+    const dates = Object.keys(map).sort((a, b) => b.localeCompare(a));
+    return { map, dates };
+  }, [list]);
+
   useFocusEffect(
     useCallback(() => {
       load();
@@ -59,7 +73,7 @@ export default function ParticipatedFestivalsScreen() {
 
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#2563EB" />
+            <ActivityIndicator size="large" color="#4C8BF5" />
           </View>
         ) : error ? (
           <View style={styles.centered}>
@@ -70,20 +84,30 @@ export default function ParticipatedFestivalsScreen() {
             {list.length === 0 ? (
               <Text style={styles.empty}>축제 구역에 참여한 기록이 없습니다.</Text>
             ) : (
-              list.map((item) => (
-                <Pressable
-                  key={item.id}
-                  style={styles.card}
-                  onPress={() => setSelected(item)}
-                >
-                  <Text style={styles.cardTitle}>{item.eventTitle}</Text>
-                  <Text style={styles.cardSub}>
-                    {item.placeName || "장소 없음"}
-                  </Text>
-                  <Text style={styles.cardMeta}>
-                    {formatSessionDate(item.startTime)} · 진입 {formatSessionTime(item.startTime)} · 체류 {formatDuration(item.durationMinutes)}
-                  </Text>
-                </Pressable>
+              byDate.dates.map((dateKey) => (
+                <View key={dateKey} style={styles.dateSection}>
+                  <Text style={styles.dateHeader}>{formatDateKey(dateKey)}</Text>
+                  {(byDate.map[dateKey] ?? []).map((item) => (
+                    <View key={item.id} style={styles.card}>
+                      <Pressable onPress={() => setSelected(item)} style={styles.cardPressable}>
+                        <Text style={styles.cardTitle}>{item.eventTitle}</Text>
+                        <Text style={styles.cardSub}>
+                          {item.placeName || "장소 없음"}
+                        </Text>
+                        <Text style={styles.cardMeta}>
+                          진입 {formatSessionTime(item.startTime)} · 퇴장 {item.endTime != null ? formatSessionTime(item.endTime) : "-"} · 체류 {formatDuration(item.durationMinutes)}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.detailButton}
+                        onPress={() => router.push(`/event/${item.eventId}?source=mypage` as import("expo-router").Href)}
+                      >
+                        <Text style={styles.detailButtonText}>행사 상세 보기</Text>
+                        <Ionicons name="chevron-forward" size={16} color="#4C8BF5" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
               ))
             )}
           </ScrollView>
@@ -163,17 +187,27 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
+    marginLeft: 20,
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
   },
   contents: { padding: 16 },
+  dateSection: { marginBottom: 20 },
+  dateHeader: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#6B7280",
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
   card: {
     backgroundColor: "#FFFFFF",
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
   },
+  cardPressable: { marginBottom: 10 },
   cardTitle: {
     fontSize: 16,
     fontWeight: "600",
@@ -188,6 +222,21 @@ const styles = StyleSheet.create({
   cardMeta: {
     fontSize: 12,
     color: "#9CA3AF",
+  },
+  detailButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 8,
+    gap: 4,
+  },
+  detailButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4C8BF5",
   },
   centered: {
     flex: 1,
@@ -233,7 +282,7 @@ const styles = StyleSheet.create({
   detailValue: { fontSize: 15, color: "#111827", marginBottom: 4 },
   modalFooter: { padding: 20, paddingTop: 8 },
   primaryButton: {
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",

@@ -10,6 +10,8 @@ export type AuthUser = {
   role?: string;
   /** 로그인한 이메일 (관리자 메뉴 노출 판별용, getMe 실패 시에도 사용) */
   email?: string;
+  /** 프로필 사진 URL (getMe에서 채움) */
+  profileImageUrl?: string | null;
 };
 
 type AuthContextValue = {
@@ -19,6 +21,8 @@ type AuthContextValue = {
   logout: () => void;
   /** 토큰/이메일이 있으면 user 다시 채우기 (탭 전환 등에서 로그인 상태 동기화) */
   refreshUser: () => Promise<void>;
+  /** 프로필 사진 변경 직후 컨텍스트에 즉시 반영 (마이페이지 등에서 바로 표시) */
+  updateUserProfileImage: (url: string | null) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -43,8 +47,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const name = me.nickname?.trim() || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
       const id = (me.id != null && me.id > 0 ? me.id : await authService.getStoredUserId()) ?? undefined;
       const role = me.role ?? undefined;
+      const profileImageUrl = me.profileImageUrl ?? undefined;
       if (id != null) await authService.setStoredUserId(id);
-      setUser({ name, id, role, email });
+      setUser({ name, id, role, email, profileImageUrl });
     })();
   }, []);
 
@@ -72,8 +77,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const name = me.nickname?.trim() || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
     const id = (me.id != null && me.id > 0 ? me.id : await authService.getStoredUserId()) ?? undefined;
     const role = me.role ?? undefined;
+    const profileImageUrl = (me as { profileImageUrl?: string | null }).profileImageUrl ?? undefined;
     if (id != null) await authService.setStoredUserId(id);
-    setUser({ name, id, role, email });
+    setUser({ name, id, role, email, profileImageUrl });
+  }, []);
+
+  const updateUserProfileImage = useCallback((url: string | null) => {
+    setUser((prev) => (prev ? { ...prev, profileImageUrl: url ?? undefined } : null));
   }, []);
 
   const value: AuthContextValue = {
@@ -82,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     logout,
     refreshUser,
+    updateUserProfileImage,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

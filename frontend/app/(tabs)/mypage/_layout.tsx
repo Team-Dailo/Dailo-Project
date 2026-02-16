@@ -35,6 +35,7 @@ export default function MyPageLayout() {
         options={{ title: "문의하기", headerShown: true, headerTitleAlign: "left" }}
       />
       <Stack.Screen name="saved-festivals" options={{ headerShown: false }} />
+      <Stack.Screen name="participation-history" options={{ headerShown: false }} />
       <Stack.Screen name="my-reports" options={{ headerShown: false }} />
       <Stack.Screen name="block-list" options={{ headerShown: false }} />
       <Stack.Screen
@@ -44,6 +45,18 @@ export default function MyPageLayout() {
       <Stack.Screen
         name="admin-events"
         options={{ title: "행사 관리", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
+        name="admin-event-likes"
+        options={{ title: "행사별 좋아요 수", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
+        name="admin-members"
+        options={{ title: "회원 목록", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
+        name="admin-block-management"
+        options={{ title: "차단관리", headerShown: true, headerTitleAlign: "left" }}
       />
       <Stack.Screen
         name="admin-event-detail"
@@ -64,6 +77,10 @@ export default function MyPageLayout() {
       <Stack.Screen
         name="demo-settings"
         options={{ title: "시범 설정", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
+        name="admin-report-record"
+        options={{ title: "신고 기록", headerShown: true, headerTitleAlign: "left" }}
       />
       <Stack.Screen
         name="admin-reports"
@@ -100,6 +117,14 @@ export default function MyPageLayout() {
       <Stack.Screen
         name="admin-guide"
         options={{ title: "이용 안내 수정", headerShown: false }}
+      />
+      <Stack.Screen
+        name="admin-notices"
+        options={{ title: "공지사항 관리", headerShown: true, headerTitleAlign: "left" }}
+      />
+      <Stack.Screen
+        name="admin-notice-write"
+        options={{ title: "공지 작성/수정", headerShown: true, headerTitleAlign: "left" }}
       />
     </Stack>
   );

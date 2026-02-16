@@ -59,3 +59,23 @@ export function formatDuration(minutes: number): string {
   const m = minutes % 60;
   return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
 }
+
+/** 날짜 그룹 키 (YYYY-MM-DD), 정렬·그룹용 */
+export function getSessionDateKey(isoOrArray: string | number[] | null | undefined): string {
+  const d = toDate(isoOrArray);
+  if (!d) return "";
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${mo}-${day}`;
+}
+
+/** dateKey(YYYY-MM-DD)를 화면 표시용으로: 2026.02.20 (금) */
+export function formatDateKey(dateKey: string): string {
+  if (!dateKey || dateKey.length < 10) return dateKey;
+  const [y, mo, day] = dateKey.split("-");
+  const d = new Date(Number(y), Number(mo) - 1, Number(day));
+  if (!Number.isFinite(d.getTime())) return dateKey;
+  const week = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+  return `${y}.${mo}.${day} (${week})`;
+}

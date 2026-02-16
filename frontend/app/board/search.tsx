@@ -25,6 +25,7 @@ type PostRow = {
   content: string;
   likes: number;
   comments: number;
+  liked?: boolean;
 };
 
 function toPostRow(item: PostListItem): PostRow {
@@ -42,6 +43,7 @@ function toPostRow(item: PostListItem): PostRow {
     content: contentStr,
     likes: item.likeCount ?? 0,
     comments: item.commentCount ?? 0,
+    liked: item.liked ?? (raw.liked as boolean | undefined),
   };
 }
 
@@ -71,7 +73,7 @@ export default function BoardSearchScreen() {
         >
           {loading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color="#2563EB" />
+              <ActivityIndicator size="large" color="#4C8BF5" />
               <Text style={styles.loadingText}>검색 중...</Text>
             </View>
           ) : error ? (
@@ -121,8 +123,8 @@ export default function BoardSearchScreen() {
                         ) : null}
                         <View style={styles.postRowFooter}>
                           <View style={styles.footerItem}>
-                            <Ionicons name="heart-outline" size={14} color="#9CA3AF" />
-                            <Text style={styles.footerText}>{item.likes}</Text>
+                            <Ionicons name={item.liked ? "heart" : "heart-outline"} size={14} color={item.liked ? "#EF4444" : "#9CA3AF"} />
+                            <Text style={[styles.footerText, item.liked && { color: "#EF4444" }]}>{item.likes}</Text>
                           </View>
                           <View style={styles.footerItem}>
                             <Ionicons name="chatbubble-ellipses-outline" size={14} color="#9CA3AF" />
@@ -160,6 +162,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
     marginHorizontal: 8,
+    marginLeft: 20,
   },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 24, paddingBottom: 24 },
@@ -179,7 +182,7 @@ const styles = StyleSheet.create({
   retryBtn: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     borderRadius: 8,
   },
   retryText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },

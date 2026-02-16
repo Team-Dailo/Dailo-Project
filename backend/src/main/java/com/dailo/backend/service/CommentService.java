@@ -3,20 +3,25 @@ package com.dailo.backend.service;
 import com.dailo.backend.dto.CommentRequestDto;
 import com.dailo.backend.dto.CommentResponseDto;
 import com.dailo.backend.entity.Comment;
+import com.dailo.backend.entity.Member;
 import com.dailo.backend.entity.Post;
 import com.dailo.backend.exception.ForbiddenException;
 import com.dailo.backend.exception.NotFoundException;
 import com.dailo.backend.repository.CommentRepository;
+import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,17 +30,16 @@ public class CommentService {
 
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
+    private final MemberRepository memberRepository;
     private final BlockService blockService;
 
-    // 1. 댓글 목록 조회 (최상위 댓글 + 대댓글 포함, 차단 필터 적용)
-    // TODO: N+1 최적화 - 대댓글 많아지면 IN (:parentIds)로 한번에 조회 후 grouping
+    // 1. 댓글 목록 조회 (최상위 댓글 + 대댓글 포함, 작성자 닉네임 포함)
     public Page<CommentResponseDto> getCommentsByPostId(Long postId, Long userId, Pageable pageable) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new NotFoundException("Post not found: " + postId));
 
         Set<Long> invisibleIds = (userId != null) ? blockService.getInvisibleUserIds(userId) : Collections.emptySet();
 
-        // 최상위 댓글만 조회 (parentComment가 null)
         Page<Comment> topLevelComments;
         if (invisibleIds.isEmpty()) {
             topLevelComments = commentRepository.findByPostAndParentCommentIsNull(post, pageable);
@@ -43,11 +47,31 @@ public class CommentService {
             topLevelComments = commentRepository.findByPostAndParentCommentIsNullExcludingAuthors(post, invisibleIds, pageable);
         }
 
-        // 각 최상위 댓글에 대댓글 첨부
-        return topLevelComments.map(comment -> {
-            List<Comment> replies = getReplies(comment, invisibleIds);
-            return CommentResponseDto.fromWithReplies(comment, replies);
-        });
+        List<Comment> topList = topLevelComments.getContent();
+        Set<Long> authorIds = new java.util.HashSet<>();
+        for (Comment c : topList) {
+            authorIds.add(c.getAuthorId());
+            for (Comment r : getReplies(c, invisibleIds)) {
+                authorIds.add(r.getAuthorId());
+            }
+        }
+        Map<Long, String> authorNicknameMap = authorIds.isEmpty() ? Collections.emptyMap()
+                : memberRepository.findAllById(authorIds).stream()
+                        .collect(Collectors.toMap(Member::getId, m -> {
+                            String n = m.getNickname();
+                            if (n != null && !n.isBlank()) return n.trim();
+                            String email = m.getEmail();
+                            if (email != null && email.contains("@")) return email.split("@")[0].trim();
+                            return null;
+                        }));
+
+        List<CommentResponseDto> dtos = topList.stream()
+                .map(comment -> {
+                    List<Comment> replies = getReplies(comment, invisibleIds);
+                    return CommentResponseDto.fromWithReplies(comment, replies, authorNicknameMap);
+                })
+                .toList();
+        return new PageImpl<>(dtos, pageable, topLevelComments.getTotalElements());
     }
 
     // 대댓글 조회 (차단 필터 적용)
@@ -83,17 +107,28 @@ public class CommentService {
             }
         }
 
+        String nickname = memberRepository.findById(authorId)
+                .map(m -> {
+                    String n = m.getNickname();
+                    if (n != null && !n.isBlank()) return n.trim();
+                    String email = m.getEmail();
+                    if (email != null && email.contains("@")) return email.split("@")[0].trim();
+                    return null;
+                })
+                .orElse(null);
+        String displayNickname = (nickname != null && !nickname.isBlank()) ? nickname : "user_" + authorId;
+
         Comment comment = Comment.builder()
                 .post(post)
                 .authorId(authorId)
+                .authorNickname(displayNickname)
                 .content(requestDto.getContent().trim())
                 .parentComment(parentComment)
                 .build();
 
         Comment savedComment = commentRepository.save(comment);
         postRepository.increaseCommentCount(postId);
-
-        return CommentResponseDto.from(savedComment);
+        return CommentResponseDto.from(savedComment, savedComment.getAuthorNickname());
     }
 
     // 3. 댓글 수정
@@ -110,7 +145,16 @@ public class CommentService {
 
         comment.update(requestDto.getContent());
 
-        return CommentResponseDto.from(comment);
+        String nickname = memberRepository.findById(comment.getAuthorId())
+                .map(m -> {
+                    String n = m.getNickname();
+                    if (n != null && !n.isBlank()) return n.trim();
+                    String email = m.getEmail();
+                    if (email != null && email.contains("@")) return email.split("@")[0].trim();
+                    return null;
+                })
+                .orElse(null);
+        return CommentResponseDto.from(comment, nickname);
     }
 
     // 4. 댓글 삭제

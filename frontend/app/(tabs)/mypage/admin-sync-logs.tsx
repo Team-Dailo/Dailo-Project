@@ -73,7 +73,7 @@ export default function AdminSyncLogsScreen() {
   if (loading && content.length === 0) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#4C8BF5" />
       </View>
     );
   }
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
@@ -212,6 +212,6 @@ const styles = StyleSheet.create({
   modalBtn: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 8 },
   modalBtnCancel: { backgroundColor: "#F3F4F6" },
   modalBtnCancelText: { fontSize: 14, fontWeight: "600", color: "#374151" },
-  modalBtnConfirm: { backgroundColor: "#2563EB" },
+  modalBtnConfirm: { backgroundColor: "#4C8BF5" },
   modalBtnConfirmText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
 });

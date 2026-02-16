@@ -1,4 +1,5 @@
 // app/(tabs)/mypage/guide.tsx - 이용 안내 (사이드메뉴 > 이용 안내)
+// 흐름: 지도 SideMenu "이용 안내" 또는 마이페이지에서 진입 → getUsageGuide() (GET /api/content/usage-guide) → 마크다운(##/###/문단) 렌더링
 import React, { useEffect, useState } from 'react';
 import {
   View,

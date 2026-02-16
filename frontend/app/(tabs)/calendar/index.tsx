@@ -247,7 +247,7 @@ export default function CalendarScreen() {
     [viewYear, viewMonth]
   );
 
-  /** 달력 위 점(dots): 카테고리 선택 시 해당 카테고리 행사만 표시. 2일 이상 행사는 해당하는 모든 날에 점 표시 */
+  /** 달력 위 행사 표시(뭉툭한 선): 카테고리 선택 시 해당 카테고리만. 2일 이상 행사는 해당하는 모든 날에 선 표시. 3개 초과 시 마지막 선 짧게 + '+' */
   const eventsByDayForDots = useMemo(() => {
     const filterGroupValue =
       selectedCategory != null ? FILTER_ID_TO_GROUP[selectedCategory] ?? null : null;
@@ -479,20 +479,19 @@ export default function CalendarScreen() {
                           </Text>
                         </View>
                         {dayEvents.length > 0 && cell.currentMonth && (
-                          <View style={styles.eventDots}>
-                            <View style={styles.eventDotsRow}>
-                              {dayEvents.slice(0, 3).map((ev) => (
+                          <View style={styles.eventLines}>
+                            {dayEvents.slice(0, 3).map((ev) => (
+                              <View key={ev.id} style={styles.eventLineRow}>
                                 <View
-                                  key={ev.id}
                                   style={[
-                                    styles.eventDot,
+                                    styles.eventLine,
                                     { backgroundColor: getEventColor(ev) },
                                   ]}
                                 />
-                              ))}
-                            </View>
-                            {dayEvents.length >= 4 && (
-                              <Text style={styles.eventDotsPlus}>+</Text>
+                              </View>
+                            ))}
+                            {dayEvents.length > 3 && (
+                              <Text style={styles.eventLinePlus}>+</Text>
                             )}
                           </View>
                         )}
@@ -702,8 +701,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingTop: 6,
     paddingBottom: 9,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
   },
   dayCellWrapper: {
     flex: 1,
@@ -753,27 +750,33 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1E40AF",
   },
-  eventDots: {
+  /** 행사 표시: 숫자 바로 아래 가운데 정렬, 뭉툭한 선. 3개 초과 시 선 아래에 '+' */
+  eventLines: {
+    flexDirection: "column",
+    alignItems: "center",
+    alignSelf: "center",
+    gap: 1,
+    marginTop: 3,
+    width: 32,
+  },
+  eventLineRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    gap: 2,
-    marginTop: 4,
+    gap: 4,
+    width: "100%",
+    height: 6,
   },
-  eventDotsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
+  eventLine: {
+    height: 4,
+    width: 28,
+    borderRadius: 2,
   },
-  eventDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  eventDotsPlus: {
+  eventLinePlus: {
     fontSize: 10,
     fontWeight: "700",
     color: "#6B7280",
+    marginTop: -2,
   },
   bottomSheet: {
     position: "absolute",

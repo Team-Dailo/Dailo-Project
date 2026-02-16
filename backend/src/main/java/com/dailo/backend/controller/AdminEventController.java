@@ -2,6 +2,7 @@ package com.dailo.backend.controller;
 
 import com.dailo.backend.dto.AdminEventCreateRequest;
 import com.dailo.backend.dto.AdminEventResponse;
+import com.dailo.backend.dto.admin.AdminEventLikeCountDto;
 import com.dailo.backend.service.AdminEventService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/events") // 관리자 전용 경로
@@ -43,6 +46,12 @@ public class AdminEventController {
         return ResponseEntity.noContent().build(); // 204 No Content
     }
 
+    /** 행사별 좋아요 수 (관리자용) - 구체 경로를 /{eventId} 보다 위에 두어 "like-counts"가 pathVariable로 잡히지 않도록 함 */
+    @GetMapping("/like-counts")
+    public ResponseEntity<List<AdminEventLikeCountDto>> getEventLikeCounts() {
+        return ResponseEntity.ok(adminEventService.getEventLikeCounts());
+    }
+
     // 행사 상세 조회 (GET)
     @GetMapping("/{eventId}")
     public ResponseEntity<AdminEventResponse> getEventDetail(@PathVariable Long eventId) {
@@ -50,12 +59,13 @@ public class AdminEventController {
         return ResponseEntity.ok(response);
     }
 
-    // 행사 목록 조회 (GET) - 페이징 처리
-    // /api/admin/events?page=0&size=10&sort=id,desc
+    // 행사 목록 조회 (GET) - 페이징·검색
+    // /api/admin/events?page=0&size=10&sort=id,desc&keyword=검색어
     @GetMapping
     public ResponseEntity<Page<AdminEventResponse>> getEventList(
+            @RequestParam(required = false) String keyword,
             @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
-        Page<AdminEventResponse> response = adminEventService.getEventList(pageable);
+        Page<AdminEventResponse> response = adminEventService.getEventList(pageable, keyword);
         return ResponseEntity.ok(response);
     }
 }

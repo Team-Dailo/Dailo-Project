@@ -31,7 +31,7 @@ export default function MyPageSettingsScreen() {
             <Pressable
               onPress={() => router.back()}
               hitSlop={8}
-              style={{ paddingHorizontal: 4 }}
+              style={styles.headerBackButton}
             >
               <Ionicons name="chevron-back" size={22} color="#111827" />
             </Pressable>
@@ -87,6 +87,10 @@ export default function MyPageSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerBackButton: {
+    paddingLeft: 4,
+    paddingRight: 10,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',

@@ -17,6 +17,7 @@ import {
   InteractionManager,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -170,6 +171,10 @@ export default function HomeScreen() {
     }
     const result = await eventReminder.scheduleRegionEventReminders(lat, lng);
     if (result.ok) {
+      await AsyncStorage.multiSet([
+        ["@mypage/notification_event_reminder_region", "true"],
+        ["@mypage/notification_event_reminder_region_key", result.regionKey],
+      ]);
       Alert.alert(
         "알림 설정 완료",
         result.count > 0
@@ -199,7 +204,10 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.headerRight}>
-            <Pressable style={styles.headerIconBtn} onPress={handleRegionAlarmPress}>
+            <Pressable
+              style={styles.headerIconBtn}
+              onPress={() => router.push({ pathname: "/(tabs)/mypage/notification-settings", params: { from: "home" } })}
+            >
               <Ionicons
                 name="notifications-outline"
                 size={20}
@@ -448,7 +456,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     marginRight: 6,
   },
   logoText: {
@@ -503,7 +511,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
   },
   badgeText: {
     color: "#ffffff",
@@ -566,7 +574,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   sectionTitleAccent: {
-    color: "#2563EB",
+    color: "#4C8BF5",
   },
   sectionMore: {
     fontSize: 12,
@@ -711,7 +719,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     paddingHorizontal: 12,
   },
   eventCardFooterCenter: {

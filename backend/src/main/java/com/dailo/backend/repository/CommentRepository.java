@@ -10,9 +10,17 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
+import java.util.List;
 
 @Repository
 public interface CommentRepository extends JpaRepository<Comment, Long> {
+
+    /** 내가 댓글 단 게시글 ID 목록 (최근 댓글 기준 정렬) */
+    @Query(value = "SELECT post_id FROM comments WHERE author_id = :authorId AND deleted_at IS NULL GROUP BY post_id ORDER BY MAX(created_at) DESC", nativeQuery = true)
+    List<Long> findDistinctPostIdsByAuthorId(@Param("authorId") Long authorId, Pageable pageable);
+
+    @Query("SELECT COUNT(DISTINCT c.post.id) FROM Comment c WHERE c.authorId = :authorId")
+    long countDistinctPostsByAuthorId(@Param("authorId") Long authorId);
 
     // 게시글별 댓글 조회 (페이징)
     Page<Comment> findByPost(Post post, Pageable pageable);

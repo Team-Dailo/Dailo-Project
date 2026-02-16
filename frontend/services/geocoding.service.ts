@@ -69,3 +69,56 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult | nul
     displayName: first.display_name,
   };
 }
+
+/**
+ * 위도·경도 → 주소 문자열 (역지오코딩, Nominatim)
+ * 지역부터 나오도록 조합: 도 → 시/군 → 면/동 → 도로명 등 (예: 충청북도 충주시 소원면 호반로 123)
+ */
+export async function reverseGeocode(
+  latitude: number,
+  longitude: number
+): Promise<string | null> {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  const params = new URLSearchParams({
+    lat: String(latitude),
+    lon: String(longitude),
+    format: 'json',
+    addressdetails: '1',
+  });
+  const url = `https://nominatim.openstreetmap.org/reverse?${params.toString()}`;
+  const headers: HeadersInit = {
+    'Accept-Language': 'ko',
+    'User-Agent': 'DailoApp/1.0 (Event Location Picker)',
+  };
+
+  const res = await fetch(url, { headers });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const addr = data?.address;
+  if (!addr || typeof addr !== 'object') {
+    const fallback = data?.display_name ?? null;
+    return typeof fallback === 'string' ? fallback : null;
+  }
+
+  const parts: string[] = [];
+  const push = (v: unknown) => {
+    if (v != null && String(v).trim()) parts.push(String(v).trim());
+  };
+  push(addr.state);           // 도 (예: 충청북도)
+  push(addr.county);         // 시/군 (예: 충주시)
+  push(addr.city);           // 시 (일부 지역)
+  push(addr.district);       // 구 (예: 중구)
+  push(addr.town);           // 면 (예: 소원면)
+  push(addr.village);        // 리/동
+  push(addr.suburb);         // 동/읍
+  push(addr.neighbourhood);  // 동
+  push(addr.road);           // 도로명
+  push(addr.house_number);   // 번지
+
+  if (parts.length === 0) {
+    const fallback = data?.display_name ?? null;
+    return typeof fallback === 'string' ? fallback : null;
+  }
+  return parts.join(' ');
+}

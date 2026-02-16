@@ -33,6 +33,10 @@ public class Comment {
     @Column(name = "author_id", nullable = false)
     private Long authorId;
 
+    /** 댓글 작성 시점의 작성자 닉네임 (게시물처럼 닉네임이 남도록 저장) */
+    @Column(name = "author_nickname", length = 100)
+    private String authorNickname;
+
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 

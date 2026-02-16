@@ -8,6 +8,9 @@ WORKDIR /app
 COPY build.gradle settings.gradle gradlew ./
 COPY gradle ./gradle
 
+# Windows CRLF → LF, 실행 권한 (컨테이너에서 gradlew 인식)
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
+
 # 의존성 다운로드 (캐시 활용)
 RUN ./gradlew dependencies --no-daemon
 

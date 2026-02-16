@@ -54,6 +54,7 @@ import {
   getFestivalParticipation,
 } from '../../../services/festivalParticipationStorage';
 import { startStay, completeStay } from '../../../services/location.service';
+import * as scrapService from '../../../services/scrap.service';
 import { useFestivalParticipation } from '../../../hooks/useFestivalParticipation';
 import { distanceKm } from '../../../utils/geo';
 
@@ -154,6 +155,10 @@ export default function MapScreen() {
   const wasInFestivalZoneRef = useRef(false);
   const { entry: festivalEntry, elapsedFormatted: festivalElapsed, isCompleted: festivalIsCompleted, refresh: refreshFestivalParticipation } = useFestivalParticipation();
 
+  /** 축제 구역 진입/이탈 판정 반경 (km). 이 거리 이내면 "참여 중" */
+  /** 축제 구역 인식 반경: 500m (GPS 오차·위치 지연 보정) */
+  const ZONE_RADIUS_KM = 0.5;
+
   // 로그인 + 위치 있을 때, 위치가 바뀌면 주변 행사 캐시를 비워서 구역 판정 이펙트가 새 위치로 즉시 조회하게 함 (다른 구역에서 들어와도 바로 참여 중 표시)
   const [eventsNearMe, setEventsNearMe] = useState<Event[] | null>(null);
   useEffect(() => {
@@ -165,16 +170,81 @@ export default function MapScreen() {
     setEventsNearMe(null);
   }, [demoLocation, currentLocation, isLoggedIn]);
 
-  // 행사 마커로부터 200m 이내에 내 위치가 있으면 축제 구역 진입 → 진입 모달 + 참여 중 + 타이머 저장
-  // 이탈 시: 저장된 참여 행사 좌표 기준으로 200m 초과일 때만 해제 (지도 bounds/events 목록에 의존하지 않음)
-  // 판정용 행사 목록: 로그인 시 내 위치 기준 조회(eventsNearMe) 우선, 없으면 지도 bounds(events) 사용
+  // 지도 탭에 들어올 때마다 주변 행사 캐시를 비워서 현재 위치로 구역 판정을 다시 함 (축제 구역에 있어도 참여 중이 안 뜨는 경우 방지)
+  useFocusEffect(
+    useCallback(() => {
+      setEventsNearMe(null);
+    }, [])
+  );
+
+  // 행사 마커로부터 ZONE_RADIUS_KM(300m) 이내에 내 위치가 있으면 축제 구역 진입 → 진입 모달 + 참여 중 + 타이머 저장
+  // 이탈 시: 저장된 참여 행사 좌표 기준으로 ZONE_RADIUS_KM 초과일 때만 해제 (지도 bounds/events 목록에 의존하지 않음)
+  // 판정용 행사 목록: (1) 이미 나와 있는 events로 바로 판정 → (2) 로그인 시 eventsNearMe 조회
   useEffect(() => {
     const myPos = demoLocation ?? currentLocation ?? null;
     if (!myPos) return;
 
-    // 다른 구역에서 들어왔을 때: eventsNearMe가 아직 null이면 현재 위치 기준으로 즉시 조회 후 진입 판정 (참여 중 바로 표시)
+    const isEventInZone = (e: Event) =>
+      e.latitude != null &&
+      e.longitude != null &&
+      Number.isFinite(e.latitude) &&
+      Number.isFinite(e.longitude) &&
+      (e.latitude !== 0 || e.longitude !== 0) &&
+      distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= ZONE_RADIUS_KM;
+
+    // 1) 지도에 이미 나와 있는 행사(events)로 바로 참여/비참여 판정 (단, 새로고침 직후에는 아래에서 현재 위치 기준 재조회)
+    if (events.length > 0 && !forceZoneFetchAfterRefreshRef.current) {
+      const firstInRange = events.find(isEventInZone);
+      if (firstInRange != null) {
+        setIsFestivalActive(true);
+        setEventsNearMe(events);
+        if (!wasInFestivalZoneRef.current) {
+          wasInFestivalZoneRef.current = true;
+          const lat = firstInRange.latitude != null && Number.isFinite(firstInRange.latitude) ? firstInRange.latitude : undefined;
+          const lng = firstInRange.longitude != null && Number.isFinite(firstInRange.longitude) ? firstInRange.longitude : undefined;
+          setFestivalParticipation(Date.now(), firstInRange.id, firstInRange.title, lat, lng).then(() => refreshFestivalParticipation());
+          setIsEntryModalVisible(true);
+          if (isLoggedIn) {
+            const eventId = Number(firstInRange.id);
+            const tryStart = (lat: number, lng: number) => {
+              startStay(eventId, lat, lng).catch(() => {
+                if (firstInRange.latitude != null && firstInRange.longitude != null) {
+                  startStay(eventId, firstInRange.latitude, firstInRange.longitude).catch(() => {});
+                }
+              });
+            };
+            tryStart(myPos.latitude, myPos.longitude);
+          }
+        }
+        return;
+      }
+      // 반경 안에 있는 행사 없음 → 참여 아님 인식
+      wasInFestivalZoneRef.current = false;
+      setIsFestivalActive(false);
+      setEventsNearMe(events);
+      getFestivalParticipation().then((entry) => {
+        if (!entry || entry.eventLat == null || entry.eventLng == null) return;
+        const elat = entry.eventLat;
+        const elng = entry.eventLng;
+        if (typeof elat !== 'number' || typeof elng !== 'number' || !Number.isFinite(elat) || !Number.isFinite(elng)) return;
+        const km = distanceKm(myPos.latitude, myPos.longitude, elat, elng);
+        if (km > ZONE_RADIUS_KM) {
+          if (isLoggedIn) {
+            completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
+              .catch(() => {})
+              .finally(() => clearFestivalParticipation().then(() => refreshFestivalParticipation()));
+          } else {
+            clearFestivalParticipation().then(() => refreshFestivalParticipation());
+          }
+        }
+      });
+      return;
+    }
+
+    // 2) 새로고침 직후 또는 events 없을 때: 로그인 시 현재 위치 기준 조회 후 진입/이탈 판정
     if (isLoggedIn && eventsNearMe === null) {
-      const delta = 0.01;
+      if (forceZoneFetchAfterRefreshRef.current) forceZoneFetchAfterRefreshRef.current = false;
+      const delta = 0.05;
       getEventsOnMap({
         swLat: myPos.latitude - delta,
         neLat: myPos.latitude + delta,
@@ -190,7 +260,7 @@ export default function MapScreen() {
             Number.isFinite(e.latitude) &&
             Number.isFinite(e.longitude) &&
             (e.latitude !== 0 || e.longitude !== 0) &&
-            distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= 0.2
+            distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= ZONE_RADIUS_KM
         );
         if (firstInRange != null) {
           setIsFestivalActive(true);
@@ -221,6 +291,38 @@ export default function MapScreen() {
             };
             tryStart(myPos.latitude, myPos.longitude);
           }
+        } else {
+          // API에 행사가 안 나와도, 저장된 참여(진입했던 행사) 좌표와 300m 이내면 여전히 구역으로 인정
+          getFestivalParticipation().then((entry) => {
+            if (entry && entry.eventLat != null && entry.eventLng != null) {
+              const elat = entry.eventLat;
+              const elng = entry.eventLng;
+              if (typeof elat === 'number' && typeof elng === 'number' && Number.isFinite(elat) && Number.isFinite(elng)) {
+                const km = distanceKm(myPos.latitude, myPos.longitude, elat, elng);
+                if (km <= ZONE_RADIUS_KM) {
+                  setIsFestivalActive(true);
+                  wasInFestivalZoneRef.current = true;
+                  return;
+                }
+              }
+            }
+            wasInFestivalZoneRef.current = false;
+            setIsFestivalActive(false);
+            if (entry && entry.eventLat != null && entry.eventLng != null) {
+              const elat = entry.eventLat;
+              const elng = entry.eventLng;
+              if (typeof elat === 'number' && typeof elng === 'number' && Number.isFinite(elat) && Number.isFinite(elng)) {
+                const km = distanceKm(myPos.latitude, myPos.longitude, elat, elng);
+                if (km > ZONE_RADIUS_KM) {
+                  completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
+                    .catch(() => {})
+                    .finally(() => {
+                      clearFestivalParticipation().then(() => refreshFestivalParticipation());
+                    });
+                }
+              }
+            }
+          });
         }
       });
       return;
@@ -235,7 +337,7 @@ export default function MapScreen() {
         const elng = entry.eventLng;
         if (typeof elat !== 'number' || typeof elng !== 'number' || !Number.isFinite(elat) || !Number.isFinite(elng)) return;
         const km = distanceKm(myPos.latitude, myPos.longitude, elat, elng);
-        if (km > 0.2) {
+        if (km > ZONE_RADIUS_KM) {
           wasInFestivalZoneRef.current = false;
           setIsFestivalActive(false);
           if (isLoggedIn) {
@@ -258,7 +360,7 @@ export default function MapScreen() {
         Number.isFinite(e.latitude) &&
         Number.isFinite(e.longitude) &&
         (e.latitude !== 0 || e.longitude !== 0) &&
-        distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= 0.2
+        distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= ZONE_RADIUS_KM
     );
     const inRange = firstInRange != null;
     if (inRange) {
@@ -296,7 +398,7 @@ export default function MapScreen() {
         const shouldClear =
           elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng)
             ? true
-            : distanceKm(myPos.latitude, myPos.longitude, elat, elng) > 0.2;
+            : distanceKm(myPos.latitude, myPos.longitude, elat, elng) > ZONE_RADIUS_KM;
         if (shouldClear) {
           // 구역 이탈 시 1초라도 있었으면 서버에 참여 기록 (날짜·진입시간·체류시간)
           if (isLoggedIn) {
@@ -313,14 +415,16 @@ export default function MapScreen() {
     }
   }, [demoLocation, currentLocation, events, eventsNearMe, isLoggedIn, refreshFestivalParticipation]);
 
-  // 30분 이상 체류 시 자동으로 서버에 참여 완료 요청 (1회만) → 마이페이지 '참여한 축제'·'체류 미션 기록'에 반영
+  // 5분 이상 체류 시 서버에 참여 완료 요청 (1회만) → 마이페이지 '참여한 축제'에 기록 (5분만 있어도 참여로 인정)
+  const PARTICIPATED_MINUTES = 5;
   useEffect(() => {
     if (!festivalEntry) {
       stayCompletedSentRef.current = false;
       return;
     }
-    if (!festivalIsCompleted) return;
     if (stayCompletedSentRef.current) return;
+    const elapsedSec = Math.floor((Date.now() - festivalEntry.enteredAt) / 1000);
+    if (elapsedSec < PARTICIPATED_MINUTES * 60) return;
     let lat: number;
     let lng: number;
     const myPos = demoLocation ?? currentLocation ?? null;
@@ -345,7 +449,14 @@ export default function MapScreen() {
     completeStay(Number(festivalEntry.eventId), lat, lng).catch(() => {
       stayCompletedSentRef.current = false;
     });
-  }, [festivalEntry, festivalIsCompleted, demoLocation, currentLocation, events, eventsNearMe]);
+  }, [festivalEntry, demoLocation, currentLocation, events, eventsNearMe]);
+
+  // 행사 새로고침 알림용: 구역·참여 상태·현재 위치를 ref에 동기화
+  useEffect(() => {
+    latestIsFestivalActiveRef.current = isFestivalActive;
+    latestFestivalEntryRef.current = festivalEntry;
+    latestMyLocationRef.current = demoLocation ?? currentLocation ?? null;
+  }, [isFestivalActive, festivalEntry, demoLocation, currentLocation]);
 
   // 지도 탭 검색창 입력값 + 검색 중
   const [mapSearchKeyword, setMapSearchKeyword] = useState('');
@@ -371,8 +482,18 @@ export default function MapScreen() {
   } | null>(null);
   /** 축제 목록 시트용: 같은 지역 전체 행사 (카메라에 안 잡혀도 목록에 표시) */
   const [listSheetEvents, setListSheetEvents] = useState<Event[] | null>(null);
+  /** 본인 계정일 때 캘린더(스크랩)에 저장한 행사 ID 집합 → 하단 시트 행사 카드 북마크 색칠용 */
+  const [scrapEventIds, setScrapEventIds] = useState<Set<number>>(new Set());
 
   const stayCompletedSentRef = useRef(false);
+  /** 행사 새로고침 후 알림에 쓸 최신 구역·참여 상태 */
+  const latestIsFestivalActiveRef = useRef(false);
+  const latestFestivalEntryRef = useRef<typeof festivalEntry>(null);
+  /** 새로고침 시 구역 이탈이면 퇴장 기록용 현재 위치 */
+  const latestMyLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const userRequestedRefreshRef = useRef(false);
+  /** 새로고침 후 구역 판정 시 기존 events 대신 현재 위치 기준으로 주변 행사 재조회 */
+  const forceZoneFetchAfterRefreshRef = useRef(false);
   const mapRef = useRef<React.ComponentRef<typeof NaverMap> | null>(null);
   /** 지도 드래그/줌 후 실제 화면 상태. setRegion 하지 않고 ref만 갱신해 지도가 제멋대로 움직이지 않게 함 */
   const lastCameraRef = useRef<{ latitude: number; longitude: number; zoom: number } | null>(null);
@@ -510,9 +631,13 @@ export default function MapScreen() {
       event: e,
       km: distanceKm(center.latitude, center.longitude, e.latitude ?? 0, e.longitude ?? 0),
     }));
-    withDist.sort((a, b) => a.km - b.km);
+    if (popularFilter === 'popular') {
+      withDist.sort((a, b) => (b.event.likeCount ?? 0) - (a.event.likeCount ?? 0));
+    } else {
+      withDist.sort((a, b) => a.km - b.km);
+    }
     return withDist.slice(0, MAX_EVENT_LIST_ITEMS).map((x) => x.event);
-  }, [listSheetEvents, filteredEvents, distanceFilterCenter, listSheetCameraCenter, region, distanceKmLimit, demoLocation, currentLocation, currentRegionKey, dateFilter, categoryFilter, scaleFilter, eventOverlapsDateRange]);
+  }, [listSheetEvents, filteredEvents, distanceFilterCenter, listSheetCameraCenter, region, distanceKmLimit, demoLocation, currentLocation, currentRegionKey, dateFilter, categoryFilter, scaleFilter, popularFilter, eventOverlapsDateRange]);
 
   const cameraIdleFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -732,6 +857,62 @@ export default function MapScreen() {
     setIsEntryModalVisible(true);
   };
 
+  /** 사이드 메뉴 '행사 새로고침': 현재 위치 갱신 후 구역 재판정 → 겹치면 칩/참여중 표시, 아니면 제거 */
+  const handleRefreshLocationAndCheckZone = useCallback(() => {
+    userRequestedRefreshRef.current = true;
+    setIsMenuOpen(false);
+    // 위치 갱신이 끝난 뒤 eventsNearMe를 비우고, 현재 위치 기준 재조회 플래그를 켜서 구역을 정확히 재판정
+    refreshCurrentLocation().then(() => {
+      forceZoneFetchAfterRefreshRef.current = true;
+      setEventsNearMe(null);
+      refetchMapEvents();
+      setTimeout(() => {
+        if (!userRequestedRefreshRef.current) return;
+        userRequestedRefreshRef.current = false;
+        const inZone = latestIsFestivalActiveRef.current;
+        const entry = latestFestivalEntryRef.current;
+        const myPos = latestMyLocationRef.current;
+
+        // 현재 위치가 축제 구역에 없으면 → 참여 카드/칩/사이드메뉴 모두 제거 (서버 기록은 퇴장으로 남김)
+        if (!inZone) {
+          if (entry) {
+            let lat: number;
+            let lng: number;
+            if (myPos && Number.isFinite(myPos.latitude) && Number.isFinite(myPos.longitude)) {
+              lat = myPos.latitude;
+              lng = myPos.longitude;
+            } else if (Number.isFinite(entry.eventLat) && Number.isFinite(entry.eventLng)) {
+              lat = entry.eventLat!;
+              lng = entry.eventLng!;
+            } else {
+              lat = 0;
+              lng = 0;
+            }
+            completeStay(Number(entry.eventId), lat, lng)
+              .then(() => {
+                clearFestivalParticipation();
+                refreshFestivalParticipation();
+              })
+              .catch(() => {
+                clearFestivalParticipation();
+                refreshFestivalParticipation();
+              });
+          } else {
+            clearFestivalParticipation().then(() => refreshFestivalParticipation());
+          }
+        }
+
+        const elapsedSec = entry ? Math.floor((Date.now() - entry.enteredAt) / 1000) : 0;
+        const statusLabel = elapsedSec >= 30 * 60 ? '축제 참여 완료' : '축제 참여중';
+        const msg =
+          inZone && entry
+            ? `축제 구역에 있습니다. (${statusLabel})\n\n${entry.eventTitle}`
+            : '축제 구역에 있지 않습니다.\n현재 위치에서 500m 이내에 행사가 없습니다.';
+        Alert.alert('위치·행사 새로고침', msg);
+      }, 2500);
+    });
+  }, [refreshCurrentLocation, refetchMapEvents, refreshFestivalParticipation]);
+
   /** 지도 카메라가 비추는 지역 기준으로 목록 시트 오픈. 같은 지역이면 해당 지역 전체 행사 조회 후 표시 (카메라에 안 잡혀도 조건 맞으면 목록에 표시) */
   const onPressFestivalList = () => {
     const center = region
@@ -763,6 +944,14 @@ export default function MapScreen() {
     setIsEventListSheetVisible(false);
     setListSheetEvents(null);
   }, []);
+
+  // 본인 계정일 때만: 축제 목록 시트 열릴 때 스크랩(캘린더 저장) 목록 로드 → 행사 카드 북마크 색칠용
+  useEffect(() => {
+    if (!isEventListSheetVisible || !isLoggedIn) return;
+    scrapService.getMyScraps({ page: 0, size: 200 })
+      .then(({ list }) => setScrapEventIds(new Set(list.map((e) => e.id))))
+      .catch(() => setScrapEventIds(new Set()));
+  }, [isEventListSheetVisible, isLoggedIn]);
 
   const handleSelectEventFromList = (event: Event) => {
     closeEventListSheet();
@@ -952,7 +1141,7 @@ export default function MapScreen() {
                   </View>
                   <View style={styles.activeChipTextCol}>
                     <Text style={styles.activeChipLabel}>
-                      {festivalIsCompleted ? '축제 참여 완료' : '축제 참여 중'}
+                      {festivalIsCompleted ? '축제 참여 완료' : '축제 참여중'}
                     </Text>
                     <Text style={styles.activeChipTimer}>{festivalElapsed}</Text>
                   </View>
@@ -990,7 +1179,7 @@ export default function MapScreen() {
               onPress={onPressBookmarkList}
             >
               <View style={styles.bookmarkButtonIconArea}>
-                <Ionicons name="bookmark" size={28} color="#3B82F6" />
+                <Ionicons name="bookmark" size={28} color="#4C8BF5" />
               </View>
               <Text style={styles.bookmarkButtonText}>북마크</Text>
             </TouchableOpacity>
@@ -1029,6 +1218,12 @@ export default function MapScreen() {
                         <Text style={styles.scalePopupLabel}>{it.label}</Text>
                       </View>
                     ))}
+                    <View style={styles.scalePopupHelpRow}>
+                      <Ionicons name="help-circle-outline" size={18} color="#6B7280" style={styles.scalePopupHelpIcon} />
+                      <Text style={styles.scalePopupHelpText}>
+                        규모에 따라 마커 색상이 다르며, 마커 안의 숫자는 남은 날짜를 의미합니다.
+                      </Text>
+                    </View>
                   </Pressable>
                 </Animated.View>
               </>
@@ -1068,7 +1263,11 @@ export default function MapScreen() {
                       const centerLng = lastCameraRef.current?.longitude ?? (region ? region.longitude + region.longitudeDelta / 2 : DEFAULT_CAMERA.longitude);
                       const currentZoom = lastCameraRef.current?.zoom ?? naverMapCamera.zoom;
                       if (!mapRef.current) return;
-                      const newZoom = Math.min(18, currentZoom + 1);
+                      /** 확대 1회 누르면 기본 배율(16)로, 그 이상이면 1단계씩 */
+                      const DEFAULT_ZOOM_LEVEL = 16;
+                      const newZoom = currentZoom < DEFAULT_ZOOM_LEVEL
+                        ? DEFAULT_ZOOM_LEVEL
+                        : Math.min(18, currentZoom + 1);
                       lastCameraRef.current = { latitude: centerLat, longitude: centerLng, zoom: newZoom };
                       mapRef.current.animateCameraTo({
                         latitude: centerLat,
@@ -1111,7 +1310,7 @@ export default function MapScreen() {
                   onPress={onFocusCurrentLocation}
                   accessibilityLabel="현재 위치"
                 >
-                <Ionicons name="locate" size={22} color="#2563EB" />
+                <Ionicons name="locate" size={22} color="#4C8BF5" />
               </TouchableOpacity>
             </View>
           </View>
@@ -1245,6 +1444,7 @@ export default function MapScreen() {
           setIsMenuOpen(false);
           router.push('/(tabs)/mypage/settings');
         }}
+        onPressRefreshLocationAndCheck={handleRefreshLocationAndCheckZone}
       />
 
       {/* 필터 모달들 */}
@@ -1317,18 +1517,39 @@ export default function MapScreen() {
             ListEmptyComponent={
               <Text style={styles.eventListEmpty}>해당 조건의 행사가 없습니다.</Text>
             }
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.eventListRow}
-                activeOpacity={0.7}
-                onPress={() => handleSelectEventFromList(item)}
-              >
-                <Text style={styles.eventListRowTitle} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.eventListRowMeta} numberOfLines={1}>
-                  {item.placeName || '장소 없음'} · {item.startAt ? new Date(item.startAt).toLocaleDateString('ko-KR') : ''}
-                </Text>
-              </TouchableOpacity>
-            )}
+            renderItem={({ item }) => {
+              const eventIdNum = Number(item.id);
+              const isBookmarked = isLoggedIn && scrapEventIds.has(eventIdNum);
+              return (
+                <TouchableOpacity
+                  style={styles.eventListRow}
+                  activeOpacity={0.7}
+                  onPress={() => handleSelectEventFromList(item)}
+                >
+                  <View style={styles.eventListRowContent}>
+                    <Text style={styles.eventListRowTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.eventListRowMeta} numberOfLines={1}>
+                      {item.placeName || '장소 없음'} · {item.startAt ? new Date(item.startAt).toLocaleDateString('ko-KR') : ''}
+                    </Text>
+                  </View>
+                  {isLoggedIn && (
+                    <View style={styles.eventListRowBookmark}>
+                      <Ionicons
+                        name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
+                        size={20}
+                        color={isBookmarked ? '#4C8BF5' : '#9CA3AF'}
+                      />
+                    </View>
+                  )}
+                  {popularFilter === 'popular' && (
+                    <View style={styles.eventListRowLike}>
+                      <Ionicons name="heart" size={16} color="#EF4444" />
+                      <Text style={styles.eventListRowLikeCount}>{item.likeCount ?? 0}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            }}
           />
         </View>
       </Modal>
@@ -1613,6 +1834,23 @@ const styles = StyleSheet.create({
     color: MAP_UI.textDark,
     flex: 1,
   },
+  scalePopupHelpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  scalePopupHelpIcon: {
+    marginRight: 6,
+  },
+  scalePopupHelpText: {
+    fontSize: 12,
+    color: '#6B7280',
+    flex: 1,
+    lineHeight: 17,
+  },
 
   // 하단: 축제 목록 + 현재 위치. 아래쪽 맞춤(축제목록보기·현재위치 버튼 하단 일치)
   listButtonWrapper: {
@@ -1636,7 +1874,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#2563eb',
+    backgroundColor: '#4C8BF5',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1764,7 +2002,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 123,
     height: 46,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4C8BF5',
     borderRadius: 23,
     paddingVertical: 6,
     paddingHorizontal: 8,
@@ -1844,10 +2082,16 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   eventListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#E5E7EB',
+  },
+  eventListRowContent: {
+    flex: 1,
+    minWidth: 0,
   },
   eventListRowTitle: {
     fontSize: 15,
@@ -1858,5 +2102,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b7280',
     marginTop: 4,
+  },
+  eventListRowBookmark: {
+    marginLeft: 8,
+    justifyContent: 'center',
+  },
+  eventListRowLike: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 8,
+  },
+  eventListRowLikeCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
   },
 });

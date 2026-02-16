@@ -3,7 +3,9 @@ package com.dailo.backend.service;
 import com.dailo.backend.dto.BlockCheckResponseDto;
 import com.dailo.backend.dto.BlockResponseDto;
 import com.dailo.backend.entity.Block;
+import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.BlockRepository;
+import com.dailo.backend.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import java.util.Set;
 public class BlockService {
 
     private final BlockRepository blockRepository;
+    private final MemberRepository memberRepository;
 
     // 1. 차단하기
     @Transactional
@@ -49,10 +52,15 @@ public class BlockService {
         blockRepository.delete(block);
     }
 
-    // 3. 내 차단 목록
+    // 3. 내 차단 목록 (차단한 사용자 닉네임 포함)
     public List<BlockResponseDto> getMyBlocks(Long blockerId) {
-        return blockRepository.findByBlockerId(blockerId).stream()
-                .map(BlockResponseDto::from)
+        List<Block> blocks = blockRepository.findByBlockerId(blockerId);
+        if (blocks.isEmpty()) return List.of();
+        List<Long> blockedIds = blocks.stream().map(Block::getBlockedId).distinct().toList();
+        java.util.Map<Long, String> nicknameMap = memberRepository.findAllById(blockedIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Member::getId, Member::getNickname, (a, b) -> a));
+        return blocks.stream()
+                .map(b -> BlockResponseDto.from(b, nicknameMap.get(b.getBlockedId())))
                 .toList();
     }
 
@@ -74,12 +82,18 @@ public class BlockService {
         return BlockCheckResponseDto.of(iBlocked, theyBlocked);
     }
 
-    // 7. 상호 미노출 사용자 ID 목록 (조회 필터용)
+    // 7. 상호 미노출 사용자 ID 목록 (조회 필터용 - 채팅/댓글 등)
     public Set<Long> getInvisibleUserIds(Long userId) {
         Set<Long> invisibleIds = new HashSet<>();
         invisibleIds.addAll(blockRepository.findIdsUserBlocked(userId));
         invisibleIds.addAll(blockRepository.findIdsWhoBlockedUser(userId));
         invisibleIds.remove(userId);  // 자기 자신 제거 (혹시 모를 버그 방지)
         return invisibleIds;
+    }
+
+    /** 내가 차단한 사용자 ID 목록 (게시글 목록/상세에서 해당 작성자 글만 요청자에게 미노출) */
+    public Set<Long> getBlockedUserIds(Long userId) {
+        List<Long> blocked = blockRepository.findIdsUserBlocked(userId);
+        return blocked.isEmpty() ? Set.of() : new HashSet<>(blocked);
     }
 }

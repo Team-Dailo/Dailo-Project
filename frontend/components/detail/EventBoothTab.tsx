@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, Pressable, Platform, ToastAndroid, Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import BoothMap from "./BoothMap";
 import BoothDetailModal from "./BoothDetailModal";
 import type { EventBoothItem } from "../../types/event";
@@ -21,6 +22,14 @@ interface EventBoothTabProps {
   foodBooths?: EventBoothItem[] | null;
   /** 저장된 체험부스 목록 */
   experienceBooths?: EventBoothItem[] | null;
+  /** 행사 장소 위도 (위치 보기 지도 중심 fallback) */
+  eventLatitude?: number | null;
+  /** 행사 장소 경도 (위치 보기 지도 중심 fallback) */
+  eventLongitude?: number | null;
+  /** 푸드트럭 영역 위치 (관리자 설정, 위치 보기 시 사용) */
+  foodArea?: { latitude: number; longitude: number } | null;
+  /** 체험부스 영역 위치 (관리자 설정, 위치 보기 시 사용) */
+  experienceArea?: { latitude: number; longitude: number } | null;
 }
 
 export default function EventBoothTab({
@@ -28,6 +37,10 @@ export default function EventBoothTab({
   eventTitle = "",
   foodBooths,
   experienceBooths,
+  eventLatitude = null,
+  eventLongitude = null,
+  foodArea = null,
+  experienceArea = null,
 }: EventBoothTabProps = {}) {
   const [boothType, setBoothType] = useState<BoothType>("food");
   const [mode, setMode] = useState<Mode>("list");
@@ -37,6 +50,14 @@ export default function EventBoothTab({
   const food = foodBooths && foodBooths.length > 0 ? foodBooths : [];
   const experience = experienceBooths && experienceBooths.length > 0 ? experienceBooths : [];
   const booths = (boothType === "food" ? food : experience) as Booth[];
+
+  /** 위치 보기 지도 중심: 선택한 타입(푸드/체험) 영역 위치 또는 행사 장소 */
+  const mapCenter =
+    mode === "map"
+      ? boothType === "food"
+        ? foodArea ?? (eventLatitude != null && eventLongitude != null ? { latitude: eventLatitude, longitude: eventLongitude } : null)
+        : experienceArea ?? (eventLatitude != null && eventLongitude != null ? { latitude: eventLatitude, longitude: eventLongitude } : null)
+      : null;
 
   const loadFavorites = useCallback(async () => {
     if (eventId == null) return;
@@ -79,26 +100,9 @@ export default function EventBoothTab({
     [eventId, eventTitle, loadFavorites]
   );
 
-  // 지도 모드
-  if (mode === "map") {
-    return (
-      <View style={styles.mapContainer}>
-        <BoothMap />
-
-        <Pressable
-          style={[styles.bottomButton, { alignSelf: "center", marginTop: 16 }]}
-          onPress={() => setMode("list")}
-        >
-          <Text style={styles.bottomButtonText}>부스 목록 보기</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  // 리스트 모드
   return (
     <View style={{ flex: 1 }}>
-      {/* 상단 토글 */}
+      {/* 상단 토글 (리스트/지도 모드 모두 표시) */}
       <View style={styles.segmentContainer}>
         <Pressable
           style={[
@@ -134,8 +138,23 @@ export default function EventBoothTab({
         </Pressable>
       </View>
 
-      {/* 부스 리스트 */}
-      <View style={styles.listWrapper}>
+      {mode === "map" ? (
+        <>
+          <BoothMap
+            centerLatitude={mapCenter?.latitude}
+            centerLongitude={mapCenter?.longitude}
+          />
+          <Pressable
+            style={[styles.bottomButton, { alignSelf: "center", marginTop: 16 }]}
+            onPress={() => setMode("list")}
+          >
+            <Text style={styles.bottomButtonText}>부스 목록 보기</Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          {/* 부스 리스트 */}
+          <View style={styles.listWrapper}>
         {booths.length === 0 ? (
           <Text style={styles.emptyText}>등록된 부스가 없습니다.</Text>
         ) : (
@@ -150,19 +169,36 @@ export default function EventBoothTab({
                 <Text style={styles.boothName}>{booth.name}</Text>
                 <Text style={styles.boothLocation}>{booth.locationLabel ?? ""}</Text>
               </View>
-              <Text style={styles.star}>★</Text>
+              {eventId != null ? (
+                <Pressable
+                  hitSlop={8}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    handleToggleFavorite(booth);
+                  }}
+                  style={styles.starButton}
+                >
+                  <Ionicons
+                    name={isFavorite(booth) ? "star" : "star-outline"}
+                    size={24}
+                    color={isFavorite(booth) ? "#EAB308" : "#D1D5DB"}
+                  />
+                </Pressable>
+              ) : (
+                <Ionicons name="star-outline" size={24} color="#D1D5DB" />
+              )}
             </Pressable>
           ))
         )}
-      </View>
-
-      {/* 하단 위치 보기 버튼 */}
-      <Pressable
-        style={[styles.bottomButton, { alignSelf: "center", marginTop: 16 }]}
-        onPress={() => setMode("map")}
-      >
-        <Text style={styles.bottomButtonText}>위치 보기</Text>
-      </Pressable>
+          </View>
+          <Pressable
+            style={[styles.bottomButton, { alignSelf: "center", marginTop: 16 }]}
+            onPress={() => setMode("map")}
+          >
+            <Text style={styles.bottomButtonText}>위치 보기</Text>
+          </Pressable>
+        </>
+      )}
 
       {/* 상세 모달 */}
       <BoothDetailModal
@@ -176,10 +212,6 @@ export default function EventBoothTab({
             : undefined
         }
         onClose={() => setSelectedBooth(null)}
-        onPressLocation={() => {
-          setSelectedBooth(null);
-          setMode("map");
-        }}
       />
     </View>
   );
@@ -191,7 +223,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#f3f3f3",
     borderRadius: 999,
     padding: 4,
-    marginBottom: 16,
+    marginTop: 12,
+    marginBottom: 20,
   },
   segmentItem: {
     flex: 1,
@@ -251,10 +284,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 24,
   },
-  star: {
-    fontSize: 18,
-    color: "#ffcc00",
+  starButton: {
     marginLeft: 8,
+    padding: 4,
   },
   bottomButton: {
     paddingHorizontal: 24,

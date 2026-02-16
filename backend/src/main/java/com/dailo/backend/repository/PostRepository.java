@@ -21,6 +21,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     /** 행사별 후기 목록 (event_id 로 조회) */
     Page<Post> findByEventId(Long eventId, Pageable pageable);
 
+    @Query("SELECT p FROM Post p WHERE p.eventId = :eventId AND p.authorId NOT IN :excludeAuthorIds")
+    Page<Post> findByEventIdExcludingAuthors(
+            @Param("eventId") Long eventId,
+            @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds,
+            Pageable pageable);
+
     Page<Post> findByTitleContaining(String keyword, Pageable pageable);
 
     // 차단 필터 적용된 조회 쿼리
@@ -33,7 +39,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds,
             Pageable pageable);
 
-    @Query("SELECT p FROM Post p WHERE p.title LIKE %:keyword% AND p.authorId NOT IN :excludeAuthorIds")
+    @Query("SELECT p FROM Post p WHERE p.title LIKE CONCAT('%', :keyword, '%') AND p.authorId NOT IN :excludeAuthorIds")
     Page<Post> findByTitleContainingExcludingAuthors(
             @Param("keyword") String keyword,
             @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds,

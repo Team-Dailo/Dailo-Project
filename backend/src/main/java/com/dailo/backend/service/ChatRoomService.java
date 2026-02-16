@@ -2,15 +2,22 @@ package com.dailo.backend.service;
 
 import com.dailo.backend.dto.ChatRoomResponseDto;
 import com.dailo.backend.entity.ChatMember;
+import com.dailo.backend.entity.ChatMessage;
 import com.dailo.backend.entity.ChatRoom;
+import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.ChatMemberRepository;
+import com.dailo.backend.repository.ChatMessageRepository;
 import com.dailo.backend.repository.ChatRoomRepository;
+import com.dailo.backend.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -21,6 +28,8 @@ public class ChatRoomService {
 
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMemberRepository chatMemberRepository;
+    private final ChatMessageRepository chatMessageRepository;
+    private final MemberRepository memberRepository;
     private final BlockService blockService;
 
     // 채팅방 생성 (1:1)
@@ -44,10 +53,9 @@ public class ChatRoomService {
 
         if (existingRoom.isPresent()) {
             ChatRoom room = existingRoom.get();
-            // 나간 멤버가 있으면 rejoin 처리
             rejoinIfNeeded(room, userId);
             rejoinIfNeeded(room, targetUserId);
-            return ChatRoomResponseDto.from(room);
+            return enrichRoom(room, userId);
         }
 
         // 5. 새 채팅방 생성 시도
@@ -70,17 +78,37 @@ public class ChatRoomService {
             chatMemberRepository.save(member1);
             chatMemberRepository.save(member2);
 
-            return ChatRoomResponseDto.from(savedRoom);
+            return enrichRoom(savedRoom, userId);
         } catch (DataIntegrityViolationException e) {
-            // 동시 생성으로 인한 유니크 제약 위반 시 기존 방 반환
             return chatRoomRepository.findByDirectRoomKey(directRoomKey)
                     .map(room -> {
                         rejoinIfNeeded(room, userId);
                         rejoinIfNeeded(room, targetUserId);
-                        return ChatRoomResponseDto.from(room);
+                        return enrichRoom(room, userId);
                     })
                     .orElseThrow(() -> new RuntimeException("Failed to create or find chat room"));
         }
+    }
+
+    /** 닉네임 + 미읽음 수 + 마지막 메시지 채워서 DTO 반환 */
+    private ChatRoomResponseDto enrichRoom(ChatRoom room, Long myUserId) {
+        List<Long> userIds = room.getMembers().stream()
+                .filter(m -> m.getLeftAt() == null)
+                .map(ChatMember::getUserId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, String> nicknameMap = userIds.isEmpty() ? Map.of() : memberRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(Member::getId, m -> m.getNickname() != null ? m.getNickname() : ""));
+        LocalDateTime lastRead = chatMemberRepository.findByRoomAndUserId(room, myUserId)
+                .map(ChatMember::getLastReadAt)
+                .orElse(LocalDateTime.MIN);
+        int unread = (int) chatMessageRepository.countByRoomAndCreatedAtAfter(room, lastRead);
+        Optional<ChatMessage> lastMsg = chatMessageRepository
+                .findByRoomOrderByCreatedAtDesc(room, PageRequest.of(0, 1))
+                .stream().findFirst();
+        String lastContent = lastMsg.map(ChatMessage::getContent).orElse(null);
+        LocalDateTime lastAt = lastMsg.map(ChatMessage::getCreatedAt).orElse(null);
+        return ChatRoomResponseDto.from(room, nicknameMap, unread, lastContent, lastAt);
     }
 
     // directRoomKey 생성 (DIRECT:minUserId:maxUserId)
@@ -99,11 +127,42 @@ public class ChatRoomService {
                 });
     }
 
-    // 내 채팅방 목록
+    // 내 채팅방 목록 (닉네임 + 미읽음 수 포함)
     public List<ChatRoomResponseDto> getMyRooms(Long userId) {
-        return chatRoomRepository.findMyRooms(userId).stream()
-                .map(ChatRoomResponseDto::from)
+        List<ChatRoom> rooms = chatRoomRepository.findMyRooms(userId);
+        List<Long> allUserIds = rooms.stream()
+                .flatMap(r -> r.getMembers().stream())
+                .filter(m -> m.getLeftAt() == null)
+                .map(ChatMember::getUserId)
+                .distinct()
                 .collect(Collectors.toList());
+        Map<Long, String> nicknameMap = allUserIds.isEmpty() ? Map.of() : memberRepository.findAllById(allUserIds).stream()
+                .collect(Collectors.toMap(Member::getId, m -> m.getNickname() != null ? m.getNickname() : ""));
+
+        return rooms.stream().map(room -> {
+            LocalDateTime lastRead = chatMemberRepository.findByRoomAndUserId(room, userId)
+                    .map(ChatMember::getLastReadAt)
+                    .orElse(LocalDateTime.MIN);
+            int unread = (int) chatMessageRepository.countByRoomAndCreatedAtAfter(room, lastRead);
+            Optional<ChatMessage> lastMsg = chatMessageRepository
+                    .findByRoomOrderByCreatedAtDesc(room, PageRequest.of(0, 1))
+                    .stream().findFirst();
+            String lastContent = lastMsg.map(ChatMessage::getContent).orElse(null);
+            LocalDateTime lastAt = lastMsg.map(ChatMessage::getCreatedAt).orElse(null);
+            return ChatRoomResponseDto.from(room, nicknameMap, unread, lastContent, lastAt);
+        }).collect(Collectors.toList());
+    }
+
+    /** 채팅방 입장 시 읽음 처리 (lastReadAt 갱신 → 미읽음 0) */
+    @Transactional
+    public void markAsRead(Long roomId, Long userId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
+        ChatMember member = chatMemberRepository.findByRoomAndUserId(room, userId)
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+        if (member.isActive()) {
+            member.updateLastReadAt();
+        }
     }
 
     // 채팅방 나가기
@@ -135,6 +194,6 @@ public class ChatRoomService {
             throw new RuntimeException("You have left this room");
         }
 
-        return ChatRoomResponseDto.from(room);
+        return enrichRoom(room, userId);
     }
 }

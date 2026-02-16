@@ -34,4 +34,8 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
     // 나를 차단한 사용자 ID 목록
     @Query("SELECT b.blockerId FROM Block b WHERE b.blockedId = :userId")
     List<Long> findIdsWhoBlockedUser(@Param("userId") Long userId);
+
+    /** 차단 5회 이상 당한 회원 ID·횟수 (blocked_id 기준 집계, 관리자 차단관리용) */
+    @Query(value = "SELECT blocked_id, COUNT(*) AS cnt FROM blocks GROUP BY blocked_id HAVING COUNT(*) >= 5 ORDER BY cnt DESC", nativeQuery = true)
+    List<Object[]> findBlockedIdsWithCountAtLeast5();
 }

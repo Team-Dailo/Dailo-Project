@@ -41,6 +41,10 @@ public class Post {
     @Column(name = "event_id")
     private Long eventId;
 
+    /** 첨부 이미지 URL 목록 (JSON 배열 문자열, nullable) */
+    @Column(name = "image_urls", columnDefinition = "TEXT")
+    private String imageUrlsJson;
+
     @Column(name = "view_count")
     @Builder.Default
     private Integer viewCount = 0;
@@ -72,12 +76,6 @@ public class Post {
     @Builder.Default
     private List<Comment> comments = new ArrayList<>();
 
-    @ElementCollection
-    @CollectionTable(name = "post_images", joinColumns = @JoinColumn(name = "post_id"))
-    @Column(name = "image_key")
-    @Builder.Default
-    private List<String> imageKeys = new ArrayList<>();
-
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -91,6 +89,10 @@ public class Post {
 
     public void setAuthorId(Long authorId) {
         this.authorId = authorId;
+    }
+
+    public void setImageUrlsJson(String imageUrlsJson) {
+        this.imageUrlsJson = imageUrlsJson;
     }
 
     // 비즈니스 메서드
@@ -107,16 +109,12 @@ public class Post {
         this.eventId = eventId;
     }
 
-    public void update(String title, String content, String categoryType, Long eventId, List<String> imageKeys) {
+    public void update(String title, String content, String categoryType, Long eventId, String imageUrlsJson) {
         this.title = title;
         this.content = content;
         this.categoryType = categoryType;
         this.eventId = eventId;
-        this.imageKeys = imageKeys != null ? imageKeys : new ArrayList<>();
-    }
-
-    public void setImageKeys(List<String> imageKeys) {
-        this.imageKeys = imageKeys != null ? imageKeys : new ArrayList<>();
+        this.imageUrlsJson = imageUrlsJson;
     }
 
     public void increaseViewCount() {

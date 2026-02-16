@@ -12,7 +12,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as chatService from "../../../services/chat.service";
@@ -52,7 +52,8 @@ export default function ChatRoomScreen() {
   const [notificationsOn, setNotificationsOn] = useState(true);
 
   const partner = room?.members?.find((m) => m.userId !== myUserId);
-  const partnerName = partner ? `user_${partner.userId}` : "대화 상대";
+  const partnerNick = partner ? ((partner as { nickname?: string; nick_name?: string }).nickname ?? (partner as { nick_name?: string }).nick_name ?? "").trim() : "";
+  const partnerName = partner ? (partnerNick || `user_${partner.userId}`) : "대화 상대";
   const partnerUserId = partner?.userId ?? 0;
 
   useEffect(() => {
@@ -74,13 +75,15 @@ export default function ChatRoomScreen() {
       ]);
       setRoom(roomData);
       const myId = uid ?? 0;
-      const list: Message[] = (msgData.content ?? []).map((m) => ({
+      // API는 최신순(Desc)이므로 채팅은 과거→최신 순으로 보이도록 뒤집기
+      const raw = (msgData.content ?? []).map((m) => ({
         id: String(m.id),
         isMe: m.senderId === myId,
         text: m.content ?? "",
         time: formatMessageTime(m.createdAt),
       }));
-      setMessages(list);
+      setMessages([...raw].reverse());
+      await chatService.markRoomAsRead(roomId);
     } catch {
       setMessages([]);
     } finally {
@@ -91,6 +94,13 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     fetchRoomAndMessages();
   }, [fetchRoomAndMessages]);
+
+  // 앱 재진입·다시 들어올 때마다 서버에서 메시지 다시 로드 (채팅 기록 유지)
+  useFocusEffect(
+    useCallback(() => {
+      if (roomId && Number.isFinite(roomId)) fetchRoomAndMessages();
+    }, [roomId, fetchRoomAndMessages])
+  );
 
   const handleSend = async () => {
     const text = input.trim();
@@ -269,7 +279,7 @@ export default function ChatRoomScreen() {
         {/* 입력 영역 */}
         <View style={styles.inputRow}>
           <Pressable style={styles.inputIcon}>
-            <Ionicons name="image-outline" size={24} color="#2563EB" />
+            <Ionicons name="image-outline" size={24} color="#4C8BF5" />
           </Pressable>
           <TextInput
             style={styles.input}
@@ -291,7 +301,7 @@ export default function ChatRoomScreen() {
             <Ionicons
               name="send"
               size={20}
-              color={input.trim() ? "#2563EB" : "#9CA3AF"}
+              color={input.trim() ? "#4C8BF5" : "#9CA3AF"}
             />
           </Pressable>
         </View>
@@ -328,7 +338,7 @@ const styles = StyleSheet.create({
   myRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "flex-end", marginBottom: 10, gap: 6 },
   myBubble: {
     maxWidth: "80%",
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 10,

@@ -7,11 +7,13 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
+@Setter
 @NoArgsConstructor
 public class AdminEventCreateRequest {
 
@@ -48,4 +50,7 @@ public class AdminEventCreateRequest {
     private List<String> posterUrls;
     private String description;
     private String hostContact;
+
+    /** 소식/타임테이블/푸드트럭/축제부스 JSON (행사 상세 탭 표시용) */
+    private String extraJson;
 }

@@ -41,4 +41,15 @@ public class MemberService {
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
         member.withdraw();
     }
+
+    /** id=1 회원 닉네임이 비어 있으면 "회원1"로 설정 (댓글 등 기존 데이터 표시용) */
+    @Transactional
+    public void ensureMember1Nickname() {
+        memberRepository.findById(1L).ifPresent(m -> {
+            if (m.getNickname() == null || m.getNickname().isBlank()) {
+                m.updateProfile("회원1", null);
+                memberRepository.save(m);
+            }
+        });
+    }
 }

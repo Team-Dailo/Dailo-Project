@@ -14,11 +14,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
-import { getCompletedStaySessions, type StaySessionResponseDto } from "../../../services/location.service";
+import { getStayMissionSessions, type StaySessionResponseDto } from "../../../services/location.service";
 import {
   formatSessionDate,
   formatSessionTime,
   formatDuration,
+  getSessionDateKey,
+  formatDateKey,
 } from "../../../utils/staySessionFormat";
 
 export default function StayMissionHistoryScreen() {
@@ -31,7 +33,7 @@ export default function StayMissionHistoryScreen() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getCompletedStaySessions();
+      const data = await getStayMissionSessions();
       setList(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "목록을 불러올 수 없습니다.");
@@ -39,6 +41,18 @@ export default function StayMissionHistoryScreen() {
       setLoading(false);
     }
   }, []);
+
+  const byDate = React.useMemo(() => {
+    const map: Record<string, StaySessionResponseDto[]> = {};
+    for (const item of list) {
+      const key = getSessionDateKey(item.startTime);
+      if (!key) continue;
+      if (!map[key]) map[key] = [];
+      map[key].push(item);
+    }
+    const dates = Object.keys(map).sort((a, b) => b.localeCompare(a));
+    return { map, dates };
+  }, [list]);
 
   useFocusEffect(
     useCallback(() => {
@@ -59,7 +73,7 @@ export default function StayMissionHistoryScreen() {
 
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#2563EB" />
+            <ActivityIndicator size="large" color="#4C8BF5" />
           </View>
         ) : error ? (
           <View style={styles.centered}>
@@ -68,22 +82,34 @@ export default function StayMissionHistoryScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.contents}>
             {list.length === 0 ? (
-              <Text style={styles.empty}>체류 기록이 없습니다.</Text>
+              <Text style={styles.empty}>30분 이상 체류한 기록이 없습니다.</Text>
             ) : (
-              list.map((item) => (
-                <Pressable
-                  key={item.id}
-                  style={styles.card}
-                  onPress={() => setSelected(item)}
-                >
-                  <Text style={styles.cardTitle}>{item.eventTitle}</Text>
-                  <Text style={styles.cardSub}>
-                    {item.placeName || "장소 없음"}
-                  </Text>
-                  <Text style={styles.cardMeta}>
-                    {formatSessionDate(item.startTime)} · 진입 {formatSessionTime(item.startTime)} · 체류 {formatDuration(item.durationMinutes)}
-                  </Text>
-                </Pressable>
+              byDate.dates.map((dateKey) => (
+                <View key={dateKey} style={styles.dateSection}>
+                  <Text style={styles.dateHeader}>{formatDateKey(dateKey)}</Text>
+                  {(byDate.map[dateKey] ?? []).map((item) => (
+                    <Pressable
+                      key={item.id}
+                      style={styles.card}
+                      onPress={() => setSelected(item)}
+                    >
+                      <View style={styles.cardMain}>
+                        <View style={styles.cardTextWrap}>
+                          <Text style={styles.cardTitle}>{item.eventTitle}</Text>
+                          <Text style={styles.cardSub}>
+                            {item.placeName || "장소 없음"}
+                          </Text>
+                          <Text style={styles.cardMeta}>
+                            진입 {formatSessionTime(item.startTime)} · 퇴장 {item.endTime != null ? formatSessionTime(item.endTime) : "-"} · 체류 {formatDuration(item.durationMinutes)}
+                          </Text>
+                        </View>
+                        <View style={styles.cardIconWrap}>
+                          <Ionicons name="medal" size={28} color="#EAB308" />
+                        </View>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
               ))
             )}
           </ScrollView>
@@ -163,16 +189,39 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
+    marginLeft: 20,
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
   },
   contents: { padding: 16 },
+  dateSection: { marginBottom: 20 },
+  dateHeader: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#6B7280",
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
   card: {
     backgroundColor: "#FFFFFF",
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
+  },
+  cardMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cardTextWrap: { flex: 1, marginRight: 12 },
+  cardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FEF9C3",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardTitle: {
     fontSize: 16,
@@ -233,7 +282,7 @@ const styles = StyleSheet.create({
   detailValue: { fontSize: 15, color: "#111827", marginBottom: 4 },
   modalFooter: { padding: 20, paddingTop: 8 },
   primaryButton: {
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",

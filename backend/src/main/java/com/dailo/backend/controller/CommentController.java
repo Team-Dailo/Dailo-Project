@@ -9,6 +9,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -30,14 +32,15 @@ public class CommentController {
         return commentService.getCommentsByPostId(postId, userId, pageable);
     }
 
-    // 2. 댓글 생성
+    // 2. 댓글 생성 (인증 필요, 본인 닉네임으로 저장)
     @PostMapping("/posts/{postId}/comments")
     public ResponseEntity<CommentResponseDto> createComment(
             @PathVariable Long postId,
             @RequestBody CommentRequestDto requestDto,
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        CommentResponseDto comment = commentService.createComment(postId, requestDto, userId);
+        Long memberId = Long.parseLong(userDetails.getUsername());
+        CommentResponseDto comment = commentService.createComment(postId, requestDto, memberId);
         return ResponseEntity.ok(comment);
     }
 
@@ -46,9 +49,10 @@ public class CommentController {
     public ResponseEntity<CommentResponseDto> updateComment(
             @PathVariable Long id,
             @RequestBody CommentRequestDto requestDto,
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        CommentResponseDto comment = commentService.updateComment(id, requestDto, userId);
+        Long memberId = Long.parseLong(userDetails.getUsername());
+        CommentResponseDto comment = commentService.updateComment(id, requestDto, memberId);
         return ResponseEntity.ok(comment);
     }
 
@@ -56,9 +60,10 @@ public class CommentController {
     @DeleteMapping("/comments/{id}")
     public ResponseEntity<Void> deleteComment(
             @PathVariable Long id,
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        commentService.deleteComment(id, userId);
+        Long memberId = Long.parseLong(userDetails.getUsername());
+        commentService.deleteComment(id, memberId);
         return ResponseEntity.ok().build();
     }
 }

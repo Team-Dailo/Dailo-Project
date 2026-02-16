@@ -3,15 +3,21 @@ package com.dailo.backend.service;
 import com.dailo.backend.domain.enums.ReportAction;
 import com.dailo.backend.domain.enums.ReportStatus;
 import com.dailo.backend.domain.enums.ReportType;
+import com.dailo.backend.domain.enums.Role;
 import com.dailo.backend.dto.AdminReportDetailResponseDto;
 import com.dailo.backend.dto.ReportActionRequestDto;
 import com.dailo.backend.dto.ReportActionResponseDto;
 import com.dailo.backend.dto.ReportResponseDto;
+import com.dailo.backend.dto.admin.ReportedPostSummaryDto;
+import com.dailo.backend.entity.Member;
+import com.dailo.backend.entity.Post;
 import com.dailo.backend.entity.Report;
 import com.dailo.backend.entity.ReportActionEntity;
 import com.dailo.backend.exception.ConflictException;
 import com.dailo.backend.exception.ForbiddenException;
 import com.dailo.backend.exception.NotFoundException;
+import com.dailo.backend.repository.MemberRepository;
+import com.dailo.backend.repository.PostRepository;
 import com.dailo.backend.repository.ReportActionRepository;
 import com.dailo.backend.repository.ReportRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +26,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,16 +39,95 @@ public class AdminReportService {
 
     private final ReportRepository reportRepository;
     private final ReportActionRepository reportActionRepository;
+    private final PostRepository postRepository;
+    private final MemberRepository memberRepository;
 
-    // TODO: User Entity 구현 후 DB 조회로 변경
-    // MVP용 임시 Admin ID 목록
-    private static final Set<Long> ADMIN_IDS = Set.of(1L, 2L);
+    /** Admin 권한 검증: DB role이 ADMIN이거나, 기존 관리자 ID(1,2)인 경우 허용 */
+    private static final java.util.Set<Long> ADMIN_IDS_FALLBACK = java.util.Set.of(1L, 2L);
 
-    // Admin 권한 검증
     private void validateAdminRole(Long userId) {
-        if (!ADMIN_IDS.contains(userId)) {
+        if (userId == null) {
             throw new ForbiddenException("Admin access required");
         }
+        if (ADMIN_IDS_FALLBACK.contains(userId)) {
+            return;
+        }
+        Member member = memberRepository.findById(userId)
+                .orElseThrow(() -> new ForbiddenException("Admin access required"));
+        if (member.getRole() == Role.ADMIN) {
+            return;
+        }
+        throw new ForbiddenException("Admin access required");
+    }
+
+    /** 신고된 게시물 목록 + 신고 수 (targetType=POST, PENDING 기준) */
+    public List<ReportedPostSummaryDto> getReportedPostsSummary(Long adminId) {
+        validateAdminRole(adminId);
+
+        List<Object[]> rows = reportRepository.countByTargetTypeAndStatusGroupByTargetId(ReportType.POST, ReportStatus.PENDING);
+        if (rows.isEmpty()) return List.of();
+
+        List<Long> postIds = rows.stream()
+                .map(row -> ((Number) row[0]).longValue())
+                .toList();
+        Map<Long, Long> countByPostId = rows.stream()
+                .collect(Collectors.toMap(row -> ((Number) row[0]).longValue(), row -> ((Number) row[1]).longValue()));
+
+        List<Post> posts = postRepository.findAllById(postIds);
+        Set<Long> authorIds = posts.stream().map(Post::getAuthorId).collect(Collectors.toSet());
+        Map<Long, String> nicknameMap = authorIds.isEmpty() ? Map.of()
+                : memberRepository.findAllById(authorIds).stream()
+                        .collect(Collectors.toMap(Member::getId, m -> m.getNickname() != null ? m.getNickname() : ""));
+
+        List<ReportedPostSummaryDto> result = new ArrayList<>();
+        for (Post post : posts) {
+            Long count = countByPostId.get(post.getId());
+            if (count == null) continue;
+            result.add(ReportedPostSummaryDto.builder()
+                    .postId(post.getId())
+                    .reportCount(count)
+                    .title(post.getTitle())
+                    .authorId(post.getAuthorId())
+                    .authorNickname(nicknameMap.getOrDefault(post.getAuthorId(), ""))
+                    .build());
+        }
+        result.sort((a, b) -> Long.compare(b.getReportCount(), a.getReportCount()));
+        return result;
+    }
+
+    /** 신고 기록: 게시글별 누적 신고 수 (상태 무관, 관리자 신고 기록 페이지용) */
+    public List<ReportedPostSummaryDto> getReportRecordSummary(Long adminId) {
+        validateAdminRole(adminId);
+
+        List<Object[]> rows = reportRepository.countByTargetTypeGroupByTargetId(ReportType.POST);
+        if (rows.isEmpty()) return List.of();
+
+        List<Long> postIds = rows.stream()
+                .map(row -> ((Number) row[0]).longValue())
+                .toList();
+        Map<Long, Long> countByPostId = rows.stream()
+                .collect(Collectors.toMap(row -> ((Number) row[0]).longValue(), row -> ((Number) row[1]).longValue()));
+
+        List<Post> posts = postRepository.findAllById(postIds);
+        Set<Long> authorIds = posts.stream().map(Post::getAuthorId).collect(Collectors.toSet());
+        Map<Long, String> nicknameMap = authorIds.isEmpty() ? Map.of()
+                : memberRepository.findAllById(authorIds).stream()
+                        .collect(Collectors.toMap(Member::getId, m -> m.getNickname() != null ? m.getNickname() : ""));
+
+        List<ReportedPostSummaryDto> result = new ArrayList<>();
+        for (Post post : posts) {
+            Long count = countByPostId.get(post.getId());
+            if (count == null) continue;
+            result.add(ReportedPostSummaryDto.builder()
+                    .postId(post.getId())
+                    .reportCount(count)
+                    .title(post.getTitle())
+                    .authorId(post.getAuthorId())
+                    .authorNickname(nicknameMap.getOrDefault(post.getAuthorId(), ""))
+                    .build());
+        }
+        result.sort((a, b) -> Long.compare(b.getReportCount(), a.getReportCount()));
+        return result;
     }
 
     // 신고 목록 조회 (필터링)

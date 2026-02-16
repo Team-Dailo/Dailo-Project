@@ -31,6 +31,8 @@ public class AdminEventResponse {
     private String description;
     private String hostContact;
     private boolean isAdminManaged;
+    /** 소식/타임테이블/푸드트럭/축제부스 JSON */
+    private String extraJson;
 
     public static AdminEventResponse from(Event event) {
         return AdminEventResponse.builder()
@@ -50,6 +52,7 @@ public class AdminEventResponse {
                 .description(event.getDescription())
                 .hostContact(event.getHostContact())
                 .isAdminManaged(event.isAdminManaged())
+                .extraJson(event.getExtraJson())
                 .build();
     }
 }

@@ -7,12 +7,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+
 @Repository
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
-    // 채팅방 메시지 조회 (페이징, 최신순)
     Page<ChatMessage> findByRoomOrderByCreatedAtDesc(ChatRoom room, Pageable pageable);
-
-    // 채팅방 메시지 조회 (페이징, 오래된순 - 채팅 UI용)
     Page<ChatMessage> findByRoomOrderByCreatedAtAsc(ChatRoom room, Pageable pageable);
+
+    /** lastReadAt 이후 메시지 수 (미읽음 개수) */
+    long countByRoomAndCreatedAtAfter(ChatRoom room, LocalDateTime after);
 }

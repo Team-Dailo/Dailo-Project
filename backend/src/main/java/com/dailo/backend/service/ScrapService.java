@@ -72,7 +72,8 @@ public class ScrapService {
                     event.getStartAt(),
                     event.getEndAt(),
                     event.getPlaceName(),
-                    event.getCategories() != null ? event.getCategories() : List.of()
+                    event.getCategories() != null ? event.getCategories() : List.of(),
+                    event.getRegionName()
             );
         });
     }

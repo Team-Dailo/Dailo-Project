@@ -28,6 +28,8 @@ type Props = {
   onPressDirection: () => void;
   onPressSettings: () => void;
   onPressGuide?: () => void;
+  /** 현재 위치·행사 새로고침 후 구역 여부 바로 알림 */
+  onPressRefreshLocationAndCheck?: () => void;
 };
 
 const DRAWER_WIDTH = 300;
@@ -46,6 +48,7 @@ export function SideMenu({
   onPressDirection,
   onPressSettings,
   onPressGuide,
+  onPressRefreshLocationAndCheck,
 }: Props) {
   const { user, isLoggedIn, logout } = useAuth();
   const insets = useSafeAreaInsets();
@@ -130,7 +133,7 @@ export function SideMenu({
                 <View style={styles.festivalTagRow}>
                   <Ionicons name="flag-outline" size={12} color="#1D4ED8" />
                   <Text style={styles.festivalTag}>
-                    {festivalIsCompleted ? '참여 완료한 축제' : '참여 중인 축제'}
+                    {festivalIsCompleted ? '축제 참여 완료' : '축제 참여중'}
                   </Text>
                 </View>
                 <Text style={styles.festivalName}>{festivalEntry.eventTitle}</Text>
@@ -181,6 +184,20 @@ export function SideMenu({
             <Text style={[styles.sectionTitle, isLoggedIn && styles.serviceTitle]}>
               SERVICE
             </Text>
+
+            {/* 행사 새로고침: 현재 위치·행사 재조회 후 구역 여부 바로 알림 */}
+            {onPressRefreshLocationAndCheck != null && (
+              <MenuRow
+                icon="refresh-outline"
+                label="행사 새로고침"
+                iconColor="#4C8BF5"
+                circleBg="#DBEAFE"
+                onPress={() => {
+                  onClose();
+                  onPressRefreshLocationAndCheck();
+                }}
+              />
+            )}
 
             {/* 7) 서비스 메뉴 리스트 3개 */}
             <MenuRow
@@ -424,7 +441,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     borderRadius: 10,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4C8BF5',
   },
   logoutButtonPressed: {
     opacity: 0.9,

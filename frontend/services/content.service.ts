@@ -1,9 +1,10 @@
 import { API_BASE_URL } from '../constants/api';
 import * as authService from './auth.service';
 
+/** 이용 안내: guide.tsx(사용자)에서 조회, admin-guide.tsx(관리자)에서 수정. 마크다운(##/###/문단) 지원 */
 export type UsageGuideResponse = { content: string };
 
-/** 이용 안내 문구 조회 (비로그인 가능) */
+/** 이용 안내 문구 조회 (비로그인 가능, GET /api/content/usage-guide) */
 export async function getUsageGuide(): Promise<string> {
   const res = await fetch(`${API_BASE_URL}/api/content/usage-guide`);
   if (!res.ok) throw new Error('이용 안내를 불러올 수 없습니다.');
@@ -11,7 +12,7 @@ export async function getUsageGuide(): Promise<string> {
   return data?.content ?? '';
 }
 
-/** 이용 안내 문구 수정 (관리자 전용) */
+/** 이용 안내 문구 수정 (관리자 전용, PUT /api/admin/content/usage-guide) */
 export async function updateUsageGuide(content: string): Promise<string> {
   const token = await authService.getAccessToken();
   if (!token) throw new Error('로그인이 필요합니다.');

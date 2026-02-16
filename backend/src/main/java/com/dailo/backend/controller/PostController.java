@@ -37,6 +37,42 @@ public class PostController {
         return ResponseEntity.ok(postService.getAllPosts(userId, pageable));
     }
 
+    /** 내가 쓴 글 목록 (마이페이지 게시판 기록) - 인증 필요 */
+    @GetMapping("/my")
+    public ResponseEntity<Page<PostListResponseDto>> getMyPosts(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        Long userId = Long.parseLong(userDetails.getUsername());
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(postService.getMyPosts(userId, pageable));
+    }
+
+    /** 좋아요 누른 글 목록 (마이페이지) - 인증 필요 */
+    @GetMapping("/liked")
+    public ResponseEntity<Page<PostListResponseDto>> getLikedPosts(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        Long userId = Long.parseLong(userDetails.getUsername());
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(postService.getLikedPosts(userId, pageable));
+    }
+
+    /** 댓글 단 글 목록 (마이페이지) - 인증 필요 */
+    @GetMapping("/commented")
+    public ResponseEntity<Page<PostListResponseDto>> getCommentedPosts(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        Long userId = Long.parseLong(userDetails.getUsername());
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(postService.getCommentedPosts(userId, pageable));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<PostResponseDto> getPostById(
             @PathVariable Long id,

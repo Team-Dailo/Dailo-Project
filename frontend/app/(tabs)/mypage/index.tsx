@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../hooks/useAuth";
 import { useFestivalParticipation } from "../../../hooks/useFestivalParticipation";
 import { ADMIN_EMAIL } from "../../../services/auth.service";
+import { API_BASE_URL } from "../../../constants/api";
 
 export default function MyPageScreen() {
   const { user, isLoggedIn, logout, refreshUser } = useAuth();
@@ -45,8 +46,14 @@ export default function MyPageScreen() {
         <View style={styles.profileCard}>
           <View style={styles.profileLeft}>
             <Image
+              key={user?.profileImageUrl ?? "no-photo"}
               source={{
-                uri: "https://via.placeholder.com/64x64.png?text=🐶",
+                uri:
+                  isLoggedIn && user?.profileImageUrl
+                    ? user.profileImageUrl.startsWith("/")
+                      ? `${API_BASE_URL}${user.profileImageUrl}`
+                      : user.profileImageUrl
+                    : "https://via.placeholder.com/64x64.png?text=👤",
               }}
               style={styles.avatar}
             />
@@ -80,23 +87,33 @@ export default function MyPageScreen() {
           </Pressable>
         </View>
 
-        {/* 참여 중인 축제 카드: 로그인 + 축제 구역 진입 중일 때만 표시 */}
+        {/* 참여 중인 축제 카드: 로그인 + 지도에서 축제 구역 진입 중일 때만 표시 (로컬 저장). 참여한 축제/체류 미션 기록은 서버에 저장된 과거 기록입니다. */}
         {isLoggedIn && festivalEntry != null && (
           <View style={styles.activeFestivalCard}>
             <View style={styles.badgeRow}>
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>
-                  {festivalIsCompleted ? '참여 완료한 축제' : '참여 중인 축제'}
+                  {festivalIsCompleted ? '축제 참여 완료' : '축제 참여중'}
                 </Text>
               </View>
               <Text style={styles.timerText}>{festivalElapsed}</Text>
             </View>
             <Text style={styles.activeFestivalTitle}>{festivalEntry.eventTitle}</Text>
+            <Text style={styles.activeFestivalHint}>지도에서 해당 축제 구역에 있을 때만 표시됩니다.</Text>
           </View>
         )}
 
         {/* 섹션: 활동 기록 (비로그인 시 로그인 화면으로) */}
         <Section title="활동 기록">
+          <MenuItem
+            icon="list-outline"
+            label="참여 서버 기록"
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/participation-history")
+                : router.push("/login")
+            }
+          />
           <MenuItem
             icon="calendar-outline"
             label="참여한 축제"
@@ -116,8 +133,17 @@ export default function MyPageScreen() {
             }
           />
           <MenuItem
-            icon="chatbubble-ellipses-outline"
-            label="게시판 기록"
+            icon="bookmark-outline"
+            label="저장한 게시글"
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/saved-posts")
+                : router.push("/login")
+            }
+          />
+          <MenuItem
+            icon="document-text-outline"
+            label="내가 쓴 게시글"
             onPress={() =>
               isLoggedIn
                 ? router.push("/(tabs)/mypage/board-history")
@@ -129,7 +155,7 @@ export default function MyPageScreen() {
         {/* 섹션: 즐겨찾기 */}
         <Section title="즐겨찾기">
           <MenuItem
-            icon="star-outline"
+            icon="bookmark-outline"
             label="저장한 축제"
             onPress={() =>
               isLoggedIn
@@ -157,7 +183,7 @@ export default function MyPageScreen() {
           />
         </Section>
 
-        {/* 섹션: 신고/차단 */}
+        {/* 섹션: 신고·차단 */}
         <Section title="신고·차단">
           <MenuItem
             icon="flag-outline"
@@ -170,7 +196,7 @@ export default function MyPageScreen() {
           />
           <MenuItem
             icon="ban-outline"
-            label="차단 목록"
+            label="차단 기록"
             onPress={() =>
               isLoggedIn
                 ? router.push("/(tabs)/mypage/block-list")
@@ -314,7 +340,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
   },
   loginButtonText: {
     fontSize: 14,
@@ -326,7 +352,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
     borderRadius: 12,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
   },
   logoutButtonText: {
     fontSize: 14,
@@ -366,6 +392,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
+    marginTop: 4,
+  },
+  activeFestivalHint: {
+    fontSize: 11,
+    color: "#9CA3AF",
     marginTop: 4,
   },
 

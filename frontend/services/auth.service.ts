@@ -37,13 +37,15 @@ export type SignupRequest = {
   nickname: string;
 };
 
-/** 백엔드 회원가입 응답 (MemberResponseDto) */
+/** 백엔드 회원가입/내정보 응답 (MemberResponseDto) */
 export type MemberResponseDto = {
   id?: number;
   email: string;
   nickname: string;
   /** USER | ADMIN - 마이페이지 관리자 메뉴 노출 여부 */
   role?: string;
+  /** 프로필 사진 URL (내정보 조회 시) */
+  profileImageUrl?: string | null;
 };
 
 /**
@@ -250,7 +252,7 @@ export async function getMe(): Promise<MemberResponseDto | null> {
   const token = await getAccessToken();
   if (!token) return null;
   try {
-    const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    const res = await fetch(`${API_BASE_URL}/api/members/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
@@ -265,17 +267,32 @@ export async function getMe(): Promise<MemberResponseDto | null> {
  * @throws Error 서버 오류 또는 유효성 실패 시
  */
 export async function updateNickname(newNickname: string): Promise<MemberResponseDto> {
-  const token = await getAccessToken();
-  if (!token) throw new Error('로그인이 필요합니다.');
   const trimmed = newNickname.trim();
   if (!trimmed) throw new Error('닉네임을 입력해 주세요.');
-  const res = await fetch(`${API_BASE_URL}/api/auth/me/nickname`, {
+  return updateProfile({ nickname: trimmed });
+}
+
+/**
+ * 프로필 수정 (닉네임·프로필 사진 URL). 보내지 않은 필드는 서버에서 유지됨.
+ * @throws Error 서버 오류 또는 유효성 실패 시
+ */
+export async function updateProfile(updates: {
+  nickname?: string;
+  profileImageUrl?: string | null;
+}): Promise<MemberResponseDto> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('로그인이 필요합니다.');
+  const body: Record<string, unknown> = {};
+  if (updates.nickname !== undefined) body.nickname = updates.nickname.trim();
+  if (updates.profileImageUrl !== undefined) body.profileImageUrl = updates.profileImageUrl ?? null;
+  if (Object.keys(body).length === 0) throw new Error('변경할 내용이 없습니다.');
+  const res = await fetch(`${API_BASE_URL}/api/members/me`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ nickname: trimmed }),
+    body: JSON.stringify(body),
   });
   const text = await res.text();
   if (!res.ok) {
@@ -284,6 +301,33 @@ export async function updateNickname(newNickname: string): Promise<MemberRespons
     throw new Error(msg);
   }
   return JSON.parse(text) as MemberResponseDto;
+}
+
+/**
+ * 프로필 사진 업로드 (POST /api/upload). 반환된 전체 URL을 updateProfile({ profileImageUrl })에 넣으면 됨.
+ */
+export async function uploadProfileImage(imageUri: string): Promise<string> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('로그인이 필요합니다.');
+  const formData = new FormData();
+  formData.append('file', {
+    uri: imageUri,
+    type: 'image/jpeg',
+    name: 'profile.jpg',
+  } as unknown as Blob);
+  const res = await fetch(`${API_BASE_URL}/api/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) throw new Error('로그인이 필요합니다.');
+    throw new Error(`업로드 실패: ${res.status}`);
+  }
+  const data = (await res.json()) as { path?: string };
+  const path = data?.path ?? '';
+  if (!path) throw new Error('업로드 응답에 path가 없습니다.');
+  return `${API_BASE_URL}${path}`;
 }
 
 /**

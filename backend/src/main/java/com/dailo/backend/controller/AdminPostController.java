@@ -21,4 +21,11 @@ public class AdminPostController {
         postService.updatePostAuthor(postId, request.getAuthorId());
         return ResponseEntity.noContent().build();
     }
+
+    /** 관리자용: 신고된 게시글 삭제(소프트 삭제) */
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<Void> deletePost(@PathVariable Long postId) {
+        postService.deletePostByAdmin(postId);
+        return ResponseEntity.noContent().build();
+    }
 }

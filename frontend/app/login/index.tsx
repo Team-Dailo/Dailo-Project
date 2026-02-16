@@ -107,10 +107,7 @@ export default function LoginScreen() {
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <>
-                <Text style={styles.loginButtonText}>로그인</Text>
-                <Ionicons name="log-in-outline" size={20} color="#FFFFFF" />
-              </>
+              <Text style={styles.loginButtonText}>로그인</Text>
             )}
           </Pressable>
 
@@ -147,6 +144,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#111827',
+    marginLeft: 20,
   },
   headerRight: {
     width: 24,
@@ -196,7 +194,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4C8BF5',
     marginTop: 8,
   },
   loginButtonPressed: {
@@ -213,7 +211,7 @@ const styles = StyleSheet.create({
   },
   signupLinkText: {
     fontSize: 14,
-    color: '#2563EB',
+    color: '#4C8BF5',
     fontWeight: '500',
   },
 });

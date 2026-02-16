@@ -14,10 +14,13 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  Image,
+  Linking,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import * as boardService from "../../services/board.service";
 import * as authService from "../../services/auth.service";
 import * as eventService from "../../services/event.service";
@@ -27,6 +30,10 @@ import type { Event } from "../../types/event";
 
 const CATEGORIES = ["후기", "질문", "자유"] as const;
 type Category = (typeof CATEGORIES)[number];
+
+const MAX_IMAGES = 4;
+const IMAGE_GAP = 6;
+const PREVIEW_SIZE = 72;
 
 export default function PostWriteScreen() {
   const router = useRouter();
@@ -46,6 +53,10 @@ export default function PostWriteScreen() {
   const [eventPickerVisible, setEventPickerVisible] = useState(false);
   const [eventList, setEventList] = useState<Event[]>([]);
   const [eventListLoading, setEventListLoading] = useState(false);
+  /** 선택한 사진 URI 목록 (동영상 불가, 사진만) */
+  const [selectedImageUris, setSelectedImageUris] = useState<string[]>([]);
+  /** 수정 시 기존 게시글에 있던 이미지 URL (서버에 이미 저장됨) */
+  const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
 
   useEffect(() => {
     const show = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -76,6 +87,8 @@ export default function PostWriteScreen() {
             setSelectedEventId(post.eventId);
             setSelectedEventTitle(""); // 제목은 선택 모달에서만 표시
           }
+          const urls = post.imageUrls ?? (post as Record<string, unknown>).image_urls as string[] | undefined;
+          setExistingImageUrls(Array.isArray(urls) ? urls : []);
         }
       } catch {
         if (!cancelled) Alert.alert("오류", "게시물을 불러올 수 없습니다.");
@@ -87,6 +100,75 @@ export default function PostWriteScreen() {
   }, [editId]);
 
   const handleCancel = () => router.back();
+
+  const openImagePicker = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "권한 필요",
+          "사진을 선택하려면 갤러리 접근 권한이 필요합니다.",
+          [{ text: "확인" }, { text: "설정으로 이동", onPress: () => Linking.openSettings() }]
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets?.length) {
+        const uris = result.assets.map((a) => a.uri);
+        const currentTotal = existingImageUrls.length + selectedImageUris.length;
+        const spaceLeft = MAX_IMAGES - currentTotal;
+        if (spaceLeft <= 0) return;
+        setSelectedImageUris((prev) => {
+          const next = [...prev, ...uris];
+          const maxNew = MAX_IMAGES - existingImageUrls.length;
+          return next.slice(0, maxNew);
+        });
+      }
+    } catch (e) {
+      Alert.alert("오류", e instanceof Error ? e.message : "사진을 불러올 수 없습니다.");
+    }
+  }, [existingImageUrls.length]);
+
+  const removeImage = useCallback((uri: string) => {
+    if (uri.startsWith("http")) {
+      setExistingImageUrls((prev) => prev.filter((u) => u !== uri));
+    } else {
+      setSelectedImageUris((prev) => prev.filter((u) => u !== uri));
+    }
+  }, []);
+
+  const submitPostBody = useCallback(
+    async (
+      trimmedTitle: string,
+      trimmedContent: string,
+      category: Category,
+      eventId: number | null | undefined,
+      imageUrls: string[],
+      authorIdOrUndefined: number | undefined,
+      editIdParam: string | undefined,
+      nav: ReturnType<typeof useRouter>
+    ) => {
+      const body = {
+        title: trimmedTitle,
+        content: trimmedContent,
+        categoryType: category,
+        eventId: eventId ?? undefined,
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+      };
+      if (editIdParam) {
+        await boardService.updatePost(editIdParam, body, authorIdOrUndefined);
+        nav.replace(`/board/${editIdParam}`);
+      } else {
+        const created = await boardService.createPost(body, authorIdOrUndefined);
+        nav.replace(`/board/${created.id}`);
+      }
+    },
+    []
+  );
 
   const openEventPicker = useCallback(async () => {
     setEventPickerVisible(true);
@@ -112,7 +194,6 @@ export default function PostWriteScreen() {
     }
     setSubmitting(true);
     try {
-      // 작성자 ID: getMe() → 저장값 → context. 없어도 토큰 있으면 백엔드가 JWT로 작성자 처리하므로 진행
       const me = await authService.getMe();
       let authorId: number | null =
         me?.id != null && me.id > 0 ? me.id : (await authService.getStoredUserId()) ?? (userId ?? null);
@@ -124,24 +205,53 @@ export default function PostWriteScreen() {
       }
       const authorIdOrUndefined = authorId != null && authorId > 0 ? authorId : undefined;
       const eventId = category === "후기" ? selectedEventId ?? undefined : undefined;
-      const body = { title: trimmedTitle, content: trimmedContent, categoryType: category, eventId };
-      if (editId) {
-        await boardService.updatePost(editId, body, authorIdOrUndefined);
-        router.replace(`/board/${editId}`);
-      } else {
-        const created = await boardService.createPost(body, authorIdOrUndefined);
-        router.replace(`/board/${created.id}`);
+
+      let imageUrls: string[] = [...existingImageUrls];
+      if (selectedImageUris.length > 0) {
+        try {
+          for (const uri of selectedImageUris) {
+            const url = await boardService.uploadPostImage(uri);
+            imageUrls.push(url);
+          }
+        } catch (uploadErr) {
+          const uploadMsg = uploadErr instanceof Error ? uploadErr.message : "사진 업로드 실패";
+          const isAuth = uploadMsg.includes("로그인") || uploadMsg.includes("401") || uploadMsg.includes("403");
+          Alert.alert(
+            "사진 업로드 실패",
+            isAuth
+              ? "로그인이 만료되었을 수 있습니다. 로그아웃 후 다시 로그인해 주세요."
+              : `${uploadMsg}\n\n사진 없이 게시물만 등록할까요?`,
+            [
+              { text: "취소", style: "cancel" },
+              {
+                text: "사진 없이 등록",
+                onPress: async () => {
+                  setSubmitting(true);
+                  try {
+                    await submitPostBody(trimmedTitle, trimmedContent, category, eventId, imageUrls, authorIdOrUndefined, editId, router);
+                  } catch (e2) {
+                    const m = e2 instanceof Error ? e2.message : "등록 실패";
+                    Alert.alert("게시물 등록 실패", m);
+                  } finally {
+                    setSubmitting(false);
+                  }
+                },
+              },
+            ]
+          );
+          setSubmitting(false);
+          return;
+        }
       }
+
+      await submitPostBody(trimmedTitle, trimmedContent, category, eventId, imageUrls, authorIdOrUndefined, editId, router);
     } catch (e) {
-      const isNetworkError =
-        e instanceof Error &&
-        (e.message?.includes("failed") ||
-          e.message?.includes("Network") ||
-          e.message?.includes("fetch"));
-      const msg = isNetworkError
-        ? `서버에 연결할 수 없습니다.\n\n연결 시도 주소: ${API_BASE_URL}\n\n• 백엔드 실행: backend 폴더에서\n  ./gradlew bootRun --args='--spring.profiles.active=local'\n• 에뮬레이터: .env에 http://10.0.2.2:8080\n• 실기기: .env의 EXPO_PUBLIC_API_URL을 PC IP로 (예: http://192.168.0.10:8080)\n• 설정 변경 후 앱 완전 종료 후 다시 실행`
-        : editId ? "게시물 수정에 실패했습니다." : "게시물을 등록할 수 없습니다.";
-      Alert.alert(editId ? "수정 실패" : "게시물 등록 실패", msg);
+      const msg = e instanceof Error ? e.message : String(e);
+      const isNetworkError = msg.includes("failed") || msg.includes("Network") || msg.includes("fetch");
+      const displayMsg = isNetworkError
+        ? `서버에 연결할 수 없습니다.\n\n연결 주소: ${API_BASE_URL}\n\n네트워크와 로그인 상태를 확인해 주세요.`
+        : msg || (editId ? "게시물 수정에 실패했습니다." : "게시물을 등록할 수 없습니다.");
+      Alert.alert(editId ? "수정 실패" : "게시물 등록 실패", displayMsg);
     } finally {
       setSubmitting(false);
     }
@@ -162,7 +272,7 @@ export default function PostWriteScreen() {
           <Text style={styles.headerTitle}>{editId ? "게시물 수정" : "새 게시물"}</Text>
           <Pressable onPress={handleShare} hitSlop={12} disabled={submitting || loadingEdit}>
             {submitting || loadingEdit ? (
-              <ActivityIndicator size="small" color="#2563EB" />
+              <ActivityIndicator size="small" color="#4C8BF5" />
             ) : (
               <Text style={styles.headerShare}>{editId ? "저장" : "공유"}</Text>
             )}
@@ -171,9 +281,12 @@ export default function PostWriteScreen() {
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            keyboardHeight > 0 && { paddingBottom: keyboardHeight + 120 },
+          ]}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
         >
           {/* 카테고리: 후기 / 질문 / 자유 - 게시판 탭과 비슷한 크기, 파란색 */}
           <View style={styles.categoryRow}>
@@ -225,7 +338,67 @@ export default function PostWriteScreen() {
             onChangeText={setTitle}
           />
 
-          {/* 내용 - 라벨 없음 */}
+          {/* 선택한 사진 미리보기 (작은 정사각형, 최대 4장, 스크롤 가능) */}
+          {(selectedImageUris.length > 0 || existingImageUrls.length > 0) && (
+            <View style={[styles.imagePreviewRow, { marginBottom: 16 }]}>
+              {existingImageUrls.map((uri) => (
+                <View
+                  key={uri}
+                  style={[
+                    styles.imagePreviewWrap,
+                    {
+                      width: PREVIEW_SIZE,
+                      height: PREVIEW_SIZE,
+                      marginRight: IMAGE_GAP,
+                      marginBottom: IMAGE_GAP,
+                    },
+                  ]}
+                >
+                  <Image
+                    source={{ uri }}
+                    style={styles.imagePreviewSquare}
+                    resizeMode="cover"
+                  />
+                  <Pressable
+                    style={styles.imagePreviewRemove}
+                    onPress={() => removeImage(uri)}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#374151" />
+                  </Pressable>
+                </View>
+              ))}
+              {selectedImageUris.map((uri) => (
+                <View
+                  key={uri}
+                  style={[
+                    styles.imagePreviewWrap,
+                    {
+                      width: PREVIEW_SIZE,
+                      height: PREVIEW_SIZE,
+                      marginRight: IMAGE_GAP,
+                      marginBottom: IMAGE_GAP,
+                    },
+                  ]}
+                >
+                  <Image
+                    source={{ uri }}
+                    style={styles.imagePreviewSquare}
+                    resizeMode="cover"
+                  />
+                  <Pressable
+                    style={styles.imagePreviewRemove}
+                    onPress={() => removeImage(uri)}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#374151" />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* 내용 - 사진 아래에서부터 작성 */}
           <TextInput
             style={styles.contentInput}
             placeholder="자유롭게 기록해보세요!"
@@ -253,7 +426,7 @@ export default function PostWriteScreen() {
                 </Pressable>
               </View>
               {eventListLoading ? (
-                <ActivityIndicator size="small" color="#2563EB" style={styles.modalLoader} />
+                <ActivityIndicator size="small" color="#4C8BF5" style={styles.modalLoader} />
               ) : (
                 <FlatList
                   data={eventList}
@@ -281,11 +454,26 @@ export default function PostWriteScreen() {
           </Pressable>
         </Modal>
 
-        {/* 사진/동영상, 태그 - 키보드 없을 땐 하단, 키보드 뜨면 키보드 위에 여유 간격 */}
+        {/* 사진, 태그 - 키보드 없을 땐 하단, 키보드 뜨면 키보드 위에 여유 간격 */}
         <View style={[styles.attachRow, { bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 0 }]}>
-          <Pressable style={styles.attachBtn}>
-            <Ionicons name="image-outline" size={22} color="#6B7280" />
-            <Text style={styles.attachText}>사진/동영상</Text>
+          <Pressable
+            style={styles.attachBtn}
+            onPress={openImagePicker}
+            disabled={existingImageUrls.length + selectedImageUris.length >= MAX_IMAGES}
+          >
+            <Ionicons
+              name="image-outline"
+              size={22}
+              color={existingImageUrls.length + selectedImageUris.length >= MAX_IMAGES ? "#D1D5DB" : "#6B7280"}
+            />
+            <Text
+              style={[
+                styles.attachText,
+                existingImageUrls.length + selectedImageUris.length >= MAX_IMAGES && styles.attachTextDisabled,
+              ]}
+            >
+              사진 {(existingImageUrls.length + selectedImageUris.length) > 0 ? `(${existingImageUrls.length + selectedImageUris.length}/${MAX_IMAGES})` : ""}
+            </Text>
           </Pressable>
           <Pressable style={styles.attachBtn}>
             <Text style={styles.hash}>#</Text>
@@ -310,8 +498,8 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   headerCancel: { fontSize: 16, color: "#6B7280" },
-  headerTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
-  headerShare: { fontSize: 16, fontWeight: "600", color: "#2563EB" },
+  headerTitle: { fontSize: 17, fontWeight: "600", color: "#111827", marginLeft: 20 },
+  headerShare: { fontSize: 16, fontWeight: "600", color: "#4C8BF5" },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 72 },
   categoryRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
@@ -324,8 +512,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   categoryChipSelected: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
+    borderColor: "#4C8BF5",
   },
   categoryChipText: { fontSize: 13, color: "#4B5563", fontWeight: "500" },
   categoryChipTextSelected: { color: "#FFFFFF" },
@@ -345,6 +533,28 @@ const styles = StyleSheet.create({
     color: "#111827",
     lineHeight: 22,
   },
+  imagePreviewRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 12,
+  },
+  imagePreviewWrap: {
+    position: "relative",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#F3F4F6",
+  },
+  imagePreviewSquare: {
+    width: "100%",
+    height: "100%",
+  },
+  imagePreviewRemove: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: 14,
+  },
   attachRow: {
     position: "absolute",
     left: 0,
@@ -361,6 +571,7 @@ const styles = StyleSheet.create({
   },
   attachBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 4 },
   attachText: { fontSize: 14, color: "#6B7280" },
+  attachTextDisabled: { color: "#D1D5DB" },
   hash: { fontSize: 16, color: "#6B7280", fontWeight: "600" },
   eventSelectRow: { marginBottom: 16 },
   eventSelectLabel: { fontSize: 13, color: "#6B7280", marginBottom: 8 },
@@ -397,7 +608,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E5E7EB",
   },
   modalTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
-  modalClose: { fontSize: 16, color: "#2563EB" },
+  modalClose: { fontSize: 16, color: "#4C8BF5" },
   modalLoader: { paddingVertical: 24 },
   modalList: { maxHeight: 360 },
   modalItem: {

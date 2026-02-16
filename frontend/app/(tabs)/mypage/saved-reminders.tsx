@@ -65,7 +65,7 @@ export default function SavedRemindersScreen() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const ids = await eventReminder.getScheduledEventIds();
+      const ids = await eventReminder.getScheduledEventIds("booked");
       if (ids.length === 0) {
         setList([]);
         return;
@@ -136,7 +136,7 @@ export default function SavedRemindersScreen() {
 
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#2563EB" />
+            <ActivityIndicator size="large" color="#4C8BF5" />
           </View>
         ) : error ? (
           <View style={styles.center}>
@@ -271,6 +271,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
+    marginLeft: 20,
     fontSize: 15,
     fontWeight: "600",
     color: "#111827",
@@ -415,7 +416,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     paddingHorizontal: 12,
   },
   eventCardFooterCenter: {

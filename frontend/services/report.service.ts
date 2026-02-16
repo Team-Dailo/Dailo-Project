@@ -7,12 +7,16 @@ const getDefaultUserId = (): number => {
   return 1;
 };
 
+/** 신고 API는 인증 필요 → JWT + X-User-Id 전달 */
 const getHeaders = async (): Promise<HeadersInit> => {
+  const token = await authService.getAccessToken();
   const id = (await authService.getStoredUserId()) ?? getDefaultUserId();
-  return {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-User-Id': String(id),
   };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
 };
 
 export type ReportType = 'POST' | 'COMMENT' | 'USER' | 'CHAT';
@@ -23,6 +27,8 @@ export type ReportResponse = {
   reporterId: number;
   targetType: ReportType;
   targetId: number;
+  /** 신고 대상 표시용 (게시물 제목, 댓글 내용 요약 등) */
+  targetDisplay?: string | null;
   reason: ReportReason;
   description?: string;
   status: string;

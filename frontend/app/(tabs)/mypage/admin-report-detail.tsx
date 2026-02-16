@@ -64,7 +64,7 @@ export default function AdminReportDetailScreen() {
   if (loading && !item) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#4C8BF5" />
       </View>
     );
   }
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   btn: {
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#4C8BF5",
     alignItems: "center",
     marginBottom: 8,
   },

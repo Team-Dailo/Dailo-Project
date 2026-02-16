@@ -8,10 +8,12 @@ import * as authService from "../../../services/auth.service";
 
 const MENU_ITEMS: { icon: keyof typeof Ionicons.glyphMap; label: string; route: string }[] = [
   { icon: "calendar-outline", label: "행사 관리", route: "/(tabs)/mypage/admin-events" },
-  { icon: "flag-outline", label: "신고 처리", route: "/(tabs)/mypage/admin-reports" },
-  { icon: "sync-outline", label: "동기화 로그", route: "/(tabs)/mypage/admin-sync-logs" },
-  { icon: "document-text-outline", label: "수집 로그", route: "/(tabs)/mypage/admin-ingest-logs" },
+  { icon: "heart-outline", label: "행사별 좋아요 수", route: "/(tabs)/mypage/admin-event-likes" },
   { icon: "newspaper-outline", label: "게시글 관리", route: "/(tabs)/mypage/admin-posts" },
+  { icon: "megaphone-outline", label: "공지사항 관리", route: "/(tabs)/mypage/admin-notices" },
+  { icon: "flag-outline", label: "신고 기록", route: "/(tabs)/mypage/admin-report-record" },
+  { icon: "ban-outline", label: "차단 관리", route: "/(tabs)/mypage/admin-block-management" },
+  { icon: "people-outline", label: "회원 목록", route: "/(tabs)/mypage/admin-members" },
   { icon: "information-circle-outline", label: "이용안내 수정", route: "/(tabs)/mypage/admin-guide" },
   { icon: "locate-outline", label: "시범 설정", route: "/(tabs)/mypage/demo-settings" },
 ];
@@ -67,7 +69,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 12,
-    gap: 10,
+    gap: 5,
   },
   rowText: { flex: 1 },
   rowLabel: { fontSize: 15, color: "#111827", fontWeight: "500" },

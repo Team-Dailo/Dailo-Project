@@ -27,7 +27,7 @@ export default function AdminIngestLogsScreen() {
   useEffect(() => { load(); }, []);
 
   if (loading && content.length === 0) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#2563EB" /></View>;
+    return <View style={styles.centered}><ActivityIndicator size="large" color="#4C8BF5" /></View>;
   }
 
   return (
