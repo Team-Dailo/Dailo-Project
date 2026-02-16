@@ -6,8 +6,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
@@ -18,7 +16,6 @@ public class AdminMemberListItemDto {
     private String nickname;
     private String role;
     private String status;
-    private LocalDateTime createdAt;
 
     public static AdminMemberListItemDto from(Member member) {
         return AdminMemberListItemDto.builder()
@@ -27,7 +24,6 @@ public class AdminMemberListItemDto {
                 .nickname(member.getNickname())
                 .role(member.getRole() != null ? member.getRole().name() : null)
                 .status(member.getStatus() != null ? member.getStatus().name() : null)
-                .createdAt(member.getCreatedAt())
                 .build();
     }
 }
