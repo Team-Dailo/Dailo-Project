@@ -965,8 +965,8 @@ export default function MapScreen() {
   const row1Top = filterBottomY + 10;
   const scaleLeft = SPACING.scaleButtonLeft;
   const SCALE_BTN_WIDTH = 56;
-  const scaleTop =
-    isLoggedIn && festivalEntry != null ? row1Top + ACTIVE_CHIP_HEIGHT + CHIP_TO_BUTTON_GAP : row1Top;
+  // 축제 참여 칩 UI를 숨겼으므로 규모 버튼 위치는 항상 row1Top 을 사용
+  const scaleTop = row1Top;
   // 북마크: 항상 오른쪽 위, 필터 칩 바로 아래
   const bookmarkTop = row1Top;
   const bookmarkRight = SPACING.base;
@@ -1124,7 +1124,7 @@ export default function MapScreen() {
               { zIndex: isBottomSheetOpen ? 10 : 10 },
             ]}
           >
-            {/* 축제 참여 칩: 로그인 + 저장된 참여 정보가 있을 때만 표시 */}
+            {/* 축제 참여 칩: 로그인 + 저장된 참여 정보가 있을 때만 표시 (현재 비노출 처리)
             {isLoggedIn && festivalEntry != null && (
               <View
                 style={[
@@ -1150,6 +1150,7 @@ export default function MapScreen() {
                 </View>
               </View>
             )}
+            */}
 
             {/* 규모·북마크: 필터 칩 아래 10dp, 같은 수평 라인 */}
             <Pressable

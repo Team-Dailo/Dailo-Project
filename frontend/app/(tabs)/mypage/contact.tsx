@@ -5,7 +5,7 @@ import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const SUPPORT_EMAIL = 'support@dailo.app';
+const SUPPORT_EMAIL = 'yunajo5858@gmail.com';
 
 export default function ContactScreen() {
   const sendEmail = () => {
