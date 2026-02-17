@@ -81,6 +81,9 @@ public class SecurityConfig {
                         // 게시글 사진 등 이미지 업로드 (로그인 사용자)
                         .requestMatchers(HttpMethod.POST, "/api/upload").authenticated()
 
+                        // 업로드된 이미지 조회 (누구나)
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+
                         // 이용 안내 등 앱 콘텐츠 조회 (비로그인 포함)
                         .requestMatchers(HttpMethod.GET, "/api/content/**").permitAll()
 
