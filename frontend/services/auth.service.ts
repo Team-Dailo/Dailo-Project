@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../constants/api';
+import { createFormDataFile } from '../utils/uploadFormData';
 import AsyncStorage from './storageFallback';
 
 const ACCESS_TOKEN_KEY = '@dailo/accessToken';
@@ -362,11 +363,7 @@ export async function uploadProfileImage(imageUri: string): Promise<string> {
   const token = await getAccessToken();
   if (!token) throw new Error('로그인이 필요합니다.');
   const formData = new FormData();
-  formData.append('file', {
-    uri: imageUri,
-    type: 'image/jpeg',
-    name: 'profile.jpg',
-  } as unknown as Blob);
+  formData.append('file', createFormDataFile(imageUri, 'profile.jpg') as unknown as Blob);
   const res = await fetch(`${API_BASE_URL}/api/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },

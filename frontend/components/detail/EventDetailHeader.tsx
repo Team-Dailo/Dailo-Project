@@ -289,9 +289,11 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
               ) : null}
             </View>
           ) : null}
+          {/* 공유 버튼 주석처리
           <Pressable onPress={handlePressShare} style={styles.iconButton} hitSlop={10}>
             <Ionicons name="share-outline" size={22} color="#111827" />
           </Pressable>
+          */}
           <Pressable onPress={handlePressSave} style={styles.iconButton} hitSlop={10}>
             <Ionicons
               name={isScraped ? "bookmark" : "bookmark-outline"}
