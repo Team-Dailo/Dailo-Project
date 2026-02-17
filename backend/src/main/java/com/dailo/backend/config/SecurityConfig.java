@@ -62,6 +62,9 @@ public class SecurityConfig {
                         //  Swagger 문서는 누구나 접근 가능
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**").permitAll()
 
+                        // 헬스체크 (ALB Target Group)
+                        .requestMatchers("/health", "/actuator/health").permitAll()
+
                         // 로그인, 회원가입
                         .requestMatchers("/api/auth/**").permitAll()
 
