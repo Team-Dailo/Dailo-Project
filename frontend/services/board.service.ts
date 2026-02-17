@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../constants/api';
+import { createFormDataFile } from '../utils/uploadFormData';
 import { getAccessToken, getStoredUserId, getMe, setStoredUserId } from './auth.service';
 import type {
   PostListItem,
@@ -175,11 +176,7 @@ export async function uploadPostImage(imageUri: string): Promise<string> {
   const token = await getAccessToken();
   if (!token) throw new Error('로그인이 필요합니다.');
   const formData = new FormData();
-  formData.append('file', {
-    uri: imageUri,
-    type: 'image/jpeg',
-    name: 'photo.jpg',
-  } as unknown as Blob);
+  formData.append('file', createFormDataFile(imageUri, 'photo.jpg') as unknown as Blob);
   const res = await fetch(`${API_BASE_URL}/api/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },

@@ -3,6 +3,7 @@
  * 백엔드 /api/admin/* 연동
  */
 import { API_BASE_URL } from '../constants/api';
+import { createFormDataFile } from '../utils/uploadFormData';
 import * as authService from './auth.service';
 
 /** 저장된 회원 ID 반환. 없으면 getMe()로 조회해 저장. 그래도 없으면 null (백엔드가 JWT에서 ID 사용) */
@@ -258,11 +259,7 @@ export async function uploadAdminEventImage(imageUri: string): Promise<string> {
   if (!token) throw new Error('로그인이 필요합니다.');
   const userId = await getAdminUserId();
   const formData = new FormData();
-  formData.append('file', {
-    uri: imageUri,
-    type: 'image/jpeg',
-    name: 'photo.jpg',
-  } as unknown as Blob);
+  formData.append('file', createFormDataFile(imageUri, 'photo.jpg') as unknown as Blob);
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
   };

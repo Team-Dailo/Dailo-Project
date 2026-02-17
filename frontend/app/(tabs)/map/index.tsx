@@ -1239,12 +1239,12 @@ export default function MapScreen() {
                 styles.listButtonWrapper,
                 {
                   bottom: tabBarOffset + (isBottomSheetOpen && sheetMode === 'expanded'
-                    ? -68
+                    ? -80
                     : !isBottomSheetOpen
-                      ? -68
+                      ? -80
                       : collapsedSheetHeight > 0
-                        ? collapsedSheetHeight - 68
-                        : 62),
+                        ? collapsedSheetHeight - 80
+                        : -80),
                 },
               ]}
           >
