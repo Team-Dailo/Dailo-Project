@@ -1,6 +1,7 @@
 package com.dailo.backend.dto;
 
 import com.dailo.backend.entity.Notice;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class NoticeResponseDto {
 

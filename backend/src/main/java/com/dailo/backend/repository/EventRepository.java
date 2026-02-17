@@ -84,5 +84,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     /** 제목이 정확히 일치하는 이벤트 목록 (이전 시드 삭제용) */
     List<Event> findByTitleIn(List<String> titles);
+
+    /** 특정 기간에 시작하는 행사 조회 (D-1 알림용) */
+    List<Event> findByStartAtBetween(LocalDateTime start, LocalDateTime end);
 }
 
