@@ -87,7 +87,7 @@ export default function MyPageScreen() {
           </Pressable>
         </View>
 
-        {/* 참여 중인 축제 카드: 로그인 + 지도에서 축제 구역 진입 중일 때만 표시 (로컬 저장). 참여한 축제/체류 미션 기록은 서버에 저장된 과거 기록입니다. */}
+        {/* 참여 중인 축제 카드: 로그인 + 지도에서 축제 구역 진입 중일 때만 표시 (현재 비노출 처리)
         {isLoggedIn && festivalEntry != null && (
           <View style={styles.activeFestivalCard}>
             <View style={styles.badgeRow}>
@@ -102,6 +102,7 @@ export default function MyPageScreen() {
             <Text style={styles.activeFestivalHint}>지도에서 해당 축제 구역에 있을 때만 표시됩니다.</Text>
           </View>
         )}
+        */}
 
         {/* 섹션: 활동 기록 (비로그인 시 로그인 화면으로) */}
         <Section title="활동 기록">
@@ -125,6 +126,7 @@ export default function MyPageScreen() {
                 : router.push("/login")
             }
           />
+          {/* 체류 미션 기록 메뉴 비노출 처리
           <MenuItem
             icon="flag-outline"
             label="체류 미션 기록"
@@ -134,6 +136,7 @@ export default function MyPageScreen() {
                 : router.push("/login")
             }
           />
+          */}
           <MenuItem
             icon="bookmark-outline"
             label="저장한 게시글"
@@ -187,6 +190,7 @@ export default function MyPageScreen() {
 
         {/* 섹션: 신고·차단 */}
         <Section title="신고·차단">
+          {/* 신고 모아놓는 곳(내 신고 목록) 비노출 처리
           <MenuItem
             icon="flag-outline"
             label="내 신고 목록"
@@ -196,6 +200,7 @@ export default function MyPageScreen() {
                 : router.push("/login")
             }
           />
+          */}
           <MenuItem
             icon="ban-outline"
             label="차단 기록"
