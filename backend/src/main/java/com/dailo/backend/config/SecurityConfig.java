@@ -81,6 +81,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/posts/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/posts/**").authenticated()
 
+                        // 업로드된 이미지 조회 (프로필/게시물 사진) - 공개로 허용
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+
                         // 게시글 사진 등 이미지 업로드 (로그인 사용자)
                         .requestMatchers(HttpMethod.POST, "/api/upload").authenticated()
 
