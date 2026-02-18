@@ -155,6 +155,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 18,
     backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     justifyContent: 'center',
     elevation: 4,
     shadowColor: 'rgba(0,0,0,0.12)',

@@ -1433,7 +1433,7 @@ export default function MapScreen() {
         }}
         onPressMyActivities={() => {
           setIsMenuOpen(false);
-          router.push('/(tabs)/mypage/stay-mission-history');
+          router.push('/(tabs)/mypage/participated-festivals');
         }}
         onPressDirection={() => {
           setIsMenuOpen(false);
