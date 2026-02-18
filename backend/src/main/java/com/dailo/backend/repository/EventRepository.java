@@ -87,5 +87,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     /** 특정 기간에 시작하는 행사 조회 (D-1 알림용) */
     List<Event> findByStartAtBetween(LocalDateTime start, LocalDateTime end);
+
+    /** 크롤링 원본 URL로 중복 체크 */
+    boolean existsBySourceUrl(String sourceUrl);
 }
 
