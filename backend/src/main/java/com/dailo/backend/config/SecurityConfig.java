@@ -94,6 +94,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/admin/members").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/admin/blocks/heavy-blocked").authenticated()
                         .requestMatchers(HttpMethod.PATCH, "/api/admin/members/*/suspend").authenticated()
+                        // 크롤러 API (테스트용 - 추후 인증 추가)
+                        .requestMatchers(HttpMethod.POST, "/api/admin/crawler/**").permitAll()
                         // 그 외 관리자 API
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
