@@ -6,6 +6,8 @@ import com.dailo.backend.domain.enums.EventStatus;
 import com.dailo.backend.dto.AdminEventCreateRequest;
 import com.dailo.backend.dto.AdminEventResponse;
 import com.dailo.backend.dto.admin.AdminEventLikeCountDto;
+import com.dailo.backend.dto.admin.AdminEventViewCountDto;
+import com.dailo.backend.repository.ClickLogRepository;
 import com.dailo.backend.repository.EventRepository;
 import com.dailo.backend.repository.EventHistoryRepository;
 import com.dailo.backend.repository.EventLikeRepository;
@@ -28,6 +30,7 @@ public class AdminEventService {
     private final EventRepository eventRepository;
     private final EventHistoryRepository eventHistoryRepository;
     private final EventLikeRepository eventLikeRepository;
+    private final ClickLogRepository clickLogRepository;
 
     // 행사 생성
     @Transactional // 쓰기 모드
@@ -151,6 +154,38 @@ public class AdminEventService {
                     .likeCount(count)
                     .build());
         }
+        return result;
+    }
+
+    /** 행사별 조회수 (관리자용) - 누적 조회수 많은 순 */
+    public List<AdminEventViewCountDto> getEventViewCounts() {
+        List<Object[]> rows = clickLogRepository.findClickCountsAllTime();
+        if (rows.isEmpty()) return new ArrayList<>();
+
+        List<Long> eventIds = rows.stream()
+                .map(r -> ((Number) r[0]).longValue())
+                .collect(Collectors.toList());
+        Map<Long, Event> eventMap = eventRepository.findAllById(eventIds).stream()
+                .collect(Collectors.toMap(Event::getId, e -> e));
+
+        List<AdminEventViewCountDto> result = new ArrayList<>();
+        for (Object[] row : rows) {
+            Long eventId = ((Number) row[0]).longValue();
+            long total = ((Number) row[1]).longValue();
+            Event event = eventMap.get(eventId);
+            String title = event != null ? event.getTitle() : "(삭제된 행사)";
+            int view7d = event != null && event.getViewCount7d() != null ? event.getViewCount7d() : 0;
+            int view30d = event != null && event.getViewCount30d() != null ? event.getViewCount30d() : 0;
+            result.add(AdminEventViewCountDto.builder()
+                    .eventId(eventId)
+                    .title(title)
+                    .totalViewCount(total)
+                    .viewCount7d(view7d)
+                    .viewCount30d(view30d)
+                    .build());
+        }
+        // 누적 조회수 많은 순으로 정렬
+        result.sort((a, b) -> Long.compare(b.getTotalViewCount(), a.getTotalViewCount()));
         return result;
     }
 

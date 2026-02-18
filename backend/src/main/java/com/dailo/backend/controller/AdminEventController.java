@@ -3,6 +3,7 @@ package com.dailo.backend.controller;
 import com.dailo.backend.dto.AdminEventCreateRequest;
 import com.dailo.backend.dto.AdminEventResponse;
 import com.dailo.backend.dto.admin.AdminEventLikeCountDto;
+import com.dailo.backend.dto.admin.AdminEventViewCountDto;
 import com.dailo.backend.service.AdminEventService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,12 @@ public class AdminEventController {
     @GetMapping("/like-counts")
     public ResponseEntity<List<AdminEventLikeCountDto>> getEventLikeCounts() {
         return ResponseEntity.ok(adminEventService.getEventLikeCounts());
+    }
+
+    /** 행사별 조회수 (관리자용) - 누적 조회수 기준 */
+    @GetMapping("/view-counts")
+    public ResponseEntity<List<AdminEventViewCountDto>> getEventViewCounts() {
+        return ResponseEntity.ok(adminEventService.getEventViewCounts());
     }
 
     // 행사 상세 조회 (GET)
