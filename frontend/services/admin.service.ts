@@ -207,6 +207,21 @@ export async function getAdminEventLikeCounts(): Promise<AdminEventLikeCountDto[
   return res.json();
 }
 
+/** 행사별 조회수 (관리자용) */
+export type AdminEventViewCountDto = {
+  eventId: number;
+  title: string;
+  totalViewCount: number;
+  viewCount7d: number;
+  viewCount30d: number;
+};
+
+export async function getAdminEventViewCounts(): Promise<AdminEventViewCountDto[]> {
+  const res = await adminFetch('/api/admin/events/view-counts');
+  if (!res.ok) throw new Error(await res.text().then((t) => t || `조회 실패 (${res.status})`));
+  return res.json();
+}
+
 async function parseErrorResponse(res: Response): Promise<string> {
   const text = await res.text();
   if (!text) return `요청 실패 (${res.status})`;

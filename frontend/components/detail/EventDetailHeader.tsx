@@ -171,9 +171,10 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
   const placeStr = event.placeName?.trim() || "장소 미정";
   const organizerStr = event.hostContact?.trim() || "—";
 
-  /** 네이버 지도 길찾기: 출발=현재위치, 도착=행사 주소 (앱 또는 웹) */
+  /** 네이버 지도 길찾기: 출발=현재위치, 도착=행사 한글 주소(가능하면 placeAddress 우선) */
   const openNaverDirection = async () => {
-    const destination = (event.placeAddress || event.placeName || event.title || "").trim() || "행사 장소";
+    const address = (event.placeAddress ?? "").trim();
+    const destination = address || (event.title ?? "").trim() || "행사 장소";
     const hasCoords = event.latitude != null && event.longitude != null && Number.isFinite(event.latitude) && Number.isFinite(event.longitude);
 
     const openNaverWeb = () => {
@@ -257,7 +258,16 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
       if (value !== "true") {
         Alert.alert(
           "알림 설정",
-          "알림설정에서 '예약한 행사 알림'을 켜주세요. 마이페이지 → 알림설정에서 설정할 수 있어요."
+          "알림설정에서 '예약한 행사 알림'을 켜주세요. 마이페이지 → 알림설정에서 설정할 수 있어요.",
+          [
+            { text: "취소", style: "cancel" },
+            {
+              text: "설정으로 이동",
+              onPress: () => {
+                router.push({ pathname: "/(tabs)/mypage/notification-settings", params: { from: "event-detail" } });
+              },
+            },
+          ]
         );
         return;
       }

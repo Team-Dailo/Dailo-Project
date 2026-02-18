@@ -57,10 +57,11 @@ type Props = {
   distanceFilterCenter?: { latitude: number; longitude: number } | null;
 };
 
-const MY_LOCATION_CIRCLE_RADIUS_M = 25;
-const MY_LOCATION_CIRCLE_COLOR = '#4285F4';
-const MY_LOCATION_CIRCLE_OUTLINE_WIDTH = 3;
-const MY_LOCATION_CIRCLE_OUTLINE_COLOR = '#ffffff';
+// 현재 위치 점: 화면 상에서 항상 일정한 크기의 점으로 표시 (줌 레벨과 무관)
+const MY_LOCATION_MARKER_SIZE = 18;
+const MY_LOCATION_MARKER_COLOR = '#4285F4';
+const MY_LOCATION_MARKER_OUTLINE_COLOR = '#FFFFFF';
+const MY_LOCATION_MARKER_OUTLINE_WIDTH = 3;
 
 /** 마커 선택 시 표시하는 행사 반경 원 (200m) */
 const EVENT_ZONE_RADIUS_M = 200;
@@ -171,17 +172,26 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
         myLocationCoords != null &&
         Number.isFinite(myLocationCoords.latitude) &&
         Number.isFinite(myLocationCoords.longitude) && (
-          <NaverMapCircleOverlay
-            key="my-location-circle"
+          <NaverMapMarkerOverlay
+            key="my-location-marker"
             latitude={myLocationCoords.latitude}
             longitude={myLocationCoords.longitude}
-            radius={MY_LOCATION_CIRCLE_RADIUS_M}
-            color={MY_LOCATION_CIRCLE_COLOR}
-            outlineWidth={MY_LOCATION_CIRCLE_OUTLINE_WIDTH}
-            outlineColor={MY_LOCATION_CIRCLE_OUTLINE_COLOR}
-            zIndex={10}
+            width={MY_LOCATION_MARKER_SIZE}
+            height={MY_LOCATION_MARKER_SIZE}
+            anchor={{ x: 0.5, y: 0.5 }}
             globalZIndex={300000}
-          />
+          >
+            <View
+              style={{
+                width: MY_LOCATION_MARKER_SIZE,
+                height: MY_LOCATION_MARKER_SIZE,
+                borderRadius: MY_LOCATION_MARKER_SIZE / 2,
+                backgroundColor: MY_LOCATION_MARKER_COLOR,
+                borderWidth: MY_LOCATION_MARKER_OUTLINE_WIDTH,
+                borderColor: MY_LOCATION_MARKER_OUTLINE_COLOR,
+              }}
+            />
+          </NaverMapMarkerOverlay>
         )}
       {distanceFilterRadiusM != null &&
         distanceFilterRadiusM > 0 &&
