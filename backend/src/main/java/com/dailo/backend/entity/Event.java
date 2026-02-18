@@ -88,6 +88,10 @@ public class Event {
     // 주최측 연락처
     private String hostContact;
 
+    /** 크롤링 원본 URL (중복 체크용) */
+    @Column(name = "source_url", length = 500, unique = true)
+    private String sourceUrl;
+
     @Column(name = "like_count")
     @Builder.Default
     private Integer likeCount = 0;
