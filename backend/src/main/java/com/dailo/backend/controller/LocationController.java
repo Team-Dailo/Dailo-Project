@@ -25,7 +25,7 @@ public class LocationController {
     private final LocationService locationService;
     private final MemberRepository memberRepository; // [추가] DB 조회를 위해 필요
 
-    @Operation(summary = "체류 인증 시작 (타이머 START)", description = "행사장 반경 50m 내에 진입 시 호출.")
+    @Operation(summary = "체류 인증 시작 (타이머 START)", description = "행사장 반경 200m 내에 진입 시 호출.")
     @PostMapping("/start")
     public ResponseEntity<String> startStay(
             @AuthenticationPrincipal UserDetails userDetails,
