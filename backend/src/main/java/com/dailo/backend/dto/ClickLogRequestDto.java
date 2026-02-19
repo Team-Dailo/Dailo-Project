@@ -18,13 +18,14 @@ public class ClickLogRequestDto {
 
     public void validate() {
         if (eventId == null) {
-            throw new IllegalArgumentException("Event ID cannot be null");
+            throw new IllegalArgumentException("eventId is required");
         }
         if (source == null || source.trim().isEmpty()) {
-            throw new IllegalArgumentException("Source cannot be empty");
-        }
-        if (source.trim().length() > 50) {
+            this.source = "unknown";
+        } else if (source.trim().length() > 50) {
             throw new IllegalArgumentException("Source is too long (max 50 characters)");
+        } else {
+            this.source = this.source.trim();
         }
         if (requestId != null && requestId.length() > 100) {
             throw new IllegalArgumentException("Request ID is too long (max 100 characters)");
@@ -32,10 +33,11 @@ public class ClickLogRequestDto {
     }
 
     public ClickLog toEntity(Long userId) {
+        validate();
         return ClickLog.builder()
                 .userId(userId)
                 .eventId(this.eventId)
-                .source(this.source.trim())
+                .source(this.source)
                 .requestId(this.requestId)
                 .build();
     }

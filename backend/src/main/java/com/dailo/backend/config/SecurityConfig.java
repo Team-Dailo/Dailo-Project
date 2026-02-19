@@ -74,27 +74,27 @@ public class SecurityConfig {
                         // 내가 쓴 글 / 좋아요 누른 글 (마이페이지) - 인증 필요
                         .requestMatchers(HttpMethod.GET, "/api/posts/my").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/posts/liked").authenticated()
-                        // 게시판·댓글 조회 (비로그인도 목록/상세/댓글 읽기 가능)
+                        // 게시판·댓글 조회 (비로그인도 목록/상세/댓글·게시판 사진 읽기 가능)
                         .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
                         // 게시판 작성/수정/삭제는 인증 필요
                         .requestMatchers(HttpMethod.POST, "/api/posts/**").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/posts/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/posts/**").authenticated()
 
-                        // 업로드된 이미지 조회 (프로필/게시물 사진) - 공개로 허용
+                        // 업로드된 이미지 조회 (게시판 사진·프로필 등) - 로그아웃 사용자도 볼 수 있도록 공개
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
 
                         // 게시글 사진 등 이미지 업로드 (로그인 사용자)
                         .requestMatchers(HttpMethod.POST, "/api/upload").authenticated()
-
-                        // 업로드된 이미지 조회 (누구나)
-                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
 
                         // 이용 안내 등 앱 콘텐츠 조회 (비로그인 포함)
                         .requestMatchers(HttpMethod.GET, "/api/content/**").permitAll()
 
                         // 공지사항 조회 (비로그인 포함)
                         .requestMatchers(HttpMethod.GET, "/api/notices/**").permitAll()
+
+                        // 조회수: 클릭 로그 기록·조회 (비로그인도 행사 상세 진입 시 기록/표시)
+                        .requestMatchers("/api/logs/click", "/api/logs/click/**").permitAll()
 
                         // 회원 목록·차단관리: 인증만 필요, 컨트롤러에서 DB/설정 기준 ADMIN 여부 확인
                         .requestMatchers(HttpMethod.GET, "/api/admin/members").authenticated()
@@ -107,6 +107,9 @@ public class SecurityConfig {
 
                         // 스크랩 기능은 "로그인한 사람"만 가능
                         .requestMatchers("/api/scraps/**").authenticated()
+
+                        // 위치 기반 체류 인증 API (로그인 사용자만)
+                        .requestMatchers("/api/location/**").authenticated()
 
                         // 그 외 모든 요청(스크랩, 마이페이지 등)은 '인증된 사용자'만 가능
                         .anyRequest().authenticated()
