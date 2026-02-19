@@ -120,7 +120,7 @@ export function SideMenu({
               </View>
             </View>
 
-            {/* 3) 참여 중인 축제 카드 (로그인 + 진입 중일 때만) - 현재 비노출 처리
+            {/* 3) 참여 중인 축제 카드 (로그인 + 진입 중일 때만) */}
             {isLoggedIn && festivalEntry != null && (
               <TouchableOpacity
                 style={styles.festivalCard}
@@ -140,7 +140,6 @@ export function SideMenu({
                 <Text style={styles.festivalTimer}>{festivalElapsed}</Text>
               </TouchableOpacity>
             )}
-            */}
 
             {/* 4) 섹션 타이틀 MY FESTIVAL (로그인 시에만) */}
             {isLoggedIn && (
@@ -186,19 +185,8 @@ export function SideMenu({
               SERVICE
             </Text>
 
-            {/* 행사 새로고침: 현재 위치·행사 재조회 후 구역 여부 바로 알림 (현재 비노출 처리)
-            {onPressRefreshLocationAndCheck != null && (
-              <MenuRow
-                icon="refresh-outline"
-                label="행사 새로고침"
-                iconColor="#4C8BF5"
-                circleBg="#DBEAFE"
-                onPress={() => {
-                  onClose();
-                  onPressRefreshLocationAndCheck();
-                }}
-              />
-            )}
+            {/* 행사 새로고침 — 주석 처리 (복구 시 아래 MenuRow 주석 해제)
+            <MenuRow icon="refresh-outline" label="행사 새로고침" iconColor="#4C8BF5" circleBg="#DBEAFE" onPress={() => { onClose(); onPressRefreshLocationAndCheck?.(); }} />
             */}
 
             {/* 7) 서비스 메뉴 리스트 3개 */}

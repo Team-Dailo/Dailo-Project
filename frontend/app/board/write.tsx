@@ -27,6 +27,8 @@ import * as eventService from "../../services/event.service";
 import { useMyUserId } from "../../hooks/useAuth";
 import { API_BASE_URL } from "../../constants/api";
 import type { Event } from "../../types/event";
+import { getDemoLocation } from "../../services/demoLocationStorage";
+import { getCurrentRegionKey, EVENT_PICKER_REGION_OPTIONS } from "../../utils/eventPickerRegion";
 
 const CATEGORIES = ["후기", "질문", "자유"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -53,6 +55,13 @@ export default function PostWriteScreen() {
   const [eventPickerVisible, setEventPickerVisible] = useState(false);
   const [eventList, setEventList] = useState<Event[]>([]);
   const [eventListLoading, setEventListLoading] = useState(false);
+  /** 행사 선택 필터: 지역(기본=현재 위치 도시) / 월(기본=현재 월) / 행사명 */
+  const [eventPickerRegion, setEventPickerRegion] = useState<string>("");
+  const [eventPickerMonth, setEventPickerMonth] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [eventPickerKeyword, setEventPickerKeyword] = useState<string>("");
   /** 선택한 사진 URI 목록 (동영상 불가, 사진만) */
   const [selectedImageUris, setSelectedImageUris] = useState<string[]>([]);
   /** 수정 시 기존 게시글에 있던 이미지 URL (서버에 이미 저장됨) */
@@ -170,20 +179,91 @@ export default function PostWriteScreen() {
     []
   );
 
+  /** 선택한 월(YYYY-MM) → 해당 월 1일 ~ 마지막일. 비어있거나 잘못된 값이면 현재 월 */
+  const getMonthRange = useCallback((yyyyMm: string): { startAt: string; endAt: string } => {
+    const trimmed = (yyyyMm || "").trim();
+    const match = /^(\d{4})-(\d{1,2})$/.exec(trimmed);
+    const d = new Date();
+    const y = match ? Number(match[1]) : d.getFullYear();
+    const m = match ? Number(match[2]) : d.getMonth() + 1;
+    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) {
+      const ny = d.getFullYear();
+      const nm = d.getMonth() + 1;
+      const startAt = `${ny}-${String(nm).padStart(2, "0")}-01`;
+      const lastDay = new Date(ny, nm, 0).getDate();
+      const endAt = `${ny}-${String(nm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+      return { startAt, endAt };
+    }
+    const startAt = `${y}-${String(m).padStart(2, "0")}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const endAt = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+    return { startAt, endAt };
+  }, []);
+
+  const loadEventListForPicker = useCallback(
+    async (overrides?: { region?: string; month?: string; keyword?: string }) => {
+      setEventListLoading(true);
+      const region = overrides?.region ?? eventPickerRegion;
+      const month = overrides?.month ?? eventPickerMonth;
+      const keyword = overrides?.keyword ?? eventPickerKeyword;
+      try {
+        const { startAt, endAt } = getMonthRange(month);
+        const list = await eventService.getEventList({
+          page: 1,
+          size: 100,
+          region: region === "전체" || !region ? undefined : region,
+          startAt,
+          endAt,
+          keyword: keyword.trim() || undefined,
+        });
+        setEventList(list ?? []);
+        const idNum = selectedEventId != null ? Number(selectedEventId) : NaN;
+        const found = (list ?? []).find((e) => Number(e.id) === idNum);
+        if (found) setSelectedEventTitle(found.title ?? "");
+      } catch {
+        setEventList([]);
+      } finally {
+        setEventListLoading(false);
+      }
+    },
+    [eventPickerRegion, eventPickerMonth, eventPickerKeyword, getMonthRange, selectedEventId]
+  );
+
   const openEventPicker = useCallback(async () => {
     setEventPickerVisible(true);
+    let region = eventPickerRegion;
+    if (!region) {
+      try {
+        const loc = await getDemoLocation();
+        const key = loc ? getCurrentRegionKey(loc.latitude, loc.longitude) : null;
+        region = key ?? "전체";
+        setEventPickerRegion(region);
+      } catch {
+        region = "전체";
+        setEventPickerRegion(region);
+      }
+    }
     setEventListLoading(true);
     try {
-      const list = await eventService.getEventList({ page: 1, size: 100 });
+      const { startAt, endAt } = getMonthRange(eventPickerMonth);
+      const list = await eventService.getEventList({
+        page: 1,
+        size: 100,
+        region: region === "전체" ? undefined : region,
+        startAt,
+        endAt,
+        keyword: eventPickerKeyword.trim() || undefined,
+      });
       setEventList(list ?? []);
-      const found = (list ?? []).find((e) => e.id === selectedEventId);
+      const idNum = selectedEventId != null ? Number(selectedEventId) : NaN;
+      const found = (list ?? []).find((e) => Number(e.id) === idNum);
       if (found) setSelectedEventTitle(found.title ?? "");
     } catch {
       setEventList([]);
     } finally {
       setEventListLoading(false);
     }
-  }, [selectedEventId]);
+  }, [eventPickerRegion, eventPickerMonth, eventPickerKeyword, getMonthRange, selectedEventId]);
 
   const handleShare = async () => {
     const trimmedTitle = title.trim();
@@ -410,7 +490,7 @@ export default function PostWriteScreen() {
           />
         </ScrollView>
 
-        {/* 행사 선택 모달 */}
+        {/* 행사 선택 모달: 지역 / 월 / 행사명 필터 */}
         <Modal
           visible={eventPickerVisible}
           animationType="slide"
@@ -424,6 +504,67 @@ export default function PostWriteScreen() {
                 <Pressable onPress={() => setEventPickerVisible(false)} hitSlop={12}>
                   <Text style={styles.modalClose}>닫기</Text>
                 </Pressable>
+              </View>
+              <View style={styles.eventPickerFilters}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.eventPickerFilterRow}>
+                  <Text style={styles.eventPickerFilterLabel}>지역</Text>
+                  <ScrollView horizontal contentContainerStyle={styles.eventPickerChips}>
+                    {EVENT_PICKER_REGION_OPTIONS.map((r) => (
+                      <Pressable
+                        key={r}
+                        style={[styles.eventPickerChip, eventPickerRegion === r && styles.eventPickerChipActive]}
+                        onPress={() => {
+                          setEventPickerRegion(r);
+                          loadEventListForPicker({ region: r });
+                        }}
+                      >
+                        <Text style={[styles.eventPickerChipText, eventPickerRegion === r && styles.eventPickerChipTextActive]}>{r}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </ScrollView>
+                <View style={styles.eventPickerFilterRow}>
+                  <Text style={styles.eventPickerFilterLabel}>월</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.eventPickerChips}>
+                    {(() => {
+                      const now = new Date();
+                      const options: string[] = [];
+                      for (let i = -6; i <= 12; i++) {
+                        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+                        options.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+                      }
+                      return options.map((yyyyMm) => {
+                        const [y, m] = yyyyMm.split("-").map(Number);
+                        const label = now.getFullYear() === y ? `${m}월` : `${y}년 ${m}월`;
+                        return (
+                          <Pressable
+                            key={yyyyMm}
+                            style={[styles.eventPickerChip, eventPickerMonth === yyyyMm && styles.eventPickerChipActive]}
+                            onPress={() => {
+                              setEventPickerMonth(yyyyMm);
+                              loadEventListForPicker({ month: yyyyMm });
+                            }}
+                          >
+                            <Text style={[styles.eventPickerChipText, eventPickerMonth === yyyyMm && styles.eventPickerChipTextActive]}>{label}</Text>
+                          </Pressable>
+                        );
+                      });
+                    })()}
+                  </ScrollView>
+                </View>
+                <View style={styles.eventPickerKeywordRow}>
+                  <Text style={styles.eventPickerFilterLabel}>행사명</Text>
+                  <TextInput
+                    style={styles.eventPickerKeywordInput}
+                    placeholder="행사명 검색"
+                    placeholderTextColor="#9CA3AF"
+                    value={eventPickerKeyword}
+                    onChangeText={setEventPickerKeyword}
+                  />
+                  <Pressable style={styles.eventPickerSearchBtn} onPress={loadEventListForPicker} disabled={eventListLoading}>
+                    <Text style={styles.eventPickerSearchBtnText}>검색</Text>
+                  </Pressable>
+                </View>
               </View>
               {eventListLoading ? (
                 <ActivityIndicator size="small" color="#4C8BF5" style={styles.modalLoader} />
@@ -604,8 +745,36 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
   modalClose: { fontSize: 16, color: "#4C8BF5" },
+  eventPickerFilters: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", gap: 10 },
+  eventPickerFilterRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  eventPickerFilterLabel: { fontSize: 13, color: "#6B7280", width: 44, marginRight: 8 },
+  eventPickerChips: { flexDirection: "row", gap: 8, paddingVertical: 4 },
+  eventPickerChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
+  eventPickerChipActive: { backgroundColor: "#4C8BF5", borderColor: "#4C8BF5" },
+  eventPickerChipText: { fontSize: 13, color: "#4B5563", fontWeight: "500" },
+  eventPickerChipTextActive: { color: "#FFFFFF" },
+  eventPickerKeywordRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  eventPickerKeywordInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#111827",
+  },
+  eventPickerSearchBtn: { backgroundColor: "#4C8BF5", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+  eventPickerSearchBtnText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   modalLoader: { paddingVertical: 24 },
-  modalList: { maxHeight: 360 },
+  modalList: { maxHeight: 280 },
   modalItem: {
     paddingHorizontal: 16,
     paddingVertical: 14,

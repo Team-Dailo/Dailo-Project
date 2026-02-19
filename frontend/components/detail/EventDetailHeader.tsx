@@ -97,11 +97,16 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
   const [clickCount, setClickCount] = useState<number | null>(null);
   const [hasReminder, setHasReminder] = useState(false);
 
+  // 행사 상세 진입 시 조회(클릭) 로그 기록 + 조회수 표시
   useEffect(() => {
     if (!id || !event) return;
     const eventIdNum = Number(id);
     if (!Number.isFinite(eventIdNum)) return;
-    logService.getEventClickCount(eventIdNum).then(setClickCount).catch(() => {});
+    logService
+      .logClick({ eventId: eventIdNum, source: "event_detail" })
+      .then(() => logService.getEventClickCount(eventIdNum))
+      .then(setClickCount)
+      .catch(() => logService.getEventClickCount(eventIdNum).then(setClickCount).catch(() => {}));
   }, [id, event]);
 
   useEffect(() => {
@@ -136,6 +141,13 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
   };
 
   const handlePressSave = () => {
+    if (!isLoggedIn) {
+      Alert.alert("로그인 필요", "저장 기능은 로그인 후 사용할 수 있습니다.", [
+        { text: "취소" },
+        { text: "로그인", onPress: () => router.push("/login") },
+      ]);
+      return;
+    }
     if (onSave) return onSave();
     return defaultSave();
   };
@@ -304,7 +316,11 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
             <Ionicons name="share-outline" size={22} color="#111827" />
           </Pressable>
           */}
-          <Pressable onPress={handlePressSave} style={styles.iconButton} hitSlop={10}>
+          <Pressable
+            onPress={handlePressSave}
+            style={[styles.iconButton, !isLoggedIn && { opacity: 0.6 }]}
+            hitSlop={10}
+          >
             <Ionicons
               name={isScraped ? "bookmark" : "bookmark-outline"}
               size={22}

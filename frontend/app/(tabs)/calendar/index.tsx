@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useAuthContext } from "../../../hooks/useAuth";
 import { getCalendarEvents, type CalendarEventItem } from "../../../services/event.service";
 import * as scrapService from "../../../services/scrap.service";
 import { getEventColorByFilterGroup, MAP_UI } from "../../../constants/colors";
@@ -315,7 +316,15 @@ export default function CalendarScreen() {
     return eventsByDayAll[selectedDay] ?? [];
   }, [eventsByDayAll, selectedDay]);
 
+  const { isLoggedIn } = useAuthContext();
   const handleToggleBookmark = useCallback(async (ev: CalendarEventItem) => {
+    if (!isLoggedIn) {
+      Alert.alert("로그인 필요", "저장 기능은 로그인 후 사용할 수 있습니다.", [
+        { text: "취소" },
+        { text: "로그인", onPress: () => router.push("/login") },
+      ]);
+      return;
+    }
     try {
       const isNowSaved = await scrapService.toggleScrap(ev.id);
       setEvents((prev) =>
@@ -325,7 +334,7 @@ export default function CalendarScreen() {
       const msg = err instanceof Error ? err.message : "저장할 수 없습니다.";
       Alert.alert("알림", msg.includes("로그인") ? "로그인 후 저장할 수 있어요." : msg);
     }
-  }, []);
+  }, [isLoggedIn]);
 
   const handlePrevMonth = () => {
     if (viewMonth === 1) {

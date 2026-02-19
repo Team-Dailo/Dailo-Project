@@ -1,5 +1,5 @@
 // 관리자 - 행사별 좋아요 수 (GET /api/admin/events/like-counts)
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Pressable,
+  TextInput,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import * as adminService from "../../../services/admin.service";
@@ -19,6 +21,17 @@ export default function AdminEventLikesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const filteredList = useMemo(() => {
+    const q = appliedSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (item) =>
+        (item.title ?? "").toLowerCase().includes(q) ||
+        String(item.eventId).includes(q)
+    );
+  }, [list, appliedSearch]);
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
@@ -65,10 +78,36 @@ export default function AdminEventLikesScreen() {
         <Text style={styles.empty}>좋아요가 누적된 행사가 없습니다.</Text>
       ) : (
         <>
-          <Text style={styles.summary}>
-            행사별 좋아요 수 (총 {list.length}건, 좋아요 많은 순)
-          </Text>
-          {list.map((item) => (
+          <View style={styles.searchBarWrap}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="행사명 또는 행사 ID 검색"
+              placeholderTextColor="#9CA3AF"
+              value={searchKeyword}
+              onChangeText={setSearchKeyword}
+              returnKeyType="search"
+              onSubmitEditing={() => setAppliedSearch(searchKeyword.trim())}
+            />
+            {searchKeyword.length > 0 ? (
+              <Pressable onPress={() => setSearchKeyword("")} style={styles.searchClear} hitSlop={8}>
+                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => setAppliedSearch(searchKeyword.trim())}
+              style={styles.searchButton}
+              hitSlop={8}
+            >
+              <Ionicons name="search" size={22} color="#4C8BF5" />
+            </Pressable>
+          </View>
+          <View style={styles.header}>
+            <Ionicons name="heart-outline" size={20} color="#DC2626" />
+            <Text style={styles.summary}>
+              행사별 좋아요 수 (총 {list.length}건)
+            </Text>
+          </View>
+          {filteredList.map((item) => (
             <Pressable
               key={item.eventId}
               style={styles.card}
@@ -90,6 +129,9 @@ export default function AdminEventLikesScreen() {
               <Text style={styles.eventId}>행사 ID: {item.eventId}</Text>
             </Pressable>
           ))}
+          {filteredList.length === 0 && appliedSearch.trim() ? (
+            <Text style={styles.searchEmpty}>조건에 맞는 행사가 없어요</Text>
+          ) : null}
         </>
       )}
       <View style={{ height: 24 }} />
@@ -103,16 +145,40 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   error: { color: "#DC2626", marginBottom: 12, fontSize: 14 },
   empty: { color: "#6B7280", textAlign: "center", marginTop: 24 },
-  summary: {
-    fontSize: 13,
-    color: "#6B7280",
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
     marginBottom: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  searchInput: { flex: 1, fontSize: 15, color: "#111827", paddingVertical: 8, paddingRight: 8 },
+  searchClear: { padding: 4 },
+  searchButton: { padding: 4, marginLeft: 4 },
+  searchEmpty: { paddingVertical: 24, fontSize: 14, color: "#9CA3AF", textAlign: "center" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  summary: {
+    fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "500",
   },
   card: {
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   cardRow: {
     flexDirection: "row",
