@@ -1,6 +1,8 @@
 // app/(tabs)/mypage/_layout.tsx
-import { Stack } from "expo-router";
-import React from "react";
+import { Stack, router } from "expo-router";
+import React, { useEffect } from "react";
+import { BackHandler } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
 /** 게시판 기록 등과 동일한 상단 헤더·제목 스타일 */
 const headerTitleStyle = { fontSize: 16, fontWeight: "600" as const, color: "#111827" };
@@ -17,6 +19,19 @@ const headerScreenOptions = {
 };
 
 export default function MyPageLayout() {
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!navigation.canGoBack()) {
+        router.replace("/(tabs)/home");
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [navigation]);
+
   return (
     <Stack
       screenOptions={{
@@ -35,6 +50,7 @@ export default function MyPageLayout() {
       <Stack.Screen name="participation-history" options={{ headerShown: false }} />
       <Stack.Screen name="my-reports" options={{ headerShown: false }} />
       <Stack.Screen name="block-list" options={{ headerShown: false }} />
+      <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
       <Stack.Screen
         name="admin"
         options={{ title: "관리자 메뉴", headerShown: true, headerTitleAlign: "center" }}
@@ -119,6 +135,18 @@ export default function MyPageLayout() {
       <Stack.Screen
         name="admin-notice-write"
         options={{ title: "공지 작성/수정", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-inquiries"
+        options={{ title: "문의 목록", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-inquiry-detail"
+        options={{ title: "문의 상세", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-privacy-policy"
+        options={{ title: "개인정보처리방침 수정", headerShown: true, headerTitleAlign: "center" }}
       />
     </Stack>
   );

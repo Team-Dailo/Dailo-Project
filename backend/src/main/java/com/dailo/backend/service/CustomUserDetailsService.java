@@ -1,5 +1,6 @@
 package com.dailo.backend.service;
 
+import com.dailo.backend.domain.enums.MemberStatus;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,11 +30,11 @@ public class CustomUserDetailsService implements UserDetailsService {
     }
 
     // DB 에 있는 Member 정보를 Spring Security 의 UserDetails 객체로 변환
-    // hasRole("ADMIN") 매칭을 위해 "ROLE_ADMIN" 형태로 저장. 정지 회원은 enabled=false 로 로그인 거부.
+    // hasRole("ADMIN") 매칭을 위해 "ROLE_ADMIN" 형태로 저장. 정지/탈퇴 회원은 enabled=false 로 로그인 거부.
     private UserDetails createUserDetails(Member member) {
         String roleName = member.getRole() != null ? member.getRole().name() : "USER";
         GrantedAuthority grantedAuthority = new SimpleGrantedAuthority("ROLE_" + roleName);
-        boolean enabled = !member.isSuspended();
+        boolean enabled = !member.isSuspended() && member.getStatus() != MemberStatus.DELETED;
 
         return new User(
                 String.valueOf(member.getId()), // [중요] 토큰의 subject를 ID(PK)로 저장

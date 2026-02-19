@@ -127,8 +127,12 @@ export async function signupApi(body: SignupRequest): Promise<MemberResponseDto>
   if (!res.ok) {
     const fallback =
       res.status === 409
-        ? '이미 가입되어 있는 이메일입니다.'
-        : `회원가입 실패 (${res.status})`;
+        ? '이미 가입된 이메일입니다. 다른 이메일로 시도해 주세요.'
+        : res.status === 400
+          ? '입력 형식이 올바르지 않습니다. 이메일·비밀번호·닉네임을 확인해 주세요.'
+          : res.status === 403
+            ? '정지된 계정이거나 접근이 제한된 상태입니다. 로그아웃 후 다시 시도하거나 문의해 주세요.'
+            : `회원가입에 실패했습니다. (${res.status})`;
     throw new Error(getErrorMessage(text, res.status, fallback));
   }
   return JSON.parse(text) as MemberResponseDto;
@@ -377,6 +381,23 @@ export async function uploadProfileImage(imageUri: string): Promise<string> {
   const path = data?.path ?? '';
   if (!path) throw new Error('업로드 응답에 path가 없습니다.');
   return `${API_BASE_URL}${path}`;
+}
+
+/**
+ * 계정 탈퇴 및 데이터 삭제 (DELETE /api/members/me)
+ * 성공 시 호출 측에서 clearAuthStorage + 로그아웃 처리 필요
+ */
+export async function withdrawApi(): Promise<void> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('로그인이 필요합니다.');
+  const res = await fetch(`${API_BASE_URL}/api/members/me`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(getErrorMessage(text, res.status, '계정 탈퇴에 실패했습니다.'));
+  }
 }
 
 /**

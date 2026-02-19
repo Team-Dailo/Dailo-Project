@@ -1,7 +1,7 @@
 // app/(tabs)/_layout.tsx
-import React from "react";
-import { Image, StyleSheet, Pressable, Platform } from "react-native";
-import { Tabs } from "expo-router";
+import React, { useEffect } from "react";
+import { Image, StyleSheet, Pressable, Platform, BackHandler } from "react-native";
+import { Tabs, router } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -52,7 +52,21 @@ function RootTabButton(
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const tabBarHeight = 72;
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!navigation.canGoBack()) {
+        router.replace("/(tabs)/home");
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [navigation]);
+
   // 아이폰은 하단 버튼 없음 → 여백 최소, Android(삼성 등)는 네비 버튼과 겹치지 않도록 safe area 적용
   const bottomInset = Platform.OS === "ios" ? 0 : Math.max(insets.bottom ?? 0, 24);
   return (

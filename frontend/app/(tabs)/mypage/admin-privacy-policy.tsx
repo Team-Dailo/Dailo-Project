@@ -1,11 +1,9 @@
-// app/(tabs)/mypage/admin-guide.tsx - 관리자: 이용 안내 수정
-// 흐름: 관리자 메뉴 > 이용안내 수정 진입 → getUsageGuide() 로 현재 문구 로드 → 수정 후 updateUsageGuide() (PUT /api/admin/content/usage-guide) 저장. guide.tsx에서 동일 API로 조회해 표시.
+// app/(tabs)/mypage/admin-privacy-policy.tsx - 관리자: 개인정보처리방침 수정
 import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TextInput,
   Pressable,
   ActivityIndicator,
@@ -19,30 +17,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as contentService from '../../../services/content.service';
 import { useSafeBack } from '../../../hooks/useSafeBack';
 
-const PLACEHOLDER = `## Dailo 이용 안내
+const PLACEHOLDER = `## '다일로(Dailo)' 개인정보처리방침
 
-이용 안내는 지도 탭 사이드메뉴(☰) > 이용 안내, 또는 마이페이지에서 볼 수 있습니다. 관리자는 마이페이지 > 관리자 메뉴 > 이용안내 수정에서 이 문구를 수정할 수 있습니다.
+설정 > 개인정보처리방침에서 사용자에게 표시되는 문구입니다.
+## 큰 제목, ### 소제목, 일반 문단을 사용할 수 있습니다.`;
 
-### 지도
-- 지도에서 축제·행사 마커를 탭하면 행사 정보를 볼 수 있습니다.
-- 현재 위치에서 행사 마커까지 **500m 이내**에 있으면 축제 구역으로 인식됩니다.
-- 축제 구역에 **1초 이상** 있으면 진입·퇴장·체류 시간이 참여 기록으로 저장됩니다.
-- **5분 이상** 체류한 행사는 마이페이지 '참여한 축제'에 참여 완료로 기록됩니다.
-
-### 게시판
-- 카테고리: 전체, 후기, 질문, 자유. 후기 탭에서는 '축제 선택'으로 특정 행사 글만 볼 수 있습니다.
-- 정렬: 최신글 / 인기글.
-- **본인 글** 더보기(⋯): 저장, 수정, 삭제(빨간색). **다른 사람 글** 더보기: 저장, 신고, 차단.
-- 게시글 상세에서도 동일하게 본인 글은 저장·수정·삭제, 타인 글은 저장·신고·차단 메뉴가 나옵니다.
-- 상단 공지사항 카드를 누르면 공지 목록을 볼 수 있습니다.
-
-### 마이페이지
-- 저장한 글, 참여한 축제, 신고 내역, 차단 목록, 이용 안내 등 메뉴를 이용할 수 있습니다.
-
----
-작성법: ## 큰 제목, ### 소제목, 일반 문단. 빈 줄로 문단을 나눌 수 있습니다.`;
-
-export default function AdminGuideScreen() {
+export default function AdminPrivacyPolicyScreen() {
   const safeBack = useSafeBack();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
@@ -51,7 +31,7 @@ export default function AdminGuideScreen() {
 
   useEffect(() => {
     contentService
-      .getUsageGuide()
+      .getPrivacyPolicy()
       .then(setContent)
       .catch((e) => setError(e instanceof Error ? e.message : '불러오기 실패'))
       .finally(() => setLoading(false));
@@ -61,8 +41,8 @@ export default function AdminGuideScreen() {
     setSaving(true);
     setError(null);
     try {
-      await contentService.updateUsageGuide(content);
-      Alert.alert('저장 완료', '이용 안내가 수정되었습니다.', [
+      await contentService.updatePrivacyPolicy(content);
+      Alert.alert('저장 완료', '개인정보처리방침이 수정되었습니다.', [
         { text: '확인', onPress: safeBack },
       ]);
     } catch (e) {
@@ -76,7 +56,7 @@ export default function AdminGuideScreen() {
     <>
       <Stack.Screen
         options={{
-          title: '이용 안내 수정',
+          title: '개인정보처리방침 수정',
           headerShown: true,
           headerTitleAlign: 'center',
           headerLeft: () => (
@@ -99,7 +79,7 @@ export default function AdminGuideScreen() {
           ) : (
             <>
               <Text style={styles.hint}>
-                앱 사이드메뉴 {'>'} 이용 안내에서 표시되는 문구입니다. {'\n'}
+                설정 {'>'} 개인정보처리방침에서 표시되는 문구입니다.{'\n'}
                 ## 제목, ### 소제목, 일반 문단을 사용할 수 있습니다.
               </Text>
               <TextInput

@@ -91,7 +91,7 @@ export default function AdminMembersScreen() {
     (memberId: number, email: string) => {
       Alert.alert(
         "탈퇴 처리",
-        `회원 "${email}"을(를) 탈퇴 처리하시겠습니까? 목록에서는 삭제되지 않고 '탈퇴자'로 표시됩니다.`,
+        `회원 "${email}"을(를) 탈퇴 처리하시겠습니까? 탈퇴 처리 후 회원 목록에서 사라집니다.`,
         [
           { text: "취소", style: "cancel" },
           {
