@@ -3,4 +3,4 @@
  * 실제 배포 시 .env 등에서 EXPO_PUBLIC_API_URL 로 설정
  */
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8080';
+  process.env.EXPO_PUBLIC_API_URL ?? 'https://dailoapp.com';
