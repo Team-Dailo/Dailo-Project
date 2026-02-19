@@ -3,6 +3,7 @@
  */
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getCurrentRegionKey, REGION_CENTERS, REGION_BOUNDS_DELTA } from "../utils/region";
 import { getEventsOnMap } from "./event.service";
 
@@ -27,62 +28,105 @@ async function ensureChannel() {
 }
 
 async function requestPermission(): Promise<boolean> {
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  if (existing === "granted") return true;
-  const { status } = await Notifications.requestPermissionsAsync();
-  return status === "granted";
+  try {
+    const existing = await Notifications.getPermissionsAsync();
+    // 권한이 이미 허용되어 있으면 true 반환
+    if (existing.status === "granted") return true;
+    // 권한이 거부되었으면 false 반환 (다시 요청하지 않음)
+    if (existing.status === "denied") return false;
+    // 권한이 아직 결정되지 않았거나 undetermined인 경우에만 요청
+    const requested = await Notifications.requestPermissionsAsync();
+    return requested.status === "granted";
+  } catch (error) {
+    // 에러 발생 시 권한 체크 실패로 간주
+    return false;
+  }
 }
 
 export type ReminderOrigin = "booked" | "region";
 
-/** 알림 문구: N일 전 (1=내일, 그 외 N일 후) */
-function reminderBodyText(daysBefore: number, eventTitle: string): string {
-  if (daysBefore <= 1) return `내일, "${eventTitle}" 행사가 있습니다.`;
-  return `${daysBefore}일 후, "${eventTitle}" 행사가 있습니다.`;
+const REGION_EVENT_DAYS_KEY = "@mypage/notification_region_event_reminder_days_before";
+const REGION_EVENT_TIME_HOUR_KEY = "@mypage/notification_region_event_reminder_time_hour";
+
+/** 알림 문구: 행사 시작일까지 남은 일수에 따라 메시지 생성 */
+function reminderBodyText(daysUntilStart: number, eventTitle: string): string {
+  if (daysUntilStart === 0) return `오늘, "${eventTitle}" 행사가 있습니다.`;
+  if (daysUntilStart === 1) return `내일, "${eventTitle}" 행사가 있습니다.`;
+  return `${daysUntilStart}일 후, "${eventTitle}" 행사가 있습니다.`;
 }
 
 /**
  * 행사 시작일(ISO)과 제목으로 N일 전 알림 스케줄 (기본 1일 전)
- * 알림 시간: 해당일 오전 9시
  * origin: 'booked' = 행사 상세에서 예약, 'region' = 지역 행사 알림
  * daysBefore: 1~30 (기본 1)
+ * hour: 알림 시각 (0~23, 기본 9시)
  */
 export async function scheduleEventReminder(
   eventId: string,
   eventTitle: string,
   startAtIso: string,
   daysBefore: number = 1,
-  origin: ReminderOrigin = "booked"
+  origin: ReminderOrigin = "booked",
+  hour: number = 9
 ): Promise<string | null> {
   const days = Math.max(1, Math.min(30, Math.floor(daysBefore)) || 1);
   const granted = await requestPermission();
-  if (!granted) return null;
+  if (!granted) {
+    // 권한이 없으면 null 반환 (호출하는 쪽에서 권한 체크 후 적절한 메시지 표시)
+    return null;
+  }
   await ensureChannel();
 
   let triggerDate: Date;
+  let daysUntilStart: number;
   try {
     const start = new Date(startAtIso);
-    triggerDate = new Date(start);
-    triggerDate.setDate(triggerDate.getDate() - days);
-    triggerDate.setHours(9, 0, 0, 0);
-    if (triggerDate.getTime() <= Date.now()) return null;
+    const now = new Date();
+    const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // 행사 시작일이 오늘이거나 이미 지났는지 확인
+    daysUntilStart = Math.floor((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysUntilStart < 0) {
+      // 행사가 이미 시작되었거나 지났으면 알림 예약 불가
+      return null;
+    }
+    
+    if (daysUntilStart === 0) {
+      // 행사가 오늘 시작하는 경우: 오늘 지정한 시각에 알림 (이미 해당 시각이 지났으면 예약 불가)
+      triggerDate = new Date(now);
+      triggerDate.setHours(hour, 0, 0, 0);
+    } else if (daysUntilStart < days) {
+      // 행사 시작일까지 남은 일수가 요청한 daysBefore보다 적으면, 행사 시작일 지정 시각에 알림
+      triggerDate = new Date(startDate);
+      triggerDate.setHours(hour, 0, 0, 0);
+    } else {
+      // 정상적인 경우: 행사 시작일 - daysBefore일 지정 시각
+      triggerDate = new Date(startDate);
+      triggerDate.setDate(triggerDate.getDate() - days);
+      triggerDate.setHours(hour, 0, 0, 0);
+    }
+    
+    // 알림 시간이 현재 시간보다 과거면 예약 불가
+    if (triggerDate.getTime() <= now.getTime()) return null;
+    
+    const identifier = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "행사 알림",
+        body: reminderBodyText(daysUntilStart, eventTitle),
+        data: { eventId, daysBefore: days, origin },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: triggerDate,
+        channelId: CHANNEL_ID,
+      },
+    });
+    return identifier;
   } catch {
     return null;
   }
-
-  const identifier = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "행사 알림",
-      body: reminderBodyText(days, eventTitle),
-      data: { eventId, daysBefore: days, origin },
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
-      date: triggerDate,
-      channelId: CHANNEL_ID,
-    },
-  });
-  return identifier;
 }
 
 /**
@@ -261,9 +305,36 @@ export async function scheduleRegionEventRemindersByRegionKey(
     }
   });
 
+  // 지역 행사 알림 공통 설정 (며칠 전/시간) 불러오기
+  let regionDaysBefore = 1;
+  try {
+    const storedDays = await AsyncStorage.getItem(REGION_EVENT_DAYS_KEY);
+    if (storedDays != null && storedDays !== "") {
+      const parsed = parseInt(storedDays, 10);
+      if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 30) {
+        regionDaysBefore = parsed;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  let regionTimeHour = 9;
+  try {
+    const storedTime = await AsyncStorage.getItem(REGION_EVENT_TIME_HOUR_KEY);
+    if (storedTime != null && storedTime !== "") {
+      const parsedTime = parseInt(storedTime, 10);
+      if (!Number.isNaN(parsedTime) && parsedTime >= 0 && parsedTime <= 23) {
+        regionTimeHour = parsedTime;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   let scheduled = 0;
   for (const ev of inRegion) {
-    const id = await scheduleEventReminder(ev.id, ev.title, ev.startAt, 1, "region");
+    const id = await scheduleEventReminder(ev.id, ev.title, ev.startAt, regionDaysBefore, "region", regionTimeHour);
     if (id) scheduled++;
   }
 

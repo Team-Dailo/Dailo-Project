@@ -73,10 +73,13 @@ export async function loginApi(body: LoginRequest): Promise<LoginResponseDto> {
   }
   const text = await res.text();
   if (!res.ok) {
+    // 백엔드에서 구체적인 메시지를 반환하므로 그대로 사용
     const fallback =
       res.status === 401
         ? '이메일 또는 비밀번호가 올바르지 않습니다.'
-        : `로그인 실패 (${res.status})`;
+        : res.status === 403
+          ? '로그인할 수 없는 계정입니다.'
+          : `로그인 실패 (${res.status})`;
     throw new Error(getErrorMessage(text, res.status, fallback));
   }
   const json = JSON.parse(text) as LoginResponseDto & Record<string, unknown>;

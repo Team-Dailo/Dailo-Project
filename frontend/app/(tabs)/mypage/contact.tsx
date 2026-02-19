@@ -25,6 +25,7 @@ const MAX_CONTENT = 5000;
 export default function ContactScreen() {
   const { user, isLoggedIn } = useAuth();
   const safeBack = useSafeBack();
+  const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState(isLoggedIn && user?.email ? user.email : '');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -64,7 +65,7 @@ export default function ContactScreen() {
         content: trimmedContent,
       });
       Alert.alert('전송 완료', '문의가 접수되었습니다. 확인 후 연락드리겠습니다.', [
-        { text: '확인', onPress: () => { setTitle(''); setContent(''); safeBack(); } },
+        { text: '확인', onPress: () => { setTitle(''); setContent(''); setShowForm(false); safeBack(); } },
       ]);
     } catch (e) {
       Alert.alert('전송 실패', e instanceof Error ? e.message : '문의 전송에 실패했습니다.');
@@ -107,7 +108,26 @@ export default function ContactScreen() {
               서비스 이용 중 궁금한 점이나 불편 사항을 남겨 주시면 확인 후 연락드리겠습니다.
             </Text>
 
-            <View style={styles.card}>
+            {!showForm ? (
+              <>
+                {/* 공지사항 보기 버튼 (요청으로 인해 일시 비노출)
+                <Pressable style={styles.linkRow} onPress={openNotice}>
+                  <Ionicons name="newspaper-outline" size={20} color="#6B7280" />
+                  <Text style={styles.linkText}>공지사항 보기</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                </Pressable>
+                */}
+                <Pressable
+                  style={styles.startButton}
+                  onPress={() => setShowForm(true)}
+                >
+                  <Ionicons name="mail-outline" size={24} color="#FFFFFF" />
+                  <Text style={styles.startButtonText}>문의하기</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={styles.card}>
               <Text style={styles.label}>이메일</Text>
               <TextInput
                 style={styles.input}
@@ -160,11 +180,15 @@ export default function ContactScreen() {
               )}
             </Pressable>
 
-            <Pressable style={styles.linkRow} onPress={openNotice}>
-              <Ionicons name="newspaper-outline" size={20} color="#6B7280" />
-              <Text style={styles.linkText}>공지사항 보기</Text>
-              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-            </Pressable>
+                {/* 공지사항 보기 버튼 (요청으로 인해 일시 비노출)
+                <Pressable style={styles.linkRow} onPress={openNotice}>
+                  <Ionicons name="newspaper-outline" size={20} color="#6B7280" />
+                  <Text style={styles.linkText}>공지사항 보기</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                </Pressable>
+                */}
+              </>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -244,5 +268,21 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#374151',
+  },
+  startButton: {
+    backgroundColor: '#4C8BF5',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 56,
+  },
+  startButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
