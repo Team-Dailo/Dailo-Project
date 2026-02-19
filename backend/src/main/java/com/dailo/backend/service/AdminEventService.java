@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -157,10 +158,17 @@ public class AdminEventService {
         return result;
     }
 
-    /** 행사별 조회수 (관리자용) - 누적 조회수 많은 순 */
+    /** 행사별 조회수 (관리자용) - 누적 조회수 많은 순. 7일/30일은 클릭 로그에서 실시간 집계 */
     public List<AdminEventViewCountDto> getEventViewCounts() {
         List<Object[]> rows = clickLogRepository.findClickCountsAllTime();
         if (rows.isEmpty()) return new ArrayList<>();
+
+        LocalDateTime since7d = LocalDateTime.now().minusDays(7);
+        LocalDateTime since30d = LocalDateTime.now().minusDays(30);
+        Map<Long, Long> count7d = clickLogRepository.findClickCountsByEventSince(since7d).stream()
+                .collect(Collectors.toMap(r -> ((Number) r[0]).longValue(), r -> ((Number) r[1]).longValue()));
+        Map<Long, Long> count30d = clickLogRepository.findClickCountsByEventSince(since30d).stream()
+                .collect(Collectors.toMap(r -> ((Number) r[0]).longValue(), r -> ((Number) r[1]).longValue()));
 
         List<Long> eventIds = rows.stream()
                 .map(r -> ((Number) r[0]).longValue())
@@ -174,8 +182,8 @@ public class AdminEventService {
             long total = ((Number) row[1]).longValue();
             Event event = eventMap.get(eventId);
             String title = event != null ? event.getTitle() : "(삭제된 행사)";
-            int view7d = event != null && event.getViewCount7d() != null ? event.getViewCount7d() : 0;
-            int view30d = event != null && event.getViewCount30d() != null ? event.getViewCount30d() : 0;
+            int view7d = count7d.getOrDefault(eventId, 0L).intValue();
+            int view30d = count30d.getOrDefault(eventId, 0L).intValue();
             result.add(AdminEventViewCountDto.builder()
                     .eventId(eventId)
                     .title(title)
