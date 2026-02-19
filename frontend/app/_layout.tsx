@@ -37,6 +37,8 @@ export default function RootLayout() {
       <Stack.Screen name="board" options={{ headerShown: false }} />
       <Stack.Screen name="event" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="signup" options={{ headerShown: false }} />
+      <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
       <Stack.Screen name="profile" options={{ headerShown: false }} />
     </Stack>
     </AuthProvider>

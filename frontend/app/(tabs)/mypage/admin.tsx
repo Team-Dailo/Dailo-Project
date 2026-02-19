@@ -15,7 +15,9 @@ const MENU_ITEMS: { icon: keyof typeof Ionicons.glyphMap; label: string; route: 
   { icon: "flag-outline", label: "신고 기록", route: "/(tabs)/mypage/admin-report-record" },
   { icon: "ban-outline", label: "차단 관리", route: "/(tabs)/mypage/admin-block-management" },
   { icon: "people-outline", label: "회원 목록", route: "/(tabs)/mypage/admin-members" },
+  { icon: "mail-outline", label: "문의 목록", route: "/(tabs)/mypage/admin-inquiries" },
   { icon: "information-circle-outline", label: "이용안내 수정", route: "/(tabs)/mypage/admin-guide" },
+  { icon: "shield-checkmark-outline", label: "개인정보처리방침 수정", route: "/(tabs)/mypage/admin-privacy-policy" },
   { icon: "locate-outline", label: "시범 설정", route: "/(tabs)/mypage/demo-settings" },
 ];
 

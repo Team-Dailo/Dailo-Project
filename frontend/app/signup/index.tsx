@@ -21,6 +21,7 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSignup = async () => {
@@ -28,6 +29,10 @@ export default function SignupScreen() {
     const trimmedNickname = nickname.trim();
     if (!trimmedEmail || !password || !trimmedNickname) {
       Alert.alert('입력 오류', '이메일, 비밀번호, 닉네임을 모두 입력해 주세요.');
+      return;
+    }
+    if (!agreePrivacy) {
+      Alert.alert('동의 필요', '개인정보처리방침에 동의해 주세요.');
       return;
     }
     setLoading(true);
@@ -39,11 +44,11 @@ export default function SignupScreen() {
       });
       await authService.saveNicknameForEmail(trimmedEmail, trimmedNickname);
       Alert.alert('회원가입 완료', '로그인 화면에서 로그인해 주세요.', [
-        { text: '확인', onPress: () => router.replace('/login') },
+        { text: '확인', onPress: () => router.back() },
       ]);
     } catch (e) {
       const message = e instanceof Error ? e.message : '회원가입에 실패했습니다.';
-      Alert.alert('회원가입 실패', message);
+      Alert.alert('회원가입 실패', message, [{ text: '확인' }]);
     } finally {
       setLoading(false);
     }
@@ -104,6 +109,26 @@ export default function SignupScreen() {
               autoCapitalize="none"
             />
           </View>
+
+          <Pressable
+            style={styles.agreeRow}
+            onPress={() => setAgreePrivacy((v) => !v)}
+          >
+            <View style={[styles.checkbox, agreePrivacy && styles.checkboxChecked]}>
+              {agreePrivacy ? (
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              ) : null}
+            </View>
+            <Text style={styles.agreeLabel}>
+              <Text style={styles.agreeLabelPlain}>개인정보처리방침에 동의합니다 </Text>
+            </Text>
+            <Pressable
+              hitSlop={8}
+              onPress={() => router.push('/privacy-policy')}
+            >
+              <Text style={styles.agreeLabelLink}>(보기)</Text>
+            </Pressable>
+          </Pressable>
 
           <Pressable
             style={({ pressed }) => [
@@ -212,6 +237,35 @@ const styles = StyleSheet.create({
   },
   loginLinkText: {
     fontSize: 14,
+    color: '#4C8BF5',
+    fontWeight: '500',
+  },
+  agreeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 10,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#4C8BF5',
+    borderColor: '#4C8BF5',
+  },
+  agreeLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+  },
+  agreeLabelPlain: {},
+  agreeLabelLink: {
     color: '#4C8BF5',
     fontWeight: '500',
   },
