@@ -47,7 +47,9 @@ export default function SavedFestivalsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  /** 검색 아이콘을 눌렀을 때 적용되는 검색어 */
+  const [appliedSearch, setAppliedSearch] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -76,14 +78,14 @@ export default function SavedFestivalsScreen() {
   }, [load]);
 
   const filteredList = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = appliedSearch.trim().toLowerCase();
     if (!q) return list;
     return list.filter(
       (item) =>
         (item.title ?? "").toLowerCase().includes(q) ||
         (item.placeName ?? "").toLowerCase().includes(q)
     );
-  }, [list, searchQuery]);
+  }, [list, appliedSearch]);
 
   const handleRemoveScrap = useCallback(
     (item: scrapService.ScrapEventItem) => {
@@ -163,32 +165,39 @@ export default function SavedFestivalsScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.section}>
-            {/* 검색창 - 행사 리스트와 동일 */}
+            {/* 검색창: 입력 후 오른쪽 검색 아이콘 누르면 검색 */}
             <View style={styles.searchBarWrap}>
-              <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="행사명 또는 장소 검색"
                 placeholderTextColor="#9CA3AF"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
+                value={searchKeyword}
+                onChangeText={setSearchKeyword}
                 returnKeyType="search"
+                onSubmitEditing={() => setAppliedSearch(searchKeyword.trim())}
               />
-              {searchQuery.length > 0 ? (
+              {searchKeyword.length > 0 ? (
                 <Pressable
-                  onPress={() => setSearchQuery("")}
+                  onPress={() => setSearchKeyword("")}
                   style={styles.searchClear}
                   hitSlop={8}
                 >
                   <Ionicons name="close-circle" size={20} color="#9CA3AF" />
                 </Pressable>
               ) : null}
+              <Pressable
+                onPress={() => setAppliedSearch(searchKeyword.trim())}
+                style={styles.searchButton}
+                hitSlop={8}
+              >
+                <Ionicons name="search" size={22} color="#4C8BF5" />
+              </Pressable>
             </View>
 
             <View style={styles.eventCardList}>
               {filteredList.length === 0 ? (
                 <Text style={styles.eventCardEmpty}>
-                  {searchQuery.trim() ? "조건에 맞는 저장 행사가 없어요" : "저장한 축제가 없습니다"}
+                  {appliedSearch.trim() ? "조건에 맞는 저장 행사가 없어요" : "저장한 축제가 없습니다"}
                 </Text>
               ) : (
                 filteredList.map((item) => {
@@ -329,11 +338,9 @@ const styles = StyleSheet.create({
     height: 44,
     backgroundColor: "#F3F4F6",
     borderRadius: 10,
-    paddingHorizontal: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
     marginBottom: 12,
-  },
-  searchIcon: {
-    marginRight: 8,
   },
   searchInput: {
     flex: 1,
@@ -344,6 +351,10 @@ const styles = StyleSheet.create({
   },
   searchClear: {
     padding: 4,
+  },
+  searchButton: {
+    padding: 4,
+    marginLeft: 4,
   },
   eventCardList: {
     gap: 0,

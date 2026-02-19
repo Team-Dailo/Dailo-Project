@@ -1,5 +1,5 @@
 // app/(tabs)/mypage/saved-booths.tsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -21,6 +22,8 @@ export default function SavedBoothsScreen() {
   );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -81,6 +84,16 @@ export default function SavedBoothsScreen() {
     );
   }, []);
 
+  const filteredList = useMemo(() => {
+    const q = appliedSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (item) =>
+        (item.boothName ?? "").toLowerCase().includes(q) ||
+        (item.eventTitle ?? "").toLowerCase().includes(q)
+    );
+  }, [list, appliedSearch]);
+
   return (
     <SafeAreaView
       style={styles.safeArea}
@@ -110,13 +123,41 @@ export default function SavedBoothsScreen() {
             </Text>
           </View>
         ) : (
-          <ScrollView
-            contentContainerStyle={styles.contents}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-          >
-            {list.map((item, index) => (
+          <>
+            <View style={styles.searchBarWrap}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="부스명 또는 행사명 검색"
+                placeholderTextColor="#9CA3AF"
+                value={searchKeyword}
+                onChangeText={setSearchKeyword}
+                returnKeyType="search"
+                onSubmitEditing={() => setAppliedSearch(searchKeyword.trim())}
+              />
+              {searchKeyword.length > 0 ? (
+                <Pressable
+                  onPress={() => setSearchKeyword("")}
+                  style={styles.searchClear}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={() => setAppliedSearch(searchKeyword.trim())}
+                style={styles.searchButton}
+                hitSlop={8}
+              >
+                <Ionicons name="search" size={22} color="#4C8BF5" />
+              </Pressable>
+            </View>
+            <ScrollView
+              contentContainerStyle={styles.contents}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+            >
+            {filteredList.map((item, index) => (
               <View
                 key={`${item.eventId}-${item.boothName}-${index}`}
                 style={styles.card}
@@ -140,7 +181,11 @@ export default function SavedBoothsScreen() {
                 </Pressable>
               </View>
             ))}
-          </ScrollView>
+            </ScrollView>
+            {filteredList.length === 0 && list.length > 0 ? (
+              <Text style={styles.searchEmpty}>조건에 맞는 부스가 없어요</Text>
+            ) : null}
+          </>
         )}
       </View>
     </SafeAreaView>
@@ -209,8 +254,35 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     textAlign: "center",
   },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingLeft: 12,
+    paddingRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#111827",
+    paddingVertical: 8,
+    paddingRight: 8,
+  },
+  searchClear: { padding: 4 },
+  searchButton: { padding: 4, marginLeft: 4 },
   contents: {
     padding: 16,
+  },
+  searchEmpty: {
+    paddingVertical: 24,
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
   },
   card: {
     flexDirection: "row",

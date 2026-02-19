@@ -1,5 +1,5 @@
 // 관리자 - 신고 기록 (GET /api/admin/reports/post-record): 게시글별 누적 신고 수
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,9 +9,11 @@ import {
   RefreshControl,
   Pressable,
   Alert,
+  TextInput,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import * as adminService from "../../../services/admin.service";
 
 export default function AdminReportRecordScreen() {
@@ -21,6 +23,19 @@ export default function AdminReportRecordScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const filteredList = useMemo(() => {
+    const q = appliedSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (item) =>
+        (item.title ?? "").toLowerCase().includes(q) ||
+        (item.authorNickname ?? "").toLowerCase().includes(q) ||
+        String(item.postId).includes(q) ||
+        String(item.authorId).includes(q)
+    );
+  }, [list, appliedSearch]);
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
@@ -95,10 +110,33 @@ export default function AdminReportRecordScreen() {
         <Text style={styles.empty}>신고 기록이 없습니다.</Text>
       ) : (
         <>
+          <View style={styles.searchBarWrap}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="제목, 작성자, 게시글 ID 검색"
+              placeholderTextColor="#9CA3AF"
+              value={searchKeyword}
+              onChangeText={setSearchKeyword}
+              returnKeyType="search"
+              onSubmitEditing={() => setAppliedSearch(searchKeyword.trim())}
+            />
+            {searchKeyword.length > 0 ? (
+              <Pressable onPress={() => setSearchKeyword("")} style={styles.searchClear} hitSlop={8}>
+                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => setAppliedSearch(searchKeyword.trim())}
+              style={styles.searchButton}
+              hitSlop={8}
+            >
+              <Ionicons name="search" size={22} color="#4C8BF5" />
+            </Pressable>
+          </View>
           <Text style={styles.summary}>
             게시글별 신고 수 (총 {list.length}건, 신고 많은 순)
           </Text>
-          {list.map((item) => (
+          {filteredList.map((item) => (
             <View key={item.postId} style={styles.card}>
               <Pressable onPress={() => router.push(`/board/${item.postId}`)} style={styles.cardMain}>
                 <View style={styles.cardRow}>
@@ -124,6 +162,9 @@ export default function AdminReportRecordScreen() {
               </Pressable>
             </View>
           ))}
+          {filteredList.length === 0 && appliedSearch.trim() ? (
+            <Text style={styles.searchEmpty}>조건에 맞는 신고 기록이 없어요</Text>
+          ) : null}
         </>
       )}
       <View style={{ height: 24 }} />
@@ -137,6 +178,22 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   error: { color: "#DC2626", marginBottom: 12, fontSize: 14 },
   empty: { color: "#6B7280", textAlign: "center", marginTop: 24 },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    marginBottom: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  searchInput: { flex: 1, fontSize: 15, color: "#111827", paddingVertical: 8, paddingRight: 8 },
+  searchClear: { padding: 4 },
+  searchButton: { padding: 4, marginLeft: 4 },
+  searchEmpty: { paddingVertical: 24, fontSize: 14, color: "#9CA3AF", textAlign: "center" },
   summary: {
     fontSize: 13,
     color: "#6B7280",

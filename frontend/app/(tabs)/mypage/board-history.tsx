@@ -11,6 +11,7 @@ import {
   Modal,
   Alert,
   Share,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -66,6 +67,18 @@ export default function BoardHistoryScreen() {
   const { posts, loading, error, refetch } = useMyPostList(isLoggedIn);
   const sortedPosts = useMemo(() => posts.map(toPostRow), [posts]);
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const filteredPosts = useMemo(() => {
+    const q = appliedSearch.trim().toLowerCase();
+    if (!q) return sortedPosts;
+    return sortedPosts.filter(
+      (p) =>
+        (p.title ?? "").toLowerCase().includes(q) ||
+        (p.content ?? "").toLowerCase().includes(q) ||
+        (p.author ?? "").toLowerCase().includes(q)
+    );
+  }, [sortedPosts, appliedSearch]);
 
   const handleEdit = (postId: string) => {
     setMenuPostId(null);
@@ -259,14 +272,46 @@ export default function BoardHistoryScreen() {
               <Text style={styles.emptyText}>아직 작성한 글이 없습니다.</Text>
             </View>
           ) : (
-            <View style={styles.listWrap}>
-              <FlatList
-                data={sortedPosts}
-                keyExtractor={(item) => item.id}
-                renderItem={renderPost}
-                scrollEnabled={false}
-              />
-            </View>
+            <>
+              <View style={styles.searchBarWrap}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="제목, 내용, 작성자 검색"
+                  placeholderTextColor="#9CA3AF"
+                  value={searchKeyword}
+                  onChangeText={setSearchKeyword}
+                  returnKeyType="search"
+                  onSubmitEditing={() => setAppliedSearch(searchKeyword.trim())}
+                />
+                {searchKeyword.length > 0 ? (
+                  <Pressable
+                    onPress={() => setSearchKeyword("")}
+                    style={styles.searchClear}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  onPress={() => setAppliedSearch(searchKeyword.trim())}
+                  style={styles.searchButton}
+                  hitSlop={8}
+                >
+                  <Ionicons name="search" size={22} color="#4C8BF5" />
+                </Pressable>
+              </View>
+              <View style={styles.listWrap}>
+                <FlatList
+                  data={filteredPosts}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderPost}
+                  scrollEnabled={false}
+                />
+              </View>
+              {filteredPosts.length === 0 && appliedSearch.trim() ? (
+                <Text style={styles.searchEmpty}>조건에 맞는 글이 없어요</Text>
+              ) : null}
+            </>
           )}
         </ScrollView>
       </View>
@@ -343,6 +388,31 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 24,
     paddingBottom: 24,
+  },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    marginBottom: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#111827",
+    paddingVertical: 8,
+    paddingRight: 8,
+  },
+  searchClear: { padding: 4 },
+  searchButton: { padding: 4, marginLeft: 4 },
+  searchEmpty: {
+    paddingVertical: 24,
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
   },
   listWrap: {
     marginHorizontal: -24,

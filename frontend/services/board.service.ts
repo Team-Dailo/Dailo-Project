@@ -144,7 +144,7 @@ function toAbsoluteImageUrls(urls: string[] | undefined): string[] {
   return urls.map((u) => (typeof u === 'string' && u.startsWith('/') ? `${API_BASE_URL}${u}` : u));
 }
 
-/** 목록 응답의 각 게시글 imageUrls를 절대 URL로 보정 (게시글 사진이 안 나오는 문제 방지) */
+/** 목록 응답의 각 게시글 imageUrls를 절대 URL로 보정 (비로그인 포함 모든 사용자에게 게시판 사진 노출) */
 function normalizeListImageUrls<T extends { imageUrls?: string[]; image_urls?: string[] }>(data: PageResponse<T>): PageResponse<T> {
   const content = data.content ?? [];
   const normalized = content.map((item) => {
@@ -158,7 +158,7 @@ function normalizeListImageUrls<T extends { imageUrls?: string[]; image_urls?: s
   return { ...data, content: normalized };
 }
 
-/** 게시글 상세 - 로그인 시 isLiked 표시. imageUrls가 상대 경로면 절대 URL로 보정 */
+/** 게시글 상세 - 비로그인도 조회·사진 보기 가능. 로그인 시 isLiked 표시. imageUrls가 상대 경로면 절대 URL로 보정 */
 export async function getPostById(id: number | string): Promise<PostDetail> {
   const url = `${API_BASE_URL}/api/posts/${id}`;
   const res = await fetch(url, { headers: await getAuthHeaders() });

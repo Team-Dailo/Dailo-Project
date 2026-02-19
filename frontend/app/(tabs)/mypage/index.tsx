@@ -87,7 +87,7 @@ export default function MyPageScreen() {
           </Pressable>
         </View>
 
-        {/* 참여 중인 축제 카드: 로그인 + 지도에서 축제 구역 진입 중일 때만 표시 (현재 비노출 처리)
+        {/* 참여 중인 축제 카드: 로그인 + 지도에서 축제 구역 진입 중일 때만 표시 */}
         {isLoggedIn && festivalEntry != null && (
           <View style={styles.activeFestivalCard}>
             <View style={styles.badgeRow}>
@@ -102,7 +102,6 @@ export default function MyPageScreen() {
             <Text style={styles.activeFestivalHint}>지도에서 해당 축제 구역에 있을 때만 표시됩니다.</Text>
           </View>
         )}
-        */}
 
         {/* 섹션: 활동 기록 (비로그인 시 로그인 화면으로) */}
         <Section title="활동 기록">

@@ -1,5 +1,5 @@
 // 관리자 - 공지사항 관리 (목록 + 작성/수정/삭제)
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  TextInput,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -32,6 +33,17 @@ export default function AdminNoticesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const filteredList = useMemo(() => {
+    const q = appliedSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (item) =>
+        (item.title ?? "").toLowerCase().includes(q) ||
+        (item.content ?? "").toLowerCase().includes(q)
+    );
+  }, [list, appliedSearch]);
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
@@ -102,12 +114,41 @@ export default function AdminNoticesScreen() {
         </View>
       ) : null}
 
+      {list.length > 0 ? (
+        <View style={styles.searchBarWrap}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="제목 또는 내용 검색"
+            placeholderTextColor="#9CA3AF"
+            value={searchKeyword}
+            onChangeText={setSearchKeyword}
+            returnKeyType="search"
+            onSubmitEditing={() => setAppliedSearch(searchKeyword.trim())}
+          />
+          {searchKeyword.length > 0 ? (
+            <Pressable onPress={() => setSearchKeyword("")} style={styles.searchClear} hitSlop={8}>
+              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => setAppliedSearch(searchKeyword.trim())}
+            style={styles.searchButton}
+            hitSlop={8}
+          >
+            <Ionicons name="search" size={22} color="#4C8BF5" />
+          </Pressable>
+        </View>
+      ) : null}
+
       {list.length === 0 && !error ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>등록된 공지가 없습니다.</Text>
         </View>
       ) : (
-        list.map((item) => (
+        filteredList.length === 0 && appliedSearch.trim() ? (
+          <Text style={styles.searchEmpty}>조건에 맞는 공지가 없어요</Text>
+        ) : (
+        filteredList.map((item) => (
           <View key={item.id} style={styles.card}>
             <Pressable
               style={styles.cardMain}
@@ -132,6 +173,7 @@ export default function AdminNoticesScreen() {
             </Pressable>
           </View>
         ))
+        )
       )}
     </ScrollView>
   );
@@ -156,6 +198,20 @@ const styles = StyleSheet.create({
   errorText: { color: "#DC2626", fontSize: 14 },
   empty: { paddingVertical: 32, alignItems: "center" },
   emptyText: { color: "#6B7280", fontSize: 15 },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    marginBottom: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
+  },
+  searchInput: { flex: 1, fontSize: 15, color: "#111827", paddingVertical: 8, paddingRight: 8 },
+  searchClear: { padding: 4 },
+  searchButton: { padding: 4, marginLeft: 4 },
+  searchEmpty: { paddingVertical: 24, fontSize: 14, color: "#9CA3AF", textAlign: "center" },
   card: {
     flexDirection: "row",
     alignItems: "center",

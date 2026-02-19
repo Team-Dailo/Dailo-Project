@@ -29,26 +29,8 @@ export default function MyPageLayout() {
         options={{ headerShown: false }}
       />
 
-      <Stack.Screen
-        name="settings"
-        options={{
-          title: "설정",
-          headerShown: true,
-          headerTitleAlign: "center",
-        }}
-      />
-      <Stack.Screen
-        name="notification-settings"
-        options={{ title: "알림설정", headerShown: true, headerTitleAlign: "center" }}
-      />
-      <Stack.Screen
-        name="location-permission"
-        options={{ title: "위치 권한", headerShown: true, headerTitleAlign: "center" }}
-      />
-      <Stack.Screen
-        name="contact"
-        options={{ title: "문의하기", headerShown: true, headerTitleAlign: "center" }}
-      />
+      {/* 헤더를 컴포넌트 내부에서 <Stack.Screen>으로 설정하는 화면들은
+          여기에서 중복 정의하지 않는다 (중복 헤더로 인한 크래시 방지). */}
       <Stack.Screen name="saved-festivals" options={{ headerShown: false }} />
       <Stack.Screen name="participation-history" options={{ headerShown: false }} />
       <Stack.Screen name="my-reports" options={{ headerShown: false }} />
@@ -64,6 +46,10 @@ export default function MyPageLayout() {
       <Stack.Screen
         name="admin-event-likes"
         options={{ title: "행사별 좋아요 수", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-event-views"
+        options={{ title: "행사별 조회수", headerShown: true, headerTitleAlign: "center" }}
       />
       <Stack.Screen
         name="admin-members"
@@ -125,14 +111,7 @@ export default function MyPageLayout() {
         name="admin-posts"
         options={{ title: "게시글 관리", headerShown: true, headerTitleAlign: "center" }}
       />
-      <Stack.Screen
-        name="guide"
-        options={{ title: "이용 안내", headerShown: false }}
-      />
-      <Stack.Screen
-        name="admin-guide"
-        options={{ title: "이용 안내 수정", headerShown: false }}
-      />
+      {/* guide, admin-guide 역시 각 파일 내에서 <Stack.Screen>으로 헤더를 정의함 */}
       <Stack.Screen
         name="admin-notices"
         options={{ title: "공지사항 관리", headerShown: true, headerTitleAlign: "center" }}

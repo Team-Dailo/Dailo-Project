@@ -1,38 +1,68 @@
-// app/board/notice/[id].tsx - 공지사항 상세
-import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+// app/board/notice/[id].tsx - 공지사항 상세 (GET /api/notices/:id 연동)
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  ActivityIndicator,
+} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as noticeService from "../../../services/notice.service";
 
-const MOCK_NOTICES: { id: string; title: string; content: string; date: string }[] = [
-  {
-    id: "1",
-    title: "이번 주 서버 점검 안내드립니다",
-    content:
-      "[공지사항] 이번 주 서버 점검 안내드립니다. 2월 15일(토) 새벽 02:00 ~ 06:00 동안 서버 점검이 진행됩니다. 해당 시간에는 서비스 이용이 일시 중단될 수 있사오니 양해 부탁드립니다.",
-    date: "2025.02.10",
-  },
-  // 개인정보 처리방침 / 축제 이용 약관 관련 공지는 현재 노출하지 않음
-  // {
-  //   id: "2",
-  //   title: "개인정보 처리방침 개정 안내",
-  //   content:
-  //     "개인정보 처리방침이 일부 개정되었습니다. 변경된 내용을 확인해 주시기 바랍니다. 시행일은 2025년 3월 1일입니다.",
-  //   date: "2025.02.08",
-  // },
-  // {
-  //   id: "3",
-  //   title: "축제 이용 약관 업데이트",
-  //   content: "축제 이용 약관이 업데이트되었습니다. 자세한 내용은 앱 내 고객센터를 참고해 주세요.",
-  //   date: "2025.02.05",
-  // },
-];
+function formatNoticeDate(iso: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function NoticeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const notice = MOCK_NOTICES.find((n) => n.id === id);
+  const [notice, setNotice] = useState<noticeService.NoticeItem | null | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+
+  const idNum = id != null ? Number(id) : NaN;
+
+  useEffect(() => {
+    if (!Number.isFinite(idNum)) {
+      setNotice(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    noticeService
+      .getNoticeById(idNum)
+      .then(setNotice)
+      .catch(() => setNotice(null))
+      .finally(() => setLoading(false));
+  }, [idNum]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={12}>
+            <Ionicons name="chevron-back" size={24} color="#111827" />
+          </Pressable>
+          <Text style={styles.headerTitle}>공지사항</Text>
+          <View style={styles.headerRight} />
+        </View>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#4C8BF5" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!notice) {
     return (
@@ -66,7 +96,7 @@ export default function NoticeDetailScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.detailDate}>{notice.date}</Text>
+        <Text style={styles.detailDate}>{formatNoticeDate(notice.createdAt)}</Text>
         <Text style={styles.detailTitle}>{notice.title}</Text>
         <Text style={styles.detailContent}>{notice.content}</Text>
       </ScrollView>
@@ -87,6 +117,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 17, fontWeight: "600", color: "#111827", marginLeft: 20 },
   headerRight: { width: 24 },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 20, paddingBottom: 40 },
   detailDate: {

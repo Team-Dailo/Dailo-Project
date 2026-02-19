@@ -1,5 +1,5 @@
 // 저장한 게시글 목록 (로컬 저장) - UI는 내가 쓴 게시글(board-history)과 동일
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   FlatList,
   Modal,
   Alert,
+  TextInput,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -31,6 +32,15 @@ export default function SavedPostsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const filteredList = useMemo(() => {
+    const q = appliedSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((item) =>
+      (item.title ?? "").toLowerCase().includes(q)
+    );
+  }, [list, appliedSearch]);
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
@@ -117,6 +127,36 @@ export default function SavedPostsScreen() {
           <View style={styles.headerRight} />
         </View>
 
+        {list.length > 0 ? (
+          <View style={styles.searchBarWrap}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="제목 검색"
+              placeholderTextColor="#9CA3AF"
+              value={searchKeyword}
+              onChangeText={setSearchKeyword}
+              returnKeyType="search"
+              onSubmitEditing={() => setAppliedSearch(searchKeyword.trim())}
+            />
+            {searchKeyword.length > 0 ? (
+              <Pressable
+                onPress={() => setSearchKeyword("")}
+                style={styles.searchClear}
+                hitSlop={8}
+              >
+                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => setAppliedSearch(searchKeyword.trim())}
+              style={styles.searchButton}
+              hitSlop={8}
+            >
+              <Ionicons name="search" size={22} color="#4C8BF5" />
+            </Pressable>
+          </View>
+        ) : null}
+
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -135,14 +175,19 @@ export default function SavedPostsScreen() {
               <Text style={styles.emptyText}>저장한 게시글이 없습니다.</Text>
             </View>
           ) : (
-            <View style={styles.listWrap}>
-              <FlatList
-                data={list}
-                keyExtractor={(item) => item.id}
-                renderItem={renderPost}
-                scrollEnabled={false}
-              />
-            </View>
+            <>
+              <View style={styles.listWrap}>
+                <FlatList
+                  data={filteredList}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderPost}
+                  scrollEnabled={false}
+                />
+              </View>
+              {filteredList.length === 0 && appliedSearch.trim() ? (
+                <Text style={styles.searchEmpty}>조건에 맞는 게시글이 없어요</Text>
+              ) : null}
+            </>
           )}
         </ScrollView>
       </View>
@@ -214,6 +259,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
+  },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingLeft: 12,
+    paddingRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#111827",
+    paddingVertical: 8,
+    paddingRight: 8,
+  },
+  searchClear: { padding: 4 },
+  searchButton: { padding: 4, marginLeft: 4 },
+  searchEmpty: {
+    paddingVertical: 24,
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
   },
   scroll: { flex: 1 },
   scrollContent: {
