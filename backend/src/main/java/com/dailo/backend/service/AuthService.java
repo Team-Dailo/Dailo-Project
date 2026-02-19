@@ -50,17 +50,12 @@ public class AuthService {
         // 회원 존재 여부 및 상태 확인
         Member member = memberRepository.findByEmail(email).orElse(null);
         
-        if (member == null) {
-            // 이메일이 없음 - BadCredentialsException으로 던져서 "이메일 또는 비밀번호가 올바르지 않습니다" 메시지
+        // 탈퇴된 계정은 없는 계정처럼 처리 (보안상 이유로 구체적인 메시지 제공하지 않음)
+        if (member == null || member.getStatus() == MemberStatus.DELETED) {
             throw new BadCredentialsException("가입되지 않은 이메일입니다.");
         }
         
-        // 탈퇴된 계정 확인
-        if (member.getStatus() == MemberStatus.DELETED) {
-            throw new ForbiddenException("탈퇴된 계정입니다.");
-        }
-        
-        // 정지된 계정 확인
+        // 정지된 계정 확인 (정지된 계정만 "로그인할 수 없는 계정" 메시지)
         if (member.isSuspended()) {
             throw new ForbiddenException("정지된 계정입니다. 관리자에게 문의해 주세요.");
         }
