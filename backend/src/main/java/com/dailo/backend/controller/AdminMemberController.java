@@ -7,6 +7,7 @@ import com.dailo.backend.domain.enums.MemberStatus;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.service.AdminBlockService;
+import com.dailo.backend.service.MemberService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -30,6 +31,7 @@ public class AdminMemberController {
 
     private final MemberRepository memberRepository;
     private final AdminBlockService adminBlockService;
+    private final MemberService memberService;
 
     @Value("${app.admin.emails:}")
     private String adminEmailsProperty;
@@ -73,6 +75,20 @@ public class AdminMemberController {
             return ResponseEntity.status(403).build();
         }
         adminBlockService.suspend(memberId, request.getType());
+        return ResponseEntity.ok().build();
+    }
+
+    /** 관리자용 회원 탈퇴 처리 (목록에서 제거됨) */
+    @PostMapping("/{memberId}/withdraw")
+    public ResponseEntity<Void> withdraw(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long memberId) {
+        Member current = memberRepository.findById(Long.parseLong(userDetails.getUsername()))
+                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+        if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(current.getId())) {
+            return ResponseEntity.status(403).build();
+        }
+        memberService.withdraw(memberId);
         return ResponseEntity.ok().build();
     }
 
