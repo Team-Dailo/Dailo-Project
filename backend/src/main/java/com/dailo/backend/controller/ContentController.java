@@ -23,4 +23,14 @@ public class ContentController {
         String content = appContentService.getUsageGuide();
         return ResponseEntity.ok(Map.of("content", content != null ? content : ""));
     }
+
+    /**
+     * 개인정보처리방침 조회 (비로그인 포함)
+     * GET /api/content/privacy-policy
+     */
+    @GetMapping("/privacy-policy")
+    public ResponseEntity<Map<String, String>> getPrivacyPolicy() {
+        String content = appContentService.getPrivacyPolicy();
+        return ResponseEntity.ok(Map.of("content", content != null ? content : ""));
+    }
 }

@@ -3,6 +3,7 @@ package com.dailo.backend.controller;
 import com.dailo.backend.domain.enums.Role;
 import com.dailo.backend.dto.admin.AdminMemberListItemDto;
 import com.dailo.backend.dto.admin.SuspendRequestDto;
+import com.dailo.backend.domain.enums.MemberStatus;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.service.AdminBlockService;
@@ -55,7 +56,8 @@ public class AdminMemberController {
             return ResponseEntity.status(403).build();
         }
 
-        Page<Member> page = memberRepository.findAll(pageable);
+        // 개인정보처리방침: 탈퇴자(DELETED)는 목록에 노출하지 않음
+        Page<Member> page = memberRepository.findByStatusNot(MemberStatus.DELETED, pageable);
         return ResponseEntity.ok(page.map(AdminMemberListItemDto::from));
     }
 

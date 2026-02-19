@@ -30,7 +30,7 @@ public class LocationService {
     private final EventRepository eventRepository;
     private final MemberRepository memberRepository;
 
-    private static final double ALLOWED_RADIUS_METER = 300.0; // 행사장 반경 허용치 (앱과 동일)
+    private static final double ALLOWED_RADIUS_METER = 200.0; // 행사장 반경 허용치 (앱과 동일, 200m)
     private static final double MAX_ALLOWED_MOVE_DISTANCE = 5000.0; // 부정 방지: 완료 요청 시 최대 이동 가능 거리
 
     /**

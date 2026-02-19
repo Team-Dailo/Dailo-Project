@@ -6,6 +6,7 @@ import com.dailo.backend.dto.auth.MemberResponseDto;
 import com.dailo.backend.jwt.TokenDto;
 import com.dailo.backend.jwt.TokenProvider;
 import com.dailo.backend.entity.Member;
+import com.dailo.backend.exception.ConflictException;
 import com.dailo.backend.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -29,7 +30,7 @@ public class AuthService {
     @Transactional
     public MemberResponseDto signup(MemberRequestDto requestDto) {
         if (memberRepository.existsByEmail(requestDto.getEmail())) {
-            throw new RuntimeException("이미 가입되어 있는 유저입니다");
+            throw new ConflictException("이미 가입된 이메일입니다. 다른 이메일로 시도해 주세요.");
         }
 
         Member member = requestDto.toMember(passwordEncoder);

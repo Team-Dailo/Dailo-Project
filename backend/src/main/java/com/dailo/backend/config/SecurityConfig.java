@@ -90,6 +90,9 @@ public class SecurityConfig {
                         // 이용 안내 등 앱 콘텐츠 조회 (비로그인 포함)
                         .requestMatchers(HttpMethod.GET, "/api/content/**").permitAll()
 
+                        // 문의하기 제출 (비로그인 가능)
+                        .requestMatchers(HttpMethod.POST, "/api/inquiries").permitAll()
+
                         // 공지사항 조회 (비로그인 포함)
                         .requestMatchers(HttpMethod.GET, "/api/notices/**").permitAll()
 
