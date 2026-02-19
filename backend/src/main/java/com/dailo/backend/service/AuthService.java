@@ -1,5 +1,6 @@
 package com.dailo.backend.service;
 
+import com.dailo.backend.domain.enums.MemberStatus;
 import com.dailo.backend.dto.auth.LoginRequestDto;
 import com.dailo.backend.dto.auth.MemberRequestDto;
 import com.dailo.backend.dto.auth.MemberResponseDto;
@@ -7,8 +8,10 @@ import com.dailo.backend.jwt.TokenDto;
 import com.dailo.backend.jwt.TokenProvider;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.exception.ConflictException;
+import com.dailo.backend.exception.ForbiddenException;
 import com.dailo.backend.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.core.Authentication;
@@ -42,14 +45,38 @@ public class AuthService {
      */
     @Transactional
     public TokenDto login(LoginRequestDto requestDto) {
+        String email = requestDto.getEmail();
+        
+        // 회원 존재 여부 및 상태 확인
+        Member member = memberRepository.findByEmail(email).orElse(null);
+        
+        if (member == null) {
+            // 이메일이 없음 - BadCredentialsException으로 던져서 "이메일 또는 비밀번호가 올바르지 않습니다" 메시지
+            throw new BadCredentialsException("가입되지 않은 이메일입니다.");
+        }
+        
+        // 탈퇴된 계정 확인
+        if (member.getStatus() == MemberStatus.DELETED) {
+            throw new ForbiddenException("탈퇴된 계정입니다.");
+        }
+        
+        // 정지된 계정 확인
+        if (member.isSuspended()) {
+            throw new ForbiddenException("정지된 계정입니다. 관리자에게 문의해 주세요.");
+        }
+        
         // 1. Login ID/PW 를 기반으로 AuthenticationToken 생성
         UsernamePasswordAuthenticationToken authenticationToken = requestDto.toAuthentication();
 
         // 2. 실제로 검증 (사용자 비밀번호 체크) 이 이루어지는 부분
         //    authenticate 메서드가 실행이 될 때 CustomUserDetailsService 에서 만들었던 loadUserByUsername 메서드가 실행됨
-        Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
-
-        // 3. 인증 정보를 기반으로 JWT 토큰 생성
-        return tokenProvider.generateTokenDto(authentication);
+        try {
+            Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
+            // 3. 인증 정보를 기반으로 JWT 토큰 생성
+            return tokenProvider.generateTokenDto(authentication);
+        } catch (org.springframework.security.core.AuthenticationException e) {
+            // 비밀번호가 틀린 경우
+            throw new BadCredentialsException("비밀번호가 올바르지 않습니다.");
+        }
     }
 }
