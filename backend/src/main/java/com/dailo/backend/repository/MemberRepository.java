@@ -14,4 +14,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     /** 개인정보처리방침 준수: 탈퇴자(DELETED)는 목록에 노출하지 않음 */
     Page<Member> findByStatusNot(MemberStatus status, Pageable pageable);
+
+    // 닉네임 중복 확인을 위한 쿼리
+    boolean existsByNickname(String nickname);
+
 }
