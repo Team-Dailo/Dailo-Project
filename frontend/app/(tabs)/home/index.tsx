@@ -205,7 +205,11 @@ export default function HomeScreen() {
         {/* 상단 헤더 */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.logoDot} />
+            <Image
+              source={require("../../../assets/images/splash-icon.png")}
+              style={styles.logoIcon}
+              resizeMode="contain"
+            />
             <Text style={styles.logoText}>Dailo</Text>
           </View>
 
@@ -458,12 +462,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  logoDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#4C8BF5",
-    marginRight: 6,
+  logoIcon: {
+    width: 36,
+    height: 36,
+    marginRight: 8,
   },
   logoText: {
     fontSize: 18,
