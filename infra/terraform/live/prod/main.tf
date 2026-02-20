@@ -130,14 +130,6 @@ module "ecs" {
     {
       name  = "AWS_S3_BUCKET"
       value = local.static_bucket_name  
-    },
-    {
-      name  = "APP_UPLOAD_USE_S3"
-      value = "true"
-    },
-    {
-      name  = "APP_UPLOAD_STATIC_BASE_PATH"
-      value = "/static"
     }
   ]
     container_secrets = [
