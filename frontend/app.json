@@ -30,7 +30,7 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
       ],
-      "package": "com.dailo.app"
+      "package": "com.knut.dailo"
     },
     "web": {
       "output": "static",

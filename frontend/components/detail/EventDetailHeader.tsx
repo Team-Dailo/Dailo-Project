@@ -223,7 +223,7 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
       dlat: String(event.latitude),
       dlng: String(event.longitude),
       dname: destination,
-      appname: "com.dailo.app",
+      appname: "com.knut.dailo",
     });
     if (startLat != null && startLng != null) {
       params.set("slat", String(startLat));
