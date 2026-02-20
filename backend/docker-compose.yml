@@ -34,6 +34,11 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/dailo?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY}
+      AWS_SECRET_KEY: ${AWS_SECRET_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      APP_UPLOAD_USE_S3: "true"
     ports:
       - "8080:8080"
     depends_on:
