@@ -16,12 +16,12 @@ public class MemberResponseDto {
     private String nickname;
     private String profileImageUrl;
 
-    public static MemberResponseDto of(Member member) {
+    public static MemberResponseDto of(Member member, String presignedUrl) {
         return MemberResponseDto.builder()
                 .id(member.getId())
                 .email(member.getEmail())
                 .nickname(member.getNickname())
-                .profileImageUrl(member.getProfileImageUrl())
+                .profileImageUrl(presignedUrl)
                 .build();
     }
 }

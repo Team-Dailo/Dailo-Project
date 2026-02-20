@@ -14,12 +14,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberService {
 
     private final MemberRepository memberRepository;
+    private final S3UploadService s3UploadService;
 
     // 내 정보 조회
     public MemberResponseDto getMyProfile(Long memberId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
-        return MemberResponseDto.of(member);
+
+        return createDtoWithPresignedUrl(member);
     }
 
     // 프로필 수정
@@ -28,10 +30,29 @@ public class MemberService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
 
-        // 닉네임 중복 체크 로직 (필요시 추가)
+        // 닉네임 중복 방어
+        String newNickname = request.getNickname();
+        if (newNickname != null && !newNickname.equals(member.getNickname())) {
+            if (memberRepository.existsByNickname(newNickname)) {
+                throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
+            }
+        }
 
-        member.updateProfile(request.getNickname(), request.getProfileImageUrl());
-        return MemberResponseDto.of(member);
+        // 💡 엔티티 값 변경
+        member.updateProfile(newNickname, request.getProfileImageUrl());
+
+        return createDtoWithPresignedUrl(member);
+    }
+
+    // 💡 이미지 전용 업데이트
+    @Transactional
+    public MemberResponseDto updateProfileImage(Long memberId, String imageKey) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+
+        member.updateProfile(member.getNickname(), imageKey);
+
+        return createDtoWithPresignedUrl(member);
     }
 
     // 회원 탈퇴
@@ -42,14 +63,32 @@ public class MemberService {
         member.withdraw();
     }
 
-    /** id=1 회원 닉네임이 비어 있으면 "회원1"로 설정 (댓글 등 기존 데이터 표시용) */
+    // 닉네임 중복 체크
+    public boolean checkNicknameDuplicate(String nickname) {
+        return memberRepository.existsByNickname(nickname);
+    }
+
+    /** id=1 회원 닉네임이 비어 있으면 "회원1"로 설정 */
     @Transactional
     public void ensureMember1Nickname() {
         memberRepository.findById(1L).ifPresent(m -> {
             if (m.getNickname() == null || m.getNickname().isBlank()) {
                 m.updateProfile("회원1", null);
-                memberRepository.save(m);
             }
         });
+    }
+
+    /**
+     * 💡 [공통 로직] 엔티티의 S3 Key를 Presigned URL로 변환하여 DTO 생성
+     */
+    private MemberResponseDto createDtoWithPresignedUrl(Member member) {
+        String key = member.getProfileImageUrl(); // DB에는 "profile/uuid.jpg" 형태로 저장됨
+        String presignedUrl = null;
+
+        if (key != null && !key.isBlank()) {
+            presignedUrl = s3UploadService.getPresignedUrl(key);
+        }
+
+        return MemberResponseDto.of(member, presignedUrl);
     }
 }

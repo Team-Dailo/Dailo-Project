@@ -74,6 +74,18 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, e.getMessage());
     }
 
+    // 413 Payload Too Large - 파일 용량 초과 (최대 100MB 설정 시)
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceededException(org.springframework.web.multipart.MaxUploadSizeExceededException e) {
+        return buildResponse(HttpStatus.PAYLOAD_TOO_LARGE, "파일 용량이 너무 큽니다. 최대 100MB까지 가능합니다.");
+    }
+
+    // 500 Internal Server Error - S3 관련 클라이언트 에러 (키 미설정 등)
+    @ExceptionHandler(software.amazon.awssdk.core.exception.SdkClientException.class)
+    public ResponseEntity<Map<String, Object>> handleSdkClientException(software.amazon.awssdk.core.exception.SdkClientException e) {
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "서버 파일 스토리지 설정에 문제가 발생했습니다.");
+    }
+
     private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message) {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now());

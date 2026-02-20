@@ -16,6 +16,8 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -38,6 +40,12 @@ public class S3UploadService {
     public String upload(MultipartFile file, String directory) throws IOException {
         String originalFilename = file.getOriginalFilename();
         String extension = getExtension(originalFilename);
+
+        // 확장자 검증 로직 추가
+        if (extension == null || !isAllowedExtension(extension)) {
+            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다. (jpg, jpeg, png, gif, webp만 가능)");
+        }
+
         String key = directory + "/" + UUID.randomUUID() + (extension != null ? "." + extension : "");
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
@@ -57,6 +65,9 @@ public class S3UploadService {
      * S3 key로 Presigned URL 생성
      */
     public String getPresignedUrl(String key) {
+
+        if (key == null || key.isEmpty()) return null;
+
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
@@ -75,6 +86,8 @@ public class S3UploadService {
      * S3 객체 삭제
      */
     public void delete(String key) {
+        if (key == null || key.isEmpty()) return;
+
         DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
@@ -89,5 +102,10 @@ public class S3UploadService {
         int i = filename.lastIndexOf('.');
         if (i <= 0 || i >= filename.length() - 1) return null;
         return filename.substring(i + 1).toLowerCase();
+    }
+
+    private boolean isAllowedExtension(String extension) {
+        List<String> allowed = Arrays.asList("jpg", "jpeg", "png", "gif", "webp");
+        return allowed.contains(extension.toLowerCase());
     }
 }
