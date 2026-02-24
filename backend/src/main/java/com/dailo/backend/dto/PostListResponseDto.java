@@ -24,6 +24,8 @@ public class PostListResponseDto {
     private Long authorId;
     /** 작성자 닉네임 (표시용) */
     private String authorNickname;
+    /** 작성자 프로필 이미지 URL (목록용) */
+    private String authorProfileImageUrl;
     private String title;
     private String categoryType;
     /** 후기일 때 연관 행사 ID */
@@ -61,10 +63,15 @@ public class PostListResponseDto {
     }
 
     public static PostListResponseDto from(Post post, String authorNickname, Boolean liked, String eventTitle) {
+        return from(post, authorNickname, liked, eventTitle, null);
+    }
+
+    public static PostListResponseDto from(Post post, String authorNickname, Boolean liked, String eventTitle, String authorProfileImageUrl) {
         return PostListResponseDto.builder()
                 .id(post.getId())
                 .authorId(post.getAuthorId())
                 .authorNickname(authorNickname != null ? authorNickname : "알 수 없음")
+                .authorProfileImageUrl(authorProfileImageUrl != null && !authorProfileImageUrl.isBlank() ? authorProfileImageUrl : null)
                 .title(post.getTitle())
                 .categoryType(post.getCategoryType())
                 .eventId(post.getEventId())
