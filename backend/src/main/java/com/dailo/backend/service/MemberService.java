@@ -38,13 +38,13 @@ public class MemberService {
             }
         }
 
-        // 💡 엔티티 값 변경
+        //엔티티 값 변경
         member.updateProfile(newNickname, request.getProfileImageUrl());
 
         return createDtoWithPresignedUrl(member);
     }
 
-    // 💡 이미지 전용 업데이트
+    // 이미지 전용 업데이트
     @Transactional
     public MemberResponseDto updateProfileImage(Long memberId, String imageKey) {
         Member member = memberRepository.findById(memberId)
@@ -78,9 +78,7 @@ public class MemberService {
         });
     }
 
-    /**
-     * 💡 [공통 로직] 엔티티의 S3 Key를 Presigned URL로 변환하여 DTO 생성
-     */
+
     private MemberResponseDto createDtoWithPresignedUrl(Member member) {
         String key = member.getProfileImageUrl(); // DB에는 "profile/uuid.jpg" 형태로 저장됨
         String presignedUrl = null;
