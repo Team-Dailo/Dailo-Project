@@ -1,6 +1,7 @@
 package com.dailo.backend.repository;
 
 import com.dailo.backend.domain.enums.MemberStatus;
+import com.dailo.backend.domain.enums.SocialType;
 import com.dailo.backend.entity.Member;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,4 +19,5 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     // 닉네임 중복 확인을 위한 쿼리
     boolean existsByNickname(String nickname);
 
+    Optional<Member> findBySocialTypeAndSocialId(SocialType socialType, String socialId);
 }
