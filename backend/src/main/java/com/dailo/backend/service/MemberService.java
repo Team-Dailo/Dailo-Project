@@ -17,8 +17,8 @@ public class MemberService {
     private final S3UploadService s3UploadService;
 
     // 내 정보 조회
-    public MemberResponseDto getMyProfile(Long memberId) {
-        Member member = memberRepository.findById(memberId)
+    public MemberResponseDto getMyProfile(String email) { // 💡 파라미터 변경
+        Member member = memberRepository.findByEmail(email) // 💡 이메일로 조회
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
 
         return createDtoWithPresignedUrl(member);
@@ -26,11 +26,10 @@ public class MemberService {
 
     // 프로필 수정
     @Transactional
-    public MemberResponseDto updateProfile(Long memberId, MemberUpdateRequestDto request) {
-        Member member = memberRepository.findById(memberId)
+    public MemberResponseDto updateProfile(String email, MemberUpdateRequestDto request) { // 💡 파라미터 변경
+        Member member = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
 
-        // 닉네임 중복 방어
         String newNickname = request.getNickname();
         if (newNickname != null && !newNickname.equals(member.getNickname())) {
             if (memberRepository.existsByNickname(newNickname)) {
@@ -38,27 +37,23 @@ public class MemberService {
             }
         }
 
-        //엔티티 값 변경
         member.updateProfile(newNickname, request.getProfileImageUrl());
-
         return createDtoWithPresignedUrl(member);
     }
 
     // 이미지 전용 업데이트
     @Transactional
-    public MemberResponseDto updateProfileImage(Long memberId, String imageKey) {
-        Member member = memberRepository.findById(memberId)
+    public void updateProfileImage(String email, String imageKey) {
+        Member member = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
 
         member.updateProfile(member.getNickname(), imageKey);
-
-        return createDtoWithPresignedUrl(member);
     }
 
     // 회원 탈퇴
     @Transactional
-    public void withdraw(Long memberId) {
-        Member member = memberRepository.findById(memberId)
+    public void withdraw(String email) {
+        Member member = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
         member.withdraw();
     }
@@ -78,9 +73,8 @@ public class MemberService {
         });
     }
 
-
     private MemberResponseDto createDtoWithPresignedUrl(Member member) {
-        String key = member.getProfileImageUrl(); // DB에는 "profile/uuid.jpg" 형태로 저장됨
+        String key = member.getProfileImageUrl();
         String presignedUrl = null;
 
         if (key != null && !key.isBlank()) {

@@ -5,9 +5,11 @@ import com.dailo.backend.dto.ChatMessageResponseDto;
 import com.dailo.backend.entity.ChatMember;
 import com.dailo.backend.entity.ChatMessage;
 import com.dailo.backend.entity.ChatRoom;
+import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.ChatMemberRepository;
 import com.dailo.backend.repository.ChatMessageRepository;
 import com.dailo.backend.repository.ChatRoomRepository;
+import com.dailo.backend.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,11 +24,21 @@ public class ChatMessageService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMemberRepository chatMemberRepository;
+    private final MemberRepository memberRepository; // 💡 추가: 이메일 조회를 위해 주입
     private final BlockService blockService;
+
+    // 💡 이메일로 내 ID를 찾아주는 헬퍼 메서드
+    private Long getMemberIdByEmail(String email) {
+        if (email == null) return null;
+        return memberRepository.findByEmail(email)
+                .map(Member::getId)
+                .orElseThrow(() -> new RuntimeException("Member not found for email: " + email));
+    }
 
     // 메시지 전송
     @Transactional
-    public ChatMessageResponseDto sendMessage(Long roomId, Long senderId, String content, MessageType messageType) {
+    public ChatMessageResponseDto sendMessage(Long roomId, String email, String content, MessageType messageType) {
+        Long senderId = getMemberIdByEmail(email);
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
 
@@ -63,15 +75,15 @@ public class ChatMessageService {
     }
 
     // 메시지 히스토리 조회
-    public Page<ChatMessageResponseDto> getMessages(Long roomId, Long userId, Pageable pageable) {
+    public Page<ChatMessageResponseDto> getMessages(Long roomId, String email, Pageable pageable) {
+        Long userId = getMemberIdByEmail(email);
+
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
 
         // 멤버 여부 확인
         ChatMember member = chatMemberRepository.findByRoomAndUserId(room, userId)
                 .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
-
-        // 나간 사용자도 이전 메시지는 볼 수 있음 (정책에 따라 변경 가능)
 
         return chatMessageRepository.findByRoomOrderByCreatedAtDesc(room, pageable)
                 .map(ChatMessageResponseDto::from);

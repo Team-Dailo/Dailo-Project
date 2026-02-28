@@ -37,11 +37,12 @@ public class AdminBlockController {
     @GetMapping("/heavy-blocked")
     public ResponseEntity<List<HeavyBlockedMemberDto>> getHeavyBlockedList(
             @AuthenticationPrincipal UserDetails userDetails) {
-        Long memberId = Long.parseLong(userDetails.getUsername());
-        Member current = memberRepository.findById(memberId)
+
+        String email = userDetails.getUsername();
+        Member current = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
 
-        if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(memberId)) {
+        if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(current.getId())) {
             return ResponseEntity.status(403).build();
         }
 
