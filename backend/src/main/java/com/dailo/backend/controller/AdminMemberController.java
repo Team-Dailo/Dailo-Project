@@ -44,15 +44,17 @@ public class AdminMemberController {
     public ResponseEntity<Page<AdminMemberListItemDto>> getMemberList(
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 50, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
-        Long memberId = Long.parseLong(userDetails.getUsername());
-        Member current = memberRepository.findById(memberId)
+
+        // JWT 토큰에서 이메일을 추출하여 관리자 Member 객체 조회
+        String email = userDetails.getUsername();
+        Member current = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
 
         if (current.getRole() == Role.ADMIN) {
             // 이미 ADMIN
         } else if (isInAdminEmails(current.getEmail())) {
             // 설정에 이메일로 등록된 관리자 → 허용 (다음 접근부터는 role 갱신 권장)
-        } else if (isInAdminUserIds(memberId)) {
+        } else if (isInAdminUserIds(current.getId())) {
             // 설정에 ID로 등록된 관리자 → 허용
         } else {
             return ResponseEntity.status(403).build();
@@ -69,11 +71,16 @@ public class AdminMemberController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long memberId,
             @RequestBody SuspendRequestDto request) {
-        Member current = memberRepository.findById(Long.parseLong(userDetails.getUsername()))
+
+        // 이메일 기반 관리자 검증
+        String email = userDetails.getUsername();
+        Member current = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+
         if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(current.getId())) {
             return ResponseEntity.status(403).build();
         }
+
         adminBlockService.suspend(memberId, request.getType());
         return ResponseEntity.ok().build();
     }
@@ -83,12 +90,20 @@ public class AdminMemberController {
     public ResponseEntity<Void> withdraw(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long memberId) {
-        Member current = memberRepository.findById(Long.parseLong(userDetails.getUsername()))
+
+        // 이메일 기반 관리자 검증
+        String email = userDetails.getUsername();
+        Member current = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+
         if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(current.getId())) {
             return ResponseEntity.status(403).build();
         }
-        memberService.withdraw(memberId);
+
+        Member target = memberRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("대상 회원 정보가 없습니다."));
+
+        memberService.withdraw(target.getEmail());
         return ResponseEntity.ok().build();
     }
 

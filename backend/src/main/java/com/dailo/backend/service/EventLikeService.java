@@ -18,20 +18,21 @@ public class EventLikeService {
 
     private final EventLikeRepository eventLikeRepository;
     private final EventRepository eventRepository;
-    private final MemberRepository memberRepository;
+    private final MemberRepository memberRepository; // 이미 있어서 다행입니다!
 
     /**
      * 좋아요 토글. 이미 누른 경우 해제, 아니면 추가.
      * @return true = 좋아요 추가됨, false = 좋아요 해제됨
      */
     @Transactional
-    public boolean toggleLike(Long memberId, Long eventId) {
-        Member member = memberRepository.findById(memberId)
+    public boolean toggleLike(String email, Long eventId) { //
+        Member member = memberRepository.findByEmail(email) //
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 행사입니다."));
 
-        Optional<EventLike> existing = eventLikeRepository.findByMemberIdAndEventId(memberId, eventId);
+        // member.getId()를 사용해 기존 레포지토리 로직 그대로 활용
+        Optional<EventLike> existing = eventLikeRepository.findByMemberIdAndEventId(member.getId(), eventId);
         if (existing.isPresent()) {
             eventLikeRepository.delete(existing.get());
             return false;
@@ -40,9 +41,13 @@ public class EventLikeService {
         return true;
     }
 
-    public boolean isLiked(Long memberId, Long eventId) {
-        if (memberId == null) return false;
-        return eventLikeRepository.existsByMemberIdAndEventId(memberId, eventId);
+    public boolean isLiked(String email, Long eventId) { //
+        if (email == null) return false;
+
+        Member member = memberRepository.findByEmail(email).orElse(null);
+        if (member == null) return false;
+
+        return eventLikeRepository.existsByMemberIdAndEventId(member.getId(), eventId);
     }
 
     /** 해당 행사 전체 좋아요 수 */

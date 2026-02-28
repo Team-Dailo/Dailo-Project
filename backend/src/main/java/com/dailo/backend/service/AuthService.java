@@ -203,4 +203,13 @@ public class AuthService {
 
         return tokenDto;
     }
+
+    /* ===========================
+        7. 로그아웃
+     =========================== */
+    @Transactional
+    public void logout(String email) {
+        // DB에 해당 이메일(ID)로 저장된 Refresh Token이 있다면 삭제
+        refreshTokenRepository.deleteById(email);
+    }
 }

@@ -3,6 +3,7 @@ package com.dailo.backend.controller;
 import com.dailo.backend.dto.CommentRequestDto;
 import com.dailo.backend.dto.CommentResponseDto;
 import com.dailo.backend.service.CommentService;
+import com.dailo.backend.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,23 +25,25 @@ public class CommentController {
     @GetMapping("/posts/{postId}/comments")
     public Page<CommentResponseDto> getComments(
             @PathVariable Long postId,
-            @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
+        // 💡 X-User-Id 헤더 대신 SecurityUtil을 통해 안전하게 이메일 추출
+        String email = SecurityUtil.getCurrentMemberEmail();
+
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return commentService.getCommentsByPostId(postId, userId, pageable);
+        return commentService.getCommentsByPostId(postId, email, pageable);
     }
 
-    // 2. 댓글 생성 (인증 필요, 본인 닉네임으로 저장)
+    // 2. 댓글 생성
     @PostMapping("/posts/{postId}/comments")
     public ResponseEntity<CommentResponseDto> createComment(
             @PathVariable Long postId,
             @RequestBody CommentRequestDto requestDto,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        Long memberId = Long.parseLong(userDetails.getUsername());
-        CommentResponseDto comment = commentService.createComment(postId, requestDto, memberId);
+        String email = userDetails.getUsername();
+        CommentResponseDto comment = commentService.createComment(postId, requestDto, email);
         return ResponseEntity.ok(comment);
     }
 
@@ -51,8 +54,8 @@ public class CommentController {
             @RequestBody CommentRequestDto requestDto,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        Long memberId = Long.parseLong(userDetails.getUsername());
-        CommentResponseDto comment = commentService.updateComment(id, requestDto, memberId);
+        String email = userDetails.getUsername();
+        CommentResponseDto comment = commentService.updateComment(id, requestDto, email);
         return ResponseEntity.ok(comment);
     }
 
@@ -62,8 +65,8 @@ public class CommentController {
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        Long memberId = Long.parseLong(userDetails.getUsername());
-        commentService.deleteComment(id, memberId);
+        String email = userDetails.getUsername();
+        commentService.deleteComment(id, email);
         return ResponseEntity.ok().build();
     }
 }
