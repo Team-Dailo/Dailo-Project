@@ -14,6 +14,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/scraps")
 @RequiredArgsConstructor
@@ -24,37 +27,34 @@ public class ScrapController {
 
     /**
      * 1. 스크랩 토글 (저장/취소)
-     * [POST] /api/scraps/{eventId}
      */
     @Operation(summary = "스크랩 토글 (저장/취소)", description = "행사를 찜하거나 취소합니다.")
     @PostMapping("/{eventId}")
-    public ResponseEntity<String> toggleScrap(
-            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails, // [NEW] 토큰에서 유저 정보 꺼내기
+    public ResponseEntity<Map<String, Object>> toggleScrap(
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @Parameter(description = "행사 ID", required = true) @PathVariable Long eventId
     ) {
-        // UserDetails.getUsername()에 우리가 아까 ID(PK)를 넣어뒀으므로, Long으로 변환해서 사용
-        Long memberId = Long.parseLong(userDetails.getUsername());
+        String email = userDetails.getUsername();
 
-        boolean isScraped = scrapService.toggleScrap(memberId, eventId);
+        boolean isScraped = scrapService.toggleScrap(email, eventId);
 
-        if (isScraped) {
-            return ResponseEntity.ok("스크랩 완료 (저장됨)");
-        } else {
-            return ResponseEntity.ok("스크랩 취소 (삭제됨)");
-        }
+        Map<String, Object> response = new HashMap<>();
+        response.put("isScraped", isScraped);
+        response.put("message", isScraped ? "스크랩 완료" : "스크랩 취소");
+
+        return ResponseEntity.ok(response);
     }
 
     /**
      * 2. 내 스크랩 목록 조회
-     * [GET] /api/scraps
      */
     @Operation(summary = "내 스크랩 목록 조회", description = "내가 찜한 행사 목록을 페이징하여 조회합니다.")
     @GetMapping
     public ResponseEntity<Page<EventListResponse>> getMyScraps(
-            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails, // [NEW] 토큰에서 유저 정보 꺼내기
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        Long memberId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(scrapService.getMyScraps(memberId, pageable));
+        String email = userDetails.getUsername();
+        return ResponseEntity.ok(scrapService.getMyScraps(email, pageable));
     }
 }

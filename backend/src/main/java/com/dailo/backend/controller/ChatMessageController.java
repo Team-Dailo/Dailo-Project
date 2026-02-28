@@ -31,9 +31,11 @@ public class ChatMessageController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
 
-        Long userId = Long.parseLong(userDetails.getUsername());
+        // 💡 핵심 수정: Long 파싱 제거, 이메일 추출
+        String email = userDetails.getUsername();
+
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(chatMessageService.getMessages(roomId, userId, pageable));
+        return ResponseEntity.ok(chatMessageService.getMessages(roomId, email, pageable));
     }
 
     // 메시지 전송 (REST API)
@@ -43,10 +45,12 @@ public class ChatMessageController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ChatMessageRequestDto requestDto) {
 
-        Long userId = Long.parseLong(userDetails.getUsername());
+        // Long 파싱 제거, 이메일 추출
+        String email = userDetails.getUsername();
+
         ChatMessageResponseDto response = chatMessageService.sendMessage(
                 roomId,
-                userId,
+                email,
                 requestDto.getContent(),
                 requestDto.getMessageType()
         );

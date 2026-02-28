@@ -33,16 +33,22 @@ public class LocationService {
     private static final double ALLOWED_RADIUS_METER = 200.0; // 행사장 반경 허용치 (앱과 동일, 200m)
     private static final double MAX_ALLOWED_MOVE_DISTANCE = 5000.0; // 부정 방지: 완료 요청 시 최대 이동 가능 거리
 
+    private Member getMemberByEmail(String email) {
+        return memberRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다. email: " + email));
+    }
+
     /**
      * [체류 시작]
      */
-    public Long startStay(Long memberId, LocationRequest request) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("유저 없음"));
+    public Long startStay(String email, LocationRequest request) {
+        Member member = getMemberByEmail(email);
+        Long memberId = member.getId();
+
         Event event = eventRepository.findById(request.eventId())
                 .orElseThrow(() -> new IllegalArgumentException("행사 없음"));
 
-        // 같은 행사라도 다른 날이면 참여 시작 허용 (같은 날 여러 번 방문 시에는 완료 시 한 건만 남김)
+        // 같은 행사라도 다른 날이면 참여 시작 허용
         if (staySessionRepository.findByMemberIdAndEventIdAndStatus(memberId, event.getId(), StayStatus.PENDING).isPresent()) {
             throw new IllegalStateException("이미 체류 인증이 진행 중입니다.");
         }
@@ -67,14 +73,16 @@ public class LocationService {
     }
 
     /**
-     * [체류 완료] 1초라도 구역에 있었으면 기록 (날짜·진입시간·체류시간 저장).
-     * 같은 축제를 하루에 여러 번 방문해도 해당 날짜에는 한 건만 남기고, 다른 날 방문은 각각 기록함.
+     * [체류 완료]
      */
-    public void completeStay(Long memberId, LocationRequest request) {
+    public void completeStay(String email, LocationRequest request) {
+        Member member = getMemberByEmail(email);
+        Long memberId = member.getId();
+
         StaySession session = staySessionRepository.findByMemberIdAndEventIdAndStatus(memberId, request.eventId(), StayStatus.PENDING)
                 .orElseThrow(() -> new IllegalArgumentException("진행 중인 세션이 없습니다."));
 
-        // [부정 방지] 시작 시 기록된 위치와 현재 요청 위치 비교
+        // [부정 방지]
         if (session.getLastLatitude() != null && session.getLastLongitude() != null) {
             double distanceBetweenCheckins = GeometryUtils.calculateDistance(
                     session.getLastLatitude(), session.getLastLongitude(),
@@ -86,13 +94,15 @@ public class LocationService {
             }
         }
 
-        // 같은 날 같은 행사로 이미 완료된 기록이 있으면, 체류시간이 더 긴 쪽만 남김
+        // 같은 날 같은 행사 중복 기록 처리
         LocalDate today = session.getStartTime() != null ? session.getStartTime().toLocalDate() : LocalDate.now();
         List<StaySession> completedSameEvent = staySessionRepository.findByMemberIdAndEventIdAndStatusOrderByStartTimeDesc(
                 memberId, request.eventId(), StayStatus.COMPLETED);
+
         Optional<StaySession> existingSameDay = completedSameEvent.stream()
                 .filter(s -> s.getStartTime() != null && s.getStartTime().toLocalDate().equals(today))
                 .findFirst();
+
         if (existingSameDay.isPresent()) {
             StaySession existing = existingSameDay.get();
             long existingMinutes = existing.getStartTime() != null && existing.getEndTime() != null
@@ -113,18 +123,20 @@ public class LocationService {
         session.completeSession();
     }
 
-    /** 완료된 체류 세션 목록 (참여한 축제: 1초라도 있었으면, 같은 날 같은 행사 1건) */
+    /** 완료된 체류 세션 목록 */
     @Transactional(readOnly = true)
-    public List<StaySessionResponseDto> getCompletedSessions(Long memberId) {
+    public List<StaySessionResponseDto> getCompletedSessions(String email) {
+        Long memberId = getMemberByEmail(email).getId();
         List<StaySession> sessions = staySessionRepository.findByMemberIdAndStatusOrderByEndTimeDesc(memberId, StayStatus.COMPLETED);
         return sessions.stream()
                 .map(this::toResponseDto)
                 .collect(Collectors.toList());
     }
 
-    /** 체류 미션 기록용: 30분 이상 체류한 세션만 (진입·퇴장 시간 기록) */
+    /** 체류 미션 기록용 (30분 이상) */
     @Transactional(readOnly = true)
-    public List<StaySessionResponseDto> getStayMissionSessions(Long memberId) {
+    public List<StaySessionResponseDto> getStayMissionSessions(String email) {
+        Long memberId = getMemberByEmail(email).getId();
         List<StaySession> sessions = staySessionRepository.findByMemberIdAndStatusOrderByEndTimeDesc(memberId, StayStatus.COMPLETED);
         return sessions.stream()
                 .map(this::toResponseDto)
