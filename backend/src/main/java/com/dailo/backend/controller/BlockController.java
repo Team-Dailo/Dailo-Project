@@ -4,6 +4,7 @@ import com.dailo.backend.dto.BlockCheckResponseDto;
 import com.dailo.backend.dto.BlockRequestDto;
 import com.dailo.backend.dto.BlockResponseDto;
 import com.dailo.backend.service.BlockService;
+import com.dailo.backend.util.SecurityUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,39 +22,37 @@ public class BlockController {
 
     // 1. 내 차단 목록 조회
     @GetMapping("/me")
-    public ResponseEntity<List<BlockResponseDto>> getMyBlocks(
-            @RequestHeader("X-User-Id") Long userId) {
-
-        return ResponseEntity.ok(blockService.getMyBlocks(userId));
+    public ResponseEntity<List<BlockResponseDto>> getMyBlocks() {
+        // 💡 보안을 위해 X-User-Id 헤더 대신 토큰의 이메일을 사용합니다.
+        String email = SecurityUtil.getCurrentMemberEmail();
+        return ResponseEntity.ok(blockService.getMyBlocksByEmail(email));
     }
 
-    // 2. 차단 추가
+    // 2. 차단 추가 (POST)
     @PostMapping
     public ResponseEntity<BlockResponseDto> blockUser(
-            @RequestHeader("X-User-Id") Long userId,
             @Valid @RequestBody BlockRequestDto requestDto) {
 
-        BlockResponseDto response = blockService.blockUser(userId, requestDto.getBlockedId());
+        String email = SecurityUtil.getCurrentMemberEmail();
+        BlockResponseDto response = blockService.blockUserByEmail(email, requestDto.getBlockedId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    // 3. 차단 해제
+    // 3. 차단 해제 (DELETE)
     @DeleteMapping("/{blockedId}")
-    public ResponseEntity<Void> unblockUser(
-            @RequestHeader("X-User-Id") Long userId,
-            @PathVariable Long blockedId) {
+    public ResponseEntity<Void> unblockUser(@PathVariable Long blockedId) {
 
-        blockService.unblockUser(userId, blockedId);
+        String email = SecurityUtil.getCurrentMemberEmail();
+        blockService.unblockUserByEmail(email, blockedId);
         return ResponseEntity.ok().build();
     }
 
-    // 4. 차단 여부 확인
+    // 4. 차단 여부 확인 (GET)
     @GetMapping("/check/{targetUserId}")
-    public ResponseEntity<BlockCheckResponseDto> checkBlock(
-            @RequestHeader("X-User-Id") Long userId,
-            @PathVariable Long targetUserId) {
+    public ResponseEntity<BlockCheckResponseDto> checkBlock(@PathVariable Long targetUserId) {
 
-        BlockCheckResponseDto response = blockService.checkBlockDirection(userId, targetUserId);
+        String email = SecurityUtil.getCurrentMemberEmail();
+        BlockCheckResponseDto response = blockService.checkBlockDirectionByEmail(email, targetUserId);
         return ResponseEntity.ok(response);
     }
 }
