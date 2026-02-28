@@ -25,24 +25,30 @@ public class JwtFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
-        // Request Header에서 토큰 꺼내기
+        // 1. Request Header에서 토큰 꺼내기
         String jwt = resolveToken(request);
 
-        // 토큰 유효성 검사
+        // 2. 토큰 유효성 검사
         if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
-            // 토큰에서 인증 정보(Authentication)
+            // 3. 토큰에서 인증 정보(Authentication) 추출
             Authentication authentication = tokenProvider.getAuthentication(jwt);
 
-            // 정지 회원: DB에서 재조회하여 정지 여부 확인 후 403
-            try {
-                Long memberId = Long.parseLong(authentication.getName());
-                if (memberRepository.findById(memberId).filter(m -> m.isSuspended()).isPresent()) {
-                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                    return;
-                }
-            } catch (NumberFormatException ignored) { }
+            // 4. 정지 회원 체크 (이메일 기반)
+            // authentication.getName()은 이제 유저의 이메일(String)입니다.
+            String email = authentication.getName();
 
-            // SecurityContext에 저장
+            // DB에서 해당 이메일로 회원을 찾아 정지(Suspended) 상태인지 확인
+            boolean isSuspended = memberRepository.findByEmail(email)
+                    .map(member -> member.isSuspended())
+                    .orElse(false);
+
+            if (isSuspended) {
+                // 정지된 회원이면 403 Forbidden 응답 후 필터 중단
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, "정지된 계정입니다.");
+                return;
+            }
+
+            // 5. 정상이면 SecurityContext에 인증 정보 저장
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }
 

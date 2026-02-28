@@ -27,19 +27,18 @@ public class ScrapService {
 
     /**
      * 스크랩 토글 (Toggle)
-     * - 이미 스크랩 했으면 -> 취소(삭제) & return false
-     * - 안 했으면 -> 저장 & return true
      */
     @Transactional
-    public boolean toggleScrap(Long memberId, Long eventId) {
-        Member member = memberRepository.findById(memberId)
+    public boolean toggleScrap(String email, Long eventId) {
+        // 이메일로 회원 조회
+        Member member = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
 
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 행사입니다."));
 
-        // 이미 스크랩 되어 있는지 확인
-        Optional<Scrap> scrapOptional = scrapRepository.findByMemberIdAndEventId(memberId, eventId);
+        // 이미 스크랩 되어 있는지 확인 (member.getId() 활용)
+        Optional<Scrap> scrapOptional = scrapRepository.findByMemberIdAndEventId(member.getId(), eventId);
 
         if (scrapOptional.isPresent()) {
             // 이미 존재하면 삭제
@@ -52,16 +51,20 @@ public class ScrapService {
                     .event(event)
                     .build();
             scrapRepository.save(scrap);
-            return true;
+            return true; // 결과: 저장됨
         }
     }
 
     /**
      * 내 스크랩 목록 조회
-     * - Scrap 엔티티를 조회해서 Event 정보를 꺼낸 뒤 DTO로 변환
      */
-    public Page<EventListResponse> getMyScraps(Long memberId, Pageable pageable) {
-        Page<Scrap> scraps = scrapRepository.findAllByMemberId(memberId, pageable);
+    public Page<EventListResponse> getMyScraps(String email, Pageable pageable) {
+        // 이메일로 회원 조회
+        Member member = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+
+        // member.getId()를 사용하여 기존 레포지토리 로직 호출
+        Page<Scrap> scraps = scrapRepository.findAllByMemberId(member.getId(), pageable);
 
         return scraps.map(scrap -> {
             Event event = scrap.getEvent();

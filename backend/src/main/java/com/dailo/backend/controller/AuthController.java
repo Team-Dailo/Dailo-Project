@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -81,5 +83,15 @@ public class AuthController {
     ) {
         return ResponseEntity.ok(authService.reissue(requestDto));
     }
+    /* ================= 5. 로그아웃================= */
 
+    @Operation(summary = "로그아웃", description = "DB에서 사용자의 Refresh Token을 삭제합니다.")
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        // JWT 필터를 통과한 유저 정보에서 이메일 추출하여 삭제
+        authService.logout(userDetails.getUsername());
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -20,20 +20,16 @@ public class InquiryController {
 
     private final InquiryService inquiryService;
 
-    @Operation(summary = "문의 제출", description = "비로그인도 가능. 로그인 시 회원 ID가 함께 저장됩니다.")
+    @Operation(summary = "문의 제출", description = "비로그인도 가능. 로그인 시 회원 정보가 함께 저장됩니다.")
     @PostMapping
     public ResponseEntity<InquiryResponseDto> create(
             @Valid @RequestBody InquiryRequestDto dto,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
-        Long memberId = null;
-        if (userDetails != null && userDetails.getUsername() != null && !userDetails.getUsername().isEmpty()) {
-            try {
-                memberId = Long.parseLong(userDetails.getUsername());
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        InquiryResponseDto created = inquiryService.create(dto, memberId);
+        String email = (userDetails != null) ? userDetails.getUsername() : null;
+
+        // 서비스 메서드도 Long memberId 대신 String email을 받도록 수정해야 합니다.
+        InquiryResponseDto created = inquiryService.create(dto, email);
         return ResponseEntity.ok(created);
     }
 }

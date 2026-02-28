@@ -33,8 +33,18 @@ public class CommentService {
     private final MemberRepository memberRepository;
     private final BlockService blockService;
 
+    // 이메일로 내 ID를 찾아주는 내부 헬퍼 메서드
+    private Long getMemberIdByEmail(String email) {
+        if (email == null) return null;
+        return memberRepository.findByEmail(email)
+                .map(Member::getId)
+                .orElseThrow(() -> new NotFoundException("Member not found: " + email));
+    }
+
     // 1. 댓글 목록 조회 (최상위 댓글 + 대댓글 포함, 작성자 닉네임 포함)
-    public Page<CommentResponseDto> getCommentsByPostId(Long postId, Long userId, Pageable pageable) {
+    public Page<CommentResponseDto> getCommentsByPostId(Long postId, String email, Pageable pageable) {
+        Long userId = getMemberIdByEmail(email);
+
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new NotFoundException("Post not found: " + postId));
 
@@ -55,15 +65,16 @@ public class CommentService {
                 authorIds.add(r.getAuthorId());
             }
         }
+
         Map<Long, String> authorNicknameMap = authorIds.isEmpty() ? Collections.emptyMap()
                 : memberRepository.findAllById(authorIds).stream()
-                        .collect(Collectors.toMap(Member::getId, m -> {
-                            String n = m.getNickname();
-                            if (n != null && !n.isBlank()) return n.trim();
-                            String email = m.getEmail();
-                            if (email != null && email.contains("@")) return email.split("@")[0].trim();
-                            return null;
-                        }));
+                .collect(Collectors.toMap(Member::getId, m -> {
+                    String n = m.getNickname();
+                    if (n != null && !n.isBlank()) return n.trim();
+                    String mEmail = m.getEmail();
+                    if (mEmail != null && mEmail.contains("@")) return mEmail.split("@")[0].trim();
+                    return "user_" + m.getId();
+                }));
 
         List<CommentResponseDto> dtos = topList.stream()
                 .map(comment -> {
@@ -82,26 +93,24 @@ public class CommentService {
         return commentRepository.findByParentCommentExcludingAuthors(parentComment, invisibleIds);
     }
 
-    // 2. 댓글 생성 (대댓글 지원)
+    // 2. 댓글 생성
     @Transactional
-    public CommentResponseDto createComment(Long postId, CommentRequestDto requestDto, Long authorId) {
+    public CommentResponseDto createComment(Long postId, CommentRequestDto requestDto, String email) {
+        Long authorId = getMemberIdByEmail(email);
         requestDto.validate();
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new NotFoundException("Post not found: " + postId));
 
-        // 대댓글인 경우 부모 댓글 조회 및 검증
         Comment parentComment = null;
         if (requestDto.getParentCommentId() != null) {
             parentComment = commentRepository.findById(requestDto.getParentCommentId())
                     .orElseThrow(() -> new NotFoundException("Parent comment not found: " + requestDto.getParentCommentId()));
 
-            // 부모 댓글이 같은 게시글에 속하는지 검증
             if (!parentComment.getPost().getId().equals(postId)) {
                 throw new IllegalArgumentException("Parent comment does not belong to this post");
             }
 
-            // 대댓글의 대댓글 방지 (1단계만 허용)
             if (parentComment.getParentComment() != null) {
                 throw new IllegalArgumentException("Nested replies are not allowed");
             }
@@ -111,17 +120,16 @@ public class CommentService {
                 .map(m -> {
                     String n = m.getNickname();
                     if (n != null && !n.isBlank()) return n.trim();
-                    String email = m.getEmail();
-                    if (email != null && email.contains("@")) return email.split("@")[0].trim();
-                    return null;
+                    String mEmail = m.getEmail();
+                    if (mEmail != null && mEmail.contains("@")) return mEmail.split("@")[0].trim();
+                    return "user_" + authorId;
                 })
-                .orElse(null);
-        String displayNickname = (nickname != null && !nickname.isBlank()) ? nickname : "user_" + authorId;
+                .orElse("user_" + authorId);
 
         Comment comment = Comment.builder()
                 .post(post)
                 .authorId(authorId)
-                .authorNickname(displayNickname)
+                .authorNickname(nickname)
                 .content(requestDto.getContent().trim())
                 .parentComment(parentComment)
                 .build();
@@ -133,7 +141,8 @@ public class CommentService {
 
     // 3. 댓글 수정
     @Transactional
-    public CommentResponseDto updateComment(Long id, CommentRequestDto requestDto, Long authorId) {
+    public CommentResponseDto updateComment(Long id, CommentRequestDto requestDto, String email) {
+        Long authorId = getMemberIdByEmail(email);
         requestDto.validate();
 
         Comment comment = commentRepository.findById(id)
@@ -149,21 +158,18 @@ public class CommentService {
                 .map(m -> {
                     String n = m.getNickname();
                     if (n != null && !n.isBlank()) return n.trim();
-                    String email = m.getEmail();
-                    if (email != null && email.contains("@")) return email.split("@")[0].trim();
-                    return null;
+                    String mEmail = m.getEmail();
+                    if (mEmail != null && mEmail.contains("@")) return mEmail.split("@")[0].trim();
+                    return "user_" + comment.getAuthorId();
                 })
-                .orElse(null);
+                .orElse("user_" + comment.getAuthorId());
         return CommentResponseDto.from(comment, nickname);
     }
 
     // 4. 댓글 삭제
-    // TODO: 대댓글이 있는 부모 댓글 삭제 정책 결정 필요
-    //       - A안: 대댓글도 함께 삭제 (cascade)
-    //       - B안: soft delete + "삭제된 댓글입니다" 표시
-    //       - C안: 대댓글 있으면 삭제 불가 (400 반환)
     @Transactional
-    public void deleteComment(Long id, Long authorId) {
+    public void deleteComment(Long id, String email) {
+        Long authorId = getMemberIdByEmail(email);
         Comment comment = commentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Comment not found: " + id));
 
@@ -172,9 +178,7 @@ public class CommentService {
         }
 
         Long postId = comment.getPost().getId();
-
         commentRepository.delete(comment);
-
         postRepository.decreaseCommentCount(postId);
     }
 }
