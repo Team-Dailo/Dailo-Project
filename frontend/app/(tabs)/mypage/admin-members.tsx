@@ -1,5 +1,5 @@
 // 관리자 - 회원 목록 (GET /api/admin/members)
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,8 +9,10 @@ import {
   RefreshControl,
   Pressable,
   Alert,
+  TextInput,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import * as adminService from "../../../services/admin.service";
 
 function formatCreatedAt(iso: string | null | undefined): string {
@@ -39,6 +41,18 @@ export default function AdminMembersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [withdrawingId, setWithdrawingId] = useState<number | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const filteredContent = useMemo(() => {
+    const q = appliedSearch.trim().toLowerCase();
+    if (!q) return page.content;
+    return page.content.filter(
+      (m) =>
+        (m.email ?? "").toLowerCase().includes(q) ||
+        (m.nickname ?? "").toLowerCase().includes(q) ||
+        String(m.id).includes(q)
+    );
+  }, [page.content, appliedSearch]);
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
@@ -77,7 +91,7 @@ export default function AdminMembersScreen() {
     (memberId: number, email: string) => {
       Alert.alert(
         "탈퇴 처리",
-        `회원 "${email}"을(를) 탈퇴 처리하시겠습니까? 목록에서는 삭제되지 않고 '탈퇴자'로 표시됩니다.`,
+        `회원 "${email}"을(를) 탈퇴 처리하시겠습니까? 탈퇴 처리 후 회원 목록에서 사라집니다.`,
         [
           { text: "취소", style: "cancel" },
           {
@@ -123,10 +137,33 @@ export default function AdminMembersScreen() {
         <Text style={styles.empty}>등록된 회원이 없습니다.</Text>
       ) : (
         <>
+          <View style={styles.searchBarWrap}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="이메일, 닉네임, 회원 ID 검색"
+              placeholderTextColor="#9CA3AF"
+              value={searchKeyword}
+              onChangeText={setSearchKeyword}
+              returnKeyType="search"
+              onSubmitEditing={() => setAppliedSearch(searchKeyword.trim())}
+            />
+            {searchKeyword.length > 0 ? (
+              <Pressable onPress={() => setSearchKeyword("")} style={styles.searchClear} hitSlop={8}>
+                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => setAppliedSearch(searchKeyword.trim())}
+              style={styles.searchButton}
+              hitSlop={8}
+            >
+              <Ionicons name="search" size={22} color="#4C8BF5" />
+            </Pressable>
+          </View>
           <Text style={styles.summary}>
             총 {page.totalElements}명 (페이지 {page.number + 1}/{page.totalPages || 1})
           </Text>
-          {page.content.map((m) => (
+          {filteredContent.map((m) => (
             <View key={m.id} style={styles.card}>
               <View style={styles.row}>
                 <Text style={styles.id}>#{m.id}</Text>
@@ -165,6 +202,9 @@ export default function AdminMembersScreen() {
               ) : null}
             </View>
           ))}
+          {filteredContent.length === 0 && appliedSearch.trim() ? (
+            <Text style={styles.searchEmpty}>조건에 맞는 회원이 없어요</Text>
+          ) : null}
         </>
       )}
       <View style={{ height: 24 }} />
@@ -178,6 +218,22 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   error: { color: "#DC2626", marginBottom: 12, fontSize: 14 },
   empty: { color: "#6B7280", textAlign: "center", marginTop: 24 },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    marginBottom: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  searchInput: { flex: 1, fontSize: 15, color: "#111827", paddingVertical: 8, paddingRight: 8 },
+  searchClear: { padding: 4 },
+  searchButton: { padding: 4, marginLeft: 4 },
+  searchEmpty: { paddingVertical: 24, fontSize: 14, color: "#9CA3AF", textAlign: "center" },
   summary: {
     fontSize: 13,
     color: "#6B7280",

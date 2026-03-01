@@ -22,15 +22,47 @@ public class BlockService {
     private final BlockRepository blockRepository;
     private final MemberRepository memberRepository;
 
-    // 1. 차단하기
+    // --- 외부(Controller) 호출용 이메일 기반 메서드 ---
+
+    /** 1. 차단하기 (이메일 기반) */
+    @Transactional
+    public BlockResponseDto blockUserByEmail(String email, Long blockedId) {
+        Member blocker = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+        return blockUser(blocker.getId(), blockedId);
+    }
+
+    /** 2. 차단 해제 (이메일 기반) */
+    @Transactional
+    public void unblockUserByEmail(String email, Long blockedId) {
+        Member blocker = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+        unblockUser(blocker.getId(), blockedId);
+    }
+
+    /** 3. 내 차단 목록 조회 (이메일 기반) */
+    public List<BlockResponseDto> getMyBlocksByEmail(String email) {
+        Member blocker = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+        return getMyBlocks(blocker.getId());
+    }
+
+    /** 4. 차단 방향 확인 (이메일 기반) */
+    public BlockCheckResponseDto checkBlockDirectionByEmail(String email, Long targetUserId) {
+        Member me = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+        return checkBlockDirection(me.getId(), targetUserId);
+    }
+
+
+    // --- 내부 로직 및 기존 ID 기반 메서드 ---
+
     @Transactional
     public BlockResponseDto blockUser(Long blockerId, Long blockedId) {
-        // 자기 자신 차단 방지
         if (blockerId.equals(blockedId)) {
             throw new IllegalArgumentException("You cannot block yourself");
         }
 
-        // 이미 차단했는지 확인
         if (blockRepository.existsByBlockerIdAndBlockedId(blockerId, blockedId)) {
             throw new com.dailo.backend.exception.ConflictException("Already blocked");
         }
@@ -43,7 +75,6 @@ public class BlockService {
         return BlockResponseDto.from(blockRepository.save(block));
     }
 
-    // 2. 차단 해제 (Hard delete)
     @Transactional
     public void unblockUser(Long blockerId, Long blockedId) {
         Block block = blockRepository.findByBlockerIdAndBlockedId(blockerId, blockedId)
@@ -52,29 +83,27 @@ public class BlockService {
         blockRepository.delete(block);
     }
 
-    // 3. 내 차단 목록 (차단한 사용자 닉네임 포함)
     public List<BlockResponseDto> getMyBlocks(Long blockerId) {
         List<Block> blocks = blockRepository.findByBlockerId(blockerId);
         if (blocks.isEmpty()) return List.of();
         List<Long> blockedIds = blocks.stream().map(Block::getBlockedId).distinct().toList();
+
         java.util.Map<Long, String> nicknameMap = memberRepository.findAllById(blockedIds).stream()
                 .collect(java.util.stream.Collectors.toMap(Member::getId, Member::getNickname, (a, b) -> a));
+
         return blocks.stream()
                 .map(b -> BlockResponseDto.from(b, nicknameMap.get(b.getBlockedId())))
                 .toList();
     }
 
-    // 4. 차단 여부 확인 (단방향)
     public boolean isBlocked(Long blockerId, Long blockedId) {
         return blockRepository.existsByBlockerIdAndBlockedId(blockerId, blockedId);
     }
 
-    // 5. 상호 차단 여부 (채팅용) - A→B 또는 B→A
     public boolean isBlockedEither(Long userId1, Long userId2) {
         return blockRepository.existsBlockBetween(userId1, userId2);
     }
 
-    // 6. 차단 방향 확인
     public BlockCheckResponseDto checkBlockDirection(Long myId, Long otherId) {
         boolean iBlocked = blockRepository.existsByBlockerIdAndBlockedId(myId, otherId);
         boolean theyBlocked = blockRepository.existsByBlockerIdAndBlockedId(otherId, myId);
@@ -82,16 +111,14 @@ public class BlockService {
         return BlockCheckResponseDto.of(iBlocked, theyBlocked);
     }
 
-    // 7. 상호 미노출 사용자 ID 목록 (조회 필터용 - 채팅/댓글 등)
     public Set<Long> getInvisibleUserIds(Long userId) {
         Set<Long> invisibleIds = new HashSet<>();
         invisibleIds.addAll(blockRepository.findIdsUserBlocked(userId));
         invisibleIds.addAll(blockRepository.findIdsWhoBlockedUser(userId));
-        invisibleIds.remove(userId);  // 자기 자신 제거 (혹시 모를 버그 방지)
+        invisibleIds.remove(userId);
         return invisibleIds;
     }
 
-    /** 내가 차단한 사용자 ID 목록 (게시글 목록/상세에서 해당 작성자 글만 요청자에게 미노출) */
     public Set<Long> getBlockedUserIds(Long userId) {
         List<Long> blocked = blockRepository.findIdsUserBlocked(userId);
         return blocked.isEmpty() ? Set.of() : new HashSet<>(blocked);

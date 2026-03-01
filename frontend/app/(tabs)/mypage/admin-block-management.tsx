@@ -1,5 +1,5 @@
 // 관리자 - 차단관리 (5회 이상 차단당한 회원 목록 + 정지 적용)
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,8 +9,10 @@ import {
   RefreshControl,
   Pressable,
   Alert,
+  TextInput,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import * as adminService from "../../../services/admin.service";
 
 const SUSPEND_OPTIONS: { type: adminService.SuspendType; label: string }[] = [
@@ -36,6 +38,18 @@ export default function AdminBlockManagementScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<number | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const filteredList = useMemo(() => {
+    const q = appliedSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (m) =>
+        (m.email ?? "").toLowerCase().includes(q) ||
+        (m.nickname ?? "").toLowerCase().includes(q) ||
+        String(m.memberId).includes(q)
+    );
+  }, [list, appliedSearch]);
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
@@ -110,8 +124,31 @@ export default function AdminBlockManagementScreen() {
         <Text style={styles.empty}>5회 이상 차단당한 회원이 없습니다.</Text>
       ) : (
         <>
+          <View style={styles.searchBarWrap}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="이메일, 닉네임, 회원 ID 검색"
+              placeholderTextColor="#9CA3AF"
+              value={searchKeyword}
+              onChangeText={setSearchKeyword}
+              returnKeyType="search"
+              onSubmitEditing={() => setAppliedSearch(searchKeyword.trim())}
+            />
+            {searchKeyword.length > 0 ? (
+              <Pressable onPress={() => setSearchKeyword("")} style={styles.searchClear} hitSlop={8}>
+                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => setAppliedSearch(searchKeyword.trim())}
+              style={styles.searchButton}
+              hitSlop={8}
+            >
+              <Ionicons name="search" size={22} color="#4C8BF5" />
+            </Pressable>
+          </View>
           <Text style={styles.summary}>5회 이상 차단당한 회원 {list.length}명</Text>
-          {list.map((m) => (
+          {filteredList.map((m) => (
             <View key={m.memberId} style={styles.card}>
               <View style={styles.row}>
                 <Text style={styles.id}>#{m.memberId}</Text>
@@ -151,6 +188,9 @@ export default function AdminBlockManagementScreen() {
               </View>
             </View>
           ))}
+          {filteredList.length === 0 && appliedSearch.trim() ? (
+            <Text style={styles.searchEmpty}>조건에 맞는 회원이 없어요</Text>
+          ) : null}
         </>
       )}
     </ScrollView>
@@ -161,6 +201,22 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F4F6" },
   content: { padding: 16, paddingBottom: 32 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    marginBottom: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  searchInput: { flex: 1, fontSize: 15, color: "#111827", paddingVertical: 8, paddingRight: 8 },
+  searchClear: { padding: 4 },
+  searchButton: { padding: 4, marginLeft: 4 },
+  searchEmpty: { paddingVertical: 24, fontSize: 14, color: "#9CA3AF", textAlign: "center" },
   summary: { fontSize: 14, color: "#6B7280", marginBottom: 12 },
   error: { fontSize: 14, color: "#DC2626", marginBottom: 8 },
   empty: { fontSize: 15, color: "#6B7280", textAlign: "center", marginTop: 24 },

@@ -21,7 +21,7 @@ type CommonProps = {
 };
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const MAX_DATE_RANGE_DAYS = 10;
+const MAX_DATE_RANGE_DAYS = 31; // 한 달 전체
 
 function dayCountInclusive(startYmd: string, endYmd: string): number {
   const start = new Date(startYmd).getTime();
@@ -79,7 +79,7 @@ export function DateFilterModal({ visible, onClose, selectedDateRange, onSelectD
     const newEnd = dateStr > rangeEnd ? dateStr : rangeEnd;
     const days = dayCountInclusive(newStart, newEnd);
     if (days > MAX_DATE_RANGE_DAYS) {
-      Alert.alert('안내', '최대 10일까지 선택 가능합니다.');
+      Alert.alert('안내', '최대 31일(한 달)까지 선택 가능합니다.');
       return;
     }
     setRangeStart(newStart);

@@ -59,7 +59,13 @@ export async function completeStay(eventId: number, latitude: number, longitude:
 /** 완료된 체류 세션 목록 (참여한 축제: 1초라도 있었으면, 같은 날 같은 행사 1건) */
 export async function getCompletedStaySessions(): Promise<StaySessionResponseDto[]> {
   const res = await authFetch('/api/location/stay-sessions/completed');
-  if (!res.ok) throw new Error(await res.text().then((t) => t || `조회 실패 (${res.status})`));
+  if (!res.ok) {
+    const text = await res.text();
+    if (res.status === 403) {
+      throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.');
+    }
+    throw new Error(text || `조회 실패 (${res.status})`);
+  }
   const data = await res.json();
   return Array.isArray(data) ? data : [];
 }

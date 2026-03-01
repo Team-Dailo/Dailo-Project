@@ -27,6 +27,7 @@ import * as reportService from "../../../services/report.service";
 import * as blockService from "../../../services/block.service";
 import * as savedPostService from "../../../services/savedPost.service";
 import * as boardService from "../../../services/board.service";
+import * as noticeService from "../../../services/notice.service";
 
 type Post = {
   id: string;
@@ -88,7 +89,7 @@ function toPost(item: { id: number; authorId?: number; author_id?: number; autho
 export default function BoardScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { user } = useAuthContext();
+  const { user, isLoggedIn } = useAuthContext();
   const myUserId = useMyUserId();
   const searchParams = useLocalSearchParams<{ sort?: string }>();
   const route = useRoute();
@@ -101,13 +102,12 @@ export default function BoardScreen() {
     () => (sortParam === "popular" ? "popular" : "latest")
   );
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
-  /** 후기 탭: 1년 이내 행사 목록, 월별 그룹 (eventId, eventTitle, startAt for grouping) */
-  const [eventsByMonth, setEventsByMonth] = useState<{ monthLabel: string; events: { eventId: number; eventTitle: string }[] }[]>([]);
   const [eventPickerVisible, setEventPickerVisible] = useState(false);
-  const [eventPickerRegion, setEventPickerRegion] = useState<string>("전체");
-  const [eventPickerRegions, setEventPickerRegions] = useState<string[]>([]);
-  /** 모달 내 왼쪽 월 선택: null = 전체, '2월' 등 = 해당 월만 */
-  const [eventPickerSelectedMonthLabel, setEventPickerSelectedMonthLabel] = useState<string | null>(null);
+  /** 축제 선택 모달: 1년 치 행사 월별로 한 번에 로드 */
+  const [eventListByMonth, setEventListByMonth] = useState<{ monthKey: string; monthLabel: string; events: { eventId: number; eventTitle: string }[] }[]>([]);
+  const [eventPickerLoading, setEventPickerLoading] = useState(false);
+  /** 공지 미리보기: 최신 공지 1건 (실제 API 연동) */
+  const [latestNotice, setLatestNotice] = useState<noticeService.NoticeItem | null>(null);
 
   const reviewEventId =
     selectedCategory === "후기" && selectedEventFilter != null ? selectedEventFilter.eventId : undefined;
@@ -118,59 +118,56 @@ export default function BoardScreen() {
   );
   const sortedPosts = useMemo(() => apiPosts.map(toPost), [apiPosts]);
 
-  // 후기 탭일 때 1년 이내 행사 로드 → 월별 그룹 (지역 필터는 regionName 있으면 적용)
-  useFocusEffect(
-    React.useCallback(() => {
-      if (selectedCategory !== "후기") return;
-      getEventList({ page: 1, size: 200 })
-        .then((list) => {
-          const now = Date.now();
-          const oneYearLater = now + 365 * 24 * 60 * 60 * 1000;
-          const inRange = list.filter((e) => {
-            const start = e.startAt ? new Date(e.startAt).getTime() : 0;
-            if (!Number.isFinite(start)) return false;
-            return start >= now && start <= oneYearLater;
-          });
-          const regions = new Set<string>();
-          inRange.forEach((e) => {
-            const r = (e as { regionName?: string }).regionName?.trim();
-            if (r) regions.add(r);
-          });
-          setEventPickerRegions(["전체", ...Array.from(regions).sort()]);
+  /** 축제 선택 모달: 과거 6개월 ~ 미래 12개월 행사 한 번에 로드, 월별로 그룹 */
+  const loadBoardEventPickerByMonth = React.useCallback(async () => {
+    setEventPickerLoading(true);
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 12, 0);
+    const startAt = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-01`;
+    const endAt = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+    try {
+      const list = await getEventList({
+        page: 1,
+        size: 500,
+        startAt,
+        endAt,
+      });
+      const events = (list ?? []).map((e) => ({
+        eventId: Number(e.id) || 0,
+        eventTitle: e.title || `행사 #${e.id}`,
+        startAt: e.startAt ?? "",
+      })).filter((e) => e.eventId > 0);
 
-          const filtered =
-            eventPickerRegion === "전체"
-              ? inRange
-              : inRange.filter((e) => (e as { regionName?: string }).regionName?.trim() === eventPickerRegion);
+      const byMonth = new Map<string, { eventId: number; eventTitle: string }[]>();
+      for (const ev of events) {
+        const m = /^(\d{4})-(\d{1,2})/.exec(ev.startAt || "");
+        const key = m ? `${m[1]}-${m[2]}` : "unknown";
+        if (!byMonth.has(key)) byMonth.set(key, []);
+        byMonth.get(key)!.push({ eventId: ev.eventId, eventTitle: ev.eventTitle });
+      }
+      const keys = Array.from(byMonth.keys()).filter((k) => k !== "unknown").sort();
+      const grouped = keys.map((key) => {
+        const [y, m] = key.split("-").map(Number);
+        const label = now.getFullYear() === y ? `${m}월` : `${y}년 ${m}월`;
+        return {
+          monthKey: key,
+          monthLabel: label,
+          events: byMonth.get(key) ?? [],
+        };
+      });
+      setEventListByMonth(grouped);
+    } catch {
+      setEventListByMonth([]);
+    } finally {
+      setEventPickerLoading(false);
+    }
+  }, []);
 
-          const byMonth = new Map<string, { eventId: number; eventTitle: string }[]>();
-          for (const e of filtered) {
-            const eventId = Number(e.id) || 0;
-            if (eventId <= 0) continue;
-            const start = e.startAt ? new Date(e.startAt) : null;
-            const key = start && !isNaN(start.getTime())
-              ? `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`
-              : "9999-12";
-            if (!byMonth.has(key)) byMonth.set(key, []);
-            byMonth.get(key)!.push({ eventId, eventTitle: e.title || `행사 #${e.id}` });
-          }
-          const sortedKeys = Array.from(byMonth.keys()).sort();
-          const monthLabels: Record<string, string> = {};
-          const thisYear = new Date().getFullYear();
-          for (const key of sortedKeys) {
-            const [y, m] = key.split("-").map(Number);
-            monthLabels[key] = y !== thisYear ? `${y}년 ${m}월` : `${m}월`;
-          }
-          setEventsByMonth(
-            sortedKeys.map((key) => ({
-              monthLabel: monthLabels[key] ?? key,
-              events: byMonth.get(key) ?? [],
-            }))
-          );
-        })
-        .catch(() => setEventsByMonth([]));
-    }, [selectedCategory, eventPickerRegion])
-  );
+  const openBoardEventPicker = React.useCallback(async () => {
+    setEventPickerVisible(true);
+    loadBoardEventPickerByMonth();
+  }, [loadBoardEventPickerByMonth]);
 
   // 홈 인기 게시물 "더보기"로 진입 시에만 인기순 적용, 적용 후 파라미터 제거해 최신글 선택이 유지되도록
   useFocusEffect(
@@ -181,6 +178,16 @@ export default function BoardScreen() {
       }
       refetch();
     }, [refetch, sortParam, navigation])
+  );
+
+  // 공지 미리보기: 최신 공지 1건 로드
+  useFocusEffect(
+    React.useCallback(() => {
+      noticeService.getNotices({ page: 0, size: 1 }).then((res) => {
+        const first = res.content?.[0] ?? null;
+        setLatestNotice(first);
+      }).catch(() => setLatestNotice(null));
+    }, [])
   );
 
   const handleCopyLink = async (postId: string) => {
@@ -272,8 +279,15 @@ export default function BoardScreen() {
   };
 
   const handleSaveFromList = async (postId: string) => {
-    const post = sortedPosts.find((p) => p.id === postId);
     setMenuPostId(null);
+    if (!isLoggedIn) {
+      Alert.alert("로그인 필요", "저장 기능은 로그인 후 사용할 수 있습니다.", [
+        { text: "취소" },
+        { text: "로그인", onPress: () => router.push("/login") },
+      ]);
+      return;
+    }
+    const post = sortedPosts.find((p) => p.id === postId);
     if (!post) return;
     try {
       const added = await savedPostService.toggleSavedPost(
@@ -387,14 +401,18 @@ export default function BoardScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* 공지 카드 */}
+          {/* 공지 카드: 실제 공지사항 API 연동 */}
           <Pressable style={styles.noticeCard} onPress={() => router.push("/board/notice")}>
             <View style={styles.noticeRow}>
               <Text style={styles.noticeTitle}>공지사항</Text>
               <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
             </View>
             <Text style={styles.noticeText} numberOfLines={2} ellipsizeMode="tail">
-              [공지사항] 이번 주 서버 점검 안내드립니다...
+              {latestNotice
+                ? (latestNotice.title?.trim() ? `[${latestNotice.title.trim()}] ` : "") +
+                  (latestNotice.content?.trim().replace(/\s+/g, " ").slice(0, 80) || "").trim() +
+                  (latestNotice.content && latestNotice.content.trim().length > 80 ? "…" : "")
+                : "등록된 공지사항이 없습니다."}
             </Text>
           </Pressable>
 
@@ -452,7 +470,7 @@ export default function BoardScreen() {
             {selectedCategory === "후기" && (
               <Pressable
                 style={styles.eventSelectButton}
-                onPress={() => setEventPickerVisible(true)}
+                onPress={() => openBoardEventPicker()}
               >
                 <Ionicons
                   name="calendar-outline"
@@ -473,7 +491,7 @@ export default function BoardScreen() {
             )}
           </View>
 
-          {/* 축제 선택 모달: 왼쪽 월(전체/2월/3월…), 오른쪽 해당 월 행사 목록 */}
+          {/* 축제 선택 모달: 1월~12월 월별 행사 한 번에 표시 */}
           <Modal
             visible={eventPickerVisible}
             transparent
@@ -485,135 +503,49 @@ export default function BoardScreen() {
               onPress={() => setEventPickerVisible(false)}
             >
               <Pressable style={styles.eventPickerBox} onPress={(e) => e.stopPropagation()}>
-                <Text style={styles.eventPickerTitle}>행사 선택 (1년 이내)</Text>
-                {eventPickerRegions.length > 1 && (
-                  <View style={styles.eventPickerRegionRow}>
-                    <Text style={styles.eventPickerRegionLabel}>지역</Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.eventPickerRegionScroll}
-                    >
-                      {eventPickerRegions.map((reg) => {
-                        const sel = eventPickerRegion === reg;
-                        return (
-                          <Pressable
-                            key={reg}
-                            style={[styles.eventPickerRegionChip, sel && styles.eventPickerRegionChipSelected]}
-                            onPress={() => setEventPickerRegion(reg)}
-                          >
-                            <Text
-                              style={[styles.eventPickerRegionChipText, sel && styles.eventPickerRegionChipTextSelected]}
-                              numberOfLines={1}
-                            >
-                              {reg}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                )}
-                <View style={styles.eventPickerRow}>
-                  {/* 왼쪽: 전체 + 2월, 3월, ... */}
+                <Text style={styles.eventPickerTitle}>행사 선택</Text>
+                {eventPickerLoading ? (
+                  <ActivityIndicator size="small" color="#4C8BF5" style={styles.eventPickerLoader} />
+                ) : (
                   <ScrollView
-                    style={styles.eventPickerMonthColumn}
-                    showsVerticalScrollIndicator={false}
+                    style={styles.eventPickerContentScroll}
+                    showsVerticalScrollIndicator={true}
                     nestedScrollEnabled
                   >
                     <Pressable
-                      style={[
-                        styles.eventPickerMonthTab,
-                        eventPickerSelectedMonthLabel === null && styles.eventPickerMonthTabSelected,
-                      ]}
-                      onPress={() => setEventPickerSelectedMonthLabel(null)}
+                      style={[styles.eventPickerItem, selectedEventFilter === null && styles.eventPickerItemSelected]}
+                      onPress={() => {
+                        setSelectedEventFilter(null);
+                        setEventPickerVisible(false);
+                      }}
                     >
                       <Text
                         style={[
-                          styles.eventPickerMonthTabText,
-                          eventPickerSelectedMonthLabel === null && styles.eventPickerMonthTabTextSelected,
+                          styles.eventPickerItemText,
+                          selectedEventFilter === null && styles.eventPickerItemTextSelected,
                         ]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
                       >
                         전체
                       </Text>
                     </Pressable>
-                    {eventsByMonth.map(({ monthLabel }) => (
-                      <Pressable
-                        key={monthLabel}
-                        style={[
-                          styles.eventPickerMonthTab,
-                          eventPickerSelectedMonthLabel === monthLabel && styles.eventPickerMonthTabSelected,
-                        ]}
-                        onPress={() => setEventPickerSelectedMonthLabel(monthLabel)}
-                      >
-                        <Text
-                          style={[
-                            styles.eventPickerMonthTabText,
-                            eventPickerSelectedMonthLabel === monthLabel && styles.eventPickerMonthTabTextSelected,
-                          ]}
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
-                          {monthLabel}
+                    {eventListByMonth.map(({ monthKey, monthLabel, events }, idx) => (
+                      <View key={monthKey}>
+                        <Text style={[styles.eventPickerMonthHeader, idx > 0 && { marginTop: 14 }]}>
+                          — {monthLabel} —
                         </Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                  {/* 오른쪽: 선택한 월의 행사 목록 (맨 위 "전체" = 필터 해제) */}
-                  {(() => {
-                    const eventsForMonth =
-                      eventPickerSelectedMonthLabel === null
-                        ? eventsByMonth.flatMap((m) => m.events)
-                        : eventsByMonth.find((m) => m.monthLabel === eventPickerSelectedMonthLabel)?.events ?? [];
-                    return (
-                      <ScrollView
-                        style={styles.eventPickerContentScroll}
-                        showsVerticalScrollIndicator={true}
-                        nestedScrollEnabled
-                      >
-                        <Pressable
-                          style={[
-                            styles.eventPickerItem,
-                            selectedEventFilter === null && styles.eventPickerItemSelected,
-                          ]}
-                          onPress={() => {
-                            setSelectedEventFilter(null);
-                            setEventPickerVisible(false);
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.eventPickerItemText,
-                              selectedEventFilter === null && styles.eventPickerItemTextSelected,
-                            ]}
-                          >
-                            전체
-                          </Text>
-                        </Pressable>
-                        {eventsForMonth.map((ev) => {
+                        {events.map((ev) => {
                           const selected = selectedEventFilter?.eventId === ev.eventId;
                           return (
                             <Pressable
                               key={ev.eventId}
-                              style={[
-                                styles.eventPickerItem,
-                                selected && styles.eventPickerItemSelected,
-                              ]}
+                              style={[styles.eventPickerItem, selected && styles.eventPickerItemSelected]}
                               onPress={() => {
-                                setSelectedEventFilter({
-                                  eventId: ev.eventId,
-                                  eventTitle: ev.eventTitle,
-                                });
+                                setSelectedEventFilter({ eventId: ev.eventId, eventTitle: ev.eventTitle });
                                 setEventPickerVisible(false);
                               }}
                             >
                               <Text
-                                style={[
-                                  styles.eventPickerItemText,
-                                  selected && styles.eventPickerItemTextSelected,
-                                ]}
+                                style={[styles.eventPickerItemText, selected && styles.eventPickerItemTextSelected]}
                                 numberOfLines={2}
                               >
                                 {ev.eventTitle}
@@ -621,17 +553,13 @@ export default function BoardScreen() {
                             </Pressable>
                           );
                         })}
-                        {eventsForMonth.length === 0 && (
-                          <Text style={styles.eventPickerEmpty}>
-                            {eventPickerSelectedMonthLabel === null
-                              ? "1년 이내 예정된 행사가 없습니다."
-                              : "해당 월 행사가 없습니다."}
-                          </Text>
-                        )}
-                      </ScrollView>
-                    );
-                  })()}
-                </View>
+                      </View>
+                    ))}
+                    {eventListByMonth.length === 0 && (
+                      <Text style={styles.eventPickerEmpty}>행사가 없습니다.</Text>
+                    )}
+                  </ScrollView>
+                )}
               </Pressable>
             </Pressable>
           </Modal>
@@ -677,8 +605,11 @@ export default function BoardScreen() {
               if (isMyPost) {
                 return (
                   <>
-                    <Pressable style={styles.menuItem} onPress={() => menuPostId && handleSaveFromList(menuPostId)}>
-                      <Text style={styles.menuText}>저장</Text>
+                    <Pressable
+                      style={[styles.menuItem, !isLoggedIn && { opacity: 0.6 }]}
+                      onPress={() => menuPostId && handleSaveFromList(menuPostId)}
+                    >
+                      <Text style={[styles.menuText, !isLoggedIn && styles.menuTextMuted]}>저장</Text>
                     </Pressable>
                     <Pressable style={styles.menuItem} onPress={() => menuPostId && handleEdit(menuPostId)}>
                       <Text style={styles.menuText}>수정</Text>
@@ -691,8 +622,11 @@ export default function BoardScreen() {
               }
               return (
                 <>
-                  <Pressable style={styles.menuItem} onPress={() => menuPostId && handleSaveFromList(menuPostId)}>
-                    <Text style={styles.menuText}>저장</Text>
+                  <Pressable
+                    style={[styles.menuItem, !isLoggedIn && { opacity: 0.6 }]}
+                    onPress={() => menuPostId && handleSaveFromList(menuPostId)}
+                  >
+                    <Text style={[styles.menuText, !isLoggedIn && styles.menuTextMuted]}>저장</Text>
                   </Pressable>
                   <Pressable style={styles.menuItem} onPress={() => menuPostId && handleReport(menuPostId)}>
                     <Text style={styles.menuText}>신고</Text>
@@ -867,29 +801,17 @@ const styles = StyleSheet.create({
     color: "#111827",
     marginBottom: 12,
   },
-  eventPickerRegionRow: {
-    marginBottom: 12,
-  },
-  eventPickerRegionLabel: {
-    fontSize: 12,
+  eventPickerMonthHeader: {
+    fontSize: 13,
     fontWeight: "600",
     color: "#6B7280",
+    marginTop: 8,
     marginBottom: 6,
+    textAlign: "center",
   },
-  eventPickerRegionScroll: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  eventPickerRegionChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#F3F4F6",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  eventPickerRegionChipSelected: {
-    backgroundColor: "#374151",
+  eventPickerLoader: {
+    paddingVertical: 24,
+    alignSelf: "center",
     borderColor: "#374151",
   },
   eventPickerRegionChipText: {
@@ -930,7 +852,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   eventPickerContentScroll: {
-    flex: 1,
+    maxHeight: 280,
   },
   eventPickerItem: {
     paddingVertical: 12,
@@ -1062,6 +984,7 @@ const styles = StyleSheet.create({
   },
   menuItem: { paddingVertical: 14, paddingHorizontal: 20 },
   menuText: { fontSize: 15, color: "#111827" },
+  menuTextMuted: { color: "#9CA3AF" },
   menuTextDanger: { color: "#DC2626" },
   fab: {
     position: "absolute",

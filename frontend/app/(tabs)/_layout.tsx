@@ -1,7 +1,7 @@
 // app/(tabs)/_layout.tsx
-import React from "react";
-import { Image, StyleSheet, Pressable, Platform } from "react-native";
-import { Tabs } from "expo-router";
+import React, { useEffect } from "react";
+import { Image, StyleSheet, Pressable, Platform, BackHandler } from "react-native";
+import { Tabs, router } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -31,20 +31,42 @@ function TabIcon({
   );
 }
 
-/** 마이페이지 탭: 탭을 누르면 항상 마이페이지 첫 화면(index)으로 보이도록 스택 초기화 (홈에서 알림설정 갔다가 뒤로 갔을 때 알림설정이 남는 문제 방지) */
-function MypageTabButton(props: { onPress?: () => void; children: React.ReactNode; [key: string]: unknown }) {
+/** 탭 아이콘을 눌렀을 때 항상 해당 탭의 루트 화면으로 이동시키는 버튼 */
+function RootTabButton(
+  props: {
+    target: string;
+    params?: object;
+    onPress?: () => void;
+    children: React.ReactNode;
+    [key: string]: unknown;
+  }
+) {
   const navigation = useNavigation();
-  const { onPress: defaultOnPress, ...rest } = props;
+  const { target, params, onPress: defaultOnPress, ...rest } = props;
   const onPress = () => {
-    (navigation as { navigate: (name: string, params?: object) => void }).navigate("mypage", { screen: "index" });
+    (navigation as { navigate: (name: string, params?: object) => void }).navigate(target, params);
     defaultOnPress?.();
   };
-  return <Pressable {...rest} onPress={onPress} />;
+  return <Pressable {...(rest as any)} onPress={onPress} />;
 }
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const tabBarHeight = 72;
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!navigation.canGoBack()) {
+        router.replace("/(tabs)/home");
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [navigation]);
+
   // 아이폰은 하단 버튼 없음 → 여백 최소, Android(삼성 등)는 네비 버튼과 겹치지 않도록 safe area 적용
   const bottomInset = Platform.OS === "ios" ? 0 : Math.max(insets.bottom ?? 0, 24);
   return (
@@ -71,6 +93,9 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <TabIcon source={TAB_ICONS.home} color={color} size={size} />
           ),
+          tabBarButton: (props) => (
+            <RootTabButton {...props} target="home" />
+          ),
         }}
       />
       <Tabs.Screen
@@ -79,6 +104,9 @@ export default function TabsLayout() {
           title: "달력",
           tabBarIcon: ({ color, size }) => (
             <TabIcon source={TAB_ICONS.calendar} color={color} size={size} />
+          ),
+          tabBarButton: (props) => (
+            <RootTabButton {...props} target="calendar/index" />
           ),
         }}
       />
@@ -89,6 +117,9 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <TabIcon source={TAB_ICONS.map} color={color} size={size} />
           ),
+          tabBarButton: (props) => (
+            <RootTabButton {...props} target="map/index" />
+          ),
         }}
       />
       <Tabs.Screen
@@ -97,6 +128,9 @@ export default function TabsLayout() {
           title: "게시판",
           tabBarIcon: ({ color, size }) => (
             <TabIcon source={TAB_ICONS.board} color={color} size={size} />
+          ),
+          tabBarButton: (props) => (
+            <RootTabButton {...props} target="board/index" />
           ),
         }}
       />
@@ -107,7 +141,9 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <TabIcon source={TAB_ICONS.mypage} color={color} size={size} />
           ),
-          tabBarButton: (props) => <MypageTabButton {...props} />,
+          tabBarButton: (props) => (
+            <RootTabButton {...props} target="mypage" params={{ screen: "index" }} />
+          ),
         }}
       />
     </Tabs>

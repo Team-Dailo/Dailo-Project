@@ -28,3 +28,7 @@ export async function setDemoLocation(lat: number, lng: number): Promise<void> {
     JSON.stringify({ latitude: lat, longitude: lng })
   );
 }
+
+export async function clearDemoLocation(): Promise<void> {
+  await AsyncStorage.removeItem(DEMO_CURRENT_LOCATION_KEY);
+}

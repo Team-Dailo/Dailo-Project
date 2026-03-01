@@ -28,8 +28,9 @@ public class NotificationController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody PushTokenRequest request
     ) {
-        Long memberId = Long.parseLong(userDetails.getUsername());
-        notificationService.registerToken(memberId, request.getToken(), request.getDeviceType());
+        // 💡 핵심 수정: Long 파싱 제거, 이메일 추출
+        String email = userDetails.getUsername();
+        notificationService.registerToken(email, request.getToken(), request.getDeviceType());
         return ResponseEntity.ok("푸시 토큰이 정상적으로 등록되었습니다.");
     }
 
@@ -38,10 +39,12 @@ public class NotificationController {
     public ResponseEntity<NotificationSetting> getSettings(
             @AuthenticationPrincipal UserDetails userDetails
     ) {
-        Long memberId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(notificationService.getOrInitSetting(memberId));
+        String email = userDetails.getUsername();
+        return ResponseEntity.ok(notificationService.getOrInitSetting(email));
     }
 
+    // 테스트용 API는 관리자 권한이나 특정 상황에서 쓰이므로 그대로 두되,
+    // 실제 서비스 로직에 맞게 memberId 대신 이메일을 쓰도록 바꿀 수도 있습니다.
     @PostMapping("/test-send")
     public ResponseEntity<String> testSend(@RequestParam Long memberId) {
         Member member = memberRepository.findById(memberId)

@@ -1,5 +1,5 @@
 // app/login/index.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,16 +10,29 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
+import { useSafeBack } from '../../hooks/useSafeBack';
 import * as authService from '../../services/auth.service';
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const safeBack = useSafeBack();
   const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      safeBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [safeBack]);
+
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -37,7 +50,7 @@ export default function LoginScreen() {
     try {
       const user = await authService.login(trimmed, password);
       login(user);
-      router.back();
+      router.replace('/(tabs)/home');
     } catch (e) {
       const message = e instanceof Error ? e.message : '로그인에 실패했습니다.';
       if (message.startsWith('EMAIL_VERIFICATION_REQUIRED:')) {
@@ -61,7 +74,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
-          <Pressable hitSlop={12} onPress={() => router.back()}>
+          <Pressable hitSlop={12} onPress={safeBack}>
             <Ionicons name="arrow-back" size={24} color="#111827" />
           </Pressable>
           <Text style={styles.headerTitle}>로그인</Text>

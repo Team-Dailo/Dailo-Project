@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 0,
     elevation: 2,
     shadowColor: '#000000',
     shadowOpacity: 0.1,
