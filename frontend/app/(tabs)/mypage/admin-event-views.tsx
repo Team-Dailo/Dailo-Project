@@ -74,20 +74,8 @@ export default function AdminEventViewsScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />
       }
     >
-      {/* 상단 소개글: 좋아요 페이지와 동일한 형태 */}
-      <View style={styles.introBox}>
-        <Ionicons name="eye-outline" size={20} color="#4C8BF5" />
-        <Text style={styles.introText}>
-          행사별 조회수 (총 {list.length}건{list.length > 0 ? `, 누적 ${totalViews}회` : ""})
-        </Text>
-      </View>
-      {error ? (
-        <Text style={styles.error}>{error}</Text>
-      ) : list.length === 0 ? (
-        <Text style={styles.empty}>조회수가 기록된 행사가 없습니다.</Text>
-      ) : (
-        <>
-          <View style={styles.searchBarWrap}>
+      {/* 검색바 */}
+      <View style={styles.searchBarWrap}>
             <TextInput
               style={styles.searchInput}
               placeholder="행사명 또는 행사 ID 검색"
@@ -110,6 +98,21 @@ export default function AdminEventViewsScreen() {
               <Ionicons name="search" size={22} color="#4C8BF5" />
             </Pressable>
           </View>
+
+      {/* 상단 소개글: 좋아요 페이지와 동일한 형태 */}
+      <View style={styles.introBox}>
+        <Ionicons name="eye-outline" size={20} color="#4C8BF5" />
+        <Text style={styles.introText}>
+          행사별 조회수 (총 {list.length}건{list.length > 0 ? `, 누적 ${totalViews}회` : ""})
+        </Text>
+      </View>
+      {error ? (
+        <Text style={styles.error}>{error}</Text>
+      ) : list.length === 0 ? (
+        <Text style={styles.empty}>조회수가 기록된 행사가 없습니다.</Text>
+      ) : (
+        <>
+          
           {filteredList.map((item) => (
             <Pressable
               key={item.eventId}
