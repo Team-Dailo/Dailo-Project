@@ -57,10 +57,11 @@ type Props = {
   distanceFilterCenter?: { latitude: number; longitude: number } | null;
 };
 
-const MY_LOCATION_CIRCLE_RADIUS_M = 25;
-const MY_LOCATION_CIRCLE_COLOR = '#4285F4';
-const MY_LOCATION_CIRCLE_OUTLINE_WIDTH = 3;
-const MY_LOCATION_CIRCLE_OUTLINE_COLOR = '#ffffff';
+// 현재 위치 점: 화면 상에서 항상 일정한 크기의 점으로 표시 (줌 레벨과 무관)
+const MY_LOCATION_MARKER_SIZE = 18;
+const MY_LOCATION_MARKER_COLOR = '#4285F4';
+const MY_LOCATION_MARKER_OUTLINE_COLOR = '#FFFFFF';
+const MY_LOCATION_MARKER_OUTLINE_WIDTH = 3;
 
 /** 마커 선택 시 표시하는 행사 반경 원 (200m) */
 const EVENT_ZONE_RADIUS_M = 200;
@@ -76,6 +77,19 @@ function getDaysUntilStart(startAt: string): number {
   const days = Math.ceil((start - now) / (24 * 60 * 60 * 1000));
   return Math.max(0, days);
 }
+
+/** 행사 종료일이 오늘 이전이면 true (달력에서 지난 날짜 지정 시 회색 마커용) */
+function isEventEnded(endAt: string | undefined): boolean {
+  if (!endAt) return false;
+  const endStr = new Date(endAt).toISOString().slice(0, 10);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  return endStr < todayStr;
+}
+
+/** 종료된 행사 마커 색상 (회색) */
+const ENDED_MARKER_COLOR = '#9CA3AF';
+/** 종료 마커: 라벨 공간 높이 (글자 하단 잘림 방지) */
+const ENDED_LABEL_HEIGHT = 26;
 
 const DISTANCE_FILTER_CIRCLE_COLOR = 'rgba(59, 130, 246, 0.15)';
 const DISTANCE_FILTER_CIRCLE_OUTLINE_WIDTH = 2;
@@ -123,30 +137,50 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
       onCameraIdle={onCameraIdle}
     >
       {eventsWithCoords.map((event) => {
+        const ended = isEventEnded(event.endAt);
         const daysLeft = getDaysUntilStart(event.startAt);
         const daysText = daysLeft > 0 ? String(daysLeft) : '0';
-        // 축제 규모(시·군·구/대학교/단과대/동아리/개인)별 마커 색상
-        const scaleColor = SCALE_COLORS[event.scale] ?? MAP_UI.scaleBadge[4];
+        const scaleColor = ended ? ENDED_MARKER_COLOR : (SCALE_COLORS[event.scale] ?? MAP_UI.scaleBadge[4]);
+        const markerHeight = ended ? MARKER_HEIGHT + ENDED_LABEL_HEIGHT + 4 : MARKER_HEIGHT;
         return (
           <NaverMapMarkerOverlay
             key={event.id}
             latitude={event.latitude}
             longitude={event.longitude}
             width={MARKER_WIDTH}
-            height={MARKER_HEIGHT}
+            height={markerHeight}
             anchor={{ x: 0.5, y: 1 }}
             onTap={() => onMarkerPress(event)}
             globalZIndex={200001}
           >
-            <View key={`${event.id}-${daysText}-${scaleColor}`} collapsable={false} style={styles.markerWithNumber}>
-              <Image
-                source={MARKER_ICON}
-                style={[styles.markerPinImage, { tintColor: scaleColor }]}
-                resizeMode="contain"
-              />
-              <View style={styles.markerNumberWrap}>
-                <Text style={styles.markerNumberText}>{daysText}</Text>
-              </View>
+            <View
+              key={`${event.id}-${ended}-${daysText}-${scaleColor}`}
+              collapsable={false}
+              style={[styles.markerWithNumber, ended && styles.markerWithNumberEnded]}
+            >
+              {ended ? (
+                <>
+                  <View style={styles.endedLabelWrap}>
+                    <Text style={styles.endedLabel} numberOfLines={1}>종료</Text>
+                  </View>
+                  <Image
+                    source={MARKER_ICON}
+                    style={[styles.markerPinImage, styles.markerPinImageEnded, { tintColor: scaleColor }]}
+                    resizeMode="contain"
+                  />
+                </>
+              ) : (
+                <>
+                  <Image
+                    source={MARKER_ICON}
+                    style={[styles.markerPinImage, { tintColor: scaleColor }]}
+                    resizeMode="contain"
+                  />
+                  <View style={styles.markerNumberWrap}>
+                    <Text style={styles.markerNumberText}>{daysText}</Text>
+                  </View>
+                </>
+              )}
             </View>
           </NaverMapMarkerOverlay>
         );
@@ -171,17 +205,26 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
         myLocationCoords != null &&
         Number.isFinite(myLocationCoords.latitude) &&
         Number.isFinite(myLocationCoords.longitude) && (
-          <NaverMapCircleOverlay
-            key="my-location-circle"
+          <NaverMapMarkerOverlay
+            key="my-location-marker"
             latitude={myLocationCoords.latitude}
             longitude={myLocationCoords.longitude}
-            radius={MY_LOCATION_CIRCLE_RADIUS_M}
-            color={MY_LOCATION_CIRCLE_COLOR}
-            outlineWidth={MY_LOCATION_CIRCLE_OUTLINE_WIDTH}
-            outlineColor={MY_LOCATION_CIRCLE_OUTLINE_COLOR}
-            zIndex={10}
+            width={MY_LOCATION_MARKER_SIZE}
+            height={MY_LOCATION_MARKER_SIZE}
+            anchor={{ x: 0.5, y: 0.5 }}
             globalZIndex={300000}
-          />
+          >
+            <View
+              style={{
+                width: MY_LOCATION_MARKER_SIZE,
+                height: MY_LOCATION_MARKER_SIZE,
+                borderRadius: MY_LOCATION_MARKER_SIZE / 2,
+                backgroundColor: MY_LOCATION_MARKER_COLOR,
+                borderWidth: MY_LOCATION_MARKER_OUTLINE_WIDTH,
+                borderColor: MY_LOCATION_MARKER_OUTLINE_COLOR,
+              }}
+            />
+          </NaverMapMarkerOverlay>
         )}
       {distanceFilterRadiusM != null &&
         distanceFilterRadiusM > 0 &&
@@ -212,7 +255,28 @@ const styles = StyleSheet.create({
   },
   markerWithNumber: {
     width: MARKER_WIDTH,
-    height: MARKER_HEIGHT,
+    minHeight: MARKER_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  markerWithNumberEnded: {
+    minHeight: MARKER_HEIGHT + ENDED_LABEL_HEIGHT + 4,
+    height: MARKER_HEIGHT + ENDED_LABEL_HEIGHT + 4,
+    justifyContent: 'flex-end',
+  },
+  endedLabelWrap: {
+    minHeight: ENDED_LABEL_HEIGHT,
+    paddingVertical: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  endedLabel: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: '#6B7280',
+    fontWeight: '600',
+    includeFontPadding: false,
   },
   markerPinImage: {
     width: MARKER_WIDTH,
@@ -220,6 +284,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
+  },
+  markerPinImageEnded: {
+    position: 'relative',
+    left: undefined,
+    top: undefined,
+    width: MARKER_WIDTH,
+    height: MARKER_HEIGHT,
   },
   markerNumberWrap: {
     position: 'absolute',

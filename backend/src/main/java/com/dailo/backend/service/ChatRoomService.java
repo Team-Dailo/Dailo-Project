@@ -32,9 +32,18 @@ public class ChatRoomService {
     private final MemberRepository memberRepository;
     private final BlockService blockService;
 
+    // 이메일로 내 ID를 찾아주는 헬퍼 메서드
+    private Long getMyIdByEmail(String email) {
+        return memberRepository.findByEmail(email)
+                .map(Member::getId)
+                .orElseThrow(() -> new RuntimeException("Member not found: " + email));
+    }
+
     // 채팅방 생성 (1:1)
     @Transactional
-    public ChatRoomResponseDto createRoom(Long userId, Long targetUserId) {
+    public ChatRoomResponseDto createRoom(String email, Long targetUserId) {
+        Long userId = getMyIdByEmail(email);
+
         // 1. 자기 자신과 채팅 불가
         if (userId.equals(targetUserId)) {
             throw new RuntimeException("Cannot create chat room with yourself");
@@ -45,7 +54,7 @@ public class ChatRoomService {
             throw new RuntimeException("Cannot create chat room with blocked user");
         }
 
-        // 3. directRoomKey 생성 (정렬하여 일관된 키)
+        // 3. directRoomKey 생성
         String directRoomKey = generateDirectRoomKey(userId, targetUserId);
 
         // 4. 기존 1:1 채팅방 있으면 재사용
@@ -97,21 +106,26 @@ public class ChatRoomService {
                 .map(ChatMember::getUserId)
                 .distinct()
                 .collect(Collectors.toList());
+
         Map<Long, String> nicknameMap = userIds.isEmpty() ? Map.of() : memberRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(Member::getId, m -> m.getNickname() != null ? m.getNickname() : ""));
+
         LocalDateTime lastRead = chatMemberRepository.findByRoomAndUserId(room, myUserId)
                 .map(ChatMember::getLastReadAt)
                 .orElse(LocalDateTime.MIN);
+
         int unread = (int) chatMessageRepository.countByRoomAndCreatedAtAfter(room, lastRead);
+
         Optional<ChatMessage> lastMsg = chatMessageRepository
                 .findByRoomOrderByCreatedAtDesc(room, PageRequest.of(0, 1))
                 .stream().findFirst();
+
         String lastContent = lastMsg.map(ChatMessage::getContent).orElse(null);
         LocalDateTime lastAt = lastMsg.map(ChatMessage::getCreatedAt).orElse(null);
+
         return ChatRoomResponseDto.from(room, nicknameMap, unread, lastContent, lastAt);
     }
 
-    // directRoomKey 생성 (DIRECT:minUserId:maxUserId)
     private String generateDirectRoomKey(Long userId1, Long userId2) {
         long min = Math.min(userId1, userId2);
         long max = Math.max(userId1, userId2);
@@ -127,8 +141,10 @@ public class ChatRoomService {
                 });
     }
 
-    // 내 채팅방 목록 (닉네임 + 미읽음 수 포함)
-    public List<ChatRoomResponseDto> getMyRooms(Long userId) {
+    // 내 채팅방 목록
+    public List<ChatRoomResponseDto> getMyRooms(String email) {
+        Long userId = getMyIdByEmail(email);
+
         List<ChatRoom> rooms = chatRoomRepository.findMyRooms(userId);
         List<Long> allUserIds = rooms.stream()
                 .flatMap(r -> r.getMembers().stream())
@@ -136,6 +152,7 @@ public class ChatRoomService {
                 .map(ChatMember::getUserId)
                 .distinct()
                 .collect(Collectors.toList());
+
         Map<Long, String> nicknameMap = allUserIds.isEmpty() ? Map.of() : memberRepository.findAllById(allUserIds).stream()
                 .collect(Collectors.toMap(Member::getId, m -> m.getNickname() != null ? m.getNickname() : ""));
 
@@ -153,9 +170,10 @@ public class ChatRoomService {
         }).collect(Collectors.toList());
     }
 
-    /** 채팅방 입장 시 읽음 처리 (lastReadAt 갱신 → 미읽음 0) */
     @Transactional
-    public void markAsRead(Long roomId, Long userId) {
+    public void markAsRead(Long roomId, String email) {
+        Long userId = getMyIdByEmail(email);
+
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
         ChatMember member = chatMemberRepository.findByRoomAndUserId(room, userId)
@@ -165,9 +183,10 @@ public class ChatRoomService {
         }
     }
 
-    // 채팅방 나가기
     @Transactional
-    public void leaveRoom(Long roomId, Long userId) {
+    public void leaveRoom(Long roomId, String email) {
+        Long userId = getMyIdByEmail(email);
+
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
 
@@ -181,12 +200,12 @@ public class ChatRoomService {
         member.leave();
     }
 
-    // 채팅방 상세 조회
-    public ChatRoomResponseDto getRoom(Long roomId, Long userId) {
+    public ChatRoomResponseDto getRoom(Long roomId, String email) {
+        Long userId = getMyIdByEmail(email);
+
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
 
-        // 멤버 여부 확인
         ChatMember member = chatMemberRepository.findByRoomAndUserId(room, userId)
                 .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
 

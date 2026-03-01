@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -84,6 +85,9 @@ export function MapBottomSheet({
   const placeText = event.address || event.placeName || '위치 없음';
   const categoryLabel =
     (event.category && CATEGORY_LABEL[event.category as EventCategory]) ?? '기타';
+  const posterUri =
+    event.thumbnailUrl ??
+    'https://via.placeholder.com/700x380.png?text=Poster';
 
   // 큰 카드 상단 위치: 필터 칩 아래 + 8px 정도 여백
   const expandedTop = filterBottomY + 8;
@@ -155,6 +159,7 @@ export function MapBottomSheet({
           ]}
         >
           <ScrollView
+            style={styles.largeScroll}
             contentContainerStyle={styles.largeContent}
             showsVerticalScrollIndicator={false}
           >
@@ -189,9 +194,13 @@ export function MapBottomSheet({
               </Text>
             </View>
 
-            {/* 포스터 영역 */}
+            {/* 포스터 영역: 행사 썸네일(포스터) 이미지 표시 */}
             <View style={styles.posterPlaceholder}>
-              <Text style={styles.posterText}>포스터 이미지 영역</Text>
+              <Image
+                source={{ uri: posterUri }}
+                style={styles.posterImage}
+                resizeMode="cover"
+              />
             </View>
           </ScrollView>
 
@@ -341,6 +350,9 @@ const styles = StyleSheet.create({
     elevation: 6,
     overflow: 'hidden',
   },
+  largeScroll: {
+    flex: 1,
+  },
   largeContent: {
     paddingHorizontal: 18, // 좌우 여백
     paddingTop: 14,        // 위쪽 여백
@@ -366,15 +378,13 @@ const styles = StyleSheet.create({
   },
   posterPlaceholder: {
     marginTop: 18,
-    height: 140,
     borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  posterText: {
-    fontSize: 12,
-    color: '#6B7280',
+  posterImage: {
+    width: '100%',
+    aspectRatio: 4 / 3,
   },
   largeButtonRow: {
     flexDirection: 'row',

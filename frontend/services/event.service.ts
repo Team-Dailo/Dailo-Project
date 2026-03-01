@@ -62,22 +62,33 @@ export type EventListSort = 'trending' | 'views' | 'popular' | null;
 
 /**
  * 이벤트 목록 조회 (리스트/지도 공통)
+ * - region: 지역(주소 포함 검색)
+ * - startAt, endAt: yyyy-MM-dd 날짜 범위 (해당 기간과 겹치는 행사)
  * - keyword: 행사명·장소명·내용(description) 기준 검색
  * - sort: trending(7일 조회수) | views(30일 조회수) | popular(좋아요) | null(기본 startAt)
  */
 export async function getEventList(params?: {
   page?: number;
   size?: number;
+  region?: string | null;
+  startAt?: string | null; // yyyy-MM-dd
+  endAt?: string | null;    // yyyy-MM-dd
   keyword?: string | null;
   sort?: EventListSort;
 }): Promise<Event[]> {
   const page = params?.page ?? 1;
   const size = params?.size ?? 100;
+  const region = params?.region?.trim();
+  const startAt = params?.startAt?.trim();
+  const endAt = params?.endAt?.trim();
   const keyword = params?.keyword?.trim();
   const sort = params?.sort ?? null;
   const searchParams = new URLSearchParams();
   searchParams.set('page', String(page));
   searchParams.set('size', String(size));
+  if (region) searchParams.set('region', region);
+  if (startAt) searchParams.set('startAt', startAt);
+  if (endAt) searchParams.set('endAt', endAt);
   if (keyword) searchParams.set('keyword', keyword);
   if (sort) searchParams.set('sort', sort);
   const url = `${API_BASE_URL}/api/events?${searchParams.toString()}`;

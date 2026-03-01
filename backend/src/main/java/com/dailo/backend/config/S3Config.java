@@ -8,34 +8,28 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
 @Configuration
 public class S3Config {
-
-    @Value("${cloud.aws.credentials.access-key}")
-    private String accessKey;
-
-    @Value("${cloud.aws.credentials.secret-key}")
-    private String secretKey;
-
+    // 💡 이제 accessKey, secretKey 필드가 필요 없습니다!
     @Value("${cloud.aws.region}")
     private String region;
 
     @Bean
     public S3Client s3Client() {
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
         return S3Client.builder()
                 .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                // 💡 DefaultCredentialsProvider가 알아서 권한을 찾습니다.
+                .credentialsProvider(DefaultCredentialsProvider.create())
                 .build();
     }
 
     @Bean
     public S3Presigner s3Presigner() {
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
         return S3Presigner.builder()
                 .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                .credentialsProvider(DefaultCredentialsProvider.create())
                 .build();
     }
 }

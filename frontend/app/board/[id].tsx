@@ -101,6 +101,13 @@ export default function PostDetailScreen() {
 
   const handleSavePost = async () => {
     setMenuVisible(false);
+    if (!isLoggedIn) {
+      Alert.alert("로그인 필요", "저장 기능은 로그인 후 사용할 수 있습니다.", [
+        { text: "취소" },
+        { text: "로그인", onPress: () => router.push("/login") },
+      ]);
+      return;
+    }
     if (!id || !post) return;
     const postId = Number(id);
     if (!Number.isFinite(postId)) return;
@@ -443,12 +450,21 @@ export default function PostDetailScreen() {
                 </View>
                 {post.title ? <Text style={styles.postTitle}>{post.title}</Text> : null}
                 {post.categoryType === "후기" && (post.eventTitle ?? (post as Record<string, unknown>).event_title) ? (
-                  <View style={styles.eventBadge}>
+                  <Pressable
+                    style={styles.eventBadge}
+                    onPress={() => {
+                      const eventId = post.eventId ?? (post as Record<string, unknown>).event_id;
+                      const id = typeof eventId === "number" ? eventId : Number(eventId);
+                      if (Number.isFinite(id) && id > 0) {
+                        router.push(`/event/${id}?source=board` as import("expo-router").Href);
+                      }
+                    }}
+                  >
                     <Ionicons name="calendar-outline" size={14} color="#4C8BF5" />
                     <Text style={styles.eventBadgeText}>
                       {post.eventTitle ?? (post as Record<string, unknown>).event_title ?? ""}
                     </Text>
-                  </View>
+                  </Pressable>
                 ) : null}
                 {(() => {
                   const urls = post.imageUrls ?? (post as Record<string, unknown>).image_urls as string[] | undefined;
@@ -487,9 +503,11 @@ export default function PostDetailScreen() {
                     <Ionicons name="chatbubble-ellipses-outline" size={18} color="#4B5563" />
                     <Text style={styles.footerText}>{post.commentCount ?? comments.length}</Text>
                   </Pressable>
+                  {/* 종이비행기(공유/채팅) 아이콘 비노출 처리
                   <View style={styles.footerItem}>
                     <Ionicons name="paper-plane-outline" size={18} color="#4B5563" />
                   </View>
+                  */}
                 </View>
               </View>
 
@@ -612,12 +630,17 @@ export default function PostDetailScreen() {
         </Pressable>
       </Modal>
 
-      {/* 더보기 메뉴: 본인글 → 저장, 수정, 삭제(빨간색) / 타인글 → 저장, 신고, 차단 */}
+      {/* 더보기 메뉴: 본인글 → 저장, 수정, 삭제(빨간색) / 타인글 → 저장, 신고, 차단 (저장은 로그인 시에만) */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
           <Pressable style={styles.menuCard} onPress={() => {}}>
-            <Pressable style={styles.menuItem} onPress={handleSavePost}>
-              <Text style={styles.menuText}>{isSavedPost ? "저장 해제" : "저장"}</Text>
+            <Pressable
+              style={[styles.menuItem, !isLoggedIn && styles.menuItemDisabled]}
+              onPress={handleSavePost}
+            >
+              <Text style={[styles.menuText, !isLoggedIn && styles.menuTextMuted]}>
+                {isSavedPost ? "저장 해제" : "저장"}
+              </Text>
             </Pressable>
             {isMyPost ? (
               <>
@@ -833,6 +856,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   menuItem: { paddingVertical: 14, paddingHorizontal: 18 },
+  menuItemDisabled: { opacity: 0.6 },
   menuText: { fontSize: 15, color: "#111827" },
   menuTextDanger: { color: "#DC2626" },
   menuTextMuted: { color: "#9CA3AF" },

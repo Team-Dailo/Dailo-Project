@@ -16,6 +16,7 @@ import {
   Linking,
 } from "react-native";
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +25,8 @@ import * as logService from "../../services/log.service";
 import * as eventReminder from "../../services/eventReminder.service";
 
 const EVENT_REMINDER_BOOKED_KEY = "@mypage/notification_event_reminder_booked";
+const EVENT_REMINDER_BOOKED_DAYS_KEY = "@mypage/notification_event_reminder_days_before";
+const EVENT_REMINDER_BOOKED_TIME_HOUR_KEY = "@mypage/notification_event_reminder_time_hour";
 
 const DEFAULT_POSTER_URI =
   "https://images.unsplash.com/photo-1485550409059-9afb054cada4?w=800";
@@ -97,11 +100,16 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
   const [clickCount, setClickCount] = useState<number | null>(null);
   const [hasReminder, setHasReminder] = useState(false);
 
+  // 행사 상세 진입 시 조회(클릭) 로그 기록 + 조회수 표시
   useEffect(() => {
     if (!id || !event) return;
     const eventIdNum = Number(id);
     if (!Number.isFinite(eventIdNum)) return;
-    logService.getEventClickCount(eventIdNum).then(setClickCount).catch(() => {});
+    logService
+      .logClick({ eventId: eventIdNum, source: "event_detail" })
+      .then(() => logService.getEventClickCount(eventIdNum))
+      .then(setClickCount)
+      .catch(() => logService.getEventClickCount(eventIdNum).then(setClickCount).catch(() => {}));
   }, [id, event]);
 
   useEffect(() => {
@@ -136,6 +144,13 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
   };
 
   const handlePressSave = () => {
+    if (!isLoggedIn) {
+      Alert.alert("로그인 필요", "저장 기능은 로그인 후 사용할 수 있습니다.", [
+        { text: "취소" },
+        { text: "로그인", onPress: () => router.push("/login") },
+      ]);
+      return;
+    }
     if (onSave) return onSave();
     return defaultSave();
   };
@@ -171,9 +186,10 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
   const placeStr = event.placeName?.trim() || "장소 미정";
   const organizerStr = event.hostContact?.trim() || "—";
 
-  /** 네이버 지도 길찾기: 출발=현재위치, 도착=행사 주소 (앱 또는 웹) */
+  /** 네이버 지도 길찾기: 출발=현재위치, 도착=행사 한글 주소(가능하면 placeAddress 우선) */
   const openNaverDirection = async () => {
-    const destination = (event.placeAddress || event.placeName || event.title || "").trim() || "행사 장소";
+    const address = (event.placeAddress ?? "").trim();
+    const destination = address || (event.title ?? "").trim() || "행사 장소";
     const hasCoords = event.latitude != null && event.longitude != null && Number.isFinite(event.latitude) && Number.isFinite(event.longitude);
 
     const openNaverWeb = () => {
@@ -207,7 +223,7 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
       dlat: String(event.latitude),
       dlng: String(event.longitude),
       dname: destination,
-      appname: "com.dailo.app",
+      appname: "com.knut.dailo",
     });
     if (startLat != null && startLng != null) {
       params.set("slat", String(startLat));
@@ -219,19 +235,65 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
   };
 
   const scheduleReminder = async () => {
+    // 권한 먼저 체크
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") {
+      // 권한이 없으면 권한 요청
+      const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
+      if (requestedStatus !== "granted") {
+        Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
+        return;
+      }
+    }
+    
     await eventReminder.cancelEventReminders(String(event.id));
+
+    // 알림 시점 (며칠 전) 설정 불러오기 (기본 1일 전)
+    let daysBefore = 1;
+    try {
+      const stored = await AsyncStorage.getItem(EVENT_REMINDER_BOOKED_DAYS_KEY);
+      if (stored != null && stored !== "") {
+        const parsed = parseInt(stored, 10);
+        if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 30) {
+          daysBefore = parsed;
+        }
+      }
+    } catch {
+      // ignore and use default
+    }
+
+    // 알림 시각 설정 불러오기 (기본 9시)
+    let timeHour = 9;
+    try {
+      const storedTime = await AsyncStorage.getItem(EVENT_REMINDER_BOOKED_TIME_HOUR_KEY);
+      if (storedTime != null && storedTime !== "") {
+        const parsedTime = parseInt(storedTime, 10);
+        if (!Number.isNaN(parsedTime) && parsedTime >= 0 && parsedTime <= 23) {
+          timeHour = parsedTime;
+        }
+      }
+    } catch {
+      // ignore and use default
+    }
+
     const notifId = await eventReminder.scheduleEventReminder(
       String(event.id),
       event.title,
       event.startAt,
-      1,
-      "booked"
+      daysBefore,
+      "booked",
+      timeHour
     );
     if (notifId) {
       setHasReminder(true);
-      Alert.alert("알림 예약", "1일 전에 알림을 보내드립니다.");
+      const msg =
+        daysBefore === 1
+          ? "행사 1일 전에 알림을 보내드립니다."
+          : `행사 ${daysBefore}일 전에 알림을 보내드립니다.`;
+      Alert.alert("알림 예약", msg);
     } else {
-      Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
+      // 권한은 있지만 다른 이유로 실패 (예: 이미 지난 날짜)
+      Alert.alert("알림 실패", "알림을 예약할 수 없습니다. 행사 날짜를 확인해 주세요.");
     }
   };
 
@@ -257,7 +319,16 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
       if (value !== "true") {
         Alert.alert(
           "알림 설정",
-          "알림설정에서 '예약한 행사 알림'을 켜주세요. 마이페이지 → 알림설정에서 설정할 수 있어요."
+          "알림설정에서 '예약한 행사 알림'을 켜주세요. 마이페이지 → 알림설정에서 설정할 수 있어요.",
+          [
+            { text: "취소", style: "cancel" },
+            {
+              text: "설정으로 이동",
+              onPress: () => {
+                router.push({ pathname: "/(tabs)/mypage/notification-settings", params: { from: "event-detail" } });
+              },
+            },
+          ]
         );
         return;
       }
@@ -289,10 +360,16 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
               ) : null}
             </View>
           ) : null}
+          {/* 공유 버튼 주석처리
           <Pressable onPress={handlePressShare} style={styles.iconButton} hitSlop={10}>
             <Ionicons name="share-outline" size={22} color="#111827" />
           </Pressable>
-          <Pressable onPress={handlePressSave} style={styles.iconButton} hitSlop={10}>
+          */}
+          <Pressable
+            onPress={handlePressSave}
+            style={[styles.iconButton, !isLoggedIn && { opacity: 0.6 }]}
+            hitSlop={10}
+          >
             <Ionicons
               name={isScraped ? "bookmark" : "bookmark-outline"}
               size={22}

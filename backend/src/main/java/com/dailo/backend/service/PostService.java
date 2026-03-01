@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,12 +42,27 @@ public class PostService {
     private final EventRepository eventRepository;
     private final BlockService blockService;
 
+    private Long resolveMemberId(String email) {
+        if (email == null) return null; // 비로그인 상태면 null 반환
+        return memberRepository.findByEmail(email)
+                .map(Member::getId)
+                .orElseThrow(() -> new RuntimeException("Member not found for email: " + email));
+    }
+
     /** authorId 목록으로 닉네임 맵 조회 (N+1 방지) */
     private Map<Long, String> getAuthorNicknameMap(List<Post> posts) {
+        return getAuthorNicknameAndProfileMaps(posts).getFirst();
+    }
+
+    /** authorId 목록으로 닉네임·프로필이미지 맵 한 번에 조회 (N+1 방지) */
+    private Pair<Map<Long, String>, Map<Long, String>> getAuthorNicknameAndProfileMaps(List<Post> posts) {
         Set<Long> authorIds = posts.stream().map(Post::getAuthorId).collect(Collectors.toSet());
-        if (authorIds.isEmpty()) return Map.of();
+        if (authorIds.isEmpty()) return Pair.of(Map.of(), Map.of());
         List<Member> members = memberRepository.findAllById(authorIds);
-        return members.stream().collect(Collectors.toMap(Member::getId, Member::getNickname, (a, b) -> a));
+        Map<Long, String> nicknameMap = members.stream().collect(Collectors.toMap(Member::getId, Member::getNickname, (a, b) -> a));
+        Map<Long, String> profileMap = members.stream()
+                .collect(Collectors.toMap(Member::getId, m -> m.getProfileImageUrl() != null ? m.getProfileImageUrl() : "", (a, b) -> a));
+        return Pair.of(nicknameMap, profileMap);
     }
 
     /** post 목록에서 eventId 추출 후 eventId -> 행사 제목 맵 조회 (후기 목록에서 행사명 표시용) */
@@ -58,15 +74,17 @@ public class PostService {
     }
 
     /** 내가 쓴 글 목록 (마이페이지 게시판 기록) */
-    public Page<PostListResponseDto> getMyPosts(Long authorId, Pageable pageable) {
+    public Page<PostListResponseDto> getMyPosts(String email, Pageable pageable) {
+        Long authorId = resolveMemberId(email);
         Page<Post> page = postRepository.findByAuthorId(authorId, pageable);
         List<Post> posts = page.getContent();
-        Map<Long, String> nicknameMap = getAuthorNicknameMap(posts);
+        var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
-        return page.map(post -> PostListResponseDto.from(post, nicknameMap.get(post.getAuthorId()), null, post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null));
+        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), null, post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())));
     }
 
-    public Page<PostListResponseDto> getAllPosts(Long userId, Pageable pageable) {
+    public Page<PostListResponseDto> getAllPosts(String email, Pageable pageable) {
+        Long userId = resolveMemberId(email);
         Page<Post> page;
         if (userId == null) {
             page = postRepository.findAll(pageable);
@@ -77,14 +95,15 @@ public class PostService {
                     : postRepository.findAllExcludingAuthors(blockedIds, pageable);
         }
         List<Post> posts = page.getContent();
-        Map<Long, String> nicknameMap = getAuthorNicknameMap(posts);
+        var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
         Set<Long> likedPostIds = (userId != null) ? postLikeRepository.findPostIdsByMemberId(userId) : Set.of();
-        return page.map(post -> PostListResponseDto.from(post, nicknameMap.get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null));
+        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())));
     }
 
     @Transactional
-    public PostResponseDto getPostById(Long id, Long userId) {
+    public PostResponseDto getPostById(Long id, String email) {
+        Long userId = resolveMemberId(email);
         Post post = postRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Post not found: " + id));
 
@@ -114,7 +133,8 @@ public class PostService {
     }
 
     @Transactional
-    public PostResponseDto createPost(PostRequestDto requestDto, Long authorId) {
+    public PostResponseDto createPost(PostRequestDto requestDto, String email) {
+        Long authorId = resolveMemberId(email);
         Post post = requestDto.toEntity(authorId);
         setImageUrlsJson(post, requestDto.getImageUrls());
         Post savedPost = postRepository.save(post);
@@ -135,7 +155,8 @@ public class PostService {
     }
 
     @Transactional
-    public PostResponseDto updatePost(Long id, PostRequestDto requestDto, Long authorId) {
+    public PostResponseDto updatePost(Long id, PostRequestDto requestDto, String email) {
+        Long authorId = resolveMemberId(email);
         Post post = postRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Post not found: " + id));
 
@@ -150,7 +171,8 @@ public class PostService {
     }
 
     /** 행사별 후기 게시글 목록 (eventId 로 조회). 로그인 시 내가 차단한 작성자 글 제외 */
-    public Page<PostListResponseDto> getPostsByEventId(Long eventId, Long userId, Pageable pageable) {
+    public Page<PostListResponseDto> getPostsByEventId(Long eventId, String email, Pageable pageable) {
+        Long userId = resolveMemberId(email);
         Page<Post> page;
         if (userId == null) {
             page = postRepository.findByEventId(eventId, pageable);
@@ -161,14 +183,15 @@ public class PostService {
                     : postRepository.findByEventIdExcludingAuthors(eventId, blockedIds, pageable);
         }
         List<Post> posts = page.getContent();
-        Map<Long, String> nicknameMap = getAuthorNicknameMap(posts);
+        var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
         Set<Long> likedPostIds = (userId != null) ? postLikeRepository.findPostIdsByMemberId(userId) : Set.of();
-        return page.map(post -> PostListResponseDto.from(post, nicknameMap.get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null));
+        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())));
     }
 
     /** 내가 댓글 단 글 목록 (마이페이지) - 인증 필요 */
-    public Page<PostListResponseDto> getCommentedPosts(Long userId, Pageable pageable) {
+    public Page<PostListResponseDto> getCommentedPosts(String email, Pageable pageable) {
+        Long userId = resolveMemberId(email);
         List<Long> postIds = commentRepository.findDistinctPostIdsByAuthorId(userId, pageable);
         long total = commentRepository.countDistinctPostsByAuthorId(userId);
         if (postIds.isEmpty()) {
@@ -177,25 +200,26 @@ public class PostService {
         List<Post> posts = postRepository.findAllById(postIds);
         Map<Long, Post> postMap = posts.stream().collect(Collectors.toMap(Post::getId, p -> p));
         List<Post> ordered = postIds.stream().map(postMap::get).filter(p -> p != null).toList();
-        Map<Long, String> nicknameMap = getAuthorNicknameMap(ordered);
+        var authorMaps = getAuthorNicknameAndProfileMaps(ordered);
         Map<Long, String> eventTitleMap = getEventTitleMap(ordered);
         Set<Long> likedPostIds = postLikeRepository.findPostIdsByMemberId(userId);
         List<PostListResponseDto> content = ordered.stream()
-                .map(post -> PostListResponseDto.from(post, nicknameMap.get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null))
+                .map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())))
                 .toList();
         return new PageImpl<>(content, pageable, total);
     }
 
     /** 좋아요 누른 글 목록 (마이페이지) - 인증 필요 */
-    public Page<PostListResponseDto> getLikedPosts(Long userId, Pageable pageable) {
+    public Page<PostListResponseDto> getLikedPosts(String email, Pageable pageable) {
+        Long userId = resolveMemberId(email);
         Page<PostLike> likePage = postLikeRepository.findByMemberIdOrderByPostCreatedAtDesc(userId, pageable);
         List<Post> posts = likePage.getContent().stream().map(PostLike::getPost).toList();
-        Map<Long, String> nicknameMap = getAuthorNicknameMap(posts);
+        var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
         List<PostListResponseDto> content = likePage.getContent().stream()
                 .map(pl -> {
                     Post p = pl.getPost();
-                    return PostListResponseDto.from(p, nicknameMap.get(p.getAuthorId()), true, p.getEventId() != null ? eventTitleMap.get(p.getEventId()) : null);
+                    return PostListResponseDto.from(p, authorMaps.getFirst().get(p.getAuthorId()), true, p.getEventId() != null ? eventTitleMap.get(p.getEventId()) : null, authorMaps.getSecond().get(p.getAuthorId()));
                 })
                 .toList();
         return new PageImpl<>(content, likePage.getPageable(), likePage.getTotalElements());
@@ -209,7 +233,8 @@ public class PostService {
     }
 
     @Transactional
-    public void deletePost(Long id, Long authorId) {
+    public void deletePost(Long id, String email) {
+        Long authorId = resolveMemberId(email);
         Post post = postRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Post not found: " + id));
 
@@ -228,7 +253,8 @@ public class PostService {
         postRepository.delete(post);
     }
 
-    public Page<PostListResponseDto> getPostsByCategory(String categoryType, Long userId, Pageable pageable) {
+    public Page<PostListResponseDto> getPostsByCategory(String categoryType, String email, Pageable pageable) {
+        Long userId = resolveMemberId(email); // 💡 이메일 -> 숫자 ID 변환
         Page<Post> page;
         if (userId == null) {
             page = postRepository.findByCategoryType(categoryType, pageable);
@@ -239,13 +265,14 @@ public class PostService {
                     : postRepository.findByCategoryTypeExcludingAuthors(categoryType, blockedIds, pageable);
         }
         List<Post> posts = page.getContent();
-        Map<Long, String> nicknameMap = getAuthorNicknameMap(posts);
+        var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
         Set<Long> likedPostIds = (userId != null) ? postLikeRepository.findPostIdsByMemberId(userId) : Set.of();
-        return page.map(post -> PostListResponseDto.from(post, nicknameMap.get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null));
+        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())));
     }
 
-    public Page<PostListResponseDto> searchPosts(String keyword, Long userId, Pageable pageable) {
+    public Page<PostListResponseDto> searchPosts(String keyword, String email, Pageable pageable) {
+        Long userId = resolveMemberId(email);
         if (keyword != null && keyword.trim().matches("\\d+")) {
             try {
                 Long id = Long.parseLong(keyword.trim());
@@ -257,10 +284,10 @@ public class PostService {
                         })
                         .<Page<PostListResponseDto>>map(post -> {
                             List<Post> one = List.of(post);
-                            Map<Long, String> nicknameMap = getAuthorNicknameMap(one);
+                            var authorMaps = getAuthorNicknameAndProfileMaps(one);
                             Map<Long, String> eventTitleMap = getEventTitleMap(one);
                             Set<Long> likedPostIds = (userId != null) ? postLikeRepository.findPostIdsByMemberId(userId) : Set.of();
-                            PostListResponseDto dto = PostListResponseDto.from(post, nicknameMap.get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null);
+                            PostListResponseDto dto = PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId()));
                             return new PageImpl<>(List.of(dto), pageable, 1);
                         })
                         .orElseGet(() -> searchPostsByTitle(keyword, userId, pageable));
@@ -270,6 +297,7 @@ public class PostService {
         return searchPostsByTitle(keyword, userId, pageable);
     }
 
+    // 내부 메서드이므로 Long userId를 그대로 사용합니다.
     private Page<PostListResponseDto> searchPostsByTitle(String keyword, Long userId, Pageable pageable) {
         Page<Post> page;
         if (userId == null) {
@@ -281,15 +309,16 @@ public class PostService {
                     : postRepository.findByTitleContainingExcludingAuthors(keyword, blockedIds, pageable);
         }
         List<Post> posts = page.getContent();
-        Map<Long, String> nicknameMap = getAuthorNicknameMap(posts);
+        var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
         Set<Long> likedPostIds = (userId != null) ? postLikeRepository.findPostIdsByMemberId(userId) : Set.of();
-        return page.map(post -> PostListResponseDto.from(post, nicknameMap.get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null));
+        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())));
     }
 
     /** 게시글 좋아요 토글. 반환값: 좋아요 누른 상태(true) / 취소(false) */
     @Transactional
-    public boolean togglePostLike(Long postId, Long userId) {
+    public boolean togglePostLike(Long postId, String email) {
+        Long userId = resolveMemberId(email);
         if (userId == null) {
             throw new RuntimeException("로그인이 필요합니다.");
         }

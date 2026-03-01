@@ -1,12 +1,14 @@
 // app/(tabs)/mypage/location-permission.tsx - 위치 권한
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Alert } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import { useSafeBack } from '../../../hooks/useSafeBack';
 
 export default function LocationPermissionScreen() {
+  const safeBack = useSafeBack();
   const openAppSettings = () => {
     Linking.openSettings().catch(() => {
       Alert.alert('안내', '설정 앱을 열 수 없습니다.');
@@ -34,7 +36,7 @@ export default function LocationPermissionScreen() {
           headerShown: true,
           headerTitleAlign: 'center',
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} hitSlop={8} style={styles.headerBackButton}>
+            <Pressable onPress={safeBack} hitSlop={8} style={styles.headerBackButton}>
               <Ionicons name="chevron-back" size={22} color="#111827" />
             </Pressable>
           ),

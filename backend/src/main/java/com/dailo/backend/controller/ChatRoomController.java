@@ -26,8 +26,8 @@ public class ChatRoomController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ChatRoomRequestDto requestDto) {
 
-        Long userId = Long.parseLong(userDetails.getUsername());
-        ChatRoomResponseDto response = chatRoomService.createRoom(userId, requestDto.getTargetUserId());
+        String email = userDetails.getUsername();
+        ChatRoomResponseDto response = chatRoomService.createRoom(email, requestDto.getTargetUserId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -36,8 +36,8 @@ public class ChatRoomController {
     public ResponseEntity<List<ChatRoomResponseDto>> getMyRooms(
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(chatRoomService.getMyRooms(userId));
+        String email = userDetails.getUsername();
+        return ResponseEntity.ok(chatRoomService.getMyRooms(email));
     }
 
     // 3. 채팅방 상세
@@ -46,8 +46,8 @@ public class ChatRoomController {
             @PathVariable Long roomId,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(chatRoomService.getRoom(roomId, userId));
+        String email = userDetails.getUsername();
+        return ResponseEntity.ok(chatRoomService.getRoom(roomId, email));
     }
 
     // 4. 읽음 처리 (미읽음 수 0으로)
@@ -56,8 +56,8 @@ public class ChatRoomController {
             @PathVariable Long roomId,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        Long userId = Long.parseLong(userDetails.getUsername());
-        chatRoomService.markAsRead(roomId, userId);
+        String email = userDetails.getUsername();
+        chatRoomService.markAsRead(roomId, email);
         return ResponseEntity.ok().build();
     }
 
@@ -67,8 +67,8 @@ public class ChatRoomController {
             @PathVariable Long roomId,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        Long userId = Long.parseLong(userDetails.getUsername());
-        chatRoomService.leaveRoom(roomId, userId);
+        String email = userDetails.getUsername();
+        chatRoomService.leaveRoom(roomId, email);
         return ResponseEntity.ok().build();
     }
 }

@@ -32,6 +32,14 @@ import * as eventReminder from "../../../services/eventReminder.service";
 
 const CAROUSEL_SIZE = 3;
 
+/** 종료된 행사 여부 (종료일이 오늘 이전이면 true) */
+function isEventEnded(endAt: string | null | undefined): boolean {
+  if (!endAt) return false;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const endStr = new Date(endAt).toISOString().slice(0, 10);
+  return endStr < todayStr;
+}
+
 function toCarouselItem(e: Event): PopularEventItem {
   return {
     id: Number(e.id),
@@ -126,14 +134,12 @@ export default function HomeScreen() {
     setCarouselIndex(index);
   }, []);
 
-  // 캐러셀: 인기순 3개 있으면 사용, 없으면 행사 리스트에서 앞 3개 사용 (항상 3개 노출)
+  // 캐러셀: 인기순 3개 있으면 사용, 없으면 행사 리스트에서 앞 3개 사용. 종료된 행사는 제외.
   const carouselItems: PopularEventItem[] = useMemo(() => {
-    const popular = popularEvents ?? [];
-    const list = eventList ?? [];
+    const popular = (popularEvents ?? []).filter((e) => !isEventEnded(e.endAt));
+    const list = (eventList ?? []).filter((e) => !isEventEnded(e.endAt));
     if (popular.length >= CAROUSEL_SIZE) return popular.slice(0, CAROUSEL_SIZE);
-    if (list.length > 0) {
-      return list.slice(0, CAROUSEL_SIZE).map(toCarouselItem);
-    }
+    if (list.length > 0) return list.slice(0, CAROUSEL_SIZE).map(toCarouselItem);
     return popular;
   }, [popularEvents, eventList]);
 
@@ -199,7 +205,11 @@ export default function HomeScreen() {
         {/* 상단 헤더 */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.logoDot} />
+            <Image
+              source={require("../../../assets/images/splash-icon.png")}
+              style={styles.logoIcon}
+              resizeMode="contain"
+            />
             <Text style={styles.logoText}>Dailo</Text>
           </View>
 
@@ -452,12 +462,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  logoDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#4C8BF5",
-    marginRight: 6,
+  logoIcon: {
+    width: 36,
+    height: 36,
+    marginRight: 8,
   },
   logoText: {
     fontSize: 18,
@@ -511,7 +519,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: "#4C8BF5",
+    backgroundColor: "rgba(76, 139, 245, 0.82)",
   },
   badgeText: {
     color: "#ffffff",

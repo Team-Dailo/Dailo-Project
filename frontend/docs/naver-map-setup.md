@@ -6,12 +6,12 @@
 
 | 증상 | 원인 | 해결 |
 |------|------|------|
-| 격자(그리드)만 보임 | Client ID·패키지명 미등록/불일치 | 아래 1단계에서 **com.app** 패키지 등록 |
+| 격자(그리드)만 보임 | Client ID·패키지명 미등록/불일치 | 아래 1단계에서 **com.knut.dailo** 패키지 등록 |
 | 하얀 화면 / 크래시 | 네이티브 모듈 미포함 | **Development Build**로 빌드 (`npx expo run:android`) |
 | Expo Go에서 실행 | Expo Go는 네이버 지도 미지원 | 반드시 로컬 빌드 또는 EAS Development Build 사용 |
 
-**현재 앱 패키지명:** `com.app` (`android/app/build.gradle`의 `applicationId`)  
-**Client ID:** `app.json`에 `y16gvbmja5` 설정됨 → 네이버 콘솔에서 이 Application에 **Android 패키지명 `com.app`**만 등록하면 됨.
+**현재 앱 패키지명:** `com.knut.dailo` (`android/app/build.gradle`의 `applicationId`)  
+**Client ID:** `app.json`에 `y16gvbmja5` 설정됨 → 네이버 콘솔에서 이 Application에 **Android 패키지명 `com.knut.dailo`**만 등록하면 됨.
 
 > **참고:** 네이버 지도 Android는 **SHA-1 입력란을 두지 않습니다.** 패키지명만 등록하는 방식입니다. SHA-1 입력칸이 안 보이면 정상입니다.
 
@@ -21,8 +21,8 @@
 2. **Services** → **Application Services** → **Maps** 선택
 3. **Application 등록** 선택 후:
    - **API 선택**에서 **Dynamic Map** 반드시 체크 (체크 안 하면 429 오류)
-   - **Android 앱**으로 등록할 때 **패키지명**만 입력: `com.app`  
-     (콘솔에 따라 "Android 앱 추가" / "패키지명" 같은 항목에 `com.app` 입력)
+   - **Android 앱**으로 등록할 때 **패키지명**만 입력: `com.knut.dailo`  
+     (콘솔에 따라 "Android 앱 추가" / "패키지명" 같은 항목에 `com.knut.dailo` 입력)
 4. 등록한 Application의 **인증 정보**에서 **Client ID**(키 ID) 확인
 5. `frontend/app.json`에 해당 Client ID가 들어가 있는지 확인 (현재 `y16gvbmja5`)
 
@@ -30,7 +30,7 @@
 ["@mj-studio/react-native-naver-map", { "client_id": "발급받은_Client_ID" }]
 ```
 
-**패키지명을 잘못 등록하면** 인증 실패(401)로 지도 타일이 로드되지 않고 **격자만** 보입니다. `com.app`을 **정확히** 입력했는지 확인하세요.
+**패키지명을 잘못 등록하면** 인증 실패(401)로 지도 타일이 로드되지 않고 **격자만** 보입니다. `com.knut.dailo`를 **정확히** 입력했는지 확인하세요.
 
 ## 2. Development Build 필요
 

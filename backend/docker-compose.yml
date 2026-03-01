@@ -12,7 +12,7 @@ services:
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     networks:
@@ -34,8 +34,26 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/dailo?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+
+#      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY}
+#      AWS_SECRET_KEY: ${AWS_SECRET_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      APP_UPLOAD_USE_S3: "true"
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET}
+
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8080:8080"
+    volumes:
+    - ~/.aws:/root/.aws:ro
     depends_on:
       mysql:
         condition: service_healthy

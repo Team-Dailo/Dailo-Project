@@ -3,10 +3,12 @@ package com.dailo.backend.service;
 import com.dailo.backend.dto.event.*;
 
 import com.dailo.backend.entity.Event;
+import com.dailo.backend.entity.Member;
 import com.dailo.backend.domain.enums.EventStatus;
 import com.dailo.backend.domain.enums.EventCategory;
 import com.dailo.backend.repository.EventLikeRepository;
 import com.dailo.backend.repository.EventRepository;
+import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.repository.ScrapRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,18 +34,24 @@ public class EventService {
     private final EventRepository eventRepository;
     private final EventLikeRepository eventLikeRepository;
     private final ScrapRepository scrapRepository;
-    // 상세 조회 (memberId 있으면 스크랩 여부 포함)
+    private final MemberRepository memberRepository; //
 
-    public EventDetailResponse getEventDetail(Long eventId, Long memberId) {
+    // 상세 조회 (memberId 있으면 스크랩 여부 포함)
+    public EventDetailResponse getEventDetail(Long eventId, String email) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이벤트입니다. id=" + eventId));
-        boolean isBookmarked = memberId != null
-                && scrapRepository.findByMemberIdAndEventId(memberId, eventId).isPresent();
+
+        boolean isBookmarked = false;
+        if (email != null) {
+            Member member = memberRepository.findByEmail(email).orElse(null);
+            if (member != null) {
+                isBookmarked = scrapRepository.findByMemberIdAndEventId(member.getId(), eventId).isPresent();
+            }
+        }
         return EventDetailResponse.from(event, isBookmarked);
     }
 
     // 지도 마커 조회 (실제 event_like 집계로 좋아요 수 반환)
-
     public List<EventMapResponse> getEventsInMap(Double swLat, Double neLat, Double swLng, Double neLng) {
         List<Event> events = eventRepository.findEventsInBounds(swLat, neLat, swLng, neLng, EventStatus.ACTIVE);
         if (events.isEmpty()) return Collections.emptyList();
@@ -54,7 +62,7 @@ public class EventService {
                 .collect(Collectors.toList());
     }
 
-    /** 지도/검색: 키워드(행사명·장소·설명)로 행사 검색, 위경도 있는 것만 반환 (지도 검색 결과용, 실제 좋아요 수 포함) */
+    /** 지도/검색: 키워드(행사명·장소·설명)로 행사 검색, 위경도 있는 것만 반환 */
     public List<EventMapResponse> searchEventsByKeyword(String keyword, int size) {
         if (keyword == null || keyword.isBlank()) {
             return Collections.emptyList();
@@ -91,7 +99,7 @@ public class EventService {
     // 리스트 조회 (검색/필터/정렬 통합)
     public Page<EventListResponse> getEventList(EventListRequest request) {
 
-        // 동적 정렬: 인기/추천 키워드 매핑 (trending=7일 조회수, views=30일 조회수, popular=좋아요)
+        // 동적 정렬: 인기/추천 키워드 매핑
         String sortParam = request.sort() != null ? request.sort().trim() : "";
         if ("trending".equalsIgnoreCase(sortParam)) {
             sortParam = "viewCount7d,desc";
@@ -111,14 +119,10 @@ public class EventService {
             sort = Sort.by(direction, property);
         }
 
-        // Pageable 생성
         Pageable pageable = PageRequest.of(request.page() - 1, request.size(), sort);
-
-        // 날짜 변환
         LocalDateTime searchStart = (request.startAt() != null) ? request.startAt().atStartOfDay() : null;
         LocalDateTime searchEnd = (request.endAt() != null) ? request.endAt().atTime(LocalTime.MAX) : null;
 
-        // 레포지토리 호출
         Page<Event> events = eventRepository.searchEvents(
                 EventStatus.ACTIVE,
                 searchStart,
@@ -131,6 +135,7 @@ public class EventService {
 
         return events.map(this::convertToEventListResponse);
     }
+
     private EventListResponse convertToEventListResponse(Event event) {
         return new EventListResponse(
                 event.getId(),
@@ -144,22 +149,24 @@ public class EventService {
         );
     }
 
-    //  캘린더 월별 조회
-    public List<EventCalendarResponse> getCalendarEvents(int year, int month, Long memberId) {
-        // 1. 조회 범위 설정 (해당 월 1일 ~ 다음 달 1일)
+    // 캘린더 월별 조회
+    public List<EventCalendarResponse> getCalendarEvents(int year, int month, String email) {
         LocalDateTime startOfMonth = LocalDateTime.of(year, month, 1, 0, 0);
         LocalDateTime endOfMonth = startOfMonth.plusMonths(1);
 
-        // 2. 기간 겹침 이벤트 조회 (Repository 메소드 필요)
         List<Event> events = eventRepository.findEventsForCalendar(startOfMonth, endOfMonth);
 
-        // 3. 로그인 유저의 스크랩 정보 조회 (한 번에 가져와서 N+1 방지)
-        // (ScrapRepository 주입 필요. 만약 없으면 Service 상단에 private final ScrapRepository scrapRepository; 추가하세요)
-        Set<Long> scrappedEventIds = (memberId != null)
-                ? scrapRepository.findScrappedEventIds(memberId)
-                : Collections.emptySet();
+        // 💡 이메일로 멤버 ID를 찾아 스크랩 정보 조회
+        Set<Long> scrappedEventIds = Collections.emptySet();
+        if (email != null) {
+            Member member = memberRepository.findByEmail(email).orElse(null);
+            if (member != null) {
+                scrappedEventIds = scrapRepository.findScrappedEventIds(member.getId());
+            }
+        }
 
-        // 4. DTO 변환
+        final Set<Long> finalScrappedEventIds = scrappedEventIds; // 람다 안에서 쓰기 위해 final (혹은 effectively final) 처리
+
         return events.stream()
                 .map(event -> EventCalendarResponse.builder()
                         .id(event.getId())
@@ -168,9 +175,8 @@ public class EventService {
                         .filterGroup(event.getFilterGroup())
                         .startAt(event.getStartAt())
                         .endAt(event.getEndAt() != null ? event.getEndAt() : event.getStartAt())
-                        .isBookmarked(scrappedEventIds.contains(event.getId()))
+                        .isBookmarked(finalScrappedEventIds.contains(event.getId()))
                         .build())
                 .collect(Collectors.toList());
     }
-
 }

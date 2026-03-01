@@ -3,9 +3,11 @@ package com.dailo.backend.controller;
 import com.dailo.backend.domain.enums.Role;
 import com.dailo.backend.dto.admin.AdminMemberListItemDto;
 import com.dailo.backend.dto.admin.SuspendRequestDto;
+import com.dailo.backend.domain.enums.MemberStatus;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.service.AdminBlockService;
+import com.dailo.backend.service.MemberService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -29,6 +31,7 @@ public class AdminMemberController {
 
     private final MemberRepository memberRepository;
     private final AdminBlockService adminBlockService;
+    private final MemberService memberService;
 
     @Value("${app.admin.emails:}")
     private String adminEmailsProperty;
@@ -41,21 +44,24 @@ public class AdminMemberController {
     public ResponseEntity<Page<AdminMemberListItemDto>> getMemberList(
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 50, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
-        Long memberId = Long.parseLong(userDetails.getUsername());
-        Member current = memberRepository.findById(memberId)
+
+        // JWT 토큰에서 이메일을 추출하여 관리자 Member 객체 조회
+        String email = userDetails.getUsername();
+        Member current = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
 
         if (current.getRole() == Role.ADMIN) {
             // 이미 ADMIN
         } else if (isInAdminEmails(current.getEmail())) {
             // 설정에 이메일로 등록된 관리자 → 허용 (다음 접근부터는 role 갱신 권장)
-        } else if (isInAdminUserIds(memberId)) {
+        } else if (isInAdminUserIds(current.getId())) {
             // 설정에 ID로 등록된 관리자 → 허용
         } else {
             return ResponseEntity.status(403).build();
         }
 
-        Page<Member> page = memberRepository.findAll(pageable);
+        // 개인정보처리방침: 탈퇴자(DELETED)는 목록에 노출하지 않음
+        Page<Member> page = memberRepository.findByStatusNot(MemberStatus.DELETED, pageable);
         return ResponseEntity.ok(page.map(AdminMemberListItemDto::from));
     }
 
@@ -65,12 +71,39 @@ public class AdminMemberController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long memberId,
             @RequestBody SuspendRequestDto request) {
-        Member current = memberRepository.findById(Long.parseLong(userDetails.getUsername()))
+
+        // 이메일 기반 관리자 검증
+        String email = userDetails.getUsername();
+        Member current = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+
         if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(current.getId())) {
             return ResponseEntity.status(403).build();
         }
+
         adminBlockService.suspend(memberId, request.getType());
+        return ResponseEntity.ok().build();
+    }
+
+    /** 관리자용 회원 탈퇴 처리 (목록에서 제거됨) */
+    @PostMapping("/{memberId}/withdraw")
+    public ResponseEntity<Void> withdraw(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long memberId) {
+
+        // 이메일 기반 관리자 검증
+        String email = userDetails.getUsername();
+        Member current = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+
+        if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(current.getId())) {
+            return ResponseEntity.status(403).build();
+        }
+
+        Member target = memberRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("대상 회원 정보가 없습니다."));
+
+        memberService.withdraw(target.getEmail());
         return ResponseEntity.ok().build();
     }
 

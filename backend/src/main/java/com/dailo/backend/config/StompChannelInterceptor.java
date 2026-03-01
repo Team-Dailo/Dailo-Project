@@ -13,41 +13,45 @@ import java.security.Principal;
 @Component
 public class StompChannelInterceptor implements ChannelInterceptor {
 
-    private static final String USER_ID_HEADER = "X-User-Id";
+    // 💡 이제 이메일을 헤더로 받거나, 나중에는 Authorization(토큰) 헤더를 검증해야 합니다.
+    private static final String USER_EMAIL_HEADER = "X-User-Email";
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
-            // CONNECT 시 X-User-Id 헤더에서 userId 추출
-            String userIdHeader = accessor.getFirstNativeHeader(USER_ID_HEADER);
+            // CONNECT 시 X-User-Email 헤더에서 이메일 추출
+            String email = accessor.getFirstNativeHeader(USER_EMAIL_HEADER);
 
-            if (userIdHeader != null) {
-                Long userId = Long.parseLong(userIdHeader);
-                // Principal로 설정하여 이후 메시지에서 사용
-                accessor.setUser(new StompPrincipal(userId));
+            if (email != null) {
+                accessor.setUser(new StompPrincipal(email));
             }
         }
 
         return message;
     }
 
-    // 간단한 Principal 구현
+    /**
+     * 💡 이메일 기반의 Principal 구현체로 변경
+     */
     public static class StompPrincipal implements Principal {
-        private final Long userId;
+        private final String email;
 
-        public StompPrincipal(Long userId) {
-            this.userId = userId;
+        public StompPrincipal(String email) {
+            this.email = email;
         }
 
         @Override
         public String getName() {
-            return userId.toString();
+            return email;
         }
 
-        public Long getUserId() {
-            return userId;
+        public String getEmail() {
+            return email;
         }
+
+        // 💡 기존 ChatController 등에서 userId를 찾던 로직과의 호환을 위해 유지하거나 제거 가능
+        // 하지만 이제는 getName()으로 이메일을 가져와서 서비스에서 ID를 찾는 것이 정석입니다.
     }
 }

@@ -3,6 +3,8 @@ package com.dailo.backend.controller;
 import com.dailo.backend.config.StompChannelInterceptor.StompPrincipal;
 import com.dailo.backend.dto.ChatMessageRequestDto;
 import com.dailo.backend.dto.ChatMessageResponseDto;
+import com.dailo.backend.entity.Member;
+import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.service.ChatMessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -19,26 +21,23 @@ public class ChatController {
 
     private final ChatMessageService chatMessageService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final MemberRepository memberRepository;
 
-    // STOMP 메시지 수신 → 저장 → 브로드캐스트
     @MessageMapping("/chat/{roomId}")
     public void sendMessage(
             @DestinationVariable Long roomId,
             @Payload ChatMessageRequestDto requestDto,
             Principal principal) {
 
-        // 서버에서 senderId 결정 (클라이언트 payload의 senderId는 무시)
-        Long senderId = getSenderIdFromPrincipal(principal);
+        String email = principal.getName();
 
-        // 메시지 저장
         ChatMessageResponseDto response = chatMessageService.sendMessage(
                 roomId,
-                senderId,
+                email,
                 requestDto.getContent(),
                 requestDto.getMessageType()
         );
 
-        // 해당 채팅방 구독자들에게 브로드캐스트
         messagingTemplate.convertAndSend("/topic/chat/" + roomId, response);
     }
 
@@ -47,10 +46,12 @@ public class ChatController {
             throw new RuntimeException("Not authenticated");
         }
 
-        if (principal instanceof StompPrincipal) {
-            return ((StompPrincipal) principal).getUserId();
-        }
 
-        return Long.parseLong(principal.getName());
+        String email = principal.getName();
+
+        // 이메일로 DB에서 실제 Member의 Long ID를 찾아옵니다.
+        return memberRepository.findByEmail(email)
+                .map(Member::getId)
+                .orElseThrow(() -> new RuntimeException("회원 정보를 찾을 수 없습니다. email: " + email));
     }
 }

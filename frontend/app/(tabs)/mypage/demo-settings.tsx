@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { getDemoLocation } from "../../../services/demoLocationStorage";
+import { getDemoLocation, clearDemoLocation } from "../../../services/demoLocationStorage";
 
 export default function DemoSettingsScreen() {
   const [demoLocation, setDemoLocation] = useState<{
@@ -48,6 +48,18 @@ export default function DemoSettingsScreen() {
           </View>
           <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
         </Pressable>
+        {demoLocation && (
+          <Pressable
+            style={styles.resetRow}
+            onPress={async () => {
+              await clearDemoLocation();
+              setDemoLocation(null);
+            }}
+          >
+            <Ionicons name="refresh-outline" size={18} color="#6B7280" />
+            <Text style={styles.resetText}>시범용 위치 해제하고 실제 현재 위치 사용</Text>
+          </Pressable>
+        )}
       </View>
     </ScrollView>
   );
@@ -77,4 +89,17 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowLabel: { fontSize: 15, color: "#111827", fontWeight: "500" },
   rowValue: { fontSize: 13, color: "#6B7280", marginTop: 2 },
+  resetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+    gap: 8,
+  },
+  resetText: {
+    fontSize: 13,
+    color: "#4B5563",
+  },
 });

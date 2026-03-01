@@ -63,7 +63,7 @@ export function DirectionScreen({ visible, event, startLocation, onClose }: Prop
       openNaverMapWeb();
       return;
     }
-    const appname = 'com.dailo.app';
+    const appname = 'com.knut.dailo';
     const dname = encodeURIComponent(destination);
     const params = new URLSearchParams({
       dlat: String(event.latitude!),

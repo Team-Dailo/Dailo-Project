@@ -24,4 +24,15 @@ public class AdminContentController {
         String updated = appContentService.updateUsageGuide(content);
         return ResponseEntity.ok(Map.of("content", updated != null ? updated : ""));
     }
+
+    /**
+     * 개인정보처리방침 수정 (관리자 전용)
+     * PUT /api/admin/content/privacy-policy
+     */
+    @PutMapping("/privacy-policy")
+    public ResponseEntity<Map<String, String>> updatePrivacyPolicy(@RequestBody Map<String, String> body) {
+        String content = body != null && body.containsKey("content") ? body.get("content") : "";
+        String updated = appContentService.updatePrivacyPolicy(content);
+        return ResponseEntity.ok(Map.of("content", updated != null ? updated : ""));
+    }
 }

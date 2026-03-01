@@ -92,7 +92,7 @@ export function SideMenu({
         >
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: 16 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
           >
             {/* 1) 전체 배경 흰색 - drawer 배경이 흰색 */}
@@ -185,19 +185,9 @@ export function SideMenu({
               SERVICE
             </Text>
 
-            {/* 행사 새로고침: 현재 위치·행사 재조회 후 구역 여부 바로 알림 */}
-            {onPressRefreshLocationAndCheck != null && (
-              <MenuRow
-                icon="refresh-outline"
-                label="행사 새로고침"
-                iconColor="#4C8BF5"
-                circleBg="#DBEAFE"
-                onPress={() => {
-                  onClose();
-                  onPressRefreshLocationAndCheck();
-                }}
-              />
-            )}
+            {/* 행사 새로고침 — 주석 처리 (복구 시 아래 MenuRow 주석 해제)
+            <MenuRow icon="refresh-outline" label="행사 새로고침" iconColor="#4C8BF5" circleBg="#DBEAFE" onPress={() => { onClose(); onPressRefreshLocationAndCheck?.(); }} />
+            */}
 
             {/* 7) 서비스 메뉴 리스트 3개 */}
             <MenuRow
@@ -232,8 +222,8 @@ export function SideMenu({
             <View style={styles.scrollBottom} />
           </ScrollView>
 
-          {/* 8) 맨 아래 로그인/로그아웃 버튼 (고정) */}
-          <View style={styles.footer}>
+          {/* 8) 맨 아래 로그인/로그아웃 버튼 (고정, 하단 시스템 영역과 겹치지 않도록 Safe Area 반영) */}
+          <View style={[styles.footer, { paddingBottom: Math.max(16, insets.bottom + 8) }]}>
             <Pressable
               style={({ pressed }) => [
                 styles.logoutButton,
