@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "app",
+    "name": "Dailo",
     "slug": "app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "y",
+      "bundleIdentifier": "com.knut.dailo",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
