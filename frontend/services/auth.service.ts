@@ -32,11 +32,12 @@ export type LoginRequest = {
   password: string;
 };
 
-/** 백엔드 회원가입 요청 (MemberRequestDto: email, password, nickname) */
+/** 백엔드 회원가입 요청 (MemberRequestDto: email, password, nickname, authCode) */
 export type SignupRequest = {
   email: string;
   password: string;
   nickname: string;
+  authCode: string;
 };
 
 /** 백엔드 회원가입/내정보 응답 (MemberResponseDto) */
@@ -88,6 +89,42 @@ export async function loginApi(body: LoginRequest): Promise<LoginResponseDto> {
     throw new Error('EMAIL_VERIFICATION_REQUIRED:' + msg);
   }
   return json;
+}
+
+/**
+ * 회원가입용 이메일 인증번호 발송
+ * POST /api/auth/email/send?email=...
+ */
+export async function sendSignupEmail(email: string): Promise<void> {
+  const trimmed = email.trim();
+  if (!trimmed) {
+    throw new Error('이메일을 입력해 주세요.');
+  }
+  let res: Response;
+  try {
+    res = await fetch(
+      `${API_BASE_URL}/api/auth/email/send?email=${encodeURIComponent(trimmed)}`,
+      {
+        method: 'POST',
+      }
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '';
+    if (/failed to fetch|network request failed|network error/i.test(msg)) {
+      throw new Error(
+        '서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해 주세요. 에뮬레이터에서는 API 주소가 10.0.2.2:8080 인지 확인하세요.'
+      );
+    }
+    throw e;
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    const fallback =
+      res.status === 409
+        ? '이미 가입된 이메일입니다. 다른 이메일로 시도해 주세요.'
+        : `인증번호 발송에 실패했습니다. (${res.status})`;
+    throw new Error(getErrorMessage(text, res.status, fallback));
+  }
 }
 
 /**
