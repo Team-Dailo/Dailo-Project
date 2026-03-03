@@ -17,6 +17,43 @@ import { router } from "expo-router";
 import * as adminService from "../../../services/admin.service";
 import { formatDateTimeAdmin } from "../../../utils/formatDate";
 
+/** 종료된 행사 여부 (종료일이 오늘 이전이면 true, 로컬 시간 기준) */
+function isEndedByDate(endAt?: string | null): boolean {
+  if (!endAt) return false;
+  try {
+    const end = new Date(endAt);
+    const today = new Date();
+    end.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    return end.getTime() < today.getTime();
+  } catch {
+    return false;
+  }
+}
+
+function getStatusStyle(
+  status?: string,
+  endAt?: string | null
+): { label: string; bg: string; text: string } {
+  // 백엔드 status 가 ACTIVE 라도, 종료일이 지나면 화면에서는 "종료"로 보여주기
+  if (status === "ACTIVE" && isEndedByDate(endAt)) {
+    return { label: "종료", bg: "#E5E7EB", text: "#374151" };
+  }
+
+  switch (status) {
+    case "ACTIVE":
+      return { label: "진행중", bg: "#DCFCE7", text: "#166534" };
+    case "ENDED":
+      return { label: "종료", bg: "#E5E7EB", text: "#374151" };
+    case "INACTIVE":
+      return { label: "숨김", bg: "#FEE2E2", text: "#B91C1C" };
+    case "DRAFT":
+      return { label: "초안", bg: "#DBEAFE", text: "#1D4ED8" };
+    default:
+      return { label: status ?? "-", bg: "#E5E7EB", text: "#4B5563" };
+  }
+}
+
 export default function AdminEventsScreen() {
   const [page, setPage] = useState({ content: [] as adminService.AdminEventResponse[], totalPages: 0, number: 0 });
   const [loading, setLoading] = useState(true);
@@ -120,6 +157,13 @@ export default function AdminEventsScreen() {
           <Ionicons name="search" size={22} color="#111827" />
         </Pressable>
       </View>
+      <Pressable
+        style={styles.addBtn}
+        onPress={() => router.push("/(tabs)/mypage/admin-event-edit-detail")}
+      >
+        <Ionicons name="add-circle-outline" size={20} color="#FFF" />
+        <Text style={styles.addBtnText}>행사 추가</Text>
+      </Pressable>
       {searchQuery ? (
         <View style={styles.searchTagRow}>
           <Text style={styles.searchTag}>"{searchQuery}"</Text>
@@ -134,22 +178,55 @@ export default function AdminEventsScreen() {
       {page.content.length === 0 ? (
         <Text style={styles.empty}>등록된 행사가 없습니다.</Text>
       ) : (
-        page.content.map((ev) => (
+        // 최신순(시작일 내림차순)으로 정렬해서 표시
+        [...page.content]
+          .sort((a, b) => {
+            const aTime = new Date(a.startAt).getTime();
+            const bTime = new Date(b.startAt).getTime();
+            if (!Number.isFinite(aTime) && !Number.isFinite(bTime)) return 0;
+            if (!Number.isFinite(aTime)) return 1;
+            if (!Number.isFinite(bTime)) return -1;
+            return bTime - aTime;
+          })
+          .map((ev) => (
           <View key={ev.id} style={styles.card}>
             <Pressable
               style={styles.row}
-              onPress={() => router.push({ pathname: "/(tabs)/mypage/admin-event-detail", params: { eventId: String(ev.id) } })}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/mypage/admin-event-edit-detail",
+                  params: { eventId: String(ev.id) },
+                })
+              }
             >
               <View style={styles.cardBody}>
-                <Text style={styles.title} numberOfLines={1}>{ev.title}</Text>
-                <Text style={styles.meta}>
-                  {ev.placeName ?? "-"} · {ev.status ?? "-"}
+                <View
+                  style={[
+                    styles.statusBadge,
+                    { backgroundColor: getStatusStyle(ev.status, ev.endAt).bg },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusBadgeText,
+                      { color: getStatusStyle(ev.status, ev.endAt).text },
+                    ]}
+                  >
+                    {getStatusStyle(ev.status, ev.endAt).label}
+                  </Text>
+                </View>
+                <Text style={styles.title} numberOfLines={1}>
+                  {ev.title}
                 </Text>
-                <Text style={styles.meta}>
+                <Text style={styles.meta} numberOfLines={1}>
+                  <Ionicons name="location-outline" size={12} color="#6B7280" />{" "}
+                  {ev.placeName ?? ev.placeAddress ?? "-"}
+                  {ev.regionName ? ` · ${ev.regionName}` : ""}
+                </Text>
+                <Text style={styles.meta} numberOfLines={1}>
                   {formatDateTimeAdmin(ev.startAt)} ~ {formatDateTimeAdmin(ev.endAt)}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
             </Pressable>
             <View style={styles.actions}>
               <Pressable
@@ -168,13 +245,6 @@ export default function AdminEventsScreen() {
           </View>
         ))
       )}
-      <Pressable
-        style={styles.addBtn}
-        onPress={() => router.push("/(tabs)/mypage/admin-event-edit-detail")}
-      >
-        <Ionicons name="add-circle-outline" size={20} color="#FFF" />
-        <Text style={styles.addBtnText}>행사 추가</Text>
-      </Pressable>
       <View style={{ height: 24 }} />
     </ScrollView>
   );
@@ -191,7 +261,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 10,
     paddingHorizontal: 12,
-    marginBottom: 12,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
@@ -222,6 +292,17 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: "row", alignItems: "center", padding: 12 },
   cardBody: { flex: 1 },
+  statusBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    marginBottom: 4,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
   title: { fontSize: 16, fontWeight: "600", color: "#111827" },
   meta: { fontSize: 12, color: "#6B7280", marginTop: 4 },
   actions: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
@@ -234,7 +315,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    marginTop: 16,
+    marginTop: 8,
+    marginBottom: 16,
     paddingVertical: 14,
     borderRadius: 12,
     backgroundColor: "#4C8BF5",

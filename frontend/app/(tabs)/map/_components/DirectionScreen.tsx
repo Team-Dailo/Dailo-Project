@@ -27,24 +27,42 @@ export function DirectionScreen({ visible, event, startLocation, onClose }: Prop
 
   if (!event) return null;
 
-  const destination = event.address || event.placeName || event.title;
+  // 길찾기 목적지: "주소명"을 최우선으로 사용 (장소명/제목은 지도의 카드 UI에서만 사용)
+  const address = (event.address ?? '').trim();
+  const destination = address; // 길찾기용 목적지 문자열은 주소로 한정
   const hasCoords = event.latitude != null && event.longitude != null;
 
   const openInMaps = () => {
+    // 기본 지도 앱에는 "주소명"을 목적지로 전달.
+    // 주소가 없다면 최후의 수단으로만 좌표 문자열 사용.
+    const label =
+      address.length > 0
+        ? address
+        : `${event.latitude},${event.longitude}`;
+
     if (hasCoords) {
+      const encodedLabel = encodeURIComponent(label);
+      const lat = String(event.latitude);
+      const lng = String(event.longitude);
+
       const url =
         Platform.OS === 'ios'
-          ? `maps:?q=${event.latitude},${event.longitude}`
+          // Apple 지도: 목적지는 한글 주소/장소명으로, 좌표는 ll 파라미터로 전달
+          ? `http://maps.apple.com/?q=${encodedLabel}&ll=${lat},${lng}`
           : Platform.OS === 'android'
-            ? `geo:${event.latitude},${event.longitude}?q=${event.latitude},${event.longitude}(${encodeURIComponent(destination)})`
-            : `https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`;
+            // Android 기본 지도: geo 스킴에 좌표 + 사람이 읽을 수 있는 한글 주소 라벨 전달
+            ? `geo:${lat},${lng}?q=${encodedLabel}`
+            // 그 외(웹 등): Google Maps 검색에 한글 주소를 우선 전달
+            : `https://www.google.com/maps/search/?api=1&query=${encodedLabel}`;
+
       Linking.openURL(url).catch(() => {
+        const fallbackQuery = encodeURIComponent(label);
         Linking.openURL(
-          `https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`
+          `https://www.google.com/maps/search/?api=1&query=${fallbackQuery}`
         ).catch(() => {});
       });
     } else {
-      const query = encodeURIComponent(destination);
+      const query = encodeURIComponent(label);
       Linking.openURL(
         `https://www.google.com/maps/search/?api=1&query=${query}`
       ).catch(() => {});

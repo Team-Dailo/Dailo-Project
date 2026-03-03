@@ -17,26 +17,48 @@ type Props = {
   onPressPopular: () => void;
   onPressDistance: () => void;
   onPressScale: () => void;
+  selectedDateSummary?: string | null;
+  selectedCategorySummary?: string | null;
+  selectedPopularSummary?: string | null;
+  selectedDistanceSummary?: string | null;
+  selectedScaleSummary?: string | null;
 };
 
 type FilterChipProps = {
   label: string;
   icon: React.ReactNode;
   onPress: () => void;
+  selected?: boolean;
 };
 
-function Chip({ label, icon, onPress }: FilterChipProps) {
+function Chip({ label, icon, onPress, selected }: FilterChipProps) {
   return (
     <Pressable
       style={({ pressed }) => [
         styles.chip,
         pressed && styles.chipPressed,
+        selected && styles.chipSelected,
       ]}
       onPress={onPress}
     >
       <View style={styles.chipContent}>
-        {icon}
-        <Text style={styles.chipText}>{label}</Text>
+        {!selected && icon}
+        <Text
+          style={[
+            styles.chipText,
+            selected && styles.chipTextSelected,
+          ]}
+        >
+          {label}
+        </Text>
+        {selected && (
+          <Ionicons
+            name="chevron-down"
+            size={14}
+            color="#2563EB"
+            style={styles.chipSelectedIcon}
+          />
+        )}
       </View>
     </Pressable>
   );
@@ -63,7 +85,18 @@ export function FilterChips({
   onPressPopular,
   onPressDistance,
   onPressScale,
+  selectedDateSummary,
+  selectedCategorySummary,
+  selectedPopularSummary,
+  selectedDistanceSummary,
+  selectedScaleSummary,
 }: Props) {
+  const dateLabel = selectedDateSummary || '날짜';
+  const categoryLabel = selectedCategorySummary || '카테고리';
+  const popularLabel = selectedPopularSummary || '인기/추천';
+  const distanceLabel = selectedDistanceSummary || '거리';
+  const scaleLabel = selectedScaleSummary || '규모';
+
   return (
     <View style={styles.wrapper}>
       <ScrollView
@@ -72,49 +105,54 @@ export function FilterChips({
         contentContainerStyle={styles.container}
       >
         <Chip
-          label="날짜"
+          label={dateLabel}
           icon={
             <IconWrap>
               <Ionicons name="calendar" size={ICON_SIZE} color={CHIP_COLORS.date} />
             </IconWrap>
           }
           onPress={onPressDate}
+          selected={!!selectedDateSummary}
         />
         <Chip
-          label="카테고리"
+          label={categoryLabel}
           icon={
             <IconWrap>
               <Ionicons name="grid" size={ICON_SIZE} color={CHIP_COLORS.category} />
             </IconWrap>
           }
           onPress={onPressCategory}
+          selected={!!selectedCategorySummary}
         />
         <Chip
-          label="인기/추천"
+          label={popularLabel}
           icon={
             <IconWrap>
               <Ionicons name="star" size={ICON_SIZE} color={CHIP_COLORS.popular} />
             </IconWrap>
           }
           onPress={onPressPopular}
+          selected={!!selectedPopularSummary}
         />
         <Chip
-          label="거리"
+          label={distanceLabel}
           icon={
             <IconWrap>
               <Ionicons name="resize-outline" size={ICON_SIZE} color={CHIP_COLORS.distance} />
             </IconWrap>
           }
           onPress={onPressDistance}
+          selected={!!selectedDistanceSummary}
         />
         <Chip
-          label="규모"
+          label={scaleLabel}
           icon={
             <IconWrap>
               <ScaleIconChip color={CHIP_COLORS.scale} />
             </IconWrap>
           }
           onPress={onPressScale}
+          selected={!!selectedScaleSummary}
         />
       </ScrollView>
     </View>
@@ -167,6 +205,10 @@ const styles = StyleSheet.create({
   chipPressed: {
     backgroundColor: '#F3F4F6',
   },
+  chipSelected: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#2563EB',
+  },
   chipContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -176,5 +218,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#111827',
+  },
+  chipTextSelected: {
+    color: '#2563EB',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  chipSelectedIcon: {
+    marginLeft: 4,
+    marginTop: 0,
   },
 });
