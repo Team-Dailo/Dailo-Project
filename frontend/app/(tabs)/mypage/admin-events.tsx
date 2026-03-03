@@ -117,7 +117,7 @@ export default function AdminEventsScreen() {
           </Pressable>
         ) : null}
         <Pressable onPress={handleSearch} style={styles.searchIconBtn} hitSlop={8}>
-          <Ionicons name="search" size={22} color="#111827" />
+          <Ionicons name="search" size={22} color="#4C8BF5" />
         </Pressable>
       </View>
       {searchQuery ? (
