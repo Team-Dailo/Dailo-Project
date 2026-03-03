@@ -87,8 +87,8 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.body}>
+          {/* 아이디(이메일) / 비밀번호 입력 폼 */}
           <View style={styles.inputWrap}>
-            <Text style={styles.inputLabel}>이메일</Text>
             <TextInput
               style={styles.input}
               value={email}
@@ -96,7 +96,7 @@ export default function LoginScreen() {
                 setEmail(t);
                 if (errorMessage) setErrorMessage('');
               }}
-              placeholder="이메일을 입력하세요"
+              placeholder="아이디 (이메일)"
               placeholderTextColor="#9CA3AF"
               autoCapitalize="none"
               autoCorrect={false}
@@ -104,7 +104,6 @@ export default function LoginScreen() {
             />
           </View>
           <View style={styles.inputWrap}>
-            <Text style={styles.inputLabel}>비밀번호</Text>
             <TextInput
               style={[styles.input, errorMessage ? styles.inputError : null]}
               value={password}
@@ -112,7 +111,7 @@ export default function LoginScreen() {
                 setPassword(t);
                 if (errorMessage) setErrorMessage('');
               }}
-              placeholder="비밀번호를 입력하세요"
+              placeholder="비밀번호"
               placeholderTextColor="#9CA3AF"
               secureTextEntry
               autoCapitalize="none"
@@ -201,23 +200,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   inputWrap: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   input: {
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 12,
+    borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
     color: '#111827',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
   },
   inputError: {
     borderColor: '#EF4444',
