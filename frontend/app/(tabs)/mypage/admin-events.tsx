@@ -117,7 +117,7 @@ export default function AdminEventsScreen() {
           </Pressable>
         ) : null}
         <Pressable onPress={handleSearch} style={styles.searchIconBtn} hitSlop={8}>
-          <Ionicons name="search" size={22} color="#4C8BF5" />
+          <Ionicons name="search" size={22} color="#111827" />
         </Pressable>
       </View>
       {searchQuery ? (
@@ -162,7 +162,7 @@ export default function AdminEventsScreen() {
                 style={[styles.actionBtn, styles.deleteBtn]}
                 onPress={() => handleDelete(ev.id, ev.title)}
               >
-                <Text style={[styles.actionText, styles.deleteText]}>삭제</Text>
+                <Ionicons name="trash-outline" size={18} color="#DC2626" />
               </Pressable>
             </View>
           </View>

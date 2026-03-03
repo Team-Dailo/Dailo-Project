@@ -10,6 +10,8 @@ export type SavedPostSummary = {
   id: number;
   title: string;
   createdAt?: string;
+  /** 목록 썸네일 URL (선택) */
+  imageUrl?: string;
 };
 
 async function getStored(): Promise<SavedPostSummary[]> {
@@ -48,7 +50,8 @@ export async function isSavedPost(postId: number): Promise<boolean> {
 export async function toggleSavedPost(
   postId: number,
   title: string,
-  createdAt?: string
+  createdAt?: string,
+  imageUrl?: string
 ): Promise<boolean> {
   const list = await getStored();
   const idx = list.findIndex((p) => p.id === postId);
@@ -57,7 +60,12 @@ export async function toggleSavedPost(
     await setStored(list);
     return false;
   }
-  list.unshift({ id: postId, title: title || `게시글 #${postId}`, createdAt });
+  list.unshift({
+    id: postId,
+    title: title || `게시글 #${postId}`,
+    createdAt,
+    imageUrl,
+  });
   await setStored(list);
   return true;
 }

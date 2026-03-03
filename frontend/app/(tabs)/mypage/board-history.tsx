@@ -12,6 +12,7 @@ import {
   Alert,
   Share,
   TextInput,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -34,6 +35,8 @@ type PostRow = {
   content: string;
   likes: number;
   comments: number;
+  /** 썸네일 이미지 */
+  imageUri?: string;
 };
 
 function toPostRow(item: PostListItem): PostRow {
@@ -42,7 +45,11 @@ function toPostRow(item: PostListItem): PostRow {
   const preview = (raw.contentPreview ?? raw.content_preview ?? item.contentPreview ?? "") as string;
   let contentStr = typeof preview === "string" ? preview.trim() : "";
   if (contentStr.length > 120) contentStr = contentStr.slice(0, 120) + "…";
-  const authorName = (item.authorNickname ?? (raw.author_nickname as string) ?? (raw.authorNickname as string) ?? "").trim() || `user_${item.authorId}`;
+  const authorName =
+    (item.authorNickname ?? (raw.author_nickname as string) ?? (raw.authorNickname as string) ?? "").trim() ||
+    `user_${item.authorId}`;
+  const firstImage =
+    Array.isArray(item.imageUrls) && item.imageUrls.length > 0 ? item.imageUrls[0] ?? "" : "";
   return {
     id: String(item.id),
     author: authorName,
@@ -52,6 +59,7 @@ function toPostRow(item: PostListItem): PostRow {
     content: contentStr,
     likes: item.likeCount ?? 0,
     comments: item.commentCount ?? 0,
+    imageUri: firstImage || undefined,
   };
 }
 
@@ -211,6 +219,9 @@ export default function BoardHistoryScreen() {
           </View>
         </View>
       </View>
+      {item.imageUri ? (
+        <Image source={{ uri: item.imageUri }} style={styles.postThumbnail} />
+      ) : null}
       <Pressable
         style={styles.dotsBtn}
         onPress={(e) => {
@@ -297,7 +308,7 @@ export default function BoardHistoryScreen() {
                   style={styles.searchButton}
                   hitSlop={8}
                 >
-                  <Ionicons name="search" size={22} color="#4C8BF5" />
+                  <Ionicons name="search" size={22} color="#111827" />
                 </Pressable>
               </View>
               <View style={styles.listWrap}>
@@ -342,11 +353,11 @@ export default function BoardHistoryScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     flexDirection: "row",
@@ -446,11 +457,18 @@ const styles = StyleSheet.create({
   postRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#ffffff",
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
+  },
+  postThumbnail: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    marginRight: 8,
   },
   postRowBody: { flex: 1, minWidth: 0, marginRight: 8 },
   dotsBtn: { padding: 8, margin: -8 },
