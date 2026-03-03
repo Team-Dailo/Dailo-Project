@@ -342,11 +342,11 @@ export default function BoardHistoryScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#ffffff",
   },
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#ffffff",
   },
   header: {
     flexDirection: "row",
@@ -395,6 +395,7 @@ const styles = StyleSheet.create({
     height: 44,
     backgroundColor: "#F3F4F6",
     borderRadius: 10,
+    marginTop:12,
     marginBottom: 12,
     paddingLeft: 12,
     paddingRight: 8,
