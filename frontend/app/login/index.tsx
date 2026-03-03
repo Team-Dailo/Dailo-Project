@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 8,
+    borderRadius: 4,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 4,
     backgroundColor: '#4C8BF5',
     marginTop: 8,
   },
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 4,
     backgroundColor: "#FEE500",
     marginTop: 12
   },

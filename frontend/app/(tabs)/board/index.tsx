@@ -293,7 +293,8 @@ export default function BoardScreen() {
       const added = await savedPostService.toggleSavedPost(
         Number(postId),
         post.title ?? "",
-        undefined
+        undefined,
+        post.imageUri
       );
       Alert.alert(added ? "저장됨" : "저장 해제", added ? "게시글을 저장했습니다." : "저장을 해제했습니다.");
     } catch {

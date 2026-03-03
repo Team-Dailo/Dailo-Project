@@ -12,6 +12,7 @@ import {
   Modal,
   Alert,
   TextInput,
+  Image,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +25,7 @@ type SavedRow = {
   id: string;
   title: string;
   time: string;
+  imageUri?: string;
 };
 
 export default function SavedPostsScreen() {
@@ -52,6 +54,7 @@ export default function SavedPostsScreen() {
           id: String(p.id),
           title: p.title || `게시글 #${p.id}`,
           time: p.createdAt ? formatRelativeTime(p.createdAt) : "",
+          imageUri: (p as { imageUrl?: string }).imageUrl,
         }))
       );
     } finally {
@@ -102,6 +105,9 @@ export default function SavedPostsScreen() {
           </View>
         </View>
       </View>
+      {item.imageUri ? (
+        <Image source={{ uri: item.imageUri }} style={styles.postThumbnail} />
+      ) : null}
       <Pressable
         style={styles.dotsBtn}
         onPress={(e) => {
@@ -152,7 +158,7 @@ export default function SavedPostsScreen() {
               style={styles.searchButton}
               hitSlop={8}
             >
-              <Ionicons name="search" size={22} color="#4C8BF5" />
+              <Ionicons name="search" size={22} color="#111827" />
             </Pressable>
           </View>
         ) : null}
@@ -218,11 +224,11 @@ export default function SavedPostsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     flexDirection: "row",
@@ -268,7 +274,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginHorizontal: 16,
     marginTop: 12,
-    marginBottom: 8,
+    marginBottom: 12,
     paddingLeft: 12,
     paddingRight: 8,
   },
@@ -319,6 +325,13 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   postRowBody: { flex: 1, minWidth: 0, marginRight: 8 },
+  postThumbnail: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    marginRight: 8,
+  },
   dotsBtn: { padding: 8, margin: -8 },
   menuOverlay: {
     flex: 1,
