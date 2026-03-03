@@ -32,12 +32,18 @@ import * as eventReminder from "../../../services/eventReminder.service";
 
 const CAROUSEL_SIZE = 3;
 
-/** 종료된 행사 여부 (종료일이 오늘 이전이면 true) */
+/** 종료된 행사 여부 (종료일이 "오늘 날짜"보다 이전이면 true, 로컬 시간 기준) */
 function isEventEnded(endAt: string | null | undefined): boolean {
   if (!endAt) return false;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const endStr = new Date(endAt).toISOString().slice(0, 10);
-  return endStr < todayStr;
+  try {
+    const end = new Date(endAt);
+    const today = new Date();
+    end.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    return end.getTime() < today.getTime();
+  } catch {
+    return false;
+  }
 }
 
 function toCarouselItem(e: Event): PopularEventItem {
@@ -336,9 +342,24 @@ export default function HomeScreen() {
                       {post.title?.trim() || post.contentPreview?.trim() || ""}
                     </Text>
                   </View>
-                  <View style={styles.postBadgeNew}>
-                    <Text style={styles.postBadgeNewText}>N</Text>
-                  </View>
+                  {(() => {
+                    const createdAt = (post as any).createdAt as string | undefined;
+                    if (!createdAt) return null;
+                    try {
+                      const created = new Date(createdAt).getTime();
+                      const now = Date.now();
+                      const diffDays = (now - created) / (24 * 60 * 60 * 1000);
+                      // 3일 이상 지난 글은 N 배지 숨김
+                      if (diffDays >= 3) return null;
+                    } catch {
+                      return null;
+                    }
+                    return (
+                      <View style={styles.postBadgeNew}>
+                        <Text style={styles.postBadgeNewText}>N</Text>
+                      </View>
+                    );
+                  })()}
                 </Pressable>
               ))
             )}

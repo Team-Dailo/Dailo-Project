@@ -65,6 +65,25 @@ export async function toggleScrap(eventId: number): Promise<boolean> {
     if (res.status === 401) throw new Error('로그인이 필요합니다.');
     throw new Error(`스크랩 처리 실패 (${res.status})`);
   }
-  const text = await res.text();
-  return text.includes('저장됨');
+  const text = (await res.text()).trim();
+
+  // 백엔드가 "저장되었습니다", "저장이 해제되었습니다" 등 한글 메시지를 내려줄 수 있으므로
+  // - "해제" / "삭제" 가 포함되면 false (해제)
+  // - 그 외 "저장" 이 포함되면 true (저장)
+  if (!text) return false;
+  if (text.includes('해제') || text.includes('삭제')) return false;
+  if (text.includes('저장')) return true;
+
+  // 혹시 JSON 형식으로 내려오는 경우를 대비해 boolean 필드도 시도
+  try {
+    const json = JSON.parse(text) as { saved?: boolean; isScraped?: boolean; bookmarked?: boolean };
+    if (typeof json.saved === 'boolean') return json.saved;
+    if (typeof json.isScraped === 'boolean') return json.isScraped;
+    if (typeof json.bookmarked === 'boolean') return json.bookmarked;
+  } catch {
+    // not JSON, fall through
+  }
+
+  // 알 수 없는 응답이면 "해제" 쪽으로 안전하게 처리
+  return false;
 }

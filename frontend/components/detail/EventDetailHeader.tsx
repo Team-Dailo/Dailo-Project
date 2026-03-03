@@ -186,10 +186,11 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
   const placeStr = event.placeName?.trim() || "장소 미정";
   const organizerStr = event.hostContact?.trim() || "—";
 
-  /** 네이버 지도 길찾기: 출발=현재위치, 도착=행사 한글 주소(가능하면 placeAddress 우선) */
+  /** 네이버 지도 길찾기: 출발=현재위치, 도착=행사 "주소명"(placeAddress) */
   const openNaverDirection = async () => {
     const address = (event.placeAddress ?? "").trim();
-    const destination = address || (event.title ?? "").trim() || "행사 장소";
+    // 길찾기 목적지 문자열은 "주소명"으로 한정 (제목/장소명은 지도 바텀시트 등에서만 사용)
+    const destination = address || "행사 장소";
     const hasCoords = event.latitude != null && event.longitude != null && Number.isFinite(event.latitude) && Number.isFinite(event.longitude);
 
     const openNaverWeb = () => {
