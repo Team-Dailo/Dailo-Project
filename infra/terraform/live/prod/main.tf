@@ -51,18 +51,30 @@ data "aws_acm_certificate" "global_cert" {
   most_recent = true
 }
 
+resource "aws_ssm_parameter" "mail_password" {
+  name  = "/dailo/prod/mail_password"
+  type  = "SecureString"
+  value = var.MAIL_PASSWORD
+}
 
-# module "ecr" {
-#   source = "../../global/ecr"
-#   name   = "dailo" 
-# }
+resource "aws_ssm_parameter" "kakao_client_secret" {
+  name  = "/dailo/prod/kakao_secret"
+  type  = "SecureString"
+  value = var.kakao_client_secret
+}
+
+resource "aws_ssm_parameter" "jwt_secret" {
+  name  = "/dailo/prod/jwt_secret"
+  type  = "SecureString"
+  value = var.jwt_secret
+}
 
  
 # ------------------------------------------------------------------------------
 # 1. VPC 모듈
 # ------------------------------------------------------------------------------
 module "vpc" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/vpc?ref=main"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/vpc?ref=v0.1.0"
 
   name     = local.name
   region   = "ap-northeast-2"
@@ -82,7 +94,7 @@ module "vpc" {
 # 2. ecs 모듈
 # ------------------------------------------------------------------------------
 module "ecs" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/ecs?ref=main"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/ecs?ref=v0.1.0"
 
   name   = local.name
   region = "ap-northeast-2" # CloudWatch 로그 등을 위해 사용
@@ -130,14 +142,33 @@ module "ecs" {
     {
       name  = "AWS_S3_BUCKET"
       value = local.static_bucket_name  
-    }
+    },
+    { name = "MAIL_HOST", value = "smtp.gmail.com" },
+    { name = "MAIL_PORT", value = "587" },
+    { name = "MAIL_USERNAME", value = "dailoappco@gmail.com" },
+    { name = "MAIL_FROM", value = "dailoappco@gmail.com" },
+    { name = "KAKAO_CLIENT_ID", value = "c031f9a2eed5d" },
   ]
     container_secrets = [
     {
       name      = "SPRING_DATASOURCE_PASSWORD"
       valueFrom = module.rds.ssm_db_password_arn
+    },
+    {
+      name      = "MAIL_PASSWORD"
+      valueFrom = aws_ssm_parameter.mail_password.arn
+    },
+    {
+      name      = "KAKAO_CLIENT_SECRET"
+      valueFrom = aws_ssm_parameter.kakao_client_secret.arn
+    },
+    {
+      name      = "JWT_SECRET"
+      valueFrom = aws_ssm_parameter.jwt_secret.arn
     }
   ]
+
+  alb_verify_secret = var.alb_verify_secret
 }
 
 
@@ -145,7 +176,7 @@ module "ecs" {
 # 3. RDS 모듈
 # ------------------------------------------------------------------------------
 module "rds" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/rds?ref=main"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/rds?ref=v0.1.0"
 
   name   = local.name
   vpc_id = module.vpc.vpc_id
@@ -170,7 +201,7 @@ module "rds" {
 # 4. cdn 모듈
 # ------------------------------------------------------------------------------
 module "cdn" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=main"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=v0.1.0"
   
   name        = local.name
   bucket_name = local.static_bucket_name
@@ -182,13 +213,14 @@ module "cdn" {
   route53_zone_id = data.aws_route53_zone.selected.zone_id
   cloudfront_cert_arn = data.aws_acm_certificate.global_cert.arn
 
+  alb_verify_secret = var.alb_verify_secret
 }
 
 # ------------------------------------------------------------------------------
 # 5. Monitoring (Grafana) 모듈 테스트
 # ------------------------------------------------------------------------------
 module "monitoring" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/monitoring?ref=main" 
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/monitoring?ref=v0.1.0" 
 
   name   = local.name   
   region = "ap-northeast-2"
