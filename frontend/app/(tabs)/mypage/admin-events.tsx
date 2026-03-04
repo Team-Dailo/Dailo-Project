@@ -239,7 +239,7 @@ export default function AdminEventsScreen() {
                 style={[styles.actionBtn, styles.deleteBtn]}
                 onPress={() => handleDelete(ev.id, ev.title)}
               >
-                <Text style={[styles.actionText, styles.deleteText]}>삭제</Text>
+                <Ionicons name="trash-outline" size={18} color="#DC2626" />
               </Pressable>
             </View>
           </View>
