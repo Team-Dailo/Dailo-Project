@@ -30,16 +30,19 @@ public class StaySession {
     private Event event;
 
     @CreatedDate
-    private LocalDateTime startTime; // 체류 시작 시간
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime startTime;
 
-    private LocalDateTime endTime;   // 체류 종료 시간
+    private LocalDateTime endTime;
 
     @Enumerated(EnumType.STRING)
-    private StayStatus status; // PENDING(진행중), COMPLETED(완료), FRAUD(부정행위)
+    @Column(nullable = false)
+    private StayStatus status = StayStatus.PENDING;
 
-    // 부정 방지용 마지막 좌표 기록
     private Double lastLatitude;
     private Double lastLongitude;
+
+    private LocalDateTime lastPingTime;
 
     @Builder
     public StaySession(Member member, Event event, Double lat, Double lng) {
@@ -48,18 +51,22 @@ public class StaySession {
         this.lastLatitude = lat;
         this.lastLongitude = lng;
         this.status = StayStatus.PENDING;
-        this.startTime = LocalDateTime.now(); // 생성 시점 = 시작 시점
+        this.lastPingTime = LocalDateTime.now();
     }
 
-    // 체류 완료 처리 메서드
     public void completeSession() {
         this.status = StayStatus.COMPLETED;
         this.endTime = LocalDateTime.now();
     }
 
-    // 부정 행위 발각 처리
     public void markAsFraud() {
         this.status = StayStatus.FRAUD;
         this.endTime = LocalDateTime.now();
+    }
+
+    public void updateLocation(Double lat, Double lng) {
+        this.lastLatitude = lat;
+        this.lastLongitude = lng;
+        this.lastPingTime = LocalDateTime.now();
     }
 }
