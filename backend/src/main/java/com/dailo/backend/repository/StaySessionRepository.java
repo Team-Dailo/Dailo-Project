@@ -16,4 +16,6 @@ public interface StaySessionRepository extends JpaRepository<StaySession, Long> 
 
     /** 같은 행사에 대한 완료 세션 목록 (같은 날 중복 완료 여부 확인용) */
     List<StaySession> findByMemberIdAndEventIdAndStatusOrderByStartTimeDesc(Long memberId, Long eventId, StayStatus status);
+
+    List<StaySession> findByStatus(StayStatus status);
 }
