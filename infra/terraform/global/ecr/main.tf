@@ -1,6 +1,7 @@
 variable "name" {
   description = "Repository name"
   type        = string
+  default     = "dailo"
 }
 
 resource "aws_ecr_repository" "main" {

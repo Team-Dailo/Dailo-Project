@@ -15,3 +15,23 @@ variable "grafana_admin_password" {
   type        = string
   sensitive   = true 
 }
+variable "alb_verify_secret" {
+  description = "X-origin-verify 헤더 검증 비밀번호"
+  type        = string
+  sensitive   = true 
+}
+variable "MAIL_PASSWORD" {
+  description = "email passowrd"
+  type        = string
+  sensitive   = true 
+}
+variable "kakao_client_secret" {
+  description = "oauth2.0 kakao"
+  type        = string
+  sensitive   = true 
+}
+variable "jwt_secret" {
+  description = "jwt_secret"
+  type        = string
+  sensitive   = true 
+}
