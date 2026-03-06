@@ -27,10 +27,10 @@ public class LocationController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody LocationRequest request
     ) {
-        // 💡 핵심 수정: Long 파싱 제거, 이메일 추출
-        String email = userDetails.getUsername();
+        // principal 이름(이메일 또는 회원 ID 문자열)
+        String principal = userDetails.getUsername();
 
-        locationService.startStay(email, request);
+        locationService.startStay(principal, request);
 
         return ResponseEntity.ok("체류 인증이 시작되었습니다. 구역을 벗어나면 자동으로 참여 기록이 저장됩니다.");
     }
@@ -40,9 +40,8 @@ public class LocationController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody LocationRequest request
     ) {
-        // 💡 핵심 수정: 이메일 추출
-        String email = userDetails.getUsername();
-        locationService.completeStay(email, request);
+        String principal = userDetails.getUsername();
+        locationService.completeStay(principal, request);
         return ResponseEntity.ok("인증 완료!");
     }
 
@@ -51,8 +50,8 @@ public class LocationController {
     public ResponseEntity<List<StaySessionResponseDto>> getCompletedStaySessions(
             @AuthenticationPrincipal UserDetails userDetails
     ) {
-        String email = userDetails.getUsername();
-        return ResponseEntity.ok(locationService.getCompletedSessions(email));
+        String principal = userDetails.getUsername();
+        return ResponseEntity.ok(locationService.getCompletedSessions(principal));
     }
 
     /** 체류 미션 기록 */
@@ -60,7 +59,7 @@ public class LocationController {
     public ResponseEntity<List<StaySessionResponseDto>> getStayMissionSessions(
             @AuthenticationPrincipal UserDetails userDetails
     ) {
-        String email = userDetails.getUsername();
-        return ResponseEntity.ok(locationService.getStayMissionSessions(email));
+        String principal = userDetails.getUsername();
+        return ResponseEntity.ok(locationService.getStayMissionSessions(principal));
     }
 }
