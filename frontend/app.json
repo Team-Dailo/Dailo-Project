@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "app",
+    "name": "Dailo",
     "slug": "app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "y",
+      "bundleIdentifier": "com.knut.dailo",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -77,8 +77,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "0e8ac339-daf5-4e24-8ea6-f2a5a6092aa3"
+        "projectId": "5c08ddfe-c57a-48de-9d52-b9eed5912771"
       }
-    }
+    },
+    "owner": "kkzw18837"
   }
 }
