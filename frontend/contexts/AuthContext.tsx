@@ -56,7 +56,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback((u: AuthUser) => {
-    setUser(u);
+    setUser({
+      ...u,
+      profileImageVersion: u.profileImageVersion ?? Date.now(),
+    });
   }, []);
 
   const logout = useCallback(async () => {
