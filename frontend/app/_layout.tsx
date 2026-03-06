@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '../contexts/AuthContext';
 import { LoginVerifiedHandler } from '../components/LoginVerifiedHandler';
+import { KakaoLoginHandler } from '../components/KakaoLoginHandler';
 
 // 스플래시를 첫 프레임 그린 뒤 숨기기 (넘어가지 않는 현상 방지)
 SplashScreen.preventAutoHideAsync();
@@ -28,19 +29,20 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-    <LoginVerifiedHandler />
-    <Stack screenOptions={{ headerShown: false }}>
-      {/* 하단 탭 그룹 */}
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <LoginVerifiedHandler />
+      <KakaoLoginHandler />
+      <Stack screenOptions={{ headerShown: false }}>
+        {/* 하단 탭 그룹 */}
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-      {/* 탭 밖에서 열리는 화면들 (필요 시 확장) */}
-      <Stack.Screen name="board" options={{ headerShown: false }} />
-      <Stack.Screen name="event" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="signup" options={{ headerShown: false }} />
-      <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
-      <Stack.Screen name="profile" options={{ headerShown: false }} />
-    </Stack>
+        {/* 탭 밖에서 열리는 화면들 (필요 시 확장) */}
+        <Stack.Screen name="board" options={{ headerShown: false }} />
+        <Stack.Screen name="event" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="signup" options={{ headerShown: false }} />
+        <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
+        <Stack.Screen name="profile" options={{ headerShown: false }} />
+      </Stack>
     </AuthProvider>
   );
 }
