@@ -424,6 +424,59 @@ export async function uploadProfileImage(imageUri: string): Promise<string> {
 }
 
 /**
+ * 소셜(OAuth2) 로그인용: 백엔드에서 받은 TokenDto를 저장한 뒤 /api/members/me 로 사용자 정보를 조회해 AuthUser 형태의 정보를 반환.
+ */
+export async function loginWithSocialToken(
+  tokenDto: TokenDto
+): Promise<{ name: string; id?: number; email: string; role?: string; profileImageUrl?: string | null }> {
+  const accessToken = tokenDto.accessToken;
+  const refreshToken = tokenDto.refreshToken ?? '';
+  if (!accessToken || !accessToken.trim()) {
+    throw new Error('로그인 응답에 액세스 토큰이 없습니다.');
+  }
+
+  // 토큰 저장
+  await AsyncStorage.multiSet([
+    [ACCESS_TOKEN_KEY, String(accessToken)],
+    [REFRESH_TOKEN_KEY, String(refreshToken)],
+  ]);
+
+  // 내 정보 조회
+  const me = await getMe();
+  if (!me || !me.email) {
+    throw new Error('회원 정보를 불러올 수 없습니다.');
+  }
+
+  const email = me.email;
+  const id = me.id != null && me.id > 0 ? me.id : undefined;
+
+  const storageItems: [string, string][] = [[USER_EMAIL_KEY, email]];
+  if (id != null) {
+    storageItems.push([USER_ID_KEY, String(id)]);
+    await setStoredUserId(id);
+  }
+  await AsyncStorage.multiSet(storageItems);
+
+  const name =
+    (me.nickname && me.nickname.trim()) ||
+    (await getStoredNickname(email)) ||
+    email.split('@')[0] ||
+    email ||
+    '사용자';
+  await saveNicknameForEmail(email, name);
+
+  const profileImageUrl = (me as { profileImageUrl?: string | null }).profileImageUrl ?? null;
+
+  return {
+    name,
+    id,
+    email,
+    role: me.role ?? undefined,
+    profileImageUrl,
+  };
+}
+
+/**
  * 계정 탈퇴 및 데이터 삭제 (DELETE /api/members/me)
  * 성공 시 호출 측에서 clearAuthStorage + 로그아웃 처리 필요
  */

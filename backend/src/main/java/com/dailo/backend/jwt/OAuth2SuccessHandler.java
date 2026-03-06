@@ -13,6 +13,8 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -51,16 +53,19 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 member.getRole().name()
         );
 
-        // JSON 응답
-        response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write(
-                String.format(
-                        "{\"grantType\":\"%s\",\"accessToken\":\"%s\",\"refreshToken\":\"%s\",\"accessTokenExpiresIn\":%d}",
-                        tokenDto.getGrantType(),
-                        tokenDto.getAccessToken(),
-                        tokenDto.getRefreshToken(),
-                        tokenDto.getAccessTokenExpiresIn()
-                )
+        // 모바일 앱 딥링크로 리다이렉트 (Expo app.json의 scheme = "app")
+        String accessToken = URLEncoder.encode(tokenDto.getAccessToken(), StandardCharsets.UTF_8);
+        String refreshToken = URLEncoder.encode(tokenDto.getRefreshToken(), StandardCharsets.UTF_8);
+        long expiresIn = tokenDto.getAccessTokenExpiresIn();
+
+        String redirectUrl = String.format(
+                "app://kakao-login?accessToken=%s&refreshToken=%s&accessTokenExpiresIn=%d",
+                accessToken,
+                refreshToken,
+                expiresIn
         );
+
+        log.info("✅ Kakao OAuth2 success, redirecting to {}", redirectUrl);
+        response.sendRedirect(redirectUrl);
     }
 }
