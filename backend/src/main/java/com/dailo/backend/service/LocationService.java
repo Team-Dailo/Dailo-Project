@@ -33,16 +33,35 @@ public class LocationService {
     private static final double ALLOWED_RADIUS_METER = 200.0; // 행사장 반경 허용치 (앱과 동일, 200m)
     private static final double MAX_ALLOWED_MOVE_DISTANCE = 5000.0; // 부정 방지: 완료 요청 시 최대 이동 가능 거리
 
-    private Member getMemberByEmail(String email) {
-        return memberRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다. email: " + email));
+    /**
+     * SecurityContext의 principal 이름(이메일 또는 회원 ID 문자열)을 실제 Member로 변환.
+     * - 일반 로그인 토큰: subject = 이메일
+     * - 일부 OAuth2/이메일 확인 토큰: subject = 회원 ID
+     */
+    private Member getMemberByPrincipal(String principal) {
+        if (principal == null || principal.isBlank()) {
+            throw new IllegalArgumentException("인증 정보가 없습니다.");
+        }
+        // 이메일 형태면 이메일로 조회
+        if (principal.contains("@")) {
+            return memberRepository.findByEmail(principal)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다. email: " + principal));
+        }
+        // 아니면 숫자 ID로 가정
+        try {
+            Long id = Long.parseLong(principal);
+            return memberRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다. id: " + id));
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("유효하지 않은 인증 정보입니다.");
+        }
     }
 
     /**
      * [체류 시작]
      */
-    public Long startStay(String email, LocationRequest request) {
-        Member member = getMemberByEmail(email);
+    public Long startStay(String principal, LocationRequest request) {
+        Member member = getMemberByPrincipal(principal);
         Long memberId = member.getId();
 
         Event event = eventRepository.findById(request.eventId())
@@ -75,8 +94,8 @@ public class LocationService {
     /**
      * [체류 완료]
      */
-    public void completeStay(String email, LocationRequest request) {
-        Member member = getMemberByEmail(email);
+    public void completeStay(String principal, LocationRequest request) {
+        Member member = getMemberByPrincipal(principal);
         Long memberId = member.getId();
 
         StaySession session = staySessionRepository.findByMemberIdAndEventIdAndStatus(memberId, request.eventId(), StayStatus.PENDING)
@@ -125,8 +144,8 @@ public class LocationService {
 
     /** 완료된 체류 세션 목록 */
     @Transactional(readOnly = true)
-    public List<StaySessionResponseDto> getCompletedSessions(String email) {
-        Long memberId = getMemberByEmail(email).getId();
+    public List<StaySessionResponseDto> getCompletedSessions(String principal) {
+        Long memberId = getMemberByPrincipal(principal).getId();
         List<StaySession> sessions = staySessionRepository.findByMemberIdAndStatusOrderByEndTimeDesc(memberId, StayStatus.COMPLETED);
         return sessions.stream()
                 .map(this::toResponseDto)
@@ -135,8 +154,8 @@ public class LocationService {
 
     /** 체류 미션 기록용 (30분 이상) */
     @Transactional(readOnly = true)
-    public List<StaySessionResponseDto> getStayMissionSessions(String email) {
-        Long memberId = getMemberByEmail(email).getId();
+    public List<StaySessionResponseDto> getStayMissionSessions(String principal) {
+        Long memberId = getMemberByPrincipal(principal).getId();
         List<StaySession> sessions = staySessionRepository.findByMemberIdAndStatusOrderByEndTimeDesc(memberId, StayStatus.COMPLETED);
         return sessions.stream()
                 .map(this::toResponseDto)
