@@ -1,6 +1,7 @@
 // app/(tabs)/home/index.tsx
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   ScrollView,
   View,
@@ -23,7 +24,7 @@ import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { useHomePopularPosts } from "../../../hooks/useBoard";
-import { useEventList, usePopularEvents } from "../../../hooks/useEvent";
+import { useEventList } from "../../../hooks/useEvent";
 import type { PopularEventItem } from "../../../services/event.service";
 import type { Event } from "../../../types/event";
 import { useAuth } from "../../../hooks/useAuth";
@@ -85,12 +86,33 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const { isLoggedIn } = useAuth();
   const { posts: popularPosts, loading: popularLoading } = useHomePopularPosts();
-  const { events: eventList, loading: eventListLoading, refetch: refetchEventList } = useEventList({ size: 6 });
-  const { events: popularEvents, loading: popularLoadingEvents, refetch: refetchPopular } = usePopularEvents(CAROUSEL_SIZE);
+  // 캐러셀에서 D-Day 순 정렬을 위해 넉넉히 가져온 뒤, 종료된 행사 제거 + 상위 3개만 사용
+  const { events: eventList, loading: eventListLoading, refetch: refetchEventList } = useEventList({ size: 100 });
   const [carouselIndex, setCarouselIndex] = useState(0);
   const carouselRef = useRef<FlatList>(null);
   const carouselIndexRef = useRef(0);
   const carouselIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 캐러셀: 행사 리스트에서 가져온 "종료되지 않은 행사"만 사용.
+  // 정렬 기준: D-Day(가까운 순) 오름차순.
+  const carouselItems: PopularEventItem[] = useMemo(() => {
+    const list = (eventList ?? []).filter((e) => !isEventEnded(e.endAt));
+
+    // Event → PopularEventItem 변환
+    const source: PopularEventItem[] = list.map(toCarouselItem);
+
+    // D-Day 가까운 순으로 정렬
+    const sorted = [...source].sort((a, b) => {
+      const da = getDaysLeft(a.startAt);
+      const db = getDaysLeft(b.startAt);
+      if (da === null && db === null) return 0;
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return da - db;
+    });
+
+    return sorted.slice(0, CAROUSEL_SIZE);
+  }, [eventList]);
 
   /** 캐러셀 5초마다 다음 슬라이드로 자동 이동 (실기기에서 runAfterInteractions 지연 이슈 방지를 위해 setTimeout 사용) */
   useEffect(() => {
@@ -129,8 +151,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       refetchEventList();
-      refetchPopular();
-    }, [refetchEventList, refetchPopular])
+    }, [refetchEventList])
   );
 
   const onCarouselScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -140,16 +161,7 @@ export default function HomeScreen() {
     setCarouselIndex(index);
   }, []);
 
-  // 캐러셀: 인기순 3개 있으면 사용, 없으면 행사 리스트에서 앞 3개 사용. 종료된 행사는 제외.
-  const carouselItems: PopularEventItem[] = useMemo(() => {
-    const popular = (popularEvents ?? []).filter((e) => !isEventEnded(e.endAt));
-    const list = (eventList ?? []).filter((e) => !isEventEnded(e.endAt));
-    if (popular.length >= CAROUSEL_SIZE) return popular.slice(0, CAROUSEL_SIZE);
-    if (list.length > 0) return list.slice(0, CAROUSEL_SIZE).map(toCarouselItem);
-    return popular;
-  }, [popularEvents, eventList]);
-
-  const carouselLoading = popularLoadingEvents && eventListLoading;
+  const carouselLoading = eventListLoading;
   const carouselEmpty = !carouselLoading && carouselItems.length === 0;
 
   const handleRegionAlarmPress = useCallback(async () => {
@@ -275,6 +287,11 @@ export default function HomeScreen() {
                           uri: item.thumbnailUrl ?? "https://via.placeholder.com/700x380.png?text=Poster",
                         }}
                         style={styles.bannerImage}
+                      />
+                      <LinearGradient
+                        colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.75)"]}
+                        locations={[0, 1]}
+                        style={styles.bannerGradient}
                       />
                       <View style={styles.badge}>
                         <Text style={styles.badgeText}>{formatDday(item.startAt)}</Text>
@@ -532,6 +549,9 @@ const styles = StyleSheet.create({
   bannerImage: {
     width: "100%",
     aspectRatio: 343 / 184,
+  },
+  bannerGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   badge: {
     position: "absolute",
