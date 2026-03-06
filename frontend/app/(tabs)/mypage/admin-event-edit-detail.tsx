@@ -980,6 +980,9 @@ function EditModal({
   const [timeStartMinute, setTimeStartMinute] = useState(0);
   const [timeEndHour, setTimeEndHour] = useState(0);
   const [timeEndMinute, setTimeEndMinute] = useState(0);
+  /** 시간 입력란에 그대로 보여줄 문자열 (중간 입력도 유지) */
+  const [timeStartInput, setTimeStartInput] = useState("");
+  const [timeEndInput, setTimeEndInput] = useState("");
   const WHEEL_ITEM_HEIGHT = 44;
   const WHEEL_VISIBLE_COUNT = 5;
 
@@ -1029,8 +1032,10 @@ function EditModal({
       setTimeStartMinute(start.minute);
       setTimeEndHour(end.hour);
       setTimeEndMinute(end.minute);
-      setText(startStr.slice(0, 16));
-      setText2(endStr.slice(0, 16));
+      const startLabel = `${String(start.hour).padStart(2, "0")}:${String(start.minute).padStart(2, "0")}`;
+      const endLabel = `${String(end.hour).padStart(2, "0")}:${String(end.minute).padStart(2, "0")}`;
+      setTimeStartInput(startLabel);
+      setTimeEndInput(endLabel);
     }
     if (editTarget.type === "news") {
       if (editTarget.item) {
@@ -1144,10 +1149,25 @@ function EditModal({
       onSave.setEndAt(toDateTimeISOSlice(selectedEndDate, endParsed.hour, endParsed.minute));
     }
     if (editTarget.type === "time") {
+      // "HH:mm" 형식이 아닐 경우 저장하지 않고 안내
+      const startMatch = timeStartInput.trim().match(/^(\d{1,2}):(\d{1,2})$/);
+      const endMatch = timeEndInput.trim().match(/^(\d{1,2}):(\d{1,2})$/);
+      if (!startMatch || !endMatch) {
+        Alert.alert("입력 오류", "시간 형식이 올바르지 않습니다. 예: 08:00");
+        return;
+      }
+      const startHour = Math.min(23, Math.max(0, parseInt(startMatch[1], 10)));
+      const startMinute = Math.min(59, Math.max(0, parseInt(startMatch[2], 10)));
+      const endHour = Math.min(23, Math.max(0, parseInt(endMatch[1], 10)));
+      const endMinute = Math.min(59, Math.max(0, parseInt(endMatch[2], 10)));
+      setTimeStartHour(startHour);
+      setTimeStartMinute(startMinute);
+      setTimeEndHour(endHour);
+      setTimeEndMinute(endMinute);
       const startDate = parseDateTimeValue((values.timeStart as string) ?? "").date;
       const endDate = parseDateTimeValue((values.timeEnd as string) ?? "").date;
-      onSave.setStartAt(toDateTimeISOSlice(startDate, timeStartHour, timeStartMinute));
-      onSave.setEndAt(toDateTimeISOSlice(endDate, timeEndHour, timeEndMinute));
+      onSave.setStartAt(toDateTimeISOSlice(startDate, startHour, startMinute));
+      onSave.setEndAt(toDateTimeISOSlice(endDate, endHour, endMinute));
     }
     if (editTarget.type === "news") {
       const list = (values.newsList as NewsItemEdit[]) ?? [];
@@ -1384,8 +1404,9 @@ function EditModal({
                 <Text style={styles.dateTimePickerLabel}>시작 시간 (시 분)</Text>
                 <TextInput
                   style={styles.modalInput}
-                  value={`${String(timeStartHour).padStart(2, "0")}:${String(timeStartMinute).padStart(2, "0")}`}
+                  value={timeStartInput}
                   onChangeText={(t) => {
+                    setTimeStartInput(t);
                     const m = t.match(/^(\d{1,2}):(\d{1,2})$/);
                     if (m) {
                       const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
@@ -1400,8 +1421,9 @@ function EditModal({
                 <Text style={[styles.dateTimePickerLabel, styles.dateTimePickerLabelSecond]}>종료 시간 (시 분)</Text>
                 <TextInput
                   style={styles.modalInput}
-                  value={`${String(timeEndHour).padStart(2, "0")}:${String(timeEndMinute).padStart(2, "0")}`}
+                  value={timeEndInput}
                   onChangeText={(t) => {
+                    setTimeEndInput(t);
                     const m = t.match(/^(\d{1,2}):(\d{1,2})$/);
                     if (m) {
                       const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));

@@ -45,18 +45,27 @@ export default function MyPageScreen() {
         {/* 프로필 카드: 로그인 / 비로그인 분기 */}
         <View style={styles.profileCard}>
           <View style={styles.profileLeft}>
-            <Image
-              key={user?.profileImageUrl ?? "no-photo"}
-              source={{
-                uri:
-                  isLoggedIn && user?.profileImageUrl
-                    ? user.profileImageUrl.startsWith("/")
-                      ? `${API_BASE_URL}${user.profileImageUrl}`
-                      : user.profileImageUrl
-                    : "https://via.placeholder.com/64x64.png?text=👤",
-              }}
-              style={styles.avatar}
-            />
+            {(() => {
+              const placeholder = "https://via.placeholder.com/64x64.png?text=👤";
+              let baseUri = placeholder;
+              if (isLoggedIn && user?.profileImageUrl) {
+                baseUri = user.profileImageUrl.startsWith("/")
+                  ? `${API_BASE_URL}${user.profileImageUrl}`
+                  : user.profileImageUrl;
+              }
+              const version = user?.profileImageVersion ?? 0;
+              const finalUri =
+                baseUri === placeholder
+                  ? placeholder
+                  : `${baseUri}${baseUri.includes("?") ? "&" : "?"}v=${version}`;
+              return (
+                <Image
+                  key={finalUri}
+                  source={{ uri: finalUri }}
+                  style={styles.avatar}
+                />
+              );
+            })()}
             <View style={styles.profileText}>
               <Text style={styles.nickname}>
                 {isLoggedIn && user ? `${user.name}님` : "게스트"}
