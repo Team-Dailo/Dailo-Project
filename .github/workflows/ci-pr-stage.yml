@@ -12,6 +12,21 @@ jobs:
   build-and-test: 
     name: Build and Check
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testpassword
+          MYSQL_DATABASE: dailo_test
+          MYSQL_CHARACTER_SET_SERVER: utf8mb4
+          MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptestpassword"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
       # 1) 코드 체크아웃
@@ -33,4 +48,8 @@ jobs:
       # 4) 빌드 + 테스트 실행
       - name: Build with Gradle
         working-directory: ./backend
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3307/dailo_test?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&createDatabaseIfNotExist=true
+          DB_USERNAME: root
+          DB_PASSWORD: testpassword
         run: ./gradlew clean build
