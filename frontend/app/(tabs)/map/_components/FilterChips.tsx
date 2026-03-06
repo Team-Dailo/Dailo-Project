@@ -17,6 +17,9 @@ type Props = {
   onPressPopular: () => void;
   onPressRegion: () => void;
   onPressScale: () => void;
+
+  // ✅ 추가: 인기/추천(=상태 필터) 칩에 표시할 선택값 라벨
+  popularValueLabel?: string;
 };
 
 type FilterChipProps = {
@@ -36,7 +39,9 @@ function Chip({ label, icon, onPress }: FilterChipProps) {
     >
       <View style={styles.chipContent}>
         {icon}
-        <Text style={styles.chipText}>{label}</Text>
+        <Text style={styles.chipText} numberOfLines={1}>
+          {label}
+        </Text>
       </View>
     </Pressable>
   );
@@ -48,9 +53,9 @@ const ICON_GAP = 6;
 const CHIP_COLORS = {
   date: '#EF4444',      // 날짜 레드
   category: '#F59E0B',  // 카테고리 오렌지
-  popular: '#FACC15',    // 인기/추천 옐로우
+  popular: '#FACC15',   // 인기/추천 옐로우
   region: '#22C55E',    // 지역 그린
-  scale: '#3B82F6',    // 규모 블루
+  scale: '#3B82F6',     // 규모 블루
 } as const;
 
 function IconWrap({ children }: { children: React.ReactNode }) {
@@ -63,6 +68,7 @@ export function FilterChips({
   onPressPopular,
   onPressRegion,
   onPressScale,
+  popularValueLabel, // ✅ 추가
 }: Props) {
   return (
     <View style={styles.wrapper}>
@@ -90,7 +96,8 @@ export function FilterChips({
           onPress={onPressCategory}
         />
         <Chip
-          label="인기/추천"
+          // ✅ 핵심: MapScreen에서 내려준 값으로 표시 (없으면 기존 텍스트)
+          label={popularValueLabel ?? '인기/추천'}
           icon={
             <IconWrap>
               <Ionicons name="star" size={ICON_SIZE} color={CHIP_COLORS.popular} />
@@ -177,5 +184,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#111827',
+    maxWidth: 140, // ✅ 글자 길어질 때 레이아웃 깨짐 방지
   },
 });
