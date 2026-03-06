@@ -23,12 +23,46 @@ export default function SignupScreen() {
   const [nickname, setNickname] = useState('');
   const [agreePrivacy, setAgreePrivacy] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [authCode, setAuthCode] = useState('');
+  const [sendingCode, setSendingCode] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+
+  const handleSendCode = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      Alert.alert('입력 오류', '이메일을 먼저 입력해 주세요.');
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(trimmedEmail)) {
+      Alert.alert('입력 오류', '올바른 이메일 형식이 아닙니다.');
+      return;
+    }
+    setSendingCode(true);
+    try {
+      await authService.sendSignupEmail(trimmedEmail);
+      setCodeSent(true);
+      Alert.alert(
+        '인증번호 발송',
+        '입력하신 이메일로 6자리 인증번호를 보냈어요.\n5분 이내에 확인해 주세요.'
+      );
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : '인증번호를 보내는 데 실패했습니다.';
+      Alert.alert('발송 실패', message);
+    } finally {
+      setSendingCode(false);
+    }
+  };
 
   const handleSignup = async () => {
     const trimmedEmail = email.trim();
     const trimmedNickname = nickname.trim();
     if (!trimmedEmail || !password || !trimmedNickname) {
       Alert.alert('입력 오류', '이메일, 비밀번호, 닉네임을 모두 입력해 주세요.');
+      return;
+    }
+    if (!authCode.trim()) {
+      Alert.alert('입력 오류', '이메일로 받은 6자리 인증번호를 입력해 주세요.');
       return;
     }
     if (!agreePrivacy) {
@@ -41,6 +75,7 @@ export default function SignupScreen() {
         email: trimmedEmail,
         password,
         nickname: trimmedNickname,
+        authCode: authCode.trim(),
       });
       await authService.saveNicknameForEmail(trimmedEmail, trimmedNickname);
       Alert.alert('회원가입 완료', '로그인 화면에서 로그인해 주세요.', [
@@ -85,6 +120,36 @@ export default function SignupScreen() {
               autoCorrect={false}
               keyboardType="email-address"
             />
+          </View>
+          <View style={styles.inputWrap}>
+            <Text style={styles.inputLabel}>인증번호</Text>
+            <View style={styles.codeRow}>
+              <TextInput
+                style={[styles.input, styles.codeInput]}
+                value={authCode}
+                onChangeText={setAuthCode}
+                placeholder="6자리 숫자"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="number-pad"
+                maxLength={6}
+              />
+              <Pressable
+                style={({ pressed }) => [
+                  styles.codeButton,
+                  (pressed || sendingCode) && styles.codeButtonPressed,
+                ]}
+                onPress={handleSendCode}
+                disabled={sendingCode}
+              >
+                {sendingCode ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.codeButtonText}>
+                    {codeSent ? '재전송' : '인증번호 받기'}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
           </View>
           <View style={styles.inputWrap}>
             <Text style={styles.inputLabel}>비밀번호</Text>
@@ -268,5 +333,30 @@ const styles = StyleSheet.create({
   agreeLabelLink: {
     color: '#4C8BF5',
     fontWeight: '500',
+  },
+  codeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  codeInput: {
+    flex: 1,
+  },
+  codeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#4C8BF5',
+    minWidth: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  codeButtonPressed: {
+    opacity: 0.9,
+  },
+  codeButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

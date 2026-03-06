@@ -67,6 +67,11 @@ export default function LoginScreen() {
     }
   };
 
+  // 카카오 로그인 버튼 임시 핸들러
+  const handleKakaoLogin = () => {
+    Alert.alert('카카오 로그인', '추후 연동 예정');
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
@@ -82,8 +87,8 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.body}>
+          {/* 아이디(이메일) / 비밀번호 입력 폼 */}
           <View style={styles.inputWrap}>
-            <Text style={styles.inputLabel}>이메일</Text>
             <TextInput
               style={styles.input}
               value={email}
@@ -91,7 +96,7 @@ export default function LoginScreen() {
                 setEmail(t);
                 if (errorMessage) setErrorMessage('');
               }}
-              placeholder="이메일을 입력하세요"
+              placeholder="아이디 (이메일)"
               placeholderTextColor="#9CA3AF"
               autoCapitalize="none"
               autoCorrect={false}
@@ -99,7 +104,6 @@ export default function LoginScreen() {
             />
           </View>
           <View style={styles.inputWrap}>
-            <Text style={styles.inputLabel}>비밀번호</Text>
             <TextInput
               style={[styles.input, errorMessage ? styles.inputError : null]}
               value={password}
@@ -107,7 +111,7 @@ export default function LoginScreen() {
                 setPassword(t);
                 if (errorMessage) setErrorMessage('');
               }}
-              placeholder="비밀번호를 입력하세요"
+              placeholder="비밀번호"
               placeholderTextColor="#9CA3AF"
               secureTextEntry
               autoCapitalize="none"
@@ -133,6 +137,18 @@ export default function LoginScreen() {
             ) : (
               <Text style={styles.loginButtonText}>로그인</Text>
             )}
+          </Pressable>
+
+          {/* 카카오 로그인 버튼 */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.kakaoLoginButton,
+              pressed && styles.kakaoLoginButtoPressed,
+            ]}
+            onPress={handleKakaoLogin}
+          >
+            <Ionicons name="chatbubble" size={18} color="#111827" />
+            <Text style={styles.kakaoLoginButtonText}>카카오 로그인</Text>
           </Pressable>
 
           <Pressable
@@ -184,23 +200,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   inputWrap: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   input: {
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 12,
+    borderRadius: 4,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
     color: '#111827',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
   },
   inputError: {
     borderColor: '#EF4444',
@@ -224,7 +234,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 4,
     backgroundColor: '#4C8BF5',
     marginTop: 8,
   },
@@ -244,5 +254,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4C8BF5',
     fontWeight: '500',
+  },
+  kakaoLoginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 4,
+    backgroundColor: "#FEE500",
+    marginTop: 12
+  },
+  kakaoLoginButtoPressed: {
+    opacity: 0.9,
+  },
+  kakaoLoginButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827'
   },
 });

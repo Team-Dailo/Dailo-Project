@@ -94,6 +94,39 @@ const REGION_LIST_DELTA = 0.45;
 
 type SheetMode = 'collapsed' | 'expanded';
 
+// 지도 필터 요약 표시용 라벨 매핑 (모달 옵션과 동일하게 유지)
+const CATEGORY_LABEL_MAP: Record<string, string> = {
+  all: '카테고리 전체',
+  FESTIVAL: '축제',
+  EXHIBITION: '전시',
+  ETC: '기타',
+};
+
+const POPULAR_LABEL_MAP: Record<string, string> = {
+  all: '전체',
+  trending: '지금 뜨는 축제',
+  views: '조회수 많은 순',
+  popular: '인기순',
+};
+
+const DISTANCE_LABEL_MAP: Record<string, string> = {
+  all: '거리 전체',
+  '300m': '300m',
+  '500m': '500m',
+  '1km': '1km',
+  '2km': '2km',
+  '5km': '5km',
+};
+
+const SCALE_LABEL_MAP: Record<string, string> = {
+  all: '규모 전체',
+  CITY: '시·군·구',
+  UNIVERSITY: '대학교',
+  DEPARTMENT: '단과대/학생회',
+  CLUB: '동아리/소모임',
+  PERSONAL: '개인',
+};
+
 /** Expo Go에서는 네이버 지도 네이티브 모듈이 없어 크래시됨 → 안내만 표시 */
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -148,6 +181,22 @@ export default function MapScreen() {
   const [headerHeight, setHeaderHeight] = useState(0);
   const [filterChipsHeight, setFilterChipsHeight] = useState(0);
   const [collapsedSheetHeight, setCollapsedSheetHeight] = useState(0);
+
+  // 필터 요약 텍스트 (칩에 표시)
+  const dateSummary = React.useMemo(() => {
+    if (!dateFilter) return null;
+    try {
+      const start = new Date(dateFilter.start);
+      const end = new Date(dateFilter.end);
+      const fmt = (d: Date) =>
+        `${d.getMonth() + 1}/${d.getDate()}`;
+      return start.toDateString() === end.toDateString()
+        ? fmt(start)
+        : `${fmt(start)}~${fmt(end)}`;
+    } catch {
+      return null;
+    }
+  }, [dateFilter?.start, dateFilter?.end]);
 
   // 축제 참여 배너 (로그인 + 축제 범위 진입 시 표시)
   const { isLoggedIn } = useAuth();
@@ -1389,6 +1438,27 @@ export default function MapScreen() {
             onPressPopular={() => setActiveFilter('popular')}
             onPressDistance={() => setActiveFilter('distance')}
             onPressScale={() => setActiveFilter('scale')}
+            selectedDateSummary={dateSummary ?? undefined}
+            selectedCategorySummary={
+              categoryFilter !== 'all'
+                ? CATEGORY_LABEL_MAP[categoryFilter] ?? '카테고리'
+                : undefined
+            }
+            selectedPopularSummary={
+              popularFilter !== 'all'
+                ? POPULAR_LABEL_MAP[popularFilter] ?? '인기/추천'
+                : undefined
+            }
+            selectedDistanceSummary={
+              distanceFilter !== 'all'
+                ? DISTANCE_LABEL_MAP[distanceFilter] ?? '거리'
+                : undefined
+            }
+            selectedScaleSummary={
+              scaleFilter !== 'all'
+                ? SCALE_LABEL_MAP[scaleFilter] ?? '규모'
+                : undefined
+            }
           />
         </View>
       </View>

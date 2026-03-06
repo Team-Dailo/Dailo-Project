@@ -115,7 +115,8 @@ export default function PostDetailScreen() {
       const added = await savedPostService.toggleSavedPost(
         postId,
         post.title ?? "",
-        (post as Record<string, unknown>).createdAt as string | undefined
+        (post as Record<string, unknown>).createdAt as string | undefined,
+        ((post as Record<string, unknown>).imageUrls as string[] | undefined)?.[0]
       );
       setIsSavedPost(added);
       Alert.alert(added ? "저장됨" : "저장 해제", added ? "게시글을 저장했습니다." : "저장을 해제했습니다.");
