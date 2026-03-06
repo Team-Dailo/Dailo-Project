@@ -80,7 +80,6 @@ export default function ProfileScreen() {
     setUploadingPhoto(true);
     try {
       const url = await authService.uploadProfileImage(pendingPhotoUri);
-      await authService.updateProfile({ profileImageUrl: url });
       setProfileImageUrl(url);
       updateUserProfileImage(url);
       setPendingPhotoUri(null);

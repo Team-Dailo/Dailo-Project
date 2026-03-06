@@ -12,6 +12,8 @@ export type AuthUser = {
   email?: string;
   /** 프로필 사진 URL (getMe에서 채움) */
   profileImageUrl?: string | null;
+  /** 프로필 사진 캐시 버전 (로컬에서 이미지 새로고침용) */
+  profileImageVersion?: number;
 };
 
 type AuthContextValue = {
@@ -49,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const role = me.role ?? undefined;
       const profileImageUrl = me.profileImageUrl ?? undefined;
       if (id != null) await authService.setStoredUserId(id);
-      setUser({ name, id, role, email, profileImageUrl });
+      setUser({ name, id, role, email, profileImageUrl, profileImageVersion: Date.now() });
     })();
   }, []);
 
@@ -79,11 +81,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const role = me.role ?? undefined;
     const profileImageUrl = (me as { profileImageUrl?: string | null }).profileImageUrl ?? undefined;
     if (id != null) await authService.setStoredUserId(id);
-    setUser({ name, id, role, email, profileImageUrl });
+    setUser({ name, id, role, email, profileImageUrl, profileImageVersion: Date.now() });
   }, []);
 
   const updateUserProfileImage = useCallback((url: string | null) => {
-    setUser((prev) => (prev ? { ...prev, profileImageUrl: url ?? undefined } : null));
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            profileImageUrl: url ?? undefined,
+            profileImageVersion: (prev.profileImageVersion ?? 0) + 1,
+          }
+        : null
+    );
   }, []);
 
   const value: AuthContextValue = {
