@@ -103,6 +103,22 @@ export default function EventListScreen() {
   const [scaleFilter, setScaleFilter] = useState<string>("all");
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
+  // 필터 요약 텍스트 (칩에 표시)
+  const dateSummary = useMemo(() => {
+    if (!dateRange) return null;
+    try {
+      const start = new Date(dateRange.start);
+      const end = new Date(dateRange.end);
+      const fmt = (d: Date) =>
+        `${d.getMonth() + 1}/${d.getDate()}`;
+      return start.toDateString() === end.toDateString()
+        ? fmt(start)
+        : `${fmt(start)}~${fmt(end)}`;
+    } catch {
+      return null;
+    }
+  }, [dateRange?.start, dateRange?.end]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -181,10 +197,6 @@ export default function EventListScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>행사 리스트</Text>
-        </View>
-
         {/* 검색창 */}
         <View style={styles.searchBarWrap}>
           <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
@@ -215,6 +227,46 @@ export default function EventListScreen() {
             onPressPopular={() => setActiveFilter("popular")}
             onPressDistance={() => setActiveFilter("distance")}
             onPressScale={() => setActiveFilter("scale")}
+            selectedDateSummary={dateSummary ?? undefined}
+            selectedCategorySummary={
+              categoryFilter !== "all"
+                ? categoryLabel(categoryFilter)
+                : undefined
+            }
+            selectedPopularSummary={
+              popularFilter !== "all"
+                ? popularFilter === "all"
+                  ? undefined
+                  : popularFilter === "trending"
+                    ? "지금 뜨는 축제"
+                    : popularFilter === "views"
+                      ? "조회수 많은 순"
+                      : "인기순"
+                : undefined
+            }
+            selectedDistanceSummary={
+              distanceFilter !== "all" ? distanceFilter : undefined
+            }
+            selectedScaleSummary={
+              scaleFilter !== "all"
+                ? (() => {
+                    switch (scaleFilter) {
+                      case "CITY":
+                        return "시·군·구";
+                      case "UNIVERSITY":
+                        return "대학교";
+                      case "DEPARTMENT":
+                        return "단과대/학생회";
+                      case "CLUB":
+                        return "동아리/소모임";
+                      case "PERSONAL":
+                        return "개인";
+                      default:
+                        return undefined;
+                    }
+                  })()
+                : undefined
+            }
           />
         </View>
 

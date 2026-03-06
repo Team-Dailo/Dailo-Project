@@ -120,7 +120,6 @@ export default function AdminPostsScreen() {
     <View style={styles.container}>
       {/* 검색창 - 저장한 축제/행사관리와 동일 스타일(흰 배경) */}
       <View style={styles.searchBarWrap}>
-        <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="제목·내용 또는 게시글 ID(숫자)로 검색"
@@ -143,6 +142,13 @@ export default function AdminPostsScreen() {
             <Ionicons name="close-circle" size={20} color="#9CA3AF" />
           </Pressable>
         ) : null}
+        <Pressable
+          onPress={handleSearch}
+          style={styles.searchButton}
+          hitSlop={8}
+        >
+          <Ionicons name="search" size={22} color="#4C8BF5" />
+        </Pressable>
       </View>
 
       {/* 카테고리 */}
@@ -218,16 +224,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     height: 44,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#ffffff",
     borderRadius: 10,
-    paddingHorizontal: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
     marginHorizontal: 16,
     marginTop: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    marginBottom:12,
   },
-  searchIcon: { marginRight: 8 },
   searchInput: {
     flex: 1,
     fontSize: 15,
@@ -242,6 +246,10 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     marginBottom: 12,
+  },
+  searchButton: {
+    padding: 4,
+    marginLeft: 4,
   },
   categoryChip: {
     paddingHorizontal: 14,
@@ -263,6 +271,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 10,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#F3F4F6"
   },
   row: {
     flexDirection: "row",

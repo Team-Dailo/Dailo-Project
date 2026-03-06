@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { getDemoLocation, clearDemoLocation } from "../../../services/demoLocationStorage";
 
 export default function DemoSettingsScreen() {
@@ -31,42 +32,45 @@ export default function DemoSettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.description}>
-        시범 운영 시 지도 탭의 "현재위치" 버튼이 이 좌표로 이동합니다. 나중에는 실제 GPS로 전환할 예정입니다.
-      </Text>
-      <View style={styles.card}>
-        <Pressable style={styles.row} onPress={openPicker}>
-          <Ionicons name="locate-outline" size={20} color="#6B7280" />
-          <View style={styles.rowText}>
-            <Text style={styles.rowLabel}>현재위치 (시범용)</Text>
-            <Text style={styles.rowValue} numberOfLines={1}>
-              {demoLocation
-                ? `위도 ${demoLocation.latitude.toFixed(5)} / 경도 ${demoLocation.longitude.toFixed(5)}`
-                : "미설정 (탭하여 지도에서 선택)"}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-        </Pressable>
-        {demoLocation && (
-          <Pressable
-            style={styles.resetRow}
-            onPress={async () => {
-              await clearDemoLocation();
-              setDemoLocation(null);
-            }}
-          >
-            <Ionicons name="refresh-outline" size={18} color="#6B7280" />
-            <Text style={styles.resetText}>시범용 위치 해제하고 실제 현재 위치 사용</Text>
+    <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Text style={styles.description}>
+          시범 운영 시 지도 탭의 "현재위치" 버튼이 이 좌표로 이동합니다. 나중에는 실제 GPS로 전환할 예정입니다.
+        </Text>
+        <View style={styles.card}>
+          <Pressable style={styles.row} onPress={openPicker}>
+            <Ionicons name="locate-outline" size={20} color="#6B7280" />
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>현재위치 (시범용)</Text>
+              <Text style={styles.rowValue} numberOfLines={1}>
+                {demoLocation
+                  ? `위도 ${demoLocation.latitude.toFixed(5)} / 경도 ${demoLocation.longitude.toFixed(5)}`
+                  : "미설정 (탭하여 지도에서 선택)"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </Pressable>
-        )}
-      </View>
-    </ScrollView>
+          {demoLocation && (
+            <Pressable
+              style={styles.resetRow}
+              onPress={async () => {
+                await clearDemoLocation();
+                setDemoLocation(null);
+              }}
+            >
+              <Ionicons name="refresh-outline" size={18} color="#6B7280" />
+              <Text style={styles.resetText}>시범용 위치 해제하고 실제 현재 위치 사용</Text>
+            </Pressable>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F3F4F6" },
+  safeArea: { flex: 1, backgroundColor: "#F3F4F6" },
+  container: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
   description: {
     fontSize: 14,
