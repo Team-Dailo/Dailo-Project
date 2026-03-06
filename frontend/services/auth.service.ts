@@ -401,26 +401,32 @@ export async function updateProfile(updates: {
 }
 
 /**
- * 프로필 사진 업로드 (POST /api/upload). 반환된 전체 URL을 updateProfile({ profileImageUrl })에 넣으면 됨.
+ * 프로필 사진 업로드 (POST /api/members/me/image).
+ * 백엔드에서 회원 프로필 이미지 key를 저장하고, Presigned URL을 imageUrl로 반환한다.
  */
 export async function uploadProfileImage(imageUri: string): Promise<string> {
   const token = await getAccessToken();
   if (!token) throw new Error('로그인이 필요합니다.');
+
   const formData = new FormData();
   formData.append('file', createFormDataFile(imageUri, 'profile.jpg') as unknown as Blob);
-  const res = await fetch(`${API_BASE_URL}/api/upload`, {
+
+  const res = await fetch(`${API_BASE_URL}/api/members/me/image`, {
     method: 'POST',
+    // Content-Type은 fetch가 boundary를 포함해 자동으로 설정하도록 두고, Authorization만 명시
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
   });
+
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) throw new Error('로그인이 필요합니다.');
     throw new Error(`업로드 실패: ${res.status}`);
   }
-  const data = (await res.json()) as { path?: string };
-  const path = data?.path ?? '';
-  if (!path) throw new Error('업로드 응답에 path가 없습니다.');
-  return `${API_BASE_URL}${path}`;
+
+  const data = (await res.json()) as { imageUrl?: string };
+  const url = data?.imageUrl ?? '';
+  if (!url) throw new Error('업로드 응답에 imageUrl이 없습니다.');
+  return url;
 }
 
 /**
