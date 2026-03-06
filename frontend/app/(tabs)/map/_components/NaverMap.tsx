@@ -14,6 +14,20 @@ import { MAP_UI } from '../../../../constants/colors';
 const MARKER_ICON = require('../../../../assets/images/marker-pin.png');
 const MARKER_WIDTH = 36;
 const MARKER_HEIGHT = 48;
+// 바깥 테두리/흰색 바디용 스케일 (중심 기준으로 키움)
+const MARKER_BORDER_SCALE = 1.14;
+const MARKER_WHITE_SCALE = 1.10;
+// 그림자 영역을 위해 테두리 높이보다 조금 더 긴 컨테이너
+const MARKER_SHADOW_EXTRA_HEIGHT = 6;
+const MARKER_CONTAINER_WIDTH = MARKER_WIDTH * MARKER_BORDER_SCALE;
+const MARKER_BORDER_HEIGHT = MARKER_HEIGHT * MARKER_BORDER_SCALE;
+const MARKER_CONTAINER_HEIGHT = MARKER_BORDER_HEIGHT + MARKER_SHADOW_EXTRA_HEIGHT;
+// 컨테이너 안에서 원본 마커 이미지를 "테두리 높이" 기준으로 가운데 배치
+const MARKER_IMAGE_LEFT = (MARKER_CONTAINER_WIDTH - MARKER_WIDTH) / 2;
+const MARKER_IMAGE_TOP = (MARKER_BORDER_HEIGHT - MARKER_HEIGHT) / 2;
+// 각 레이어를 얼마나 "위로" 올릴지 (px 단위 오프셋)
+const WHITE_MARKER_OFFSET_Y = 0.6;  // 가운데 흰색 마커
+const COLOR_MARKER_OFFSET_Y = 1.2;  // 맨 앞 컬러 마커 + 숫자
 
 /** 규모(scale) → 마커 tint 색상 (규모 범례와 동일) */
 const SCALE_COLORS: Record<Event['scale'], string> = {
@@ -141,13 +155,14 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
         const daysLeft = getDaysUntilStart(event.startAt);
         const daysText = daysLeft > 0 ? String(daysLeft) : '0';
         const scaleColor = ended ? ENDED_MARKER_COLOR : (SCALE_COLORS[event.scale] ?? MAP_UI.scaleBadge[4]);
-        const markerHeight = ended ? MARKER_HEIGHT + ENDED_LABEL_HEIGHT + 4 : MARKER_HEIGHT;
+        const baseContainerHeight = MARKER_CONTAINER_HEIGHT;
+        const markerHeight = ended ? baseContainerHeight + ENDED_LABEL_HEIGHT + 4 : baseContainerHeight;
         return (
           <NaverMapMarkerOverlay
             key={event.id}
             latitude={event.latitude}
             longitude={event.longitude}
-            width={MARKER_WIDTH}
+            width={MARKER_CONTAINER_WIDTH}
             height={markerHeight}
             anchor={{ x: 0.5, y: 1 }}
             onTap={() => onMarkerPress(event)}
@@ -160,17 +175,39 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
             >
               {ended ? (
                 <>
+                  <View style={styles.markerBaseShadow} />
                   <View style={styles.endedLabelWrap}>
                     <Text style={styles.endedLabel} numberOfLines={1}>종료</Text>
                   </View>
                   <Image
                     source={MARKER_ICON}
-                    style={[styles.markerPinImage, styles.markerPinImageEnded, { tintColor: scaleColor }]}
+                    style={styles.markerPinImageBorder}
+                    resizeMode="contain"
+                  />
+                  <Image
+                    source={MARKER_ICON}
+                    style={styles.markerPinImageWhite}
+                    resizeMode="contain"
+                  />
+                  <Image
+                    source={MARKER_ICON}
+                    style={[styles.markerPinImageEnded, { tintColor: scaleColor }]}
                     resizeMode="contain"
                   />
                 </>
               ) : (
                 <>
+                  <View style={styles.markerBaseShadow} />
+                  <Image
+                    source={MARKER_ICON}
+                    style={styles.markerPinImageBorder}
+                    resizeMode="contain"
+                  />
+                  <Image
+                    source={MARKER_ICON}
+                    style={styles.markerPinImageWhite}
+                    resizeMode="contain"
+                  />
                   <Image
                     source={MARKER_ICON}
                     style={[styles.markerPinImage, { tintColor: scaleColor }]}
@@ -254,14 +291,14 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   markerWithNumber: {
-    width: MARKER_WIDTH,
-    minHeight: MARKER_HEIGHT,
+    width: MARKER_CONTAINER_WIDTH,
+    minHeight: MARKER_CONTAINER_HEIGHT,
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
   markerWithNumberEnded: {
-    minHeight: MARKER_HEIGHT + ENDED_LABEL_HEIGHT + 4,
-    height: MARKER_HEIGHT + ENDED_LABEL_HEIGHT + 4,
+    minHeight: MARKER_CONTAINER_HEIGHT + ENDED_LABEL_HEIGHT + 4,
+    height: MARKER_CONTAINER_HEIGHT + ENDED_LABEL_HEIGHT + 4,
     justifyContent: 'flex-end',
   },
   endedLabelWrap: {
@@ -278,24 +315,42 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     includeFontPadding: false,
   },
+  markerPinImageBorder: {
+    width: MARKER_WIDTH,
+    height: MARKER_HEIGHT,
+    position: 'absolute',
+    left: MARKER_IMAGE_LEFT,
+    top: MARKER_IMAGE_TOP,
+    tintColor: '#D1D5DB', // 조금 더 진한 회색 외곽
+    transform: [{ scale: MARKER_BORDER_SCALE }],
+  },
+  markerPinImageWhite: {
+    width: MARKER_WIDTH,
+    height: MARKER_HEIGHT,
+    position: 'absolute',
+    left: MARKER_IMAGE_LEFT,
+    top: MARKER_IMAGE_TOP - WHITE_MARKER_OFFSET_Y,
+    tintColor: '#FFFFFF', // 안쪽 흰색
+    transform: [{ scale: MARKER_WHITE_SCALE }],
+  },
   markerPinImage: {
     width: MARKER_WIDTH,
     height: MARKER_HEIGHT,
     position: 'absolute',
-    left: 0,
-    top: 0,
+    left: MARKER_IMAGE_LEFT,
+    top: MARKER_IMAGE_TOP - COLOR_MARKER_OFFSET_Y,
   },
   markerPinImageEnded: {
-    position: 'relative',
-    left: undefined,
-    top: undefined,
+    position: 'absolute',
+    left: MARKER_IMAGE_LEFT,
+    top: MARKER_IMAGE_TOP - COLOR_MARKER_OFFSET_Y,
     width: MARKER_WIDTH,
     height: MARKER_HEIGHT,
   },
   markerNumberWrap: {
     position: 'absolute',
-    left: 0,
-    top: 0,
+    left: MARKER_IMAGE_LEFT,
+    top: MARKER_IMAGE_TOP - COLOR_MARKER_OFFSET_Y,
     width: MARKER_WIDTH,
     height: MARKER_WIDTH,
     justifyContent: 'center',
@@ -305,5 +360,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '700',
+  },
+  markerBaseShadow: {
+    position: 'absolute',
+    bottom: 4.5,
+    left: MARKER_CONTAINER_WIDTH / 2 - 4,
+    width: 8,
+    height: 3,
+    borderRadius: 20,
+    backgroundColor: 'rgba(86, 93, 108, 0.22)',
   },
 });
