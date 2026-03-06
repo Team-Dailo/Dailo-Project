@@ -190,7 +190,7 @@ export default function SavedFestivalsScreen() {
                 style={styles.searchButton}
                 hitSlop={8}
               >
-                <Ionicons name="search" size={22} color="#4C8BF5" />
+                <Ionicons name="search" size={22} color="#111827" />
               </Pressable>
             </View>
 
