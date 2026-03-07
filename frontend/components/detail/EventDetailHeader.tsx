@@ -401,11 +401,11 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
               <Text style={styles.infoText}>{timeStr}</Text>
             </View>
           ) : null}
-          <View style={styles.infoRow}>
+          <View style={[styles.infoRow, styles.locationRow]}>
             <Ionicons name="location-outline" size={18} color="#6B7280" style={styles.infoIcon} />
             <Text style={styles.infoText} numberOfLines={1}>{placeStr}</Text>
             <Pressable onPress={openNaverDirection} style={styles.mapButton} hitSlop={8}>
-              <Ionicons name="navigate" size={18} color="#FFFFFF" />
+              <Ionicons name="navigate" size={18} color="#FFFFFF" style={styles.mapButtonIcon}/>
             </Pressable>
           </View>
           <View style={styles.infoRow}>
@@ -528,8 +528,10 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 20,
     paddingVertical: 1,
+  },
+  locationRow:{
+    minHeight:36,
   },
   infoIcon: {
     marginRight: 10,
@@ -547,7 +549,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#4C8BF5",
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 8,
+    marginLeft: 12,
+    marginTop:4,
+  },
+  mapButtonIcon: {
+    marginLeft:1,
+    marginTop: 1,
   },
   clickCount: {
     marginTop: 6,

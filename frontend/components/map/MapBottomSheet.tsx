@@ -12,9 +12,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import type { Event, EventCategory } from '../../../../types/event';
-import { formatDate, formatDateTimeRange } from '../../../../utils/formatDate';
-import { formatTime, formatTimeRange } from '../../../../utils/formatTime';
+import type { Event, EventCategory } from '../../types/event';
+import { formatDate, formatDateTimeRange } from '../../utils/formatDate';
+import { formatTime, formatTimeRange } from '../../utils/formatTime';
 
 const CATEGORY_LABEL: Record<EventCategory, string> = {
   FESTIVAL: '축제',
@@ -134,11 +134,6 @@ export function MapBottomSheet({
                 activeOpacity={0.85}
                 onPress={onPressMore}
               >
-                <Ionicons
-                  name="chevron-up-outline"
-                  size={16}
-                  color="#4C8BF5"
-                />
                 <Text style={styles.moreButtonText}>더보기</Text>
               </TouchableOpacity>
             </View>

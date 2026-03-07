@@ -208,7 +208,6 @@ export default function SignupScreen() {
             ) : (
               <>
                 <Text style={styles.submitButtonText}>회원가입</Text>
-                <Ionicons name="person-add-outline" size={20} color="#FFFFFF" />
               </>
             )}
           </Pressable>
