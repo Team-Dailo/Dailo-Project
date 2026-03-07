@@ -23,7 +23,7 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# virtual machine crash logs
 hs_err_pid*
 replay_pid*
 
@@ -39,19 +39,11 @@ docker-compose.override.yml
 ############## infra ##############
 ###################################
 *.sh
-# 1. 테라폼 바이너리/플러그인 폴더 
 **/.terraform/*
-
-# 2. 테라폼 상태 파일 
 *.tfstate
 *.tfstate.*
-
-# 3. 변수 파일 (비밀번호)
 *.tfvars
-# 예외: 예시 파일은 올려도 됨
-!example.tfvars  
-
-# 4. 크래시 로그
+!example.tfvars
 crash.log
 
 ### Custom - 개인 정보 보호 ###
@@ -78,5 +70,19 @@ backend/docs/
 
 # Logs
 **/logs/
-.vscode/
 
+# VSCode
+.vscode/
+**/.vscode/
+
+###################################
+############ Frontend #############
+###################################
+node_modules/
+**/node_modules/
+
+.expo/
+**/.expo/
+
+.expo-shared/
+**/.expo-shared/

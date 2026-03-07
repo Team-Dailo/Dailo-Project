@@ -1,4 +1,4 @@
-// app/(tabs)/map/_components/FilterChips.tsx
+// components/map/FilterChips.tsx
 import React from 'react';
 import {
   View,
@@ -15,13 +15,17 @@ type Props = {
   onPressDate: () => void;
   onPressCategory: () => void;
   onPressPopular: () => void;
-  onPressDistance: () => void;
+  onPressDistance?: () => void;
   onPressScale: () => void;
+
   selectedDateSummary?: string | null;
   selectedCategorySummary?: string | null;
   selectedPopularSummary?: string | null;
   selectedDistanceSummary?: string | null;
   selectedScaleSummary?: string | null;
+
+  // index.tsx에서 쓰는 값도 호환
+  popularValueLabel?: string;
 };
 
 type FilterChipProps = {
@@ -48,6 +52,7 @@ function Chip({ label, icon, onPress, selected }: FilterChipProps) {
             styles.chipText,
             selected && styles.chipTextSelected,
           ]}
+          numberOfLines={1}
         >
           {label}
         </Text>
@@ -64,15 +69,15 @@ function Chip({ label, icon, onPress, selected }: FilterChipProps) {
   );
 }
 
-// 아이콘: 윤곽선 흰색(IconWrap), 내부는 지정 색상. 카테고리·별·위치는 채움(filled)
 const ICON_SIZE = 16;
 const ICON_GAP = 6;
+
 const CHIP_COLORS = {
-  date: '#EF4444',      // 날짜 레드
-  category: '#F59E0B',  // 카테고리 오렌지
-  popular: '#FACC15',    // 인기/추천 옐로우
-  distance: '#22C55E',   // 거리 그린
-  scale: '#3B82F6',    // 규모 블루
+  date: '#EF4444',
+  category: '#F59E0B',
+  popular: '#FACC15',
+  distance: '#22C55E',
+  scale: '#3B82F6',
 } as const;
 
 function IconWrap({ children }: { children: React.ReactNode }) {
@@ -90,10 +95,12 @@ export function FilterChips({
   selectedPopularSummary,
   selectedDistanceSummary,
   selectedScaleSummary,
+  popularValueLabel,
 }: Props) {
   const dateLabel = selectedDateSummary || '날짜';
   const categoryLabel = selectedCategorySummary || '카테고리';
-  const popularLabel = selectedPopularSummary || '인기/추천';
+  const popularLabel =
+    selectedPopularSummary || popularValueLabel || '인기/추천';
   const distanceLabel = selectedDistanceSummary || '거리';
   const scaleLabel = selectedScaleSummary || '규모';
 
@@ -108,42 +115,64 @@ export function FilterChips({
           label={dateLabel}
           icon={
             <IconWrap>
-              <Ionicons name="calendar" size={ICON_SIZE} color={CHIP_COLORS.date} />
+              <Ionicons
+                name="calendar"
+                size={ICON_SIZE}
+                color={CHIP_COLORS.date}
+              />
             </IconWrap>
           }
           onPress={onPressDate}
           selected={!!selectedDateSummary}
         />
+
         <Chip
           label={categoryLabel}
           icon={
             <IconWrap>
-              <Ionicons name="grid" size={ICON_SIZE} color={CHIP_COLORS.category} />
+              <Ionicons
+                name="grid"
+                size={ICON_SIZE}
+                color={CHIP_COLORS.category}
+              />
             </IconWrap>
           }
           onPress={onPressCategory}
           selected={!!selectedCategorySummary}
         />
+
         <Chip
           label={popularLabel}
           icon={
             <IconWrap>
-              <Ionicons name="star" size={ICON_SIZE} color={CHIP_COLORS.popular} />
+              <Ionicons
+                name="star"
+                size={ICON_SIZE}
+                color={CHIP_COLORS.popular}
+              />
             </IconWrap>
           }
           onPress={onPressPopular}
-          selected={!!selectedPopularSummary}
+          selected={!!selectedPopularSummary || !!popularValueLabel}
         />
-        <Chip
-          label={distanceLabel}
-          icon={
-            <IconWrap>
-              <Ionicons name="resize-outline" size={ICON_SIZE} color={CHIP_COLORS.distance} />
-            </IconWrap>
-          }
-          onPress={onPressDistance}
-          selected={!!selectedDistanceSummary}
-        />
+
+        {onPressDistance ? (
+          <Chip
+            label={distanceLabel}
+            icon={
+              <IconWrap>
+                <Ionicons
+                  name="resize-outline"
+                  size={ICON_SIZE}
+                  color={CHIP_COLORS.distance}
+                />
+              </IconWrap>
+            }
+            onPress={onPressDistance}
+            selected={!!selectedDistanceSummary}
+          />
+        ) : null}
+
         <Chip
           label={scaleLabel}
           icon={
@@ -160,7 +189,10 @@ export function FilterChips({
 }
 
 const styles = StyleSheet.create({
-  wrapper: { zIndex: 2, backgroundColor: 'transparent' },
+  wrapper: {
+    zIndex: 2,
+    backgroundColor: 'transparent',
+  },
   iconWrap: {
     borderWidth: 1,
     borderColor: '#FFFFFF',
@@ -168,19 +200,6 @@ const styles = StyleSheet.create({
     padding: 2,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  locationIconWrap: {
-    width: ICON_SIZE,
-    height: ICON_SIZE,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  locationIconCenterWhite: {
-    position: 'absolute',
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#FFFFFF',
   },
   container: {
     paddingHorizontal: 12,
@@ -212,6 +231,7 @@ const styles = StyleSheet.create({
   chipContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    maxWidth: 180,
   },
   chipText: {
     marginLeft: ICON_GAP,

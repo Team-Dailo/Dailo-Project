@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 import { useEventList } from "../../../hooks/useEvent";
 import type { EventListSort } from "../../../services/event.service";
 import type { Event } from "../../../types/event";
-import { FilterChips } from "../map/_components/FilterChips";
+import { FilterChips } from "../../../components/map/FilterChips";
 import {
   DateFilterModal,
   CategoryFilterModal,
@@ -24,7 +24,7 @@ import {
   DistanceFilterModal,
   ScaleFilterModal,
   type DateRange,
-} from "../map/_components/FilterModals";
+} from "../../../components/map/FilterModals";
 import { getDemoLocation } from "../../../services/demoLocationStorage";
 
 /** 2025.11.20 목요일 */
@@ -88,9 +88,7 @@ function approxKm(lat1: number, lng1: number, lat2: number, lng2: number): numbe
 
 export default function EventListScreen() {
   const router = useRouter();
-  const sort: EventListSort =
-    popularFilter === "all" ? null : (popularFilter as EventListSort);
-  const { events, loading, error, refetch } = useEventList({ size: 50, sort });
+
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<
@@ -103,21 +101,25 @@ export default function EventListScreen() {
   const [scaleFilter, setScaleFilter] = useState<string>("all");
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
+  const sort: EventListSort | null =
+    popularFilter === "all" ? null : (popularFilter as EventListSort);
+
+  const { events, loading, error, refetch } = useEventList({ size: 50, sort });
   // 필터 요약 텍스트 (칩에 표시)
-  const dateSummary = useMemo(() => {
-    if (!dateRange) return null;
-    try {
-      const start = new Date(dateRange.start);
-      const end = new Date(dateRange.end);
-      const fmt = (d: Date) =>
-        `${d.getMonth() + 1}/${d.getDate()}`;
-      return start.toDateString() === end.toDateString()
-        ? fmt(start)
-        : `${fmt(start)}~${fmt(end)}`;
-    } catch {
-      return null;
-    }
-  }, [dateRange?.start, dateRange?.end]);
+const dateSummary = useMemo(() => {
+  if (!dateRange) return null;
+  try {
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
+
+    return start.toDateString() === end.toDateString()
+      ? fmt(start)
+      : `${fmt(start)}~${fmt(end)}`;
+  } catch {
+    return null;
+  }
+}, [dateRange]);
 
   useEffect(() => {
     let cancelled = false;
