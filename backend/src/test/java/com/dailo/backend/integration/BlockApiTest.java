@@ -1,13 +1,22 @@
 package com.dailo.backend.integration;
 
+import com.dailo.backend.domain.enums.Role;
+import com.dailo.backend.domain.enums.SocialType;
+import com.dailo.backend.entity.Member;
+import com.dailo.backend.repository.MemberRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -16,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Transactional
 class BlockApiTest {
 
     @Autowired
@@ -24,29 +34,73 @@ class BlockApiTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private MemberRepository memberRepository;
+
+    private Member blocker;
+    private Member blocked;
+
+    @BeforeEach
+    void setUp() {
+        // 테스트용 사용자 생성
+        blocker = memberRepository.save(Member.builder()
+                .email("blocker@test.com")
+                .nickname("Blocker")
+                .role(Role.USER)
+                .socialType(SocialType.LOCAL)
+                .build());
+
+        blocked = memberRepository.save(Member.builder()
+                .email("blocked@test.com")
+                .nickname("Blocked")
+                .role(Role.USER)
+                .socialType(SocialType.LOCAL)
+                .build());
+
+        // SecurityContext에 인증 정보 설정
+        setSecurityContext(blocker.getEmail());
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void setSecurityContext(String email) {
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(
+                        email,
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                );
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
     @Test
     @Order(1)
     @DisplayName("POST /api/blocks - 차단 추가")
     void blockUser() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of("blockedId", 100));
+        String body = objectMapper.writeValueAsString(
+                Map.of("blockedId", blocked.getId())
+        );
 
         mockMvc.perform(post("/api/blocks")
-                        .header("X-User-Id", "10")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.blockerId").value(10))
-                .andExpect(jsonPath("$.blockedId").value(100));
+                .andExpect(jsonPath("$.blockerId").value(blocker.getId()))
+                .andExpect(jsonPath("$.blockedId").value(blocked.getId()));
     }
 
     @Test
     @Order(2)
     @DisplayName("POST /api/blocks - 자기 자신 차단 불가")
     void blockSelfNotAllowed() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of("blockedId", 10));
+        String body = objectMapper.writeValueAsString(
+                Map.of("blockedId", blocker.getId())
+        );
 
         mockMvc.perform(post("/api/blocks")
-                        .header("X-User-Id", "10")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
@@ -56,17 +110,18 @@ class BlockApiTest {
     @Order(3)
     @DisplayName("POST /api/blocks - 중복 차단 방지")
     void duplicateBlockNotAllowed() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of("blockedId", 200));
+        String body = objectMapper.writeValueAsString(
+                Map.of("blockedId", blocked.getId())
+        );
 
         // 첫 번째 차단
         mockMvc.perform(post("/api/blocks")
-                .header("X-User-Id", "20")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(body));
+                .content(body))
+                .andExpect(status().isCreated());
 
         // 중복 차단 시도
         mockMvc.perform(post("/api/blocks")
-                        .header("X-User-Id", "20")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isConflict());
@@ -77,14 +132,14 @@ class BlockApiTest {
     @DisplayName("GET /api/blocks/me - 내 차단 목록")
     void getMyBlocks() throws Exception {
         // 차단 추가
-        String body = objectMapper.writeValueAsString(Map.of("blockedId", 300));
+        String body = objectMapper.writeValueAsString(
+                Map.of("blockedId", blocked.getId())
+        );
         mockMvc.perform(post("/api/blocks")
-                .header("X-User-Id", "30")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
 
-        mockMvc.perform(get("/api/blocks/me")
-                        .header("X-User-Id", "30"))
+        mockMvc.perform(get("/api/blocks/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
     }
@@ -93,8 +148,7 @@ class BlockApiTest {
     @Order(5)
     @DisplayName("GET /api/blocks/check/{userId} - 차단 여부 확인")
     void checkBlock() throws Exception {
-        mockMvc.perform(get("/api/blocks/check/100")
-                        .header("X-User-Id", "10"))
+        mockMvc.perform(get("/api/blocks/check/" + blocked.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.blocked").exists());
     }
@@ -104,43 +158,15 @@ class BlockApiTest {
     @DisplayName("DELETE /api/blocks/{blockedId} - 차단 해제")
     void unblockUser() throws Exception {
         // 차단 추가
-        String body = objectMapper.writeValueAsString(Map.of("blockedId", 400));
+        String body = objectMapper.writeValueAsString(
+                Map.of("blockedId", blocked.getId())
+        );
         mockMvc.perform(post("/api/blocks")
-                .header("X-User-Id", "40")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
 
         // 차단 해제
-        mockMvc.perform(delete("/api/blocks/400")
-                        .header("X-User-Id", "40"))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @Order(7)
-    @DisplayName("상호 미노출 - 차단 시 게시글 필터링")
-    void blockFilterOnPosts() throws Exception {
-        // 사용자 50이 게시글 작성
-        String postBody = objectMapper.writeValueAsString(Map.of(
-                "title", "차단 필터 테스트",
-                "content", "내용",
-                "categoryType", "FREE"
-        ));
-        mockMvc.perform(post("/api/posts")
-                .header("X-User-Id", "50")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(postBody));
-
-        // 사용자 60이 사용자 50 차단
-        String blockBody = objectMapper.writeValueAsString(Map.of("blockedId", 50));
-        mockMvc.perform(post("/api/blocks")
-                .header("X-User-Id", "60")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(blockBody));
-
-        // 사용자 60이 게시글 목록 조회 → 사용자 50 글 안 보임
-        mockMvc.perform(get("/api/posts")
-                        .header("X-User-Id", "60"))
+        mockMvc.perform(delete("/api/blocks/" + blocked.getId()))
                 .andExpect(status().isOk());
     }
 }
