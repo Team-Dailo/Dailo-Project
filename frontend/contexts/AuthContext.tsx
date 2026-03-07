@@ -49,9 +49,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const name = me.nickname?.trim() || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
       const id = (me.id != null && me.id > 0 ? me.id : await authService.getStoredUserId()) ?? undefined;
       const role = me.role ?? undefined;
-      const profileImageUrl = me.profileImageUrl ?? undefined;
+      const meAny = me as Record<string, unknown>;
+      const profileImageUrl = (me.profileImageUrl ?? meAny.profile_image_url ?? '')?.toString?.()?.trim() || undefined;
       if (id != null) await authService.setStoredUserId(id);
-      setUser({ name, id, role, email, profileImageUrl, profileImageVersion: Date.now() });
+      setUser({ name, id, role, email, profileImageUrl: profileImageUrl || undefined, profileImageVersion: Date.now() });
     })();
   }, []);
 
@@ -82,9 +83,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const name = me.nickname?.trim() || (await authService.getStoredNickname(email)) || email.split('@')[0] || email || '사용자';
     const id = (me.id != null && me.id > 0 ? me.id : await authService.getStoredUserId()) ?? undefined;
     const role = me.role ?? undefined;
-    const profileImageUrl = (me as { profileImageUrl?: string | null }).profileImageUrl ?? undefined;
+    const meAny = me as Record<string, unknown>;
+    const profileImageUrl = (me.profileImageUrl ?? meAny.profile_image_url ?? '')?.toString?.()?.trim() || undefined;
     if (id != null) await authService.setStoredUserId(id);
-    setUser({ name, id, role, email, profileImageUrl, profileImageVersion: Date.now() });
+    setUser({ name, id, role, email, profileImageUrl: profileImageUrl || undefined, profileImageVersion: Date.now() });
   }, []);
 
   const updateUserProfileImage = useCallback((url: string | null) => {

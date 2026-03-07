@@ -1,10 +1,12 @@
 package com.dailo.backend.controller;
 
+import com.dailo.backend.dto.auth.KakaoNativeLoginRequestDto;
 import com.dailo.backend.dto.auth.LoginRequestDto;
 import com.dailo.backend.dto.auth.MemberRequestDto;
 import com.dailo.backend.dto.auth.MemberResponseDto;
 import com.dailo.backend.jwt.TokenDto;
 import com.dailo.backend.service.AuthService;
+import com.dailo.backend.service.KakaoNativeLoginService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final KakaoNativeLoginService kakaoNativeLoginService;
 
     /* ================= 1. 회원가입 사전 이메일 인증 ================= */
 
@@ -52,6 +55,13 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(requestDto));
     }
 
+    @Operation(summary = "카카오 네이티브 로그인", description = "앱에서 카카오톡으로 로그인 후 받은 액세스 토큰으로 서버 JWT를 발급합니다.")
+    @PostMapping("/kakao/native")
+    public ResponseEntity<TokenDto> kakaoNativeLogin(
+            @RequestBody KakaoNativeLoginRequestDto requestDto
+    ) {
+        return ResponseEntity.ok(kakaoNativeLoginService.loginWithKakaoToken(requestDto));
+    }
 
     /* ================= 3. 비밀번호 재설정 ================= */
 

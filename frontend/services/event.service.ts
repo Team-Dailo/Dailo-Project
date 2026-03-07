@@ -373,3 +373,21 @@ export async function toggleEventLike(eventId: number): Promise<EventLikeStatus>
   const data = await res.json();
   return { liked: !!data.liked, likeCount: Number(data.likeCount) ?? 0 };
 }
+
+/**
+ * 좋아요 누른 행사 목록 (마이페이지) - 로그인 필요
+ * GET /api/events/liked
+ */
+export async function getLikedEvents(): Promise<Event[]> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('로그인이 필요합니다.');
+  const res = await fetch(`${API_BASE_URL}/api/events/liked`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    if (res.status === 401) throw new Error('로그인이 필요합니다.');
+    throw new Error(`좋아요 누른 행사 목록 조회 실패 (${res.status})`);
+  }
+  const data: EventListResponseItem[] = await res.json();
+  return (data ?? []).map(toEvent);
+}

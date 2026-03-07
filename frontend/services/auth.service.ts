@@ -1,6 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/api';
 import { createFormDataFile } from '../utils/uploadFormData';
-import AsyncStorage from './storageFallback';
 
 const ACCESS_TOKEN_KEY = '@dailo/accessToken';
 const REFRESH_TOKEN_KEY = '@dailo/refreshToken';
@@ -349,7 +349,8 @@ export async function getMe(): Promise<MemberResponseDto | null> {
   const token = await getAccessToken();
   if (!token) return null;
   try {
-    const res = await fetch(`${API_BASE_URL}/api/members/me`, {
+    const url = `${API_BASE_URL}/api/members/me?_t=${Date.now()}`;
+    const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
@@ -427,6 +428,23 @@ export async function uploadProfileImage(imageUri: string): Promise<string> {
   const url = data?.imageUrl ?? '';
   if (!url) throw new Error('업로드 응답에 imageUrl이 없습니다.');
   return url;
+}
+
+/**
+ * 카카오 네이티브(앱) 로그인: 앱에서 카카오톡으로 발급받은 액세스 토큰을 서버에 보내 우리 서버 JWT(TokenDto)를 받음.
+ * @throws Error 서버 오류 또는 카카오 토큰 무효 시
+ */
+export async function getKakaoNativeTokenDto(kakaoAccessToken: string): Promise<TokenDto> {
+  const res = await fetch(`${API_BASE_URL}/api/auth/kakao/native`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accessToken: kakaoAccessToken }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(getErrorMessage(text, res.status, '카카오 로그인에 실패했습니다.'));
+  }
+  return JSON.parse(text) as TokenDto;
 }
 
 /**

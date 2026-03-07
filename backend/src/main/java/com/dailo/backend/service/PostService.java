@@ -12,6 +12,7 @@ import com.dailo.backend.repository.EventRepository;
 import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.repository.PostLikeRepository;
 import com.dailo.backend.repository.PostRepository;
+import com.dailo.backend.service.S3UploadService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class PostService {
     private final CommentRepository commentRepository;
     private final EventRepository eventRepository;
     private final BlockService blockService;
+    private final S3UploadService s3UploadService;
 
     private Long resolveMemberId(String email) {
         if (email == null) return null; // 비로그인 상태면 null 반환
@@ -54,14 +56,22 @@ public class PostService {
         return getAuthorNicknameAndProfileMaps(posts).getFirst();
     }
 
-    /** authorId 목록으로 닉네임·프로필이미지 맵 한 번에 조회 (N+1 방지) */
+    /** authorId 목록으로 닉네임·프로필이미지(presigned URL) 맵 한 번에 조회 (N+1 방지) */
     private Pair<Map<Long, String>, Map<Long, String>> getAuthorNicknameAndProfileMaps(List<Post> posts) {
         Set<Long> authorIds = posts.stream().map(Post::getAuthorId).collect(Collectors.toSet());
         if (authorIds.isEmpty()) return Pair.of(Map.of(), Map.of());
         List<Member> members = memberRepository.findAllById(authorIds);
-        Map<Long, String> nicknameMap = members.stream().collect(Collectors.toMap(Member::getId, Member::getNickname, (a, b) -> a));
+        Map<Long, String> nicknameMap = members.stream().collect(Collectors.toMap(Member::getId, m -> m.getNickname() != null ? m.getNickname() : "", (a, b) -> a));
         Map<Long, String> profileMap = members.stream()
-                .collect(Collectors.toMap(Member::getId, m -> m.getProfileImageUrl() != null ? m.getProfileImageUrl() : "", (a, b) -> a));
+                .collect(Collectors.toMap(Member::getId, m -> {
+                    String key = m.getProfileImageUrl();
+                    if (key == null || key.isBlank()) return "";
+                    try {
+                        return s3UploadService.getPresignedUrl(key);
+                    } catch (Exception e) {
+                        return "";
+                    }
+                }, (a, b) -> a));
         return Pair.of(nicknameMap, profileMap);
     }
 
@@ -110,17 +120,22 @@ public class PostService {
         validateVisible(post, userId);
         postRepository.increaseViewCount(id);
 
-        String nickname = memberRepository.findById(post.getAuthorId())
-                .map(Member::getNickname)
-                .orElse(null);
+        Member author = memberRepository.findById(post.getAuthorId()).orElse(null);
+        String nickname = author != null ? author.getNickname() : null;
+        String authorProfileUrl = null;
+        if (author != null && author.getProfileImageUrl() != null && !author.getProfileImageUrl().isBlank()) {
+            try {
+                authorProfileUrl = s3UploadService.getPresignedUrl(author.getProfileImageUrl());
+            } catch (Exception ignored) {}
+        }
         String eventTitle = null;
         if (post.getEventId() != null) {
             eventTitle = eventRepository.findById(post.getEventId())
-                    .map(e -> e.getTitle())
+                    .map(Event::getTitle)
                     .orElse(null);
         }
         Boolean isLiked = (userId != null && postLikeRepository.existsByMemberIdAndPostId(userId, id));
-        return PostResponseDto.from(post, nickname, isLiked, eventTitle);
+        return PostResponseDto.from(post, nickname, isLiked, eventTitle, authorProfileUrl);
     }
 
     private void validateVisible(Post post, Long userId) {

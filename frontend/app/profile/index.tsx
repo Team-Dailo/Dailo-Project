@@ -17,8 +17,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../hooks/useAuth';
 import * as authService from '../../services/auth.service';
+import { API_BASE_URL } from '../../constants/api';
 
-const AVATAR_PLACEHOLDER = 'https://via.placeholder.com/120x120.png?text=👤';
+const DEFAULT_PROFILE_IMAGE = require('../../assets/images/default-profile.png');
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -117,7 +118,7 @@ export default function ProfileScreen() {
       if (storedEmail) await authService.saveNicknameForEmail(storedEmail, updated.nickname);
       const newId = authUser?.id ?? updated.id;
       if (updated.id != null) await authService.setStoredUserId(updated.id);
-      setAuthUser({ name: updated.nickname, id: newId });
+      setAuthUser({ ...(authUser ?? {}), name: updated.nickname, id: newId });
       setEmail(updated.email);
       setNickname(updated.nickname);
       setServerLoadFailed(false);
@@ -177,10 +178,17 @@ export default function ProfileScreen() {
             </View>
           ) : null}
           <View style={styles.avatarSection}>
-            <Image
-              source={{ uri: pendingPhotoUri ?? profileImageUrl ?? AVATAR_PLACEHOLDER }}
-              style={styles.avatar}
-            />
+            {pendingPhotoUri ?? profileImageUrl ? (
+              <Image
+                source={{ uri: pendingPhotoUri ?? (profileImageUrl?.startsWith('/') ? `${API_BASE_URL}${profileImageUrl}` : profileImageUrl) ?? '' }}
+                style={styles.avatar}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.avatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
+              </View>
+            )}
             <Pressable
               style={[styles.changePhotoBtn, uploadingPhoto && styles.changePhotoBtnDisabled]}
               onPress={handlePickPhoto}
@@ -240,30 +248,32 @@ export default function ProfileScreen() {
           </View>
           <View style={[styles.row, styles.rowLast]}>
             <Text style={styles.label}>닉네임</Text>
-            <TextInput
-              style={[styles.input, errorMessage ? styles.inputError : null]}
-              value={nickname}
-              onChangeText={(t) => {
-                setNickname(t);
-                if (errorMessage) setErrorMessage('');
-              }}
-              placeholder="닉네임을 입력하세요"
-              placeholderTextColor="#9CA3AF"
-              autoCapitalize="none"
-              editable={!saving}
-            />
+            <View style={styles.nicknameRow}>
+              <TextInput
+                style={[styles.input, styles.nicknameInput, errorMessage ? styles.inputError : null]}
+                value={nickname}
+                onChangeText={(t) => {
+                  setNickname(t);
+                  if (errorMessage) setErrorMessage('');
+                }}
+                placeholder="닉네임을 입력하세요"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="none"
+                editable={!saving}
+              />
+              <Pressable
+                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                onPress={handleSaveNickname}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveButtonText}>저장</Text>
+                )}
+              </Pressable>
+            </View>
             {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-            <Pressable
-              style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-              onPress={handleSaveNickname}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.saveButtonText}>저장</Text>
-              )}
-            </Pressable>
           </View>
         </View>
       )}
@@ -312,6 +322,11 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     backgroundColor: '#F3F4F6',
+    overflow: 'hidden',
+  },
+  defaultProfileImageZoom: {
+    position: 'absolute',
+    transform: [{ scale: 1.35 }],
   },
   changePhotoBtn: {
     marginTop: 12,
@@ -387,6 +402,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: 4,
   },
+  nicknameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 4,
+  },
   input: {
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -406,8 +428,11 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     marginBottom: 8,
   },
+  nicknameInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
   saveButton: {
-    alignSelf: 'flex-start',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 12,
