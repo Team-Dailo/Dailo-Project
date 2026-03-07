@@ -26,6 +26,8 @@ export default function SignupScreen() {
   const [authCode, setAuthCode] = useState('');
   const [sendingCode, setSendingCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [passwordMatchStatus, setPasswordMatchStatus] = useState<'match' | 'mismatch' | null>(null);
 
   const handleSendCode = async () => {
     const trimmedEmail = email.trim();
@@ -54,11 +56,27 @@ export default function SignupScreen() {
     }
   };
 
+  const handleConfirmPassword = () => {
+    if (!passwordConfirm.trim()) {
+      Alert.alert('입력 오류', '비밀번호 확인란을 입력해 주세요.');
+      return;
+    }
+    setPasswordMatchStatus(password === passwordConfirm ? 'match' : 'mismatch');
+  };
+
   const handleSignup = async () => {
     const trimmedEmail = email.trim();
     const trimmedNickname = nickname.trim();
     if (!trimmedEmail || !password || !trimmedNickname) {
       Alert.alert('입력 오류', '이메일, 비밀번호, 닉네임을 모두 입력해 주세요.');
+      return;
+    }
+    if (!passwordConfirm.trim()) {
+      Alert.alert('입력 오류', '비밀번호 확인란을 입력해 주세요.');
+      return;
+    }
+    if (password !== passwordConfirm) {
+      Alert.alert('입력 오류', '비밀번호와 비밀번호 확인이 일치하지 않습니다.');
       return;
     }
     if (!authCode.trim()) {
@@ -164,6 +182,38 @@ export default function SignupScreen() {
             />
           </View>
           <View style={styles.inputWrap}>
+            <Text style={styles.inputLabel}>비밀번호 확인</Text>
+            <View style={styles.codeRow}>
+              <TextInput
+                style={[styles.input, styles.codeInput]}
+                value={passwordConfirm}
+                onChangeText={(text) => {
+                  setPasswordConfirm(text);
+                  setPasswordMatchStatus(null);
+                }}
+                placeholder="비밀번호를 한 번 더 입력하세요"
+                placeholderTextColor="#9CA3AF"
+                secureTextEntry
+                autoCapitalize="none"
+              />
+              <Pressable
+                style={({ pressed }) => [
+                  styles.codeButton,
+                  pressed && styles.codeButtonPressed,
+                ]}
+                onPress={handleConfirmPassword}
+              >
+                <Text style={styles.codeButtonText}>확인</Text>
+              </Pressable>
+            </View>
+            {passwordMatchStatus === 'match' && (
+              <Text style={styles.passwordMatchOk}>비밀번호가 일치합니다</Text>
+            )}
+            {passwordMatchStatus === 'mismatch' && (
+              <Text style={styles.passwordMatchFail}>비밀번호가 일치하지 않습니다</Text>
+            )}
+          </View>
+          <View style={styles.inputWrap}>
             <Text style={styles.inputLabel}>닉네임</Text>
             <TextInput
               style={styles.input}
@@ -206,10 +256,7 @@ export default function SignupScreen() {
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <>
-                <Text style={styles.submitButtonText}>회원가입</Text>
-                <Ionicons name="person-add-outline" size={20} color="#FFFFFF" />
-              </>
+              <Text style={styles.submitButtonText}>회원가입</Text>
             )}
           </Pressable>
 
@@ -358,5 +405,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  passwordMatchOk: {
+    marginTop: 6,
+    fontSize: 13,
+    color: '#059669',
+    fontWeight: '500',
+  },
+  passwordMatchFail: {
+    marginTop: 6,
+    fontSize: 13,
+    color: '#DC2626',
+    fontWeight: '500',
   },
 });

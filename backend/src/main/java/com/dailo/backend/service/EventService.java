@@ -179,4 +179,26 @@ public class EventService {
                         .build())
                 .collect(Collectors.toList());
     }
+
+    /** 로그인 회원이 좋아요 누른 행사 목록 (최신 좋아요 순) */
+    public List<EventListResponse> getLikedEvents(String email) {
+        if (email == null || email.isBlank()) {
+            return Collections.emptyList();
+        }
+        Member member = memberRepository.findByEmail(email).orElse(null);
+        if (member == null) {
+            return Collections.emptyList();
+        }
+        List<Long> eventIds = eventLikeRepository.findEventIdsByMemberIdOrderByCreatedAtDesc(member.getId());
+        if (eventIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Event> events = eventRepository.findAllById(eventIds);
+        Map<Long, Event> eventMap = events.stream().collect(Collectors.toMap(Event::getId, e -> e));
+        return eventIds.stream()
+                .map(eventMap::get)
+                .filter(e -> e != null)
+                .map(this::convertToEventListResponse)
+                .collect(Collectors.toList());
+    }
 }

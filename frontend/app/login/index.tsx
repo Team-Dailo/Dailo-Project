@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   Alert,
   BackHandler,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -19,7 +18,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { useSafeBack } from '../../hooks/useSafeBack';
 import * as authService from '../../services/auth.service';
-import { API_BASE_URL } from '../../constants/api';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -69,20 +67,33 @@ export default function LoginScreen() {
     }
   };
 
-  // 카카오 로그인 버튼 핸들러: 백엔드 OAuth2 카카오 로그인 페이지 열기
+  // 카카오 로그인: 앱 내 카카오톡으로 로그인 후 서버 JWT 발급
+  const [kakaoLoading, setKakaoLoading] = useState(false);
   const handleKakaoLogin = async () => {
-    const base = API_BASE_URL.replace(/\/$/, '');
-    const url = `${base}/oauth2/authorization/kakao`;
+    setKakaoLoading(true);
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (!supported) {
-        Alert.alert('카카오 로그인', '로그인 페이지를 열 수 없습니다. 다른 방법으로 다시 시도해 주세요.');
+      const { login: kakaoLogin } = await import('@react-native-kakao/user');
+      const token = await kakaoLogin();
+      const accessToken = token?.accessToken;
+      if (!accessToken) {
+        Alert.alert('카카오 로그인', '카카오톡 로그인을 취소했거나 토큰을 받지 못했습니다.');
         return;
       }
-      await Linking.openURL(url);
+      const tokenDto = await authService.getKakaoNativeTokenDto(accessToken);
+      const user = await authService.loginWithSocialToken(tokenDto);
+      login({
+        name: user.name,
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        profileImageUrl: user.profileImageUrl,
+      });
+      router.replace('/(tabs)/home');
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '로그인 페이지를 여는 중 오류가 발생했습니다.';
-      Alert.alert('카카오 로그인 오류', msg);
+      const msg = e instanceof Error ? e.message : '카카오 로그인에 실패했습니다.';
+      Alert.alert('카카오 로그인 실패', msg);
+    } finally {
+      setKakaoLoading(false);
     }
   };
 
@@ -153,16 +164,23 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
-          {/* 카카오 로그인 버튼 */}
+          {/* 카카오 로그인 버튼 (카카오톡 앱으로 로그인) */}
           <Pressable
             style={({ pressed }) => [
               styles.kakaoLoginButton,
-              pressed && styles.kakaoLoginButtoPressed,
+              (pressed || kakaoLoading) && styles.kakaoLoginButtoPressed,
             ]}
             onPress={handleKakaoLogin}
+            disabled={kakaoLoading}
           >
-            <Ionicons name="chatbubble" size={18} color="#111827" />
-            <Text style={styles.kakaoLoginButtonText}>카카오 로그인</Text>
+            {kakaoLoading ? (
+              <ActivityIndicator color="#111827" />
+            ) : (
+              <>
+                <Ionicons name="chatbubble" size={18} color="#111827" />
+                <Text style={styles.kakaoLoginButtonText}>카카오 로그인</Text>
+              </>
+            )}
           </Pressable>
 
           <Pressable
