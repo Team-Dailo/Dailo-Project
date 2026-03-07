@@ -27,30 +27,42 @@ public class BlockService {
     /** 1. 차단하기 (이메일 기반) */
     @Transactional
     public BlockResponseDto blockUserByEmail(String email, Long blockedId) {
+        if (email == null) {
+            throw new com.dailo.backend.exception.UnauthorizedException("로그인이 필요합니다.");
+        }
         Member blocker = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new com.dailo.backend.exception.NotFoundException("사용자를 찾을 수 없습니다."));
         return blockUser(blocker.getId(), blockedId);
     }
 
     /** 2. 차단 해제 (이메일 기반) */
     @Transactional
     public void unblockUserByEmail(String email, Long blockedId) {
+        if (email == null) {
+            throw new com.dailo.backend.exception.UnauthorizedException("로그인이 필요합니다.");
+        }
         Member blocker = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new com.dailo.backend.exception.NotFoundException("사용자를 찾을 수 없습니다."));
         unblockUser(blocker.getId(), blockedId);
     }
 
     /** 3. 내 차단 목록 조회 (이메일 기반) */
     public List<BlockResponseDto> getMyBlocksByEmail(String email) {
+        if (email == null) {
+            throw new com.dailo.backend.exception.UnauthorizedException("로그인이 필요합니다.");
+        }
         Member blocker = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new com.dailo.backend.exception.NotFoundException("사용자를 찾을 수 없습니다."));
         return getMyBlocks(blocker.getId());
     }
 
     /** 4. 차단 방향 확인 (이메일 기반) */
     public BlockCheckResponseDto checkBlockDirectionByEmail(String email, Long targetUserId) {
+        if (email == null) {
+            throw new com.dailo.backend.exception.UnauthorizedException("로그인이 필요합니다.");
+        }
         Member me = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new com.dailo.backend.exception.NotFoundException("사용자를 찾을 수 없습니다."));
         return checkBlockDirection(me.getId(), targetUserId);
     }
 
@@ -78,7 +90,7 @@ public class BlockService {
     @Transactional
     public void unblockUser(Long blockerId, Long blockedId) {
         Block block = blockRepository.findByBlockerIdAndBlockedId(blockerId, blockedId)
-                .orElseThrow(() -> new RuntimeException("Block not found"));
+                .orElseThrow(() -> new com.dailo.backend.exception.NotFoundException("차단 내역을 찾을 수 없습니다."));
 
         blockRepository.delete(block);
     }
