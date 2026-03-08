@@ -13,6 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,7 +44,6 @@ class BlockApiTest {
 
     @BeforeEach
     void setUp() {
-        // 테스트용 사용자 생성
         blocker = memberRepository.save(Member.builder()
                 .email("blocker@test.com")
                 .nickname("Blocker")
@@ -57,7 +58,6 @@ class BlockApiTest {
                 .socialType(SocialType.LOCAL)
                 .build());
 
-        // SecurityContext에 인증 정보 설정
         setSecurityContext(blocker.getEmail());
     }
 
@@ -67,11 +67,17 @@ class BlockApiTest {
     }
 
     private void setSecurityContext(String email) {
+        UserDetails userDetails = User.builder()
+                .username(email)
+                .password("")
+                .authorities(List.of(new SimpleGrantedAuthority("ROLE_USER")))
+                .build();
+
         UsernamePasswordAuthenticationToken auth =
                 new UsernamePasswordAuthenticationToken(
-                        email,
+                        userDetails,
                         null,
-                        List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                        userDetails.getAuthorities()
                 );
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
