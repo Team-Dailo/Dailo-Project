@@ -11,6 +11,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -23,21 +25,23 @@ public class ReportController {
     // 1. 신고 생성
     @PostMapping
     public ResponseEntity<ReportResponseDto> createReport(
-            @RequestHeader("X-User-Id") Long userId,
+            @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ReportRequestDto requestDto) {
 
-        ReportResponseDto response = reportService.createReport(requestDto, userId);
+        String email = userDetails.getUsername();
+        ReportResponseDto response = reportService.createReportByEmail(requestDto, email);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     // 2. 내 신고 목록
     @GetMapping("/my")
     public ResponseEntity<Page<ReportResponseDto>> getMyReports(
-            @RequestHeader("X-User-Id") Long userId,
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
+        String email = userDetails.getUsername();
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ResponseEntity.ok(reportService.getMyReports(userId, pageable));
+        return ResponseEntity.ok(reportService.getMyReportsByEmail(email, pageable));
     }
 }
