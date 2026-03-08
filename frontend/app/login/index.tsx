@@ -1,0 +1,290 @@
+// app/login/index.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  Linking,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../hooks/useAuth';
+import { useSafeBack } from '../../hooks/useSafeBack';
+import * as authService from '../../services/auth.service';
+import { API_BASE_URL } from '../../constants/api';
+
+export default function LoginScreen() {
+  const { login } = useAuth();
+  const safeBack = useSafeBack();
+  const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      safeBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [safeBack]);
+
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [emailVerificationMessage, setEmailVerificationMessage] = useState('');
+
+  const handleLogin = async () => {
+    const trimmed = email.trim();
+    setErrorMessage('');
+    setEmailVerificationMessage('');
+    if (!trimmed || !password) {
+      Alert.alert('입력 오류', '이메일과 비밀번호를 입력해 주세요.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const user = await authService.login(trimmed, password);
+      login(user);
+      router.replace('/(tabs)/home');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '로그인에 실패했습니다.';
+      if (message.startsWith('EMAIL_VERIFICATION_REQUIRED:')) {
+        const displayMsg = message.slice('EMAIL_VERIFICATION_REQUIRED:'.length).trim()
+          || '로그인 확인 이메일을 발송했습니다. Gmail에서 확인 링크를 눌러 주세요.';
+        setEmailVerificationMessage(displayMsg);
+        setErrorMessage('');
+        return;
+      }
+      setErrorMessage(message);
+      Alert.alert('로그인 실패', message, [{ text: '확인' }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 카카오 로그인 버튼 핸들러: 백엔드 OAuth2 카카오 로그인 페이지 열기
+  const handleKakaoLogin = async () => {
+    const base = API_BASE_URL.replace(/\/$/, '');
+    const url = `${base}/oauth2/authorization/kakao`;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert('카카오 로그인', '로그인 페이지를 열 수 없습니다. 다른 방법으로 다시 시도해 주세요.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '로그인 페이지를 여는 중 오류가 발생했습니다.';
+      Alert.alert('카카오 로그인 오류', msg);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.header}>
+          <Pressable hitSlop={12} onPress={safeBack}>
+            <Ionicons name="arrow-back" size={24} color="#111827" />
+          </Pressable>
+          <Text style={styles.headerTitle}>로그인</Text>
+          <View style={styles.headerRight} />
+        </View>
+
+        <View style={styles.body}>
+          {/* 아이디(이메일) / 비밀번호 입력 폼 */}
+          <View style={styles.inputWrap}>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={(t) => {
+                setEmail(t);
+                if (errorMessage) setErrorMessage('');
+              }}
+              placeholder="아이디 (이메일)"
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+            />
+          </View>
+          <View style={styles.inputWrap}>
+            <TextInput
+              style={[styles.input, errorMessage ? styles.inputError : null]}
+              value={password}
+              onChangeText={(t) => {
+                setPassword(t);
+                if (errorMessage) setErrorMessage('');
+              }}
+              placeholder="비밀번호"
+              placeholderTextColor="#9CA3AF"
+              secureTextEntry
+              autoCapitalize="none"
+            />
+            {errorMessage ? (
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            ) : null}
+            {emailVerificationMessage ? (
+              <Text style={styles.emailVerifyText}>{emailVerificationMessage}</Text>
+            ) : null}
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.loginButton,
+              pressed && styles.loginButtonPressed,
+            ]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.loginButtonText}>로그인</Text>
+            )}
+          </Pressable>
+
+          {/* 카카오 로그인 버튼 */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.kakaoLoginButton,
+              pressed && styles.kakaoLoginButtoPressed,
+            ]}
+            onPress={handleKakaoLogin}
+          >
+            <Ionicons name="chatbubble" size={18} color="#111827" />
+            <Text style={styles.kakaoLoginButtonText}>카카오 로그인</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.signupLink}
+            onPress={() => router.push('/signup')}
+          >
+            <Text style={styles.signupLinkText}>계정이 없으신가요? 회원가입</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginLeft: 20,
+  },
+  headerRight: {
+    width: 24,
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 32,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 24,
+  },
+  inputWrap: {
+    marginBottom: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#111827',
+    backgroundColor: '#FFFFFF',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 6,
+    marginLeft: 2,
+  },
+  emailVerifyText: {
+    fontSize: 13,
+    color: '#2563EB',
+    marginTop: 10,
+    marginLeft: 2,
+    lineHeight: 18,
+  },
+  loginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 4,
+    backgroundColor: '#4C8BF5',
+    marginTop: 8,
+  },
+  loginButtonPressed: {
+    opacity: 0.9,
+  },
+  loginButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  signupLink: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  signupLinkText: {
+    fontSize: 14,
+    color: '#4C8BF5',
+    fontWeight: '500',
+  },
+  kakaoLoginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 4,
+    backgroundColor: "#FEE500",
+    marginTop: 12
+  },
+  kakaoLoginButtoPressed: {
+    opacity: 0.9,
+  },
+  kakaoLoginButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827'
+  },
+});

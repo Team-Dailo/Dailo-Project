@@ -1,0 +1,80 @@
+services:
+  # 1. MySQL 서비스
+  mysql:
+    image: mysql:8.0
+    container_name: dailo-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-changeme}
+      MYSQL_DATABASE: dailo
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      TZ: Asia/Seoul
+    ports:
+      - "3307:3306"   # 호스트 3307 사용 (로컬 MySQL 3306과 충돌 방지)
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - dailo-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Spring Boot 백엔드
+  backend:
+    build:
+      context: ./backend   
+      dockerfile: Dockerfile
+    container_name: dailo-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/dailo?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
+      TZ: Asia/Seoul
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - dailo-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # 3. Frontend (Expo)
+  frontend:
+    build:
+      context: ./frontend    
+      dockerfile: Dockerfile
+    container_name: dailo-frontend
+    ports:
+      - "19000:19000"         # Expo
+      - "19001:19001"         # Metro Bundler
+      - "19002:19002"         # DevTools
+      - "8081:8081"           # Debugger
+    environment:
+      # 실행하는 노트북/PC의 내부 IP를 적으세요 (예: 192.168.0.10)
+      # ipconfig(윈도우) 또는 ifconfig(맥) 명령어로 확인 가능
+      REACT_NATIVE_PACKAGER_HOSTNAME: "172.16.11.200" 
+      EXPO_DEVTOOLS_LISTEN_ADDRESS: "0.0.0.0"
+      CHOKIDAR_USEPOLLING: "true" # 윈도우에서 파일 변경 감지(Hot Reload) 잘 되게 하는 설정
+    networks:
+      - dailo-network
+    # 터미널 입력을 유지해서 QR코드를 계속 띄워두기 위함
+    stdin_open: true
+    tty: true
+
+# 볼륨 (데이터 영구 저장)
+volumes:
+  mysql-data:
+
+# 네트워크
+networks:
+  dailo-network:
+    driver: bridge
