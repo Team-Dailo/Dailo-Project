@@ -4,19 +4,16 @@ import com.dailo.backend.domain.enums.Role;
 import com.dailo.backend.domain.enums.SocialType;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.MemberRepository;
+import com.dailo.backend.support.TestSecurityUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -42,7 +39,6 @@ class BlockApiTest {
 
     @BeforeEach
     void setUp() {
-        // 테스트용 사용자 생성
         blocker = memberRepository.save(Member.builder()
                 .email("blocker@test.com")
                 .nickname("Blocker")
@@ -57,23 +53,12 @@ class BlockApiTest {
                 .socialType(SocialType.LOCAL)
                 .build());
 
-        // SecurityContext에 인증 정보 설정
-        setSecurityContext(blocker.getEmail());
+        TestSecurityUtils.authenticate(blocker.getEmail());
     }
 
     @AfterEach
     void tearDown() {
-        SecurityContextHolder.clearContext();
-    }
-
-    private void setSecurityContext(String email) {
-        UsernamePasswordAuthenticationToken auth =
-                new UsernamePasswordAuthenticationToken(
-                        email,
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_USER"))
-                );
-        SecurityContextHolder.getContext().setAuthentication(auth);
+        TestSecurityUtils.clearAuthentication();
     }
 
     @Test
