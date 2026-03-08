@@ -4,9 +4,14 @@ import com.dailo.backend.domain.enums.ReportType;
 import com.dailo.backend.dto.ReportRequestDto;
 import com.dailo.backend.dto.ReportResponseDto;
 import com.dailo.backend.entity.Comment;
+import com.dailo.backend.entity.Member;
 import com.dailo.backend.entity.Post;
 import com.dailo.backend.entity.Report;
+import com.dailo.backend.exception.ConflictException;
+import com.dailo.backend.exception.NotFoundException;
+import com.dailo.backend.exception.UnauthorizedException;
 import com.dailo.backend.repository.CommentRepository;
+import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.repository.PostRepository;
 import com.dailo.backend.repository.ReportRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,8 +29,33 @@ public class ReportService {
     private final ReportRepository reportRepository;
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final MemberRepository memberRepository;
 
-    // 신고 생성
+    // --- 외부(Controller) 호출용 이메일 기반 메서드 ---
+
+    /** 신고 생성 (이메일 기반) */
+    @Transactional
+    public ReportResponseDto createReportByEmail(ReportRequestDto requestDto, String email) {
+        if (email == null) {
+            throw new UnauthorizedException("로그인이 필요합니다.");
+        }
+        Member reporter = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
+        return createReport(requestDto, reporter.getId());
+    }
+
+    /** 내 신고 목록 (이메일 기반) */
+    public Page<ReportResponseDto> getMyReportsByEmail(String email, Pageable pageable) {
+        if (email == null) {
+            throw new UnauthorizedException("로그인이 필요합니다.");
+        }
+        Member reporter = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
+        return getMyReports(reporter.getId(), pageable);
+    }
+
+    // --- 내부 로직 및 기존 ID 기반 메서드 ---
+
     @Transactional
     public ReportResponseDto createReport(ReportRequestDto requestDto, Long reporterId) {
         // 1. 대상 존재 검증 + 자기 신고 방지
@@ -34,7 +64,7 @@ public class ReportService {
         // 2. 중복 신고 체크
         if (reportRepository.existsByReporterIdAndTargetTypeAndTargetId(
                 reporterId, requestDto.getTargetType(), requestDto.getTargetId())) {
-            throw new RuntimeException("Already reported");
+            throw new ConflictException("이미 신고한 대상입니다.");
         }
 
         Report report = requestDto.toEntity(reporterId);
@@ -55,23 +85,22 @@ public class ReportService {
         switch (targetType) {
             case POST -> {
                 Post post = postRepository.findById(targetId)
-                        .orElseThrow(() -> new RuntimeException("Post not found: " + targetId));
+                        .orElseThrow(() -> new NotFoundException("게시글을 찾을 수 없습니다: " + targetId));
                 if (post.getAuthorId().equals(reporterId)) {
-                    throw new RuntimeException("Cannot report your own post");
+                    throw new IllegalArgumentException("자신의 게시글은 신고할 수 없습니다.");
                 }
             }
             case COMMENT -> {
                 Comment comment = commentRepository.findById(targetId)
-                        .orElseThrow(() -> new RuntimeException("Comment not found: " + targetId));
+                        .orElseThrow(() -> new NotFoundException("댓글을 찾을 수 없습니다: " + targetId));
                 if (comment.getAuthorId().equals(reporterId)) {
-                    throw new RuntimeException("Cannot report your own comment");
+                    throw new IllegalArgumentException("자신의 댓글은 신고할 수 없습니다.");
                 }
             }
             case USER -> {
                 if (targetId.equals(reporterId)) {
-                    throw new RuntimeException("Cannot report yourself");
+                    throw new IllegalArgumentException("자기 자신은 신고할 수 없습니다.");
                 }
-                // TODO: UserRepository.existsById(targetId) 검증 추가
             }
             case CHAT -> {
                 // TODO: ChatMessage/ChatRoom 검증 추가
@@ -79,7 +108,6 @@ public class ReportService {
         }
     }
 
-    // 내 신고 목록 (신고한 게시물/댓글 등 대상 표시용 targetDisplay 포함)
     public Page<ReportResponseDto> getMyReports(Long reporterId, Pageable pageable) {
         Page<Report> page = reportRepository.findByReporterId(reporterId, pageable);
         java.util.List<ReportResponseDto> dtos = enrichWithTargetDisplay(page.getContent());

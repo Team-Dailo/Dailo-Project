@@ -4,21 +4,16 @@ import com.dailo.backend.domain.enums.Role;
 import com.dailo.backend.domain.enums.SocialType;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.MemberRepository;
+import com.dailo.backend.support.TestSecurityUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -66,28 +61,12 @@ class CommentApiTest {
                 .socialType(SocialType.LOCAL)
                 .build());
 
-        setSecurityContext(user1.getEmail());
+        TestSecurityUtils.authenticate(user1.getEmail());
     }
 
     @AfterEach
     void tearDown() {
-        SecurityContextHolder.clearContext();
-    }
-
-    private void setSecurityContext(String email) {
-        UserDetails userDetails = User.builder()
-                .username(email)
-                .password("")
-                .authorities(List.of(new SimpleGrantedAuthority("ROLE_USER")))
-                .build();
-
-        UsernamePasswordAuthenticationToken auth =
-                new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities()
-                );
-        SecurityContextHolder.getContext().setAuthentication(auth);
+        TestSecurityUtils.clearAuthentication();
     }
 
     private Long createPost() throws Exception {
@@ -137,7 +116,7 @@ class CommentApiTest {
         Long parentId = objectMapper.readTree(parentResponse).get("id").asLong();
 
         // user2로 전환하여 대댓글 생성
-        setSecurityContext(user2.getEmail());
+        TestSecurityUtils.authenticate(user2.getEmail());
 
         String replyBody = objectMapper.writeValueAsString(Map.of(
                 "content", "대댓글입니다",
@@ -167,7 +146,7 @@ class CommentApiTest {
         Long parentId = objectMapper.readTree(parentResponse).get("id").asLong();
 
         // user2로 전환하여 대댓글
-        setSecurityContext(user2.getEmail());
+        TestSecurityUtils.authenticate(user2.getEmail());
 
         String replyBody = objectMapper.writeValueAsString(Map.of(
                 "content", "2단계", "parentCommentId", parentId));
@@ -178,7 +157,7 @@ class CommentApiTest {
         Long replyId = objectMapper.readTree(replyResponse).get("id").asLong();
 
         // user3로 전환하여 대댓글의 대댓글 → 실패
-        setSecurityContext(user3.getEmail());
+        TestSecurityUtils.authenticate(user3.getEmail());
 
         String nestedBody = objectMapper.writeValueAsString(Map.of(
                 "content", "3단계 불가", "parentCommentId", replyId));
@@ -204,7 +183,7 @@ class CommentApiTest {
         Long parentId = objectMapper.readTree(parentResponse).get("id").asLong();
 
         // user2로 전환하여 대댓글
-        setSecurityContext(user2.getEmail());
+        TestSecurityUtils.authenticate(user2.getEmail());
 
         String replyBody = objectMapper.writeValueAsString(Map.of(
                 "content", "자식", "parentCommentId", parentId));
