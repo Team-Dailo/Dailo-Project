@@ -1,4 +1,6 @@
+#####################################
 ############## backend ##############
+#####################################
 # Compiled class file
 *.class
 
@@ -13,6 +15,7 @@
 
 # Package Files #
 *.jar
+!gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -24,9 +27,18 @@
 hs_err_pid*
 replay_pid*
 
+# Firebase Admin SDK Key
+src/main/resources/firebase/*.json
 
+### Docker ###
+.env
+.env.local
+docker-compose.override.yml
+
+###################################
 ############## infra ##############
-
+###################################
+*.sh
 # 1. 테라폼 바이너리/플러그인 폴더 
 **/.terraform/*
 
@@ -41,3 +53,30 @@ replay_pid*
 
 # 4. 크래시 로그
 crash.log
+
+### Custom - 개인 정보 보호 ###
+application-local.properties
+**/application-local.yml
+*.env
+.env
+
+### Backend 내부 문서 (PRD, TASK 등) ###
+backend/docs/
+
+### OS / IDE / Build artifacts ###
+.DS_Store
+**/.DS_Store
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Gradle caches & build outputs
+**/.gradle/
+**/build/
+**/out/
+
+# Logs
+**/logs/
+.vscode/
+
