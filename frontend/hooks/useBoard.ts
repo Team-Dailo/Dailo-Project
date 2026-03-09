@@ -345,9 +345,22 @@ export function useComments(postId: string | undefined) {
     }
   }, [postId]);
 
+  /** 삭제된 댓글을 목록에서 즉시 제거 (삭제 API 성공 후 호출) */
+  const removeComment = useCallback((commentId: number | string) => {
+    const idStr = String(commentId);
+    setComments((prev) =>
+      prev
+        .filter((c) => String(c.id) !== idStr)
+        .map((c) => ({
+          ...c,
+          replies: (c.replies ?? []).filter((r) => String(r.id) !== idStr),
+        }))
+    );
+  }, []);
+
   useEffect(() => {
     fetchComments();
   }, [fetchComments]);
 
-  return { comments, loading, error, refetch: fetchComments };
+  return { comments, loading, error, refetch: fetchComments, removeComment };
 }
