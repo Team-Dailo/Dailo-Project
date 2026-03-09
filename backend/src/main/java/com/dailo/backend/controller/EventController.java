@@ -105,4 +105,15 @@ public class EventController {
         long likeCount = eventLikeService.getLikeCount(id);
         return ResponseEntity.ok(EventLikeStatusDto.builder().liked(liked).likeCount(likeCount).build());
     }
+
+    @Operation(summary = "좋아요 누른 행사 목록", description = "로그인한 회원이 좋아요 누른 행사 목록을 최신순으로 반환합니다.")
+    @GetMapping("/liked")
+    public ResponseEntity<List<EventListResponse>> getLikedEvents(
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        if (userDetails == null) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(eventService.getLikedEvents(userDetails.getUsername()));
+    }
 }

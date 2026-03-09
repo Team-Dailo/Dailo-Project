@@ -29,21 +29,28 @@ import * as blockService from "../../services/block.service";
 import * as chatService from "../../services/chat.service";
 import * as savedPostService from "../../services/savedPost.service";
 
+const DEFAULT_PROFILE_IMAGE = require("../../assets/images/default-profile.png");
+
 type CommentDisplay = {
   id: string;
   author: string;
+  /** 작성자 프로필 이미지 URL (없으면 기본 이미지) */
+  authorProfileImageUrl: string | null;
   time: string;
   content: string;
   likes: number;
 };
 
-function toCommentDisplay(c: { id: number; authorId: number; authorNickname?: string; content: string; likeCount: number; createdAt: string }): CommentDisplay {
+function toCommentDisplay(c: { id: number; authorId: number; authorNickname?: string; authorProfileImageUrl?: string | null; author_profile_image_url?: string | null; content: string; likeCount: number; createdAt: string }): CommentDisplay {
   const raw = c as Record<string, unknown>;
   const nick = (c.authorNickname ?? raw.author_nickname) as string | undefined;
   const author = (typeof nick === "string" && nick.trim()) ? nick.trim() : `user_${c.authorId}`;
+  const profileUrl = (raw.authorProfileImageUrl ?? raw.author_profile_image_url ?? c.authorProfileImageUrl) as string | null | undefined;
+  const authorProfileImageUrl = profileUrl && typeof profileUrl === "string" && profileUrl.trim() ? profileUrl.trim() : null;
   return {
     id: String(c.id),
     author,
+    authorProfileImageUrl,
     time: formatRelativeTime(c.createdAt),
     content: c.content,
     likes: c.likeCount ?? 0,
@@ -63,11 +70,17 @@ export default function PostDetailScreen() {
   const [commentMenuId, setCommentMenuId] = useState<string | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentContent, setEditingCommentContent] = useState("");
+  /** 이 게시글에서 삭제한 댓글 ID (나갔다 들어와도 서버가 삭제된 댓글을 주는 경우 대비) */
+  const [deletedCommentIds, setDeletedCommentIds] = useState<Set<string>>(new Set());
   const scrollViewRef = useRef<ScrollView>(null);
   const commentSectionY = useRef(0);
 
   const { post, loading: postLoading, error: postError, refetch: refetchPost } = usePostDetail(id);
-  const { comments: apiComments, loading: commentsLoading, refetch: refetchComments } = useComments(id);
+  const { comments: apiComments, loading: commentsLoading, refetch: refetchComments, removeComment } = useComments(id);
+
+  useEffect(() => {
+    setDeletedCommentIds(new Set());
+  }, [id]);
 
   const postAuthorId = post ? Number((post as Record<string, unknown>).author_id ?? post.authorId ?? 0) : 0;
   const isMyPost = Boolean(post && user?.id != null && postAuthorId !== 0 && Number(postAuthorId) === Number(user.id));
@@ -91,8 +104,22 @@ export default function PostDetailScreen() {
   const authorDisplayName = post
     ? (post.authorNickname ?? (post as Record<string, unknown>).author_nickname ?? `user_${postAuthorId}`)
     : "";
+  const postAuthorProfileUrl = post
+    ? ((post as Record<string, unknown>).authorProfileImageUrl ?? (post as Record<string, unknown>).author_profile_image_url) as string | null | undefined
+    : undefined;
+  const hasPostAuthorPhoto = postAuthorProfileUrl && typeof postAuthorProfileUrl === "string" && postAuthorProfileUrl.trim();
 
-  const comments = useMemo(() => apiComments.map(toCommentDisplay), [apiComments]);
+  const filteredApiComments = useMemo(
+    () =>
+      apiComments
+        .filter((c) => !deletedCommentIds.has(String(c.id)))
+        .map((c) => ({
+          ...c,
+          replies: (c.replies ?? []).filter((r) => !deletedCommentIds.has(String(r.id))),
+        })),
+    [apiComments, deletedCommentIds]
+  );
+  const comments = useMemo(() => filteredApiComments.map(toCommentDisplay), [filteredApiComments]);
   const likeCount = post ? (post.likeCount ?? 0) : 0;
 
   useEffect(() => {
@@ -327,8 +354,14 @@ export default function PostDetailScreen() {
       const res = await boardService.togglePostLike(id, userId);
       setLiked(res.liked);
       await refetchPost();
-    } catch {
-      Alert.alert("오류", "좋아요 처리에 실패했습니다.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "좋아요 처리에 실패했습니다.";
+      const isAuthError = msg.includes("로그인이 만료");
+      Alert.alert(
+        isAuthError ? "로그인 필요" : "오류",
+        isAuthError ? "로그인이 만료되었습니다. 다시 로그인해 주세요." : msg,
+        isAuthError ? [{ text: "확인", onPress: () => router.push("/login") }] : undefined
+      );
     }
   };
 
@@ -363,8 +396,9 @@ export default function PostDetailScreen() {
         onPress: async () => {
           try {
             await boardService.deleteComment(commentId);
-            refetchComments();
-            refetchPost();
+            setDeletedCommentIds((prev) => new Set(prev).add(commentId));
+            removeComment(commentId);
+            await refetchPost();
           } catch {
             Alert.alert("오류", "댓글 삭제에 실패했습니다.");
           }
@@ -443,7 +477,13 @@ export default function PostDetailScreen() {
               {/* 게시물 본문 */}
               <View style={styles.postSection}>
                 <View style={styles.postHeader}>
-                  <View style={styles.profileCircle} />
+                  {hasPostAuthorPhoto ? (
+                    <Image source={{ uri: postAuthorProfileUrl! }} style={styles.profileCircle} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.profileCircle}>
+                      <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.profileCircle, styles.defaultProfileImageZoom]} resizeMode="cover" />
+                    </View>
+                  )}
                   <View style={styles.postMeta}>
                     <Text style={styles.author}>{authorDisplayName}</Text>
                     <Text style={styles.timeText}>{formatRelativeTime(post.createdAt)}</Text>
@@ -502,7 +542,9 @@ export default function PostDetailScreen() {
                     }
                   >
                     <Ionicons name="chatbubble-ellipses-outline" size={18} color="#4B5563" />
-                    <Text style={styles.footerText}>{post.commentCount ?? comments.length}</Text>
+                    <Text style={styles.footerText}>
+                      {commentsLoading ? (post.commentCount ?? 0) : comments.length}
+                    </Text>
                   </Pressable>
                   {/* 종이비행기(공유/채팅) 아이콘 비노출 처리
                   <View style={styles.footerItem}>
@@ -527,9 +569,16 @@ export default function PostDetailScreen() {
               const commentLiked = likedCommentIds.has(c.id);
               const commentLikeCount = c.likes + (commentLiked ? 1 : 0);
               const isMine = isMyComment(c.id);
+              const hasCommentPhoto = c.authorProfileImageUrl?.trim();
               return (
                 <View key={c.id} style={styles.commentRow}>
-                  <View style={styles.commentAvatar} />
+                  {hasCommentPhoto ? (
+                    <Image source={{ uri: c.authorProfileImageUrl! }} style={styles.commentAvatar} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.commentAvatar}>
+                      <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.commentAvatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
+                    </View>
+                  )}
                   <View style={styles.commentBody}>
                     <View style={styles.commentHeader}>
                       <Text style={styles.commentAuthor}>{c.author}</Text>
@@ -703,6 +752,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: "#E5E7EB",
+    overflow: "hidden",
   },
   postMeta: { marginLeft: 10 },
   author: { fontSize: 15, fontWeight: "600", color: "#111827" },
@@ -743,6 +793,11 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     backgroundColor: "#E5E7EB",
+    overflow: "hidden",
+  },
+  defaultProfileImageZoom: {
+    position: "absolute",
+    transform: [{ scale: 1.35 }],
   },
   commentBody: { flex: 1, marginLeft: 10 },
   commentHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },

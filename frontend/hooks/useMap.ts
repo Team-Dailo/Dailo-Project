@@ -73,17 +73,9 @@ export function useMap() {
       }
       if (!loc) loc = await Location.getLastKnownPositionAsync({});
       if (loc?.coords) {
-        const { latitude, longitude } = loc.coords;
-        setCurrentLocation({ latitude, longitude });
-        setRegion({
-          latitude,
-          longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        });
-      } else {
-        setRegion(defaultRegion);
+        setCurrentLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
       }
+      setRegion(defaultRegion);
     })();
   }, []);
 
