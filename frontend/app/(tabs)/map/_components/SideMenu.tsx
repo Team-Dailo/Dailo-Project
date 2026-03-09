@@ -9,11 +9,15 @@ import {
   Pressable,
   Animated,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../../hooks/useAuth';
+import { API_BASE_URL } from '../../../../constants/api';
+
+const DEFAULT_PROFILE_IMAGE = require('../../../../assets/images/default-profile.png');
 import type { FestivalParticipation } from '../../../../services/festivalParticipationStorage';
 
 type Props = {
@@ -101,11 +105,21 @@ export function SideMenu({
             <View style={styles.profileCard}>
               <View style={styles.profileRow}>
                 <View style={styles.avatar}>
-                  <Ionicons
-                    name="person-outline"
-                    size={24}
-                    color="#9ca3af"
-                  />
+                  {isLoggedIn && user?.profileImageUrl ? (
+                    <Image
+                      source={{
+                        uri: user.profileImageUrl.startsWith('/')
+                          ? `${API_BASE_URL}${user.profileImageUrl}`
+                          : user.profileImageUrl,
+                      }}
+                      style={styles.avatarImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.avatarImage}>
+                      <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.avatarImage, styles.defaultProfileImageZoom]} resizeMode="cover" />
+                    </View>
+                  )}
                 </View>
                 <View style={styles.profileText}>
                   <Text style={styles.profileName}>
@@ -335,6 +349,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 13,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    overflow: "hidden",
+  },
+  defaultProfileImageZoom: {
+    position: "absolute",
+    transform: [{ scale: 1.35 }],
   },
   profileText: {
     flex: 1,

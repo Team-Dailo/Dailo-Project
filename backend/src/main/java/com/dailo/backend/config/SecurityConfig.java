@@ -77,7 +77,8 @@ public class SecurityConfig {
                         // 로그인, 회원가입
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // 행사 조회
+                        // 행사 조회 (좋아요 누른 목록은 인증 필요)
+                        .requestMatchers(HttpMethod.GET, "/api/events/liked").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
 
                         // 인증이 필요한 마이페이지 관련
