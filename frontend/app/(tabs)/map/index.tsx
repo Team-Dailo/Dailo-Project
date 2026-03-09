@@ -1,4 +1,3 @@
-// app/(tabs)/map/index.tsx
 import React, { useMemo, useState, useEffect, useRef, Component } from 'react';
 import {
   View,
@@ -20,23 +19,24 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
 
-import { MAP_UI } from '../../frontend/constants/colors';
-import { SPACING } from '../../frontend/constants/spacing';
-import { useAuth } from '../../frontend/hooks/useAuth';
-import { useMap } from '../../frontend/hooks/useMap';
-import { FilterChips } from '../../frontend/components/map/FilterChips';
-import { DirectionScreen } from '../../frontend/components/map/DirectionScreen';
-import { MapBottomSheet } from '../../frontend/components/map/MapBottomSheet';
-import { NaverMap } from '../../frontend/components/map/NaverMap';
-import type { NaverMapCamera } from '../../frontend/components/map/NaverMap';
-import { ScaleIcon } from '../../frontend/components/map/ScaleIcon';
-import { SideMenu } from '../../frontend/components/map/SideMenu';
+import { MAP_UI } from '../../../constants/colors';
+import { SPACING } from '../../../constants/spacing';
+import { useAuth } from '../../../hooks/useAuth';
+import { useMap } from '../../../hooks/useMap';
+import { FilterChips } from '../../../components/map/FilterChips';
+import { DirectionScreen } from '../../../components/map/DirectionScreen';
+import { MapBottomSheet } from '../../../components/map/MapBottomSheet';
+import { NaverMap } from '../../../components/map/NaverMap';
+import type { NaverMapCamera } from '../../../components/map/NaverMap';
+import { ScaleIcon } from '../../../components/map/ScaleIcon';
+import { SideMenu } from '../../../components/map/SideMenu';
 import {
   DateFilterModal,
   CategoryFilterModal,
   ScaleFilterModal,
   type DateRange,
-} from '../../frontend/components/map/FilterModals';
+} from '../../../components/map/FilterModals';
+import { FestivalParticipation } from '@/services/festivalParticipationStorage';
 
 type SheetMode = 'collapsed' | 'expanded';
 
@@ -70,8 +70,8 @@ class MapErrorBoundary extends Component<
 }
 
 export default function MapScreen() {
-  const festivalEntry = '17:30';
-  const festivalElapsed = '00:17:37'
+  const festivalEntry = null;
+  const festivalElapsed = '00:17:37';
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -86,12 +86,10 @@ export default function MapScreen() {
   const [filterChipsHeight, setFilterChipsHeight] = useState(0);
   const [collapsedSheetHeight, setCollapsedSheetHeight] = useState(0);
 
-  // ✅ 필터 상태들
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedScale, setSelectedScale] = useState('all');
 
-  // ✅ 상태 필터(예시: 오픈예정/진행중/종료) + 칩 표시값
   type StatusFilter = 'UPCOMING' | 'ONGOING' | 'ENDED';
   const STATUS_LABEL: Record<StatusFilter, string> = {
     UPCOMING: '오픈예정',
@@ -99,11 +97,11 @@ export default function MapScreen() {
     ENDED: '종료',
   };
 
-  // 기본값: 오픈예정 + 진행중
   const [statusFilter, setStatusFilter] = useState<StatusFilter[]>([
     'UPCOMING',
     'ONGOING',
   ]);
+
   const statusFilterLabel = useMemo(() => {
     if (!statusFilter.length) return '전체';
     return statusFilter.map((v) => STATUS_LABEL[v]).join(', ');
@@ -111,7 +109,6 @@ export default function MapScreen() {
 
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
 
-  // 축제 참여 배너 (로그인 + 축제 범위 진입 시 표시)
   const { isLoggedIn } = useAuth();
   const [isFestivalActive, setIsFestivalActive] = useState(false);
   const [festivalChipHeight, setFestivalChipHeight] = useState(0);
@@ -120,14 +117,11 @@ export default function MapScreen() {
     setIsFestivalActive(isLoggedIn);
   }, [isLoggedIn]);
 
-  // 범례(규모 설명)
   const [isScaleLegendVisible, setIsScaleLegendVisible] = useState(false);
 
-  // 전체화면 진입 모달
   const [isEntryModalVisible, setIsEntryModalVisible] = useState(false);
-  // 길찾기 화면
   const [isDirectionOpen, setIsDirectionOpen] = useState(false);
-  // 현재 위치 버튼 눌렀을 때 파란 동그라미 표시
+
   const [showMyLocationCircle, setShowMyLocationCircle] = useState(false);
   const [myLocationCircleCoords, setMyLocationCircleCoords] = useState<{
     latitude: number;
@@ -152,7 +146,9 @@ export default function MapScreen() {
     if (!region) {
       return { latitude: 37.5665, longitude: 126.978, zoom: 14 };
     }
+
     const zoom = 14 - Math.round(Math.log2(region.latitudeDelta / 0.01));
+
     return {
       latitude: region.latitude,
       longitude: region.longitude,
@@ -160,7 +156,6 @@ export default function MapScreen() {
     };
   }, [region?.latitude, region?.longitude, region?.latitudeDelta]);
 
-  // 에뮬/위치 못 받을 때 쓰는 기본 좌표 (서울 시청)
   const FALLBACK_COORDS = { latitude: 37.5665, longitude: 126.978 };
 
   const onFocusCurrentLocation = async () => {
@@ -213,19 +208,16 @@ export default function MapScreen() {
     setSheetMode('collapsed');
   };
 
-  // 규모·북마크: 필터 칩 줄 바로 아래 10dp, 같은 수평 라인
   const chipPush = isFestivalActive ? (festivalChipHeight || 60) + 10 : 0;
   const scaleTop = filterBottomY + 10 + chipPush;
   const scaleLeft = SPACING.scaleButtonLeft;
   const bookmarkTop = scaleTop;
   const bookmarkRight = SPACING.base;
 
-  // 규모 팝업 위치
   const SCALE_BTN_WIDTH = 56;
   const popupLeft = scaleLeft + SCALE_BTN_WIDTH + SPACING.popupGap;
   const popupTop = scaleTop + 2;
 
-  // 규모 설명 팝업 애니메이션
   const scaleAnim = useRef(new Animated.Value(0.96)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -278,13 +270,12 @@ export default function MapScreen() {
     []
   );
 
-  // 필터칩 위 여백
   const headerBottomGap = 12;
+
   useEffect(() => {
     setFilterBottomY(headerHeight + headerBottomGap + filterChipsHeight);
   }, [headerHeight, filterChipsHeight]);
 
-  // 폰 백버튼: 한 단계씩
   useEffect(() => {
     if (!isBottomSheetOpen) return;
 
@@ -301,6 +292,18 @@ export default function MapScreen() {
     const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
     return () => sub.remove();
   }, [isBottomSheetOpen, sheetMode, closeBottomSheet]);
+
+  const showFestivalListButton = !isBottomSheetOpen || sheetMode === 'collapsed';
+  const showCurrentLocationButton = !isBottomSheetOpen || sheetMode === 'expanded';
+
+  const floatingButtonsBottom =
+    isBottomSheetOpen && sheetMode === 'expanded'
+      ? Math.max(insets.bottom + 8, 34)
+      : !isBottomSheetOpen
+        ? Math.max(insets.bottom + 8, 34)
+        : collapsedSheetHeight > 0
+          ? collapsedSheetHeight + 12
+          : 230;
 
   return (
     <View style={styles.container}>
@@ -334,7 +337,10 @@ export default function MapScreen() {
             <Pressable
               style={[
                 StyleSheet.absoluteFill,
-                { zIndex: 5, bottom: collapsedSheetHeight > 0 ? collapsedSheetHeight + 10 : 280 },
+                {
+                  zIndex: 5,
+                  bottom: collapsedSheetHeight > 0 ? collapsedSheetHeight + 10 : 280,
+                },
               ]}
               onPress={() => {
                 setSheetMode('collapsed');
@@ -446,22 +452,16 @@ export default function MapScreen() {
           </View>
 
           <View
+            pointerEvents="box-none"
             style={[
               styles.listButtonWrapper,
               {
-                bottom:
-                  isBottomSheetOpen && sheetMode === 'expanded'
-                    ? 34
-                    : !isBottomSheetOpen
-                      ? 34
-                      : collapsedSheetHeight > 0
-                        ? collapsedSheetHeight + 10
-                        : 230,
+                bottom: floatingButtonsBottom,
               },
             ]}
           >
-            {!isBottomSheetOpen && (
-              <View style={styles.listButtonCenterFull}>
+            {showFestivalListButton && (
+              <View style={styles.listButtonCenterFull} pointerEvents="box-none">
                 <TouchableOpacity
                   style={styles.listButton}
                   activeOpacity={0.85}
@@ -472,7 +472,7 @@ export default function MapScreen() {
               </View>
             )}
 
-            {(!isBottomSheetOpen || sheetMode === 'expanded') && (
+            {showCurrentLocationButton && (
               <TouchableOpacity
                 style={styles.currentLocationButton}
                 activeOpacity={0.85}
@@ -757,7 +757,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 40,
   },
-  searchPlaceholder: { marginLeft: 6, fontSize: 13, color: '#9ca3af' },
+  searchPlaceholder: {
+    marginLeft: 6,
+    fontSize: 13,
+    color: '#9ca3af',
+  },
 
   mapContainer: {},
   mapFallback: {
@@ -883,10 +887,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     zIndex: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 44,
   },
   listButtonCenterFull: {
     position: 'absolute',
@@ -896,14 +900,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listButton: {
-    paddingHorizontal: 24,
-    height: 44,
-    borderRadius: 22,
+    minHeight: 44,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
     backgroundColor: '#2563eb',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 6,
   },
-  listButtonText: { color: '#ffffff', fontWeight: '600' },
+  listButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
+    lineHeight: 18,
+  },
   currentLocationButton: {
     position: 'absolute',
     right: 16,
@@ -1006,7 +1021,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
-  entryButtonText: { fontSize: 14, fontWeight: '600', color: '#4F46E5' },
+  entryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4F46E5',
+  },
 
   activeChip: {
     position: 'absolute',

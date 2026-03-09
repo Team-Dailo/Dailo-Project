@@ -7,11 +7,11 @@ import {
   NaverMapCircleOverlay,
   type NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
-import type { Event } from '../../../../types/event';
-import { MAP_UI } from '../../../../constants/colors';
+import type { Event } from '../../types/event';
+import { MAP_UI } from '../../constants/colors';
 
 /** 마커 아이콘 이미지 (흰색 실루엣 → tintColor로 규모별 색 적용) */
-const MARKER_ICON = require('../../../../assets/images/marker-pin.png');
+const MARKER_ICON = require('../../assets/images/marker-pin.png');
 const MARKER_WIDTH = 36;
 const MARKER_HEIGHT = 48;
 // 바깥 테두리/흰색 바디용 스케일 (중심 기준으로 키움)

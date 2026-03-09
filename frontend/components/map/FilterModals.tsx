@@ -11,9 +11,9 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MAP_UI } from '../../../../constants/colors';
+import { MAP_UI } from '../../constants/colors';
 
-const MARKER_ICON = require('../../../../assets/images/marker-pin.png');
+const MARKER_ICON = require('../../assets/images/marker-pin.png');
 
 type CommonProps = {
   visible: boolean;
