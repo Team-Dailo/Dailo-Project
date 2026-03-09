@@ -47,7 +47,7 @@ jobs:
       # 3) Gradle 실행 권한 부여
       - name: Grant execute permission for gradlew
         working-directory: ./backend
-        run: chmod +x gradlew
+        run: chmod +x gradlew 
       
       # 4) 배포용 산출물 빌드 (테스트는 PR CI에서 검증)
       - name: Build deploy artifact
