@@ -49,10 +49,10 @@ jobs:
         working-directory: ./backend
         run: chmod +x gradlew
       
-      # 4) 빌드 + 테스트 실행
-      - name: Build with Gradle
+      # 4) 배포용 산출물 빌드 (테스트는 PR CI에서 검증)
+      - name: Build deploy artifact
         working-directory: ./backend
-        run: ./gradlew clean build
+        run: ./gradlew clean build -x test
 
       # 5) AWS 인증
       - name: Configure AWS credentials
