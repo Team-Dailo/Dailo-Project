@@ -323,13 +323,21 @@ export async function deleteComment(commentId: number | string): Promise<void> {
 /** 게시글 좋아요 토글 (로그인 필요). 기록 저장 후 { liked, likeCount } 반환 */
 export async function togglePostLike(
   postId: number | string,
-  userId?: number | null
+  _userId?: number | null
 ): Promise<{ liked: boolean; likeCount: number }> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
     method: 'POST',
     headers,
   });
-  if (!res.ok) throw new Error(`togglePostLike failed: ${res.status}`);
-  return res.json();
+  const text = await res.text();
+  if (!res.ok) {
+    const msg = res.status === 401 ? '로그인이 만료되었습니다.' : `좋아요 처리 실패 (${res.status})`;
+    throw new Error(msg);
+  }
+  try {
+    return JSON.parse(text) as { liked: boolean; likeCount: number };
+  } catch {
+    throw new Error('서버 응답 형식 오류입니다. 백엔드 주소와 API를 확인해 주세요.');
+  }
 }

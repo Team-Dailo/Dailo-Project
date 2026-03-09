@@ -36,7 +36,6 @@ import { DirectionScreen } from './_components/DirectionScreen';
 import { MapBottomSheet } from './_components/MapBottomSheet';
 import { NaverMap } from './_components/NaverMap';
 import type { NaverMapCamera } from './_components/NaverMap';
-import { ScaleIcon } from './_components/ScaleIcon';
 import { SideMenu } from './_components/SideMenu';
 import {
   DateFilterModal,
@@ -250,11 +249,34 @@ export default function MapScreen() {
     }
   }, [demoLocation, currentLocation, isLoggedIn]);
 
-  // 지도 탭에 들어올 때마다 주변 행사 캐시를 비워서 현재 위치로 구역 판정을 다시 함 (축제 구역에 있어도 참여 중이 안 뜨는 경우 방지)
+  const chungjuRegion = useMemo(
+    () => ({
+      latitude: REGION_CENTERS.충주.latitude,
+      longitude: REGION_CENTERS.충주.longitude,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05,
+    }),
+    []
+  );
+
+  // 지도 탭에 들어올 때마다 충주로 이동 + 주변 행사 캐시 비움
   useFocusEffect(
     useCallback(() => {
       setEventsNearMe(null);
-    }, [])
+      setRegion(chungjuRegion);
+      const tid = setTimeout(() => {
+        if (mapRef.current) {
+          mapRef.current.animateCameraTo({
+            latitude: chungjuRegion.latitude,
+            longitude: chungjuRegion.longitude,
+            zoom: 14,
+            duration: 400,
+            easing: 'EaseOut',
+          });
+        }
+      }, 80);
+      return () => clearTimeout(tid);
+    }, [chungjuRegion])
   );
 
   // 행사 마커로부터 ZONE_RADIUS_KM(200m) 이내에 내 위치가 있으면 축제 구역 진입 → 진입 모달 + 참여 중 + 타이머 저장
@@ -1231,7 +1253,11 @@ export default function MapScreen() {
               hitSlop={SPACING.hitSlop}
             >
               <View style={styles.scaleButtonIconArea}>
-                <ScaleIcon />
+                <Image
+                  source={require('../../../assets/images/scale.png')}
+                  style={styles.scaleButtonImage}
+                  resizeMode="contain"
+                />
               </View>
               <Text style={styles.scaleButtonText}>규모</Text>
             </Pressable>
@@ -1845,9 +1871,10 @@ const styles = StyleSheet.create({
     width: 56,
     height: 72,
     borderRadius: 14,
-    paddingVertical: 2,
+    paddingTop: 6,
+    paddingBottom: -4,
     paddingHorizontal: 0,
-    gap: 8,
+    gap: 0,
     elevation: 8,
     shadowColor: 'rgba(0,0,0,0.15)',
     shadowOpacity: 1,
@@ -1857,6 +1884,10 @@ const styles = StyleSheet.create({
   scaleButtonIconArea: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  scaleButtonImage: {
+    width: 40,
+    height: 40,
   },
   scaleButtonText: {
     fontSize: 11,

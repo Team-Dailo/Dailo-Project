@@ -46,23 +46,24 @@ export default function MyPageScreen() {
         <View style={styles.profileCard}>
           <View style={styles.profileLeft}>
             {(() => {
-              const placeholder = "https://via.placeholder.com/64x64.png?text=👤";
-              let baseUri = placeholder;
-              if (isLoggedIn && user?.profileImageUrl) {
-                baseUri = user.profileImageUrl.startsWith("/")
-                  ? `${API_BASE_URL}${user.profileImageUrl}`
-                  : user.profileImageUrl;
+              const defaultProfile = require("../../../assets/images/default-profile.png");
+              const profileUrl = user?.profileImageUrl?.trim();
+              if (!isLoggedIn || !profileUrl) {
+                return (
+                  <View style={styles.avatar}>
+                    <Image source={defaultProfile} style={[styles.avatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
+                  </View>
+                );
               }
+              const baseUri = profileUrl.startsWith("http") ? profileUrl : profileUrl.startsWith("/") ? `${API_BASE_URL}${profileUrl}` : profileUrl;
               const version = user?.profileImageVersion ?? 0;
-              const finalUri =
-                baseUri === placeholder
-                  ? placeholder
-                  : `${baseUri}${baseUri.includes("?") ? "&" : "?"}v=${version}`;
+              const finalUri = `${baseUri}${baseUri.includes("?") ? "&" : "?"}v=${version}`;
               return (
                 <Image
                   key={finalUri}
                   source={{ uri: finalUri }}
                   style={styles.avatar}
+                  resizeMode="cover"
                 />
               );
             })()}
@@ -112,19 +113,8 @@ export default function MyPageScreen() {
           </View>
         )}
 
-        {/* 섹션: 활동 기록 (비로그인 시 로그인 화면으로) */}
+        {/* 섹션: 활동 기록 (요청 순서) */}
         <Section title="활동 기록">
-          {/* 참여 서버 기록 비노출
-          <MenuItem
-            icon="list-outline"
-            label="참여 서버 기록"
-            onPress={() =>
-              isLoggedIn
-                ? router.push("/(tabs)/mypage/participation-history")
-                : router.push("/login")
-            }
-          />
-          */}
           <MenuItem
             icon="calendar-outline"
             label="참여한 축제"
@@ -134,45 +124,21 @@ export default function MyPageScreen() {
                 : router.push("/login")
             }
           />
-          {/* 체류 미션 기록 메뉴 비노출 처리
-          <MenuItem
-            icon="flag-outline"
-            label="체류 미션 기록"
-            onPress={() =>
-              isLoggedIn
-                ? router.push("/(tabs)/mypage/stay-mission-history")
-                : router.push("/login")
-            }
-          />
-          */}
-          <MenuItem
-            icon="bookmark-outline"
-            label="저장한 게시글"
-            onPress={() =>
-              isLoggedIn
-                ? router.push("/(tabs)/mypage/saved-posts")
-                : router.push("/login")
-            }
-          />
-          <MenuItem
-            icon="document-text-outline"
-            label="내가 쓴 게시글"
-            onPress={() =>
-              isLoggedIn
-                ? router.push("/(tabs)/mypage/board-history")
-                : router.push("/login")
-            }
-          />
-        </Section>
-
-        {/* 섹션: 즐겨찾기 */}
-        <Section title="즐겨찾기">
           <MenuItem
             icon="bookmark-outline"
             label="저장한 축제"
             onPress={() =>
               isLoggedIn
                 ? router.push("/(tabs)/mypage/saved-festivals")
+                : router.push("/login")
+            }
+          />
+          <MenuItem
+            icon="heart-outline"
+            label="좋아요 누른 축제"
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/liked-festivals")
                 : router.push("/login")
             }
           />
@@ -191,6 +157,33 @@ export default function MyPageScreen() {
             onPress={() =>
               isLoggedIn
                 ? router.push("/(tabs)/mypage/saved-reminders")
+                : router.push("/login")
+            }
+          />
+          <MenuItem
+            icon="document-text-outline"
+            label="내가 쓴 게시글"
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/board-history")
+                : router.push("/login")
+            }
+          />
+          <MenuItem
+            icon="bookmark-outline"
+            label="저장한 게시글"
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/saved-posts")
+                : router.push("/login")
+            }
+          />
+          <MenuItem
+            icon="heart-outline"
+            label="좋아요 누른 게시글"
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/liked-posts")
                 : router.push("/login")
             }
           />
@@ -325,6 +318,12 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 26,
     backgroundColor: "#E5E7EB",
+    overflow: "hidden",
+  },
+  /** 기본 프로필 이미지 내부 원이 바깥 원을 꽉 채우도록 확대 */
+  defaultProfileImageZoom: {
+    position: "absolute",
+    transform: [{ scale: 1.35 }],
   },
   profileText: {
     justifyContent: "center",
