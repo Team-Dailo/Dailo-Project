@@ -65,11 +65,11 @@ jobs:
       # 6) 인프라 준비 상태 확인 (ECS 클러스터)
       - name: Check Infrastructure Readiness
         run: |
-          echo "Checking if ECS cluster 'dailo-prod-cluster' exists and is ACTIVE..."
-          CLUSTER_STATUS=$(aws ecs describe-clusters --clusters dailo-prod-cluster --query "clusters[0].status" --output text)
+          echo "Checking if ECS cluster 'dailo-cluster' exists and is ACTIVE..."
+          CLUSTER_STATUS=$(aws ecs describe-clusters --clusters dailo-cluster --query "clusters[0].status" --output text)
           
           if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
-            echo "Error: ECS Cluster 'dailo-prod-cluster' is not ACTIVE or does not exist."
+            echo "Error: ECS Cluster 'dailo-cluster' is not ACTIVE or does not exist."
             exit 1
           fi
 
@@ -108,8 +108,8 @@ jobs:
       - name: Download current task definition
         run: |
           CURRENT_TD_ARN=$(aws ecs describe-services \
-            --cluster dailo-prod-cluster \
-            --services dailo-prod-service \
+            --cluster dailo-cluster \
+            --services dailo-service \
             --query "services[0].taskDefinition" \
             --output text)
 
@@ -131,6 +131,6 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: dailo-prod-service
-          cluster: dailo-prod-cluster
+          service: dailo-service
+          cluster: dailo-cluster
           wait-for-service-stability: true
