@@ -33,14 +33,14 @@ type Props = {
   visible: boolean;
   event: Event | null;
   mode: SheetMode;
-  filterBottomY: number; // 카테고리 칩 영역의 아래 y좌표
+  filterBottomY: number;
   onClose: () => void;
   onPressMore: () => void;
   onPressDirection: () => void;
-  onPressBack: () => void; // 한 단계씩 뒤로 (expanded→collapsed, collapsed→닫기)
-  onCollapsedHeightChange?: (height: number) => void; // 작은 카드 영역 높이 (현재 위치 버튼 위치용)
-  renderRightButton?: () => React.ReactNode; // 작은 카드 시 축제 목록 보기와 같은 줄 오른쪽 (현재 위치 등)
-  onPressCurrentLocation?: () => void; // 현재 위치 버튼 직접 콜백 (터치 보장용)
+  onPressBack: () => void;
+  onCollapsedHeightChange?: (height: number) => void;
+  renderRightButton?: () => React.ReactNode;
+  onPressCurrentLocation?: () => void;
 };
 
 export function MapBottomSheet({
@@ -54,7 +54,6 @@ export function MapBottomSheet({
   onPressBack,
   onCollapsedHeightChange,
   renderRightButton,
-  onPressCurrentLocation,
 }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -70,43 +69,63 @@ export function MapBottomSheet({
 
   const hasStart = event.startAt && !Number.isNaN(new Date(event.startAt).getTime());
   const hasEnd = event.endAt && !Number.isNaN(new Date(event.endAt).getTime());
+
   const dateText =
     hasStart && hasEnd
       ? formatDateTimeRange(event.startAt, event.endAt)
       : hasStart
         ? formatDate(event.startAt)
         : '날짜 없음';
+
   const timeText =
     hasStart && hasEnd
       ? formatTimeRange(event.startAt, event.endAt)
       : hasStart
         ? formatTime(event.startAt)
         : '시간 없음';
+
   const placeText = event.address || event.placeName || '위치 없음';
   const categoryLabel =
     (event.category && CATEGORY_LABEL[event.category as EventCategory]) ?? '기타';
+
   const posterUri =
     event.thumbnailUrl ??
     'https://via.placeholder.com/700x380.png?text=Poster';
 
-  // 큰 카드 상단 위치: 필터 칩 아래 + 8px 정도 여백
   const expandedTop = filterBottomY + 8;
+
+  // 너무 큰 하단 여백 방지
+  const collapsedBottomSpacing = Math.min(insets.bottom, 10);
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
       {isCollapsed ? (
-        // 🔹 작은 카드 모드 (축제목록 버튼 + 작은 카드 세트)
         <View
           style={[
             styles.collapsedContainer,
-            { paddingBottom: insets.bottom },
+            { paddingBottom: collapsedBottomSpacing },
           ]}
           onLayout={(e) =>
             onCollapsedHeightChange?.(e.nativeEvent.layout.height)
           }
         >
-          {/* 축제 목록 보기·현재위치·확대축소는 지도 오버레이에서 카드 위로 올려서 표시 → 여기서는 작은 카드만 */}
-          {/* 작은 카드 */}
+          {/* 필요하면 여기 안에 '축제 목록 보기' 버튼을 같이 넣는 게 제일 안정적 */}
+          {/* 
+          <View style={styles.listButtonRowOnSheet}>
+            <View style={styles.listButtonCenterOnSheet}>
+              <TouchableOpacity
+                style={styles.listButton}
+                activeOpacity={0.85}
+                onPress={onPressBack}
+              >
+                <Text style={styles.listButtonText}>축제 목록 보기</Text>
+              </TouchableOpacity>
+            </View>
+
+            {renderRightButton?.()}
+          </View>
+          */}
+
           <View style={styles.cardSmall}>
             <View style={styles.cardHeader}>
               <Text style={styles.category}>{categoryLabel}</Text>
@@ -118,13 +137,17 @@ export function MapBottomSheet({
               <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
               <Text style={styles.metaText}>{dateText}</Text>
             </View>
+
             <View style={styles.metaRow}>
               <Ionicons name="time-outline" size={14} color="#9CA3AF" />
               <Text style={styles.metaText}>{timeText}</Text>
             </View>
+
             <View style={styles.metaRow}>
               <Ionicons name="location-outline" size={14} color="#9CA3AF" />
-              <Text style={styles.metaText} numberOfLines={2}>{placeText}</Text>
+              <Text style={styles.metaText} numberOfLines={2}>
+                {placeText}
+              </Text>
             </View>
 
             <View style={styles.smallBottomRow}>
@@ -140,7 +163,6 @@ export function MapBottomSheet({
           </View>
         </View>
       ) : (
-        // 🔹 큰 카드 모드 (카테고리 칩 바로 아래부터 시작, 내부 스크롤)
         <View
           style={[
             styles.largeContainer,
@@ -149,7 +171,7 @@ export function MapBottomSheet({
               left: 16,
               right: 16,
               top: expandedTop,
-              bottom: insets.bottom,
+              bottom: 8,
             },
           ]}
         >
@@ -163,6 +185,7 @@ export function MapBottomSheet({
             </View>
 
             <Text style={styles.title}>{event.title}</Text>
+
             {placeText !== '위치 없음' ? (
               <Text style={styles.subtitle} numberOfLines={1}>
                 {placeText}
@@ -173,23 +196,23 @@ export function MapBottomSheet({
               <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
               <Text style={styles.metaText}>{dateText}</Text>
             </View>
+
             <View style={styles.metaRow}>
               <Ionicons name="time-outline" size={14} color="#9CA3AF" />
               <Text style={styles.metaText}>{timeText}</Text>
             </View>
+
             <View style={styles.metaRow}>
               <Ionicons name="location-outline" size={14} color="#9CA3AF" />
               <Text style={styles.metaText}>{placeText}</Text>
             </View>
 
-            {/* 상세 내용은 상세보기에서 */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 자세한 일정과 소개는 아래 상세보기에서 확인할 수 있습니다.
               </Text>
             </View>
 
-            {/* 포스터 영역: 행사 썸네일(포스터) 이미지 표시 */}
             <View style={styles.posterPlaceholder}>
               <Image
                 source={{ uri: posterUri }}
@@ -199,8 +222,12 @@ export function MapBottomSheet({
             </View>
           </ScrollView>
 
-          {/* 하단 버튼 (길찾기 / 상세보기) */}
-          <View style={styles.largeButtonRow}>
+          <View
+            style={[
+              styles.largeButtonRow,
+              { paddingBottom: Math.max(insets.bottom, 10) },
+            ]}
+          >
             <TouchableOpacity
               style={[styles.bottomBtn, styles.directionBtn]}
               onPress={onPressDirection}
@@ -209,6 +236,7 @@ export function MapBottomSheet({
               <Ionicons name="navigate-outline" size={16} color="#4C8BF5" />
               <Text style={styles.directionText}>길찾기</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={[styles.bottomBtn, styles.detailBtn]}
               onPress={handlePressDetail}
@@ -224,7 +252,6 @@ export function MapBottomSheet({
 }
 
 const styles = StyleSheet.create({
-  // 전체 오버레이 (지도 위에 겹치는 영역)
   overlay: {
     position: 'absolute',
     left: 0,
@@ -235,7 +262,6 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
   },
 
-  // 공통 텍스트 스타일
   category: {
     fontSize: 12,
     color: '#6B7280',
@@ -260,43 +286,39 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: 12,
     color: '#4B5563',
+    flexShrink: 1,
   },
 
-  // 🔹 작은 카드 모드
   collapsedContainer: {
     marginHorizontal: 16,
   },
+
   listButtonRowOnSheet: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10, // 파란 버튼과 카드 사이 간격
+    marginBottom: 10,
   },
   listButtonCenterOnSheet: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  currentLocationButtonInSheet: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#E5EDFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
   listButton: {
-    paddingHorizontal: 24,
-    height: 44,
-    borderRadius: 22,
+    minHeight: 44,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
     backgroundColor: '#2563eb',
     justifyContent: 'center',
     alignItems: 'center',
   },
   listButtonText: {
     color: '#ffffff',
+    fontSize: 14,
     fontWeight: '600',
+    lineHeight: 18,
   },
+
   cardSmall: {
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
@@ -320,21 +342,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   moreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 999,
+    minHeight: 34,
     paddingHorizontal: 14,
-    height: 34,
+    paddingVertical: 8,
+    borderRadius: 999,
     backgroundColor: '#E5EDFF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   moreButtonText: {
-    marginLeft: 4,
     fontSize: 13,
     color: '#4C8BF5',
     fontWeight: '600',
+    lineHeight: 16,
   },
 
-  // 🔹 큰 카드 모드
   largeContainer: {
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
@@ -349,8 +371,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   largeContent: {
-    paddingHorizontal: 18, // 좌우 여백
-    paddingTop: 14,        // 위쪽 여백
+    paddingHorizontal: 18,
+    paddingTop: 14,
     paddingBottom: 16,
   },
   section: {
@@ -360,16 +382,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#374151',
     marginBottom: 10,
-  },
-  bulletTitle: {
-    fontSize: 13,
-    color: '#111827',
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  bulletText: {
-    fontSize: 12,
-    color: '#4B5563',
+    lineHeight: 19,
   },
   posterPlaceholder: {
     marginTop: 18,
@@ -384,14 +397,15 @@ const styles = StyleSheet.create({
   largeButtonRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
   },
   bottomBtn: {
     flex: 1,
-    height: 44,
+    minHeight: 44,
+    paddingVertical: 10,
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
@@ -399,21 +413,23 @@ const styles = StyleSheet.create({
   },
   directionBtn: {
     backgroundColor: '#E5EDFF',
-    marginRight: 8,
+    marginRight: 6,
   },
   detailBtn: {
     backgroundColor: '#4C8BF5',
-    marginLeft: 8,
+    marginLeft: 6,
   },
   directionText: {
     marginLeft: 4,
     fontSize: 14,
     color: '#4C8BF5',
     fontWeight: '600',
+    lineHeight: 18,
   },
   detailText: {
     fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '600',
+    lineHeight: 18,
   },
 });
