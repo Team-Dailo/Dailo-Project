@@ -147,7 +147,7 @@ module "ecs" {
     { name = "MAIL_PORT", value = "587" },
     { name = "MAIL_USERNAME", value = "dailoappco@gmail.com" },
     { name = "MAIL_FROM", value = "dailoappco@gmail.com" },
-    { name = "KAKAO_CLIENT_ID", value = "c031f9a2eed5d" },
+    { name = "KAKAO_CLIENT_ID", value = "c031f9a2eed5d03cdde3d299d0babc48" },
   ]
     container_secrets = [
     {
