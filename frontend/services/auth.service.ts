@@ -8,6 +8,8 @@ const USER_EMAIL_KEY = '@dailo/userEmail';
 const USER_ID_KEY = '@dailo/userId';
 const NICKNAME_MAP_KEY = '@dailo/emailToNickname';
 
+
+
 /** 이 이메일로 로그인한 경우 마이페이지에 관리자 메뉴 표시 (백엔드 app.admin.emails와 동일하게) */
 export const ADMIN_EMAIL = 'yunajo5858@gmail.com';
 
@@ -347,15 +349,30 @@ export async function getEffectiveUserId(): Promise<number> {
  */
 export async function getMe(): Promise<MemberResponseDto | null> {
   const token = await getAccessToken();
+  console.log('[getMe] token exists:', !!token);
+
   if (!token) return null;
+
   try {
     const url = `${API_BASE_URL}/api/members/me?_t=${Date.now()}`;
+    console.log('[getMe] request url:', url);
+
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
+
+    console.log('[getMe] response status:', res.status);
+
+    const text = await res.text();
+    console.log('[getMe] response text:', text);
+
     if (!res.ok) return null;
-    return (await res.json()) as MemberResponseDto;
-  } catch {
+
+    const json = JSON.parse(text) as MemberResponseDto;
+    console.log('[getMe] response json:', json);
+    return json;
+  } catch (e) {
+    console.error('[getMe] fetch error:', e);
     return null;
   }
 }
@@ -435,18 +452,43 @@ export async function uploadProfileImage(imageUri: string): Promise<string> {
  * @throws Error 서버 오류 또는 카카오 토큰 무효 시
  */
 export async function getKakaoNativeTokenDto(kakaoAccessToken: string): Promise<TokenDto> {
-  const res = await fetch(`${API_BASE_URL}/api/auth/kakao/native`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accessToken: kakaoAccessToken }),
-  });
+  console.log('[getKakaoNativeTokenDto] API_BASE_URL:', API_BASE_URL);
+  console.log('[getKakaoNativeTokenDto] request url:', `${API_BASE_URL}/api/auth/kakao/native`);
+  console.log('[getKakaoNativeTokenDto] accessToken exists:', !!kakaoAccessToken);
+  console.log('[getKakaoNativeTokenDto] accessToken length:', kakaoAccessToken?.length ?? 0);
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/auth/kakao/native`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: kakaoAccessToken }),
+    });
+  } catch (e) {
+    console.error('[getKakaoNativeTokenDto] fetch error:', e);
+    const msg = e instanceof Error ? e.message : '';
+    if (/failed to fetch|network request failed|network error/i.test(msg)) {
+      throw new Error(
+        '서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해 주세요. 에뮬레이터에서는 API 주소가 10.0.2.2:8080 인지 확인하세요.'
+      );
+    }
+    throw e;
+  }
+
+  console.log('[getKakaoNativeTokenDto] response status:', res.status);
+
   const text = await res.text();
+  console.log('[getKakaoNativeTokenDto] response text:', text);
+
   if (!res.ok) {
     throw new Error(getErrorMessage(text, res.status, '카카오 로그인에 실패했습니다.'));
   }
-  return JSON.parse(text) as TokenDto;
-}
 
+  const parsed = JSON.parse(text) as TokenDto;
+  console.log('[getKakaoNativeTokenDto] parsed success:', parsed);
+
+  return parsed;
+}
 /**
  * 소셜(OAuth2) 로그인용: 백엔드에서 받은 TokenDto를 저장한 뒤 /api/members/me 로 사용자 정보를 조회해 AuthUser 형태의 정보를 반환.
  */
@@ -455,18 +497,25 @@ export async function loginWithSocialToken(
 ): Promise<{ name: string; id?: number; email: string; role?: string; profileImageUrl?: string | null }> {
   const accessToken = tokenDto.accessToken;
   const refreshToken = tokenDto.refreshToken ?? '';
+
+  console.log('[loginWithSocialToken] start');
+  console.log('[loginWithSocialToken] accessToken exists:', !!accessToken);
+  console.log('[loginWithSocialToken] refreshToken exists:', !!refreshToken);
+
   if (!accessToken || !accessToken.trim()) {
     throw new Error('로그인 응답에 액세스 토큰이 없습니다.');
   }
 
-  // 토큰 저장
   await AsyncStorage.multiSet([
     [ACCESS_TOKEN_KEY, String(accessToken)],
     [REFRESH_TOKEN_KEY, String(refreshToken)],
   ]);
 
-  // 내 정보 조회
+  console.log('[loginWithSocialToken] token stored, calling getMe');
+
   const me = await getMe();
+  console.log('[loginWithSocialToken] getMe result:', me);
+
   if (!me || !me.email) {
     throw new Error('회원 정보를 불러올 수 없습니다.');
   }
