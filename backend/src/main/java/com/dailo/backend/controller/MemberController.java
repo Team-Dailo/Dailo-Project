@@ -25,7 +25,15 @@ public class MemberController {
 
     @GetMapping("/me")
     public ResponseEntity<MemberResponseDto> getMyProfile(@AuthenticationPrincipal UserDetails userDetails) {
+        System.out.println("[MemberController.getMyProfile] userDetails = " + userDetails);
+
+        if (userDetails == null) {
+            throw new RuntimeException("인증된 사용자 정보가 없습니다.");
+        }
+
         String email = userDetails.getUsername();
+        System.out.println("[MemberController.getMyProfile] email = " + email);
+
         return ResponseEntity.ok(memberService.getMyProfile(email));
     }
 
