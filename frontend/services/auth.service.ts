@@ -8,8 +8,6 @@ const USER_EMAIL_KEY = '@dailo/userEmail';
 const USER_ID_KEY = '@dailo/userId';
 const NICKNAME_MAP_KEY = '@dailo/emailToNickname';
 
-
-
 /** 이 이메일로 로그인한 경우 마이페이지에 관리자 메뉴 표시 (백엔드 app.admin.emails와 동일하게) */
 export const ADMIN_EMAIL = 'yunajo5858@gmail.com';
 
@@ -47,16 +45,10 @@ export type MemberResponseDto = {
   id?: number;
   email: string;
   nickname: string;
-  /** USER | ADMIN - 마이페이지 관리자 메뉴 노출 여부 */
   role?: string;
-  /** 프로필 사진 URL (내정보 조회 시) */
   profileImageUrl?: string | null;
 };
 
-/**
- * 로그인 API 호출
- * POST /api/auth/login - 토큰 + 닉네임 반환
- */
 export async function loginApi(body: LoginRequest): Promise<LoginResponseDto> {
   let res: Response;
   try {
@@ -74,9 +66,10 @@ export async function loginApi(body: LoginRequest): Promise<LoginResponseDto> {
     }
     throw e;
   }
+
   const text = await res.text();
+
   if (!res.ok) {
-    // 백엔드에서 구체적인 메시지를 반환하므로 그대로 사용
     const fallback =
       res.status === 401
         ? '이메일 또는 비밀번호가 올바르지 않습니다.'
@@ -85,30 +78,29 @@ export async function loginApi(body: LoginRequest): Promise<LoginResponseDto> {
           : `로그인 실패 (${res.status})`;
     throw new Error(getErrorMessage(text, res.status, fallback));
   }
+
   const json = JSON.parse(text) as LoginResponseDto & Record<string, unknown>;
   if (json.requiresEmailVerification) {
-    const msg = (json.message && String(json.message).trim()) || '로그인 확인 이메일을 발송했습니다. Gmail에서 확인 링크를 눌러 주세요.';
+    const msg =
+      (json.message && String(json.message).trim()) ||
+      '로그인 확인 이메일을 발송했습니다. Gmail에서 확인 링크를 눌러 주세요.';
     throw new Error('EMAIL_VERIFICATION_REQUIRED:' + msg);
   }
+
   return json;
 }
 
-/**
- * 회원가입용 이메일 인증번호 발송
- * POST /api/auth/email/send?email=...
- */
 export async function sendSignupEmail(email: string): Promise<void> {
   const trimmed = email.trim();
   if (!trimmed) {
     throw new Error('이메일을 입력해 주세요.');
   }
+
   let res: Response;
   try {
     res = await fetch(
       `${API_BASE_URL}/api/auth/email/send?email=${encodeURIComponent(trimmed)}`,
-      {
-        method: 'POST',
-      }
+      { method: 'POST' }
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : '';
@@ -119,6 +111,7 @@ export async function sendSignupEmail(email: string): Promise<void> {
     }
     throw e;
   }
+
   if (!res.ok) {
     const text = await res.text();
     const fallback =
@@ -129,9 +122,6 @@ export async function sendSignupEmail(email: string): Promise<void> {
   }
 }
 
-/**
- * 백엔드 에러 응답에서 메시지 추출 (Spring Boot JSON 형식)
- */
 function getErrorMessage(text: string, status: number, fallback: string): string {
   try {
     const json = JSON.parse(text) as { message?: string; error?: string };
@@ -144,10 +134,6 @@ function getErrorMessage(text: string, status: number, fallback: string): string
   return fallback;
 }
 
-/**
- * 회원가입 API 호출
- * POST /api/auth/signup
- */
 export async function signupApi(body: SignupRequest): Promise<MemberResponseDto> {
   let res: Response;
   try {
@@ -165,6 +151,7 @@ export async function signupApi(body: SignupRequest): Promise<MemberResponseDto>
     }
     throw e;
   }
+
   const text = await res.text();
   if (!res.ok) {
     const fallback =
@@ -177,12 +164,10 @@ export async function signupApi(body: SignupRequest): Promise<MemberResponseDto>
             : `회원가입에 실패했습니다. (${res.status})`;
     throw new Error(getErrorMessage(text, res.status, fallback));
   }
+
   return JSON.parse(text) as MemberResponseDto;
 }
 
-/**
- * 회원가입 시 이메일–닉네임 매핑 저장 (프로필 표시용)
- */
 export async function saveNicknameForEmail(email: string, nickname: string): Promise<void> {
   const raw = await AsyncStorage.getItem(NICKNAME_MAP_KEY);
   const map: Record<string, string> = raw ? JSON.parse(raw) : {};
@@ -190,9 +175,6 @@ export async function saveNicknameForEmail(email: string, nickname: string): Pro
   await AsyncStorage.setItem(NICKNAME_MAP_KEY, JSON.stringify(map));
 }
 
-/**
- * 저장된 닉네임 반환 (없으면 null)
- */
 export async function getStoredNickname(email: string): Promise<string | null> {
   const raw = await AsyncStorage.getItem(NICKNAME_MAP_KEY);
   if (!raw) return null;
@@ -200,14 +182,8 @@ export async function getStoredNickname(email: string): Promise<string | null> {
   return map[email.trim()]?.trim() || null;
 }
 
-/**
- * 로그인 처리: API 호출 후 토큰·이메일 저장
- * @returns 표시명 + 회원 id (게시판 기록 등에서 사용)
- */
-/** 로그인 응답 JSON에서 회원 id 추출 (userId / user_id / id 모두 확인) */
 function parseUserIdFromLoginResponse(dto: Record<string, unknown>): number | undefined {
-  const raw =
-    dto['userId'] ?? dto['user_id'] ?? dto['id'];
+  const raw = dto['userId'] ?? dto['user_id'] ?? dto['id'];
   const n = typeof raw === 'number' ? raw : Number(raw);
   return Number.isInteger(n) && n > 0 ? n : undefined;
 }
@@ -218,14 +194,22 @@ export async function login(
 ): Promise<{ name: string; id?: number; email: string }> {
   const dto = await loginApi({ email: email.trim(), password });
   const trimmed = email.trim();
+
   const tokenDto = (dto as Record<string, unknown>).tokenDto ?? (dto.accessToken ? dto : null);
-  const token = tokenDto && typeof tokenDto === 'object' && tokenDto !== null
-    ? (tokenDto as Record<string, unknown>).accessToken as string
-    : (dto as Record<string, unknown>).accessToken ?? dto.accessToken;
+  const token =
+    tokenDto && typeof tokenDto === 'object' && tokenDto !== null
+      ? ((tokenDto as Record<string, unknown>).accessToken as string)
+      : ((dto as Record<string, unknown>).accessToken ?? dto.accessToken);
+
   if (!token || typeof token !== 'string' || !token.trim()) {
     throw new Error('로그인 응답에 토큰이 없습니다. 서버 설정을 확인해 주세요.');
   }
-  const raw = tokenDto && typeof tokenDto === 'object' ? (tokenDto as Record<string, unknown>) : (dto as Record<string, unknown>);
+
+  const raw =
+    tokenDto && typeof tokenDto === 'object'
+      ? (tokenDto as Record<string, unknown>)
+      : (dto as Record<string, unknown>);
+
   const refresh = (raw.refreshToken as string) ?? '';
   const dtoAny = dto as Record<string, unknown>;
   const id = parseUserIdFromLoginResponse(dtoAny);
@@ -235,26 +219,30 @@ export async function login(
     [REFRESH_TOKEN_KEY, refresh],
     [USER_EMAIL_KEY, trimmed],
   ];
+
   if (id != null && id > 0) {
     storageItems.push([USER_ID_KEY, String(id)]);
   }
+
   await AsyncStorage.multiSet(storageItems);
+
   if (id != null && id > 0) {
     await setStoredUserId(id);
   } else {
     await AsyncStorage.removeItem(USER_ID_KEY);
   }
+
   const name =
     (dto.nickname && dto.nickname.trim()) ||
     (await getStoredNickname(trimmed)) ||
     trimmed.split('@')[0] ||
     trimmed ||
     '사용자';
+
   await saveNicknameForEmail(trimmed, name);
   return { name, id, email: trimmed };
 }
 
-/** 이메일 확인 링크에서 받은 토큰으로 로그인 완료 (딥링크용) */
 export async function exchangeLoginToken(
   oneTimeToken: string
 ): Promise<{ name: string; id?: number; email: string; role?: string; profileImageUrl?: string | null }> {
@@ -263,30 +251,42 @@ export async function exchangeLoginToken(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token: oneTimeToken }),
   });
+
   const text = await res.text();
   if (!res.ok) {
     throw new Error(getErrorMessage(text, res.status, '로그인 확인이 만료되었거나 이미 사용된 링크입니다.'));
   }
+
   const tokenDto = JSON.parse(text) as TokenDto;
   await AsyncStorage.multiSet([
     [ACCESS_TOKEN_KEY, tokenDto.accessToken],
     [REFRESH_TOKEN_KEY, tokenDto.refreshToken ?? ''],
   ]);
+
   const me = await getMe();
   if (!me) {
     throw new Error('회원 정보를 불러올 수 없습니다.');
   }
-  const storageItems: [string, string][] = [
-    [USER_EMAIL_KEY, me.email ?? ''],
-  ];
+
+  const storageItems: [string, string][] = [[USER_EMAIL_KEY, me.email ?? '']];
   const id = me.id != null && me.id > 0 ? me.id : undefined;
+
   if (id != null) {
     storageItems.push([USER_ID_KEY, String(id)]);
     await setStoredUserId(id);
   }
+
   await AsyncStorage.multiSet(storageItems);
-  const name = me.nickname?.trim() || (await getStoredNickname(me.email ?? '')) || me.email?.split('@')[0] || me.email || '사용자';
+
+  const name =
+    me.nickname?.trim() ||
+    (await getStoredNickname(me.email ?? '')) ||
+    me.email?.split('@')[0] ||
+    me.email ||
+    '사용자';
+
   await saveNicknameForEmail(me.email ?? '', name);
+
   const profileImageUrl = (me as { profileImageUrl?: string | null }).profileImageUrl;
   return {
     name,
@@ -297,23 +297,14 @@ export async function exchangeLoginToken(
   };
 }
 
-/**
- * 저장된 액세스 토큰 반환 (다른 API 호출 시 Authorization 헤더에 사용)
- */
 export async function getAccessToken(): Promise<string | null> {
   return AsyncStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
-/**
- * 저장된 사용자 이메일 반환 (복원 시 표시명 생성용)
- */
 export async function getStoredUserEmail(): Promise<string | null> {
   return AsyncStorage.getItem(USER_EMAIL_KEY);
 }
 
-/**
- * 저장된 회원 id 반환 (getMe 실패 시 게시판 기록 등에서 사용)
- */
 export async function getStoredUserId(): Promise<number | null> {
   const raw = await AsyncStorage.getItem(USER_ID_KEY);
   if (raw == null || raw === '') return null;
@@ -321,32 +312,23 @@ export async function getStoredUserId(): Promise<number | null> {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-/**
- * 회원 id 저장 (getMe 성공 시 호출해 두면 이후 getMe 실패 시에도 id 사용 가능)
- */
 export async function setStoredUserId(id: number): Promise<void> {
   await AsyncStorage.setItem(USER_ID_KEY, String(id));
 }
 
-/**
- * 게시판 API와 동일한 "현재 사용자 id" (저장값 없으면 1).
- * 수정 버튼/게시판 기록에서 id를 못 가져올 때 이 값으로 맞춤.
- */
 export async function getEffectiveUserId(): Promise<number> {
   const stored = await getStoredUserId();
   if (stored != null && stored > 0) return stored;
+
   const envId = process.env.EXPO_PUBLIC_USER_ID;
   if (envId != null && envId !== '') {
     const n = Number(envId);
     if (Number.isInteger(n) && n > 0) return n;
   }
+
   return 1;
 }
 
-/**
- * 내 정보 조회 (JWT 필요) - 백엔드 DB의 이메일·닉네임 반환
- * 앱 재시작 후에도 닉네임을 올바르게 표시할 수 있음
- */
 export async function getMe(): Promise<MemberResponseDto | null> {
   const token = await getAccessToken();
   console.log('[getMe] token exists:', !!token);
@@ -362,11 +344,18 @@ export async function getMe(): Promise<MemberResponseDto | null> {
     });
 
     console.log('[getMe] response status:', res.status);
+    console.log('[getMe] content-type:', res.headers.get('content-type'));
 
     const text = await res.text();
     console.log('[getMe] response text:', text);
 
     if (!res.ok) return null;
+
+    const contentType = res.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) {
+      console.error('[getMe] JSON이 아닌 응답을 받음');
+      return null;
+    }
 
     const json = JSON.parse(text) as MemberResponseDto;
     console.log('[getMe] response json:', json);
@@ -377,30 +366,25 @@ export async function getMe(): Promise<MemberResponseDto | null> {
   }
 }
 
-/**
- * 닉네임 변경 (JWT 필요)
- * @throws Error 서버 오류 또는 유효성 실패 시
- */
 export async function updateNickname(newNickname: string): Promise<MemberResponseDto> {
   const trimmed = newNickname.trim();
   if (!trimmed) throw new Error('닉네임을 입력해 주세요.');
   return updateProfile({ nickname: trimmed });
 }
 
-/**
- * 프로필 수정 (닉네임·프로필 사진 URL). 보내지 않은 필드는 서버에서 유지됨.
- * @throws Error 서버 오류 또는 유효성 실패 시
- */
 export async function updateProfile(updates: {
   nickname?: string;
   profileImageUrl?: string | null;
 }): Promise<MemberResponseDto> {
   const token = await getAccessToken();
   if (!token) throw new Error('로그인이 필요합니다.');
+
   const body: Record<string, unknown> = {};
   if (updates.nickname !== undefined) body.nickname = updates.nickname.trim();
   if (updates.profileImageUrl !== undefined) body.profileImageUrl = updates.profileImageUrl ?? null;
+
   if (Object.keys(body).length === 0) throw new Error('변경할 내용이 없습니다.');
+
   const res = await fetch(`${API_BASE_URL}/api/members/me`, {
     method: 'PATCH',
     headers: {
@@ -409,19 +393,19 @@ export async function updateProfile(updates: {
     },
     body: JSON.stringify(body),
   });
+
   const text = await res.text();
   if (!res.ok) {
     const json = text ? (() => { try { return JSON.parse(text); } catch { return {}; } })() : {};
-    const msg = (json as { message?: string }).message || (res.status === 401 ? '로그인이 필요합니다.' : `변경 실패 (${res.status})`);
+    const msg =
+      (json as { message?: string }).message ||
+      (res.status === 401 ? '로그인이 필요합니다.' : `변경 실패 (${res.status})`);
     throw new Error(msg);
   }
+
   return JSON.parse(text) as MemberResponseDto;
 }
 
-/**
- * 프로필 사진 업로드 (POST /api/members/me/image).
- * 백엔드에서 회원 프로필 이미지 key를 저장하고, Presigned URL을 imageUrl로 반환한다.
- */
 export async function uploadProfileImage(imageUri: string): Promise<string> {
   const token = await getAccessToken();
   if (!token) throw new Error('로그인이 필요합니다.');
@@ -431,7 +415,6 @@ export async function uploadProfileImage(imageUri: string): Promise<string> {
 
   const res = await fetch(`${API_BASE_URL}/api/members/me/image`, {
     method: 'POST',
-    // Content-Type은 fetch가 boundary를 포함해 자동으로 설정하도록 두고, Authorization만 명시
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
   });
@@ -447,10 +430,6 @@ export async function uploadProfileImage(imageUri: string): Promise<string> {
   return url;
 }
 
-/**
- * 카카오 네이티브(앱) 로그인: 앱에서 카카오톡으로 발급받은 액세스 토큰을 서버에 보내 우리 서버 JWT(TokenDto)를 받음.
- * @throws Error 서버 오류 또는 카카오 토큰 무효 시
- */
 export async function getKakaoNativeTokenDto(kakaoAccessToken: string): Promise<TokenDto> {
   console.log('[getKakaoNativeTokenDto] API_BASE_URL:', API_BASE_URL);
   console.log('[getKakaoNativeTokenDto] request url:', `${API_BASE_URL}/api/auth/kakao/native`);
@@ -486,12 +465,9 @@ export async function getKakaoNativeTokenDto(kakaoAccessToken: string): Promise<
 
   const parsed = JSON.parse(text) as TokenDto;
   console.log('[getKakaoNativeTokenDto] parsed success:', parsed);
-
   return parsed;
 }
-/**
- * 소셜(OAuth2) 로그인용: 백엔드에서 받은 TokenDto를 저장한 뒤 /api/members/me 로 사용자 정보를 조회해 AuthUser 형태의 정보를 반환.
- */
+
 export async function loginWithSocialToken(
   tokenDto: TokenDto
 ): Promise<{ name: string; id?: number; email: string; role?: string; profileImageUrl?: string | null }> {
@@ -536,6 +512,7 @@ export async function loginWithSocialToken(
     email.split('@')[0] ||
     email ||
     '사용자';
+
   await saveNicknameForEmail(email, name);
 
   const profileImageUrl = (me as { profileImageUrl?: string | null }).profileImageUrl ?? null;
@@ -549,26 +526,21 @@ export async function loginWithSocialToken(
   };
 }
 
-/**
- * 계정 탈퇴 및 데이터 삭제 (DELETE /api/members/me)
- * 성공 시 호출 측에서 clearAuthStorage + 로그아웃 처리 필요
- */
 export async function withdrawApi(): Promise<void> {
   const token = await getAccessToken();
   if (!token) throw new Error('로그인이 필요합니다.');
+
   const res = await fetch(`${API_BASE_URL}/api/members/me`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
+
   if (!res.ok) {
     const text = await res.text();
     throw new Error(getErrorMessage(text, res.status, '계정 탈퇴에 실패했습니다.'));
   }
 }
 
-/**
- * 로그아웃: 저장된 토큰·이메일·회원 id 삭제 (닉네임 매핑은 유지)
- */
 export async function clearAuthStorage(): Promise<void> {
   await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, USER_EMAIL_KEY, USER_ID_KEY]);
 }
