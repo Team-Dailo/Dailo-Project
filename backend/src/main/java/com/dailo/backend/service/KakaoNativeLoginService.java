@@ -78,6 +78,7 @@ public class KakaoNativeLoginService {
 
         if (memberOptional.isPresent()) {
             Member existingMember = memberOptional.get();
+            // [CHANGED] 외부 URL 필드로 저장
             existingMember.updateProfile(
                     userInfo.getNickname() != null ? userInfo.getNickname() : existingMember.getNickname(),
                     userInfo.getImageUrl()
@@ -102,7 +103,9 @@ public class KakaoNativeLoginService {
                                 ? userInfo.getNickname()
                                 : "카카오유저"
                 )
-                .profileImageUrl(userInfo.getImageUrl())
+                // [CHANGED] 외부 URL 저장
+                .profileImageExternalUrl(userInfo.getImageUrl())
+                .profileImageKey(null)
                 .role(Role.USER)
                 .socialType(SocialType.KAKAO)
                 .socialId(providerId)

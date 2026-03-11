@@ -26,7 +26,11 @@ public class Member {
     @Column(nullable = false)
     private String nickname;
 
-    private String profileImageUrl;
+    @Column(name = "profile_image_key")
+    private String profileImageKey;
+
+    @Column(name = "profile_image_external_url", length = 1000)
+    private String profileImageExternalUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -48,20 +52,29 @@ public class Member {
     @Column(name = "email_verified_at")
     private LocalDateTime emailVerifiedAt;
 
-
-    /* ================= 비즈니스 메서드 ================= */
-
-
     public void withdraw() {
         this.status = MemberStatus.DELETED;
     }
 
-    public void updateProfile(String nickname, String profileImageUrl) {
-        // 닉네임이 null이거나 비어있지 않을 때만 업데이트 (안전장치)
+    public void updateProfile(String nickname, String profileImageExternalUrl) {
         if (nickname != null && !nickname.isBlank()) {
             this.nickname = nickname.trim();
         }
-        this.profileImageUrl = profileImageUrl;
+
+        if (profileImageExternalUrl != null) {
+            this.profileImageExternalUrl = profileImageExternalUrl;
+            this.profileImageKey = null;
+        }
+    }
+
+    public void updateProfileImageKey(String profileImageKey) {
+        this.profileImageKey = profileImageKey;
+        this.profileImageExternalUrl = null;
+    }
+
+    public void clearProfileImage() {
+        this.profileImageKey = null;
+        this.profileImageExternalUrl = null;
     }
 
     public void changePassword(String encodedPassword) {
@@ -81,8 +94,18 @@ public class Member {
         this.role = role;
     }
 
+    // 기존 코드 호환용 getter
+    public String getProfileImageUrl() {
+        if (this.profileImageKey != null && !this.profileImageKey.isBlank()) {
+            return this.profileImageKey;
+        }
 
-    /* ================= 생성자 ================= */
+        if (this.profileImageExternalUrl != null && !this.profileImageExternalUrl.isBlank()) {
+            return this.profileImageExternalUrl;
+        }
+
+        return null;
+    }
 
     @Builder
     public Member(String email,
@@ -91,7 +114,8 @@ public class Member {
                   Role role,
                   SocialType socialType,
                   String socialId,
-                  String profileImageUrl) {
+                  String profileImageKey,
+                  String profileImageExternalUrl) {
 
         this.email = email;
         this.password = password;
@@ -99,14 +123,13 @@ public class Member {
 
         this.role = role != null ? role : Role.USER;
 
-        // 가입하는 순간 무조건 정상 회원 처리 & 이메일 인증 시각 기록
         this.status = MemberStatus.ACTIVE;
         this.emailVerifiedAt = LocalDateTime.now();
 
         this.socialType = socialType != null ? socialType : SocialType.LOCAL;
         this.socialId = socialId;
 
-        this.profileImageUrl = profileImageUrl;
+        this.profileImageKey = profileImageKey;
+        this.profileImageExternalUrl = profileImageExternalUrl;
     }
-
 }

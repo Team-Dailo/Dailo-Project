@@ -67,7 +67,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                                     ? oAuth2UserInfo.getNickname()
                                     : "카카오유저"
                     )
-                    .profileImageUrl(oAuth2UserInfo.getImageUrl())
+                    .profileImageExternalUrl(oAuth2UserInfo.getImageUrl())
+                    .profileImageKey(null)
                     .role(Role.USER)
                     .socialType(SocialType.KAKAO)
                     .socialId(providerId)
