@@ -34,19 +34,15 @@ public class S3UploadService {
     @Value("${cloud.aws.s3.presigned-url-expiration-minutes}")
     private int presignedUrlExpirationMinutes;
 
-    /**
-     * MultipartFile을 S3에 업로드하고 S3 key를 반환
-     */
     public String upload(MultipartFile file, String directory) throws IOException {
         String originalFilename = file.getOriginalFilename();
         String extension = getExtension(originalFilename);
 
-        // 확장자 검증 로직 추가
         if (extension == null || !isAllowedExtension(extension)) {
             throw new IllegalArgumentException("허용되지 않는 파일 형식입니다. (jpg, jpeg, png, gif, webp만 가능)");
         }
 
-        String key = directory + "/" + UUID.randomUUID() + (extension != null ? "." + extension : "");
+        String key = directory + "/" + UUID.randomUUID() + "." + extension;
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucket)
@@ -55,18 +51,17 @@ public class S3UploadService {
                 .contentLength(file.getSize())
                 .build();
 
-        s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+        s3Client.putObject(
+                putObjectRequest,
+                RequestBody.fromInputStream(file.getInputStream(), file.getSize())
+        );
 
         log.info("S3 업로드 완료: {}", key);
         return key;
     }
 
-    /**
-     * S3 key로 Presigned URL 생성
-     */
     public String getPresignedUrl(String key) {
-
-        if (key == null || key.isEmpty()) return null;
+        if (key == null || key.isBlank()) return null; // [CHANGED]
 
         GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                 .bucket(bucket)
@@ -82,11 +77,8 @@ public class S3UploadService {
         return presignedRequest.url().toString();
     }
 
-    /**
-     * S3 객체 삭제
-     */
     public void delete(String key) {
-        if (key == null || key.isEmpty()) return;
+        if (key == null || key.isBlank()) return; // [CHANGED]
 
         DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
                 .bucket(bucket)
