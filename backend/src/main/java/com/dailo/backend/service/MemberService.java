@@ -19,8 +19,12 @@ public class MemberService {
     private final S3UploadService s3UploadService;
 
     public MemberResponseDto getMyProfile(String email) {
+        log.info("[MemberService.getMyProfile] email={}", email);
+
         Member member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다. email=" + email));
+
+        log.info("[MemberService.getMyProfile] member found id={}", member.getId());
 
         return createDtoWithResolvedProfileImage(member);
     }
