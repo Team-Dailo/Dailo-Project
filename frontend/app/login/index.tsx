@@ -1,5 +1,4 @@
-// app/login/index.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -42,10 +41,12 @@ export default function LoginScreen() {
     const trimmed = email.trim();
     setErrorMessage('');
     setEmailVerificationMessage('');
+
     if (!trimmed || !password) {
       Alert.alert('입력 오류', '이메일과 비밀번호를 입력해 주세요.');
       return;
     }
+
     setLoading(true);
     try {
       const user = await authService.login(trimmed, password);
@@ -54,8 +55,9 @@ export default function LoginScreen() {
     } catch (e) {
       const message = e instanceof Error ? e.message : '로그인에 실패했습니다.';
       if (message.startsWith('EMAIL_VERIFICATION_REQUIRED:')) {
-        const displayMsg = message.slice('EMAIL_VERIFICATION_REQUIRED:'.length).trim()
-          || '로그인 확인 이메일을 발송했습니다. Gmail에서 확인 링크를 눌러 주세요.';
+        const displayMsg =
+          message.slice('EMAIL_VERIFICATION_REQUIRED:'.length).trim() ||
+          '로그인 확인 이메일을 발송했습니다. Gmail에서 확인 링크를 눌러 주세요.';
         setEmailVerificationMessage(displayMsg);
         setErrorMessage('');
         return;
@@ -67,20 +69,28 @@ export default function LoginScreen() {
     }
   };
 
-  // 카카오 로그인: 앱 내 카카오톡으로 로그인 후 서버 JWT 발급
   const [kakaoLoading, setKakaoLoading] = useState(false);
+  const kakaoLoginInFlightRef = useRef(false);
+
   const handleKakaoLogin = async () => {
+    if (kakaoLoginInFlightRef.current) return;
+
+    kakaoLoginInFlightRef.current = true;
     setKakaoLoading(true);
+
     try {
       const { login: kakaoLogin } = await import('@react-native-kakao/user');
       const token = await kakaoLogin();
       const accessToken = token?.accessToken;
+
       if (!accessToken) {
         Alert.alert('카카오 로그인', '카카오톡 로그인을 취소했거나 토큰을 받지 못했습니다.');
         return;
       }
+
       const tokenDto = await authService.getKakaoNativeTokenDto(accessToken);
       const user = await authService.loginWithSocialToken(tokenDto);
+
       login({
         name: user.name,
         id: user.id,
@@ -88,11 +98,13 @@ export default function LoginScreen() {
         role: user.role,
         profileImageUrl: user.profileImageUrl,
       });
+
       router.replace('/(tabs)/home');
     } catch (e) {
       const msg = e instanceof Error ? e.message : '카카오 로그인에 실패했습니다.';
       Alert.alert('카카오 로그인 실패', msg);
     } finally {
+      kakaoLoginInFlightRef.current = false;
       setKakaoLoading(false);
     }
   };
@@ -112,7 +124,6 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.body}>
-          {/* 아이디(이메일) / 비밀번호 입력 폼 */}
           <View style={styles.inputWrap}>
             <TextInput
               style={styles.input}
@@ -128,6 +139,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
             />
           </View>
+
           <View style={styles.inputWrap}>
             <TextInput
               style={[styles.input, errorMessage ? styles.inputError : null]}
@@ -164,11 +176,10 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
-          {/* 카카오 로그인 버튼 (카카오톡 앱으로 로그인) */}
           <Pressable
             style={({ pressed }) => [
               styles.kakaoLoginButton,
-              (pressed || kakaoLoading) && styles.kakaoLoginButtoPressed,
+              (pressed || kakaoLoading) && styles.kakaoLoginButtonPressed,
             ]}
             onPress={handleKakaoLogin}
             disabled={kakaoLoading}
@@ -294,15 +305,15 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: 4,
-    backgroundColor: "#FEE500",
-    marginTop: 12
+    backgroundColor: '#FEE500',
+    marginTop: 12,
   },
-  kakaoLoginButtoPressed: {
+  kakaoLoginButtonPressed: {
     opacity: 0.9,
   },
   kakaoLoginButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827'
+    color: '#111827',
   },
 });
