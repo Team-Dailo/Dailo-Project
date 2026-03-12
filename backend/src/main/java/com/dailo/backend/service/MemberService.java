@@ -1,5 +1,6 @@
 package com.dailo.backend.service;
 
+import com.dailo.backend.dto.auth.MemberProfileResponseDto;
 import com.dailo.backend.dto.auth.MemberResponseDto;
 import com.dailo.backend.dto.auth.MemberUpdateRequestDto;
 import com.dailo.backend.entity.Member;
@@ -27,6 +28,34 @@ public class MemberService {
         log.info("[MemberService.getMyProfile] member found id={}", member.getId());
 
         return createDtoWithResolvedProfileImage(member);
+    }
+
+    /**
+     * 타 사용자 프로필 조회 (ID 기반)
+     */
+    public MemberProfileResponseDto getMemberProfile(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("존재하지 않는 회원입니다. id=" + memberId));
+
+        String resolvedProfileImageUrl = resolveProfileImageUrl(member);
+        return MemberProfileResponseDto.of(member, resolvedProfileImageUrl);
+    }
+
+    private String resolveProfileImageUrl(Member member) {
+        String imageKey = member.getProfileImageKey();
+        String externalUrl = member.getProfileImageExternalUrl();
+
+        if (imageKey != null && !imageKey.isBlank()) {
+            try {
+                return s3UploadService.getPresignedUrl(imageKey);
+            } catch (Exception e) {
+                log.warn("프로필 이미지 Presigned URL 생성 실패. key={}", imageKey, e);
+                return null;
+            }
+        } else if (externalUrl != null && !externalUrl.isBlank()) {
+            return externalUrl;
+        }
+        return null;
     }
 
     @Transactional

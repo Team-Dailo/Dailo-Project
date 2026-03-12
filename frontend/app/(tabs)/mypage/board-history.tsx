@@ -1,5 +1,5 @@
 // app/(tabs)/mypage/board-history.tsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Share,
   TextInput,
   Image,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -77,6 +78,13 @@ export default function BoardHistoryScreen() {
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
   const filteredPosts = useMemo(() => {
     const q = appliedSearch.trim().toLowerCase();
     if (!q) return sortedPosts;
@@ -251,6 +259,14 @@ export default function BoardHistoryScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#6366F1"]}
+              tintColor="#6366F1"
+            />
+          }
         >
           {!user ? (
             <View style={styles.emptyWrap}>
@@ -266,7 +282,7 @@ export default function BoardHistoryScreen() {
                 <Text style={styles.retryText}>다시 시도</Text>
               </Pressable>
             </View>
-          ) : loading ? (
+          ) : loading && !refreshing ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator size="large" color="#4C8BF5" />
               <Text style={styles.loadingText}>불러오는 중...</Text>
