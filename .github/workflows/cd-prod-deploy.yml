@@ -1,12 +1,6 @@
 name: "CD: Deploy to ECS (Prod)"
 
 on:
-  # 인프라 워크플로우 완료 후(성공 조건은 job if에서 검증)
-  workflow_run:
-    workflows: ["Terraform Infrastructure"] 
-    types:
-      - completed
-    branches: ["main"]
   # 백엔드 코드 변경 시 직접 배포 실행
   push:
     branches: [ "main" ] 
@@ -22,15 +16,6 @@ jobs:
   deploy:
     name: Build & Deploy to ECS
     runs-on: ubuntu-latest
-    # push 또는 성공한 terraform(workflow_run)일 때만 배포
-    if: |
-      github.event_name == 'push' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
 
     steps:
       # 1) 코드 체크아웃
