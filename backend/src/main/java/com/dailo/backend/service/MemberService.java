@@ -5,9 +5,11 @@ import com.dailo.backend.dto.auth.MemberUpdateRequestDto;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -16,17 +18,19 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final S3UploadService s3UploadService;
 
-    // 내 정보 조회
-    public MemberResponseDto getMyProfile(String email) { // 💡 파라미터 변경
-        Member member = memberRepository.findByEmail(email) // 💡 이메일로 조회
-                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+    public MemberResponseDto getMyProfile(String email) {
+        log.info("[MemberService.getMyProfile] email={}", email);
 
-        return createDtoWithPresignedUrl(member);
+        Member member = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다. email=" + email));
+
+        log.info("[MemberService.getMyProfile] member found id={}", member.getId());
+
+        return createDtoWithResolvedProfileImage(member);
     }
 
-    // 프로필 수정
     @Transactional
-    public MemberResponseDto updateProfile(String email, MemberUpdateRequestDto request) { // 💡 파라미터 변경
+    public MemberResponseDto updateProfile(String email, MemberUpdateRequestDto request) {
         Member member = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
 
@@ -37,20 +41,41 @@ public class MemberService {
             }
         }
 
-        member.updateProfile(newNickname, request.getProfileImageUrl());
-        return createDtoWithPresignedUrl(member);
+        //외부 URL만 여기서 처리
+        String requestedProfileImageUrl = request.getProfileImageUrl();
+        if (requestedProfileImageUrl != null) {
+            if (requestedProfileImageUrl.isBlank()) {
+                member.clearProfileImage(); // [NEW]
+            } else if (requestedProfileImageUrl.startsWith("http://")
+                    || requestedProfileImageUrl.startsWith("https://")) {
+                member.updateProfile(newNickname, requestedProfileImageUrl);
+            } else {
+                //  혹시 key가 넘어오면 내부 이미지 key로 취급
+                if (newNickname != null && !newNickname.isBlank()) {
+                    member.updateProfile(newNickname, null);
+                }
+                member.updateProfileImageKey(requestedProfileImageUrl);
+            }
+        } else {
+            //  이미지 변경 없이 닉네임만 변경
+            member.updateProfile(newNickname, null);
+            if (newNickname == null || newNickname.isBlank()) {
+                // 아무 변경 없으면 nickname도 유지됨
+            }
+        }
+
+        return createDtoWithResolvedProfileImage(member);
     }
 
-    // 이미지 전용 업데이트
     @Transactional
     public void updateProfileImage(String email, String imageKey) {
         Member member = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
 
-        member.updateProfile(member.getNickname(), imageKey);
+        // S3 key 전용 메서드 사용
+        member.updateProfileImageKey(imageKey);
     }
 
-    // 회원 탈퇴
     @Transactional
     public void withdraw(String email) {
         Member member = memberRepository.findByEmail(email)
@@ -58,12 +83,10 @@ public class MemberService {
         member.withdraw();
     }
 
-    // 닉네임 중복 체크
     public boolean checkNicknameDuplicate(String nickname) {
         return memberRepository.existsByNickname(nickname);
     }
 
-    /** id=1 회원 닉네임이 비어 있으면 "회원1"로 설정 */
     @Transactional
     public void ensureMember1Nickname() {
         memberRepository.findById(1L).ifPresent(m -> {
@@ -73,14 +96,24 @@ public class MemberService {
         });
     }
 
-    private MemberResponseDto createDtoWithPresignedUrl(Member member) {
-        String key = member.getProfileImageUrl();
-        String presignedUrl = null;
+    // profileImageKey / profileImageExternalUrl 분리 반영
+    private MemberResponseDto createDtoWithResolvedProfileImage(Member member) {
+        String resolvedProfileImageUrl = null;
 
-        if (key != null && !key.isBlank()) {
-            presignedUrl = s3UploadService.getPresignedUrl(key);
+        String imageKey = member.getProfileImageKey();
+        String externalUrl = member.getProfileImageExternalUrl();
+
+        if (imageKey != null && !imageKey.isBlank()) {
+            try {
+                resolvedProfileImageUrl = s3UploadService.getPresignedUrl(imageKey);
+            } catch (Exception e) {
+                log.warn("프로필 이미지 Presigned URL 생성 실패. key={}", imageKey, e);
+                resolvedProfileImageUrl = null;
+            }
+        } else if (externalUrl != null && !externalUrl.isBlank()) {
+            resolvedProfileImageUrl = externalUrl;
         }
 
-        return MemberResponseDto.of(member, presignedUrl);
+        return MemberResponseDto.of(member, resolvedProfileImageUrl);
     }
 }

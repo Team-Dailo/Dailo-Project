@@ -47,6 +47,8 @@ export default function MyPageLayout() {
       {/* 헤더를 컴포넌트 내부에서 <Stack.Screen>으로 설정하는 화면들은
           여기에서 중복 정의하지 않는다 (중복 헤더로 인한 크래시 방지). */}
       <Stack.Screen name="saved-festivals" options={{ headerShown: false }} />
+      <Stack.Screen name="liked-festivals" options={{ headerShown: false }} />
+      <Stack.Screen name="liked-posts" options={{ headerShown: false }} />
       <Stack.Screen name="participation-history" options={{ headerShown: false }} />
       <Stack.Screen name="my-reports" options={{ headerShown: false }} />
       <Stack.Screen name="block-list" options={{ headerShown: false }} />

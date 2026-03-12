@@ -24,66 +24,73 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
+    private static final String DEFAULT_SOCIAL_PASSWORD = "oauth2user";
+
     private final MemberRepository memberRepository;
-    private final PasswordEncoder passwordEncoder; // ✅ 추가
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
         OAuth2User oAuth2User = super.loadUser(userRequest);
 
-        // 1) 어떤 소셜 로그인인지 (kakao)
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         if (!"kakao".equalsIgnoreCase(registrationId)) {
             throw new OAuth2AuthenticationException("Unsupported provider: " + registrationId);
         }
 
-        // 2) 카카오 데이터를 규격화
         OAuth2UserInfo oAuth2UserInfo = new KakaoUserInfo(oAuth2User.getAttributes());
         String providerId = oAuth2UserInfo.getProviderId();
 
-        // 3) 기존 회원인지 확인 (socialType + socialId)
         Optional<Member> memberOptional =
                 memberRepository.findBySocialTypeAndSocialId(SocialType.KAKAO, providerId);
 
         Member member;
         if (memberOptional.isPresent()) {
             member = memberOptional.get();
-
-            // 닉네임/프로필 변경 반영
-            member.updateProfile(oAuth2UserInfo.getNickname(), oAuth2UserInfo.getImageUrl());
-
-            // 변경 저장(영속 상태면 생략 가능하지만 명시해도 무방)
+            member.updateProfile(
+                    oAuth2UserInfo.getNickname() != null ? oAuth2UserInfo.getNickname() : member.getNickname(),
+                    oAuth2UserInfo.getImageUrl()
+            );
             memberRepository.save(member);
         } else {
-            // 이메일 미제공 대비: kakao_{id} 형태로 저장
-            String email = (oAuth2UserInfo.getEmail() != null && !oAuth2UserInfo.getEmail().isBlank())
-                    ? oAuth2UserInfo.getEmail()
-                    : "kakao_" + providerId;
+            String email = resolveEmail(oAuth2UserInfo.getEmail(), providerId);
+
+            if (memberRepository.existsByEmail(email)) {
+                throw new OAuth2AuthenticationException("이미 동일한 이메일로 가입된 계정이 존재합니다. 기존 방식으로 로그인해주세요.");
+            }
 
             member = Member.builder()
                     .email(email)
-                    .nickname(oAuth2UserInfo.getNickname() != null ? oAuth2UserInfo.getNickname() : "카카오유저")
-                    .profileImageUrl(oAuth2UserInfo.getImageUrl())
+                    .nickname(
+                            oAuth2UserInfo.getNickname() != null && !oAuth2UserInfo.getNickname().isBlank()
+                                    ? oAuth2UserInfo.getNickname()
+                                    : "카카오유저"
+                    )
+                    .profileImageExternalUrl(oAuth2UserInfo.getImageUrl())
+                    .profileImageKey(null)
                     .role(Role.USER)
                     .socialType(SocialType.KAKAO)
                     .socialId(providerId)
-
-                    // ✅ 더미 BCrypt 비밀번호 (폼로그인/기타 인증과 섞일 때 null/평문 문제 방지)
-                    .password(passwordEncoder.encode("oauth2user"))
+                    .password(passwordEncoder.encode(DEFAULT_SOCIAL_PASSWORD))
                     .build();
 
             memberRepository.save(member);
         }
 
-        // 4) SecurityContext에 저장될 OAuth2User 반환
-        // role에 맞춰 ROLE_USER / ROLE_ADMIN 등 부여
         String roleName = (member.getRole() != null) ? member.getRole().name() : "USER";
 
         return new DefaultOAuth2User(
                 List.of(new SimpleGrantedAuthority("ROLE_" + roleName)),
                 oAuth2User.getAttributes(),
-                "id" // Kakao user-name-attribute = id
+                "id"
         );
+    }
+
+    private String resolveEmail(String kakaoEmail, String providerId) {
+        if (kakaoEmail != null && !kakaoEmail.isBlank()) {
+            return kakaoEmail;
+        }
+        return "kakao_" + providerId + "@kakao.local";
     }
 }

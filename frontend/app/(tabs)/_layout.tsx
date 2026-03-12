@@ -130,7 +130,7 @@ export default function TabsLayout() {
     if (Platform.OS !== "android") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       if (!navigation.canGoBack()) {
-        router.replace("/(tabs)/home");
+        BackHandler.exitApp();
         return true;
       }
       return false;

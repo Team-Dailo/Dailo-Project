@@ -27,4 +27,8 @@ public interface EventLikeRepository extends JpaRepository<EventLike, Long> {
     /** 행사별 좋아요 수 (event_id, count) - 관리자용 */
     @Query(value = "SELECT el.event_id, COUNT(*) FROM event_like el GROUP BY el.event_id ORDER BY COUNT(*) DESC", nativeQuery = true)
     List<Object[]> countGroupByEventId();
+
+    /** 회원이 좋아요 누른 행사 ID 목록 (최신순) */
+    @Query("SELECT el.event.id FROM EventLike el WHERE el.member.id = :memberId ORDER BY el.createdAt DESC")
+    List<Long> findEventIdsByMemberIdOrderByCreatedAtDesc(@Param("memberId") Long memberId);
 }

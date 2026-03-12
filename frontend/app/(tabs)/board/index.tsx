@@ -29,10 +29,14 @@ import * as savedPostService from "../../../services/savedPost.service";
 import * as boardService from "../../../services/board.service";
 import * as noticeService from "../../../services/notice.service";
 
+const DEFAULT_PROFILE_IMAGE = require("../../../assets/images/default-profile.png");
+
 type Post = {
   id: string;
   authorId: number;
   author: string;
+  /** 작성자 프로필 이미지 URL (없으면 기본 이미지) */
+  authorProfileImageUrl?: string | null;
   title?: string;
   time: string;
   tag?: string;
@@ -52,7 +56,7 @@ type Category = (typeof CATEGORIES)[number];
 /** 후기 탭에서 행사별 필터용 */
 type EventFilter = { eventId: number; eventTitle: string } | null;
 
-function toPost(item: { id: number; authorId?: number; author_id?: number; authorNickname?: string; title: string; contentPreview?: string; content?: string; categoryType?: string; likeCount: number; commentCount: number; createdAt: string; liked?: boolean; imageUrls?: string[]; eventTitle?: string | null; event_title?: string | null }): Post {
+function toPost(item: { id: number; authorId?: number; author_id?: number; authorNickname?: string; authorProfileImageUrl?: string | null; author_profile_image_url?: string | null; title: string; contentPreview?: string; content?: string; categoryType?: string; likeCount: number; commentCount: number; createdAt: string; liked?: boolean; imageUrls?: string[]; eventTitle?: string | null; event_title?: string | null }): Post {
   const raw = item as Record<string, unknown>;
   const authorId = Number(raw.author_id ?? item.authorId ?? raw.authorId ?? 0) || 0;
   const preview = (
@@ -66,6 +70,7 @@ function toPost(item: { id: number; authorId?: number; author_id?: number; autho
   if (contentStr.length > 120) contentStr = contentStr.slice(0, 120) + "…";
   const apiNickname = (raw.authorNickname ?? raw.author_nickname ?? item.authorNickname ?? "") as string;
   const authorName = (typeof apiNickname === "string" ? apiNickname.trim() : "") || `user_${authorId}`;
+  const profileUrl = (raw.authorProfileImageUrl ?? raw.author_profile_image_url ?? item.authorProfileImageUrl ?? item.author_profile_image_url) as string | null | undefined;
   const urls = (raw.imageUrls ?? item.imageUrls ?? raw.image_urls) as string[] | undefined;
   const firstImage = Array.isArray(urls) && urls.length > 0 ? urls[0] : undefined;
   const eventTitle = (raw.eventTitle ?? item.eventTitle ?? raw.event_title ?? item.event_title) as string | null | undefined;
@@ -73,6 +78,7 @@ function toPost(item: { id: number; authorId?: number; author_id?: number; autho
     id: String(item.id),
     authorId,
     author: authorName,
+    authorProfileImageUrl: profileUrl && typeof profileUrl === "string" && profileUrl.trim() ? profileUrl.trim() : null,
     title: item.title,
     time: formatRelativeTime(item.createdAt),
     tag: item.categoryType ?? "",
@@ -325,10 +331,18 @@ export default function BoardScreen() {
   };
 
   const renderPost = ({ item }: { item: Post }) => {
+    const hasAuthorPhoto = item.authorProfileImageUrl?.trim();
     return (
       <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.id}`)}>
         <View style={styles.postRowBody}>
           <View style={styles.postRowTop}>
+            {hasAuthorPhoto ? (
+              <Image source={{ uri: item.authorProfileImageUrl! }} style={styles.postAuthorAvatar} resizeMode="cover" />
+            ) : (
+              <View style={styles.postAuthorAvatar}>
+                <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.postAuthorAvatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
+              </View>
+            )}
             <Text style={styles.author}>{item.author}</Text>
             {item.tag && (
               <View style={styles.tagBadge}>
@@ -908,6 +922,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     marginBottom: 4,
+  },
+  postAuthorAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#E5E7EB",
+    overflow: "hidden",
+  },
+  defaultProfileImageZoom: {
+    position: "absolute",
+    transform: [{ scale: 1.35 }],
   },
   author: {
     fontSize: 14,

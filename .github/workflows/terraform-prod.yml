@@ -58,24 +58,30 @@ jobs:
       - name: Terraform Plan
         if: github.event_name == 'pull_request'
         env:
-          TF_VAR_db_password: ${{ secrets.TF_VAR_db_password }} 
+          TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
           TF_VAR_discord_webhook_url: ${{ secrets.TF_VAR_DISCORD_WEBHOOK_URL }}
           TF_VAR_grafana_admin_password: ${{ secrets.TF_VAR_GRAFANA_ADMIN_PASSWORD }}
           TF_VAR_alb_verify_secret: ${{ secrets.TF_VAR_ALB_VERIFY_SECRET }}
           TF_VAR_MAIL_PASSWORD: ${{ secrets.TF_VAR_MAIL_PASSWORD }}
           TF_VAR_kakao_client_secret: ${{ secrets.TF_VAR_KAKAO_CLIENT_SECRET }}
+          TF_VAR_kakao_client_id: ${{ secrets.TF_VAR_KAKAO_CLIENT_ID }}
           TF_VAR_jwt_secret: ${{ secrets.TF_VAR_JWT_SECRET }}
+          TF_VAR_mail_from: ${{ secrets.TF_VAR_MAIL_FROM }}
+          TF_VAR_mail_username: ${{ secrets.TF_VAR_MAIL_USERNAME }}
         run: terraform plan -no-color
 
       # 5) main push에서는 Apply 실행
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
-          TF_VAR_db_password: ${{ secrets.TF_VAR_db_password }}
+          TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
           TF_VAR_discord_webhook_url: ${{ secrets.TF_VAR_DISCORD_WEBHOOK_URL }}
           TF_VAR_grafana_admin_password: ${{ secrets.TF_VAR_GRAFANA_ADMIN_PASSWORD }}
           TF_VAR_alb_verify_secret: ${{ secrets.TF_VAR_ALB_VERIFY_SECRET }}
           TF_VAR_MAIL_PASSWORD: ${{ secrets.TF_VAR_MAIL_PASSWORD }}
           TF_VAR_kakao_client_secret: ${{ secrets.TF_VAR_KAKAO_CLIENT_SECRET }}
+          TF_VAR_kakao_client_id: ${{ secrets.TF_VAR_KAKAO_CLIENT_ID }}
           TF_VAR_jwt_secret: ${{ secrets.TF_VAR_JWT_SECRET }}
+          TF_VAR_mail_from: ${{ secrets.TF_VAR_MAIL_FROM }}
+          TF_VAR_mail_username: ${{ secrets.TF_VAR_MAIL_USERNAME }}
         run: terraform apply -auto-approve
