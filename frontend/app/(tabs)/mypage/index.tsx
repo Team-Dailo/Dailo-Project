@@ -1,5 +1,5 @@
 // app/(tabs)/mypage/index.tsx
-import React from "react";
+import React, { useState } from "react";
 import {
   ScrollView,
   View,
@@ -20,9 +20,11 @@ import { API_BASE_URL } from "../../../constants/api";
 export default function MyPageScreen() {
   const { user, isLoggedIn, logout, refreshUser } = useAuth();
   const { entry: festivalEntry, elapsedFormatted: festivalElapsed, isCompleted: festivalIsCompleted } = useFestivalParticipation();
+  const [profileImageError, setProfileImageError] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
+      setProfileImageError(false); // 이미지 에러 상태 리셋
       refreshUser();
     }, [refreshUser])
   );
@@ -48,7 +50,7 @@ export default function MyPageScreen() {
             {(() => {
               const defaultProfile = require("../../../assets/images/default-profile.png");
               const profileUrl = user?.profileImageUrl?.trim();
-              if (!isLoggedIn || !profileUrl) {
+              if (!isLoggedIn || !profileUrl || profileImageError) {
                 return (
                   <View style={styles.avatar}>
                     <Image source={defaultProfile} style={[styles.avatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
@@ -64,6 +66,7 @@ export default function MyPageScreen() {
                   source={{ uri: finalUri }}
                   style={styles.avatar}
                   resizeMode="cover"
+                  onError={() => setProfileImageError(true)}
                 />
               );
             })()}
