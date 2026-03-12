@@ -68,7 +68,15 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "@react-native-kakao/core",
+        {
+          "nativeAppKey": "aead9c7f96ba794087bc97918a16ba61",
+          "android": { "authCodeHandlerActivity": true },
+          "ios": { "handleKakaoOpenUrl": true }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -77,9 +85,8 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "5c08ddfe-c57a-48de-9d52-b9eed5912771"
+        "projectId": "0e8ac339-daf5-4e24-8ea6-f2a5a6092aa3"
       }
-    },
-    "owner": "kkzw18837"
+    }
   }
 }

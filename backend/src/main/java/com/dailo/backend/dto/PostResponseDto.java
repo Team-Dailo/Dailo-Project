@@ -25,6 +25,8 @@ public class PostResponseDto {
     private Long authorId;
     /** 작성자 닉네임 (표시용) */
     private String authorNickname;
+    /** 작성자 프로필 이미지 URL (표시용, presigned) */
+    private String authorProfileImageUrl;
     private String title;
     private String content;
     private String categoryType;
@@ -65,10 +67,15 @@ public class PostResponseDto {
     }
 
     public static PostResponseDto from(Post post, String authorNickname, Boolean isLiked, String eventTitle) {
+        return from(post, authorNickname, isLiked, eventTitle, null);
+    }
+
+    public static PostResponseDto from(Post post, String authorNickname, Boolean isLiked, String eventTitle, String authorProfileImageUrl) {
         return PostResponseDto.builder()
                 .id(post.getId())
                 .authorId(post.getAuthorId())
                 .authorNickname(authorNickname != null ? authorNickname : "알 수 없음")
+                .authorProfileImageUrl(authorProfileImageUrl != null && !authorProfileImageUrl.isBlank() ? authorProfileImageUrl : null)
                 .title(post.getTitle())
                 .content(post.getContent())
                 .categoryType(post.getCategoryType())

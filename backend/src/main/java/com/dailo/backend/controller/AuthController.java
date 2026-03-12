@@ -1,10 +1,12 @@
 package com.dailo.backend.controller;
 
+import com.dailo.backend.dto.auth.KakaoNativeLoginRequestDto;
 import com.dailo.backend.dto.auth.LoginRequestDto;
 import com.dailo.backend.dto.auth.MemberRequestDto;
 import com.dailo.backend.dto.auth.MemberResponseDto;
 import com.dailo.backend.jwt.TokenDto;
 import com.dailo.backend.service.AuthService;
+import com.dailo.backend.service.KakaoNativeLoginService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -21,20 +23,14 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
-
-    /* ================= 1. 회원가입 사전 이메일 인증 ================= */
+    private final KakaoNativeLoginService kakaoNativeLoginService;
 
     @Operation(summary = "회원가입 인증번호 발송", description = "가입 전 이메일 중복 확인 후 6자리 인증번호를 메일로 발송합니다.")
     @PostMapping("/email/send")
-    public ResponseEntity<Void> sendSignUpEmail(
-            @RequestParam("email") String email
-    ) {
+    public ResponseEntity<Void> sendSignUpEmail(@RequestParam("email") String email) {
         authService.sendSignUpEmail(email);
-        return ResponseEntity.noContent().build(); // 204
+        return ResponseEntity.noContent().build();
     }
-
-
-    /* ================= 2. 회원가입 / 로그인 ================= */
 
     @Operation(summary = "회원가입 (인증 완료 및 최종 가입)", description = "이메일, 비밀번호, 닉네임과 함께 발급받은 '인증번호(authCode)'를 보내 최종 가입합니다.")
     @PostMapping("/signup")
@@ -46,20 +42,21 @@ public class AuthController {
 
     @Operation(summary = "로그인", description = "이메일과 비밀번호로 JWT를 발급합니다.")
     @PostMapping("/login")
-    public ResponseEntity<TokenDto> login(
-            @RequestBody LoginRequestDto requestDto
-    ) {
+    public ResponseEntity<TokenDto> login(@RequestBody LoginRequestDto requestDto) {
         return ResponseEntity.ok(authService.login(requestDto));
     }
 
-
-    /* ================= 3. 비밀번호 재설정 ================= */
+    @Operation(summary = "카카오 네이티브 로그인", description = "앱에서 카카오톡으로 로그인 후 받은 액세스 토큰으로 서버 JWT를 발급합니다.")
+    @PostMapping("/kakao/native")
+    public ResponseEntity<TokenDto> kakaoNativeLogin(
+            @RequestBody KakaoNativeLoginRequestDto requestDto
+    ) {
+        return ResponseEntity.ok(kakaoNativeLoginService.loginWithKakaoToken(requestDto));
+    }
 
     @Operation(summary = "비밀번호 재설정 요청", description = "가입된 이메일로 비밀번호 재설정용 64자리 토큰을 발송합니다.")
     @PostMapping("/password-reset/request")
-    public ResponseEntity<Void> requestPasswordReset(
-            @RequestParam("email") String email
-    ) {
+    public ResponseEntity<Void> requestPasswordReset(@RequestParam("email") String email) {
         authService.requestPasswordReset(email);
         return ResponseEntity.noContent().build();
     }
@@ -74,23 +71,15 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    /* ================= 4. 토큰 재발급 ================= */
-
     @Operation(summary = "토큰 재발급", description = "만료된 Access Token과 Refresh Token을 보내 새로운 토큰 셋을 발급받습니다.")
     @PostMapping("/reissue")
-    public ResponseEntity<TokenDto> reissue(
-            @RequestBody com.dailo.backend.dto.auth.TokenRequestDto requestDto
-    ) {
+    public ResponseEntity<TokenDto> reissue(@RequestBody com.dailo.backend.dto.auth.TokenRequestDto requestDto) {
         return ResponseEntity.ok(authService.reissue(requestDto));
     }
-    /* ================= 5. 로그아웃================= */
 
     @Operation(summary = "로그아웃", description = "DB에서 사용자의 Refresh Token을 삭제합니다.")
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(
-            @AuthenticationPrincipal UserDetails userDetails
-    ) {
-        // JWT 필터를 통과한 유저 정보에서 이메일 추출하여 삭제
+    public ResponseEntity<Void> logout(@AuthenticationPrincipal UserDetails userDetails) {
         authService.logout(userDetails.getUsername());
         return ResponseEntity.noContent().build();
     }

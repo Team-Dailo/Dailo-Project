@@ -1,10 +1,19 @@
 // app/_layout.tsx
 import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
+import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
+import { initializeKakaoSDK } from '@react-native-kakao/core';
 import { AuthProvider } from '../contexts/AuthContext';
 import { LoginVerifiedHandler } from '../components/LoginVerifiedHandler';
 import { KakaoLoginHandler } from '../components/KakaoLoginHandler';
+
+function getKakaoNativeAppKey(): string {
+  const plugins = Constants.expoConfig?.plugins as [string, { nativeAppKey?: string }][] | undefined;
+  const plugin = plugins?.find((p) => Array.isArray(p) && p[0] === '@react-native-kakao/core');
+  const key = plugin?.[1]?.nativeAppKey ?? process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY ?? '';
+  return typeof key === 'string' ? key : '';
+}
 
 // 스플래시를 첫 프레임 그린 뒤 숨기기 (넘어가지 않는 현상 방지)
 SplashScreen.preventAutoHideAsync();
@@ -14,6 +23,13 @@ function hideSplash() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    const kakaoKey = getKakaoNativeAppKey();
+    if (kakaoKey && kakaoKey !== 'REPLACE_WITH_KAKAO_NATIVE_APP_KEY') {
+      initializeKakaoSDK(kakaoKey);
+    }
+  }, []);
+
   useEffect(() => {
     // 첫 프레임 그린 뒤 + 짧은 지연 후 (안드로이드에서 hideAsync가 적용되도록)
     const raf = requestAnimationFrame(() => {

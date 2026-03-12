@@ -33,6 +33,8 @@ public class CommentService {
     private final MemberRepository memberRepository;
     private final BlockService blockService;
 
+    private final S3UploadService s3UploadService;
+
     // 이메일로 내 ID를 찾아주는 내부 헬퍼 메서드
     private Long getMemberIdByEmail(String email) {
         if (email == null) return null;
@@ -76,10 +78,21 @@ public class CommentService {
                     return "user_" + m.getId();
                 }));
 
+        Map<Long, String> authorProfileImageUrlMap = authorIds.isEmpty() ? Collections.emptyMap()
+                : memberRepository.findAllById(authorIds).stream()
+                .filter(m -> m.getProfileImageUrl() != null && !m.getProfileImageUrl().isBlank())
+                .collect(Collectors.toMap(Member::getId, m -> {
+                    try {
+                        return s3UploadService.getPresignedUrl(m.getProfileImageUrl());
+                    } catch (Exception e) {
+                        return "";
+                    }
+                }));
+
         List<CommentResponseDto> dtos = topList.stream()
                 .map(comment -> {
                     List<Comment> replies = getReplies(comment, invisibleIds);
-                    return CommentResponseDto.fromWithReplies(comment, replies, authorNicknameMap);
+                    return CommentResponseDto.fromWithReplies(comment, replies, authorNicknameMap, authorProfileImageUrlMap);
                 })
                 .toList();
         return new PageImpl<>(dtos, pageable, topLevelComments.getTotalElements());
@@ -136,7 +149,14 @@ public class CommentService {
 
         Comment savedComment = commentRepository.save(comment);
         postRepository.increaseCommentCount(postId);
-        return CommentResponseDto.from(savedComment, savedComment.getAuthorNickname());
+        String profileUrl = null;
+        Member author = memberRepository.findById(authorId).orElse(null);
+        if (author != null && author.getProfileImageUrl() != null && !author.getProfileImageUrl().isBlank()) {
+            try {
+                profileUrl = s3UploadService.getPresignedUrl(author.getProfileImageUrl());
+            } catch (Exception ignored) {}
+        }
+        return CommentResponseDto.from(savedComment, savedComment.getAuthorNickname(), profileUrl);
     }
 
     // 3. 댓글 수정
@@ -154,16 +174,17 @@ public class CommentService {
 
         comment.update(requestDto.getContent());
 
-        String nickname = memberRepository.findById(comment.getAuthorId())
-                .map(m -> {
-                    String n = m.getNickname();
-                    if (n != null && !n.isBlank()) return n.trim();
-                    String mEmail = m.getEmail();
-                    if (mEmail != null && mEmail.contains("@")) return mEmail.split("@")[0].trim();
-                    return "user_" + comment.getAuthorId();
-                })
-                .orElse("user_" + comment.getAuthorId());
-        return CommentResponseDto.from(comment, nickname);
+        Member author = memberRepository.findById(comment.getAuthorId()).orElse(null);
+        String nickname = author != null ? (author.getNickname() != null && !author.getNickname().isBlank() ? author.getNickname().trim()
+                : (author.getEmail() != null && author.getEmail().contains("@") ? author.getEmail().split("@")[0].trim() : "user_" + comment.getAuthorId()))
+                : "user_" + comment.getAuthorId();
+        String profileUrl = null;
+        if (author != null && author.getProfileImageUrl() != null && !author.getProfileImageUrl().isBlank()) {
+            try {
+                profileUrl = s3UploadService.getPresignedUrl(author.getProfileImageUrl());
+            } catch (Exception ignored) {}
+        }
+        return CommentResponseDto.from(comment, nickname, profileUrl);
     }
 
     // 4. 댓글 삭제
