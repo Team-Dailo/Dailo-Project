@@ -430,6 +430,23 @@ export async function uploadProfileImage(imageUri: string): Promise<string> {
   return url;
 }
 
+export type MemberProfileDto = {
+  id: number;
+  nickname: string;
+  profileImageUrl?: string | null;
+};
+
+export async function getMemberProfile(memberId: number): Promise<MemberProfileDto | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/members/${memberId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data as MemberProfileDto;
+  } catch {
+    return null;
+  }
+}
+
 export async function getKakaoNativeTokenDto(kakaoAccessToken: string): Promise<TokenDto> {
   console.log('[getKakaoNativeTokenDto] API_BASE_URL:', API_BASE_URL);
   console.log('[getKakaoNativeTokenDto] request url:', `${API_BASE_URL}/api/auth/kakao/native`);
