@@ -71,7 +71,7 @@ if (!source.includes("Missing Android release signing env vars")) {
       `    if (!releaseKeyAlias) missing << "KEY_ALIAS"\n` +
       `    if (!releaseKeyPassword) missing << "KEY_PASSWORD"\n\n` +
       `    if (!missing.isEmpty()) {\n` +
-      `        throw new GradleException("Missing Android release signing env vars: \\${missing.join(', ')}")\n` +
+      '        throw new GradleException("Missing Android release signing env vars: ${missing.join(\', \')}")\n' +
       `    }\n` +
       `}\n\n` +
       `// Apply static values from \`gradle.properties\` to the \`android.packagingOptions\``,
