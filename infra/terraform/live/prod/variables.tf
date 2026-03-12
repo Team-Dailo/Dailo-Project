@@ -26,12 +26,24 @@ variable "MAIL_PASSWORD" {
   sensitive   = true 
 }
 variable "kakao_client_secret" {
-  description = "oauth2.0 kakao"
+  description = "oauth2.0 kakao secret"
+  type        = string
+  sensitive   = true 
+}
+variable "kakao_client_id" {
   type        = string
   sensitive   = true 
 }
 variable "jwt_secret" {
   description = "jwt_secret"
+  type        = string
+  sensitive   = true 
+}
+variable "mail_from" {
+  type        = string
+  sensitive   = true 
+}
+variable "mail_username" {
   type        = string
   sensitive   = true 
 }
