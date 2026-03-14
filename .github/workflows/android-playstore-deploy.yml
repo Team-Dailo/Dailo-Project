@@ -93,9 +93,6 @@ jobs:
       - name: Configure Android release signing
         run: node ./scripts/configure-android-release.js
 
-      - name: Debug build.gradle signing config
-        run: cat ./android/app/build.gradle | grep -A 20 "signingConfigs"
-        
       # 8) GitHub Secret에 저장한 Base64 keystore를 실제 .jks 파일로 복원
       - name: Restore Android keystore
         run: printf '%s' '${{ secrets.KEYSTORE_BASE64 }}' | base64 --decode > "$STORE_FILE"
