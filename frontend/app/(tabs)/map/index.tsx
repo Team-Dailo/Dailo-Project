@@ -207,6 +207,19 @@ export default function MapScreen() {
   /** 축제 구역 인식 반경: 200m (마커 선택 시 표시되는 빨간 원과 동일) */
   const ZONE_RADIUS_KM = 0.2;
 
+  /** 행사 일정 중인지 (오늘이 startAt~endAt 사이인지). 일정 중일 때만 축제 참여로 인정 */
+  const isEventCurrentlyScheduled = useCallback((e: Event) => {
+    try {
+      const startStr = e.startAt ? new Date(e.startAt).toISOString().slice(0, 10) : '';
+      const endStr = e.endAt ? new Date(e.endAt).toISOString().slice(0, 10) : '';
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (!startStr || !endStr) return false;
+      return todayStr >= startStr && todayStr <= endStr;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // 로그인 + 위치 있을 때, **위치가 실제로 바뀌었을 때만** 주변 행사 캐시를 비움 (매번 비우면 구역 판정/지도 이벤트와 경쟁해서 현재위치·축제위치 못 잡는 현상 발생)
   const [eventsNearMe, setEventsNearMe] = useState<Event[] | null>(null);
   const lastPositionForInvalidationRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -296,7 +309,7 @@ export default function MapScreen() {
 
     // 1) 지도에 이미 나와 있는 행사(events)로 바로 참여/비참여 판정 (단, 새로고침 직후에는 아래에서 현재 위치 기준 재조회)
     if (events.length > 0 && !forceZoneFetchAfterRefreshRef.current) {
-      const firstInRange = events.find(isEventInZone);
+      const firstInRange = events.filter(isEventCurrentlyScheduled).find(isEventInZone);
       if (firstInRange != null) {
         setIsFestivalActive(true);
         setEventsNearMe(events);
@@ -325,17 +338,23 @@ export default function MapScreen() {
         }
         return;
       }
-      // 반경 안에 있는 행사 없음 → 참여 아님 인식
+      // 반경 안에 있는 행사 없음 (또는 반경 내 행사가 있어도 일정 중이 아님) → 참여 아님 인식
       wasInFestivalZoneRef.current = false;
       setIsFestivalActive(false);
       setEventsNearMe(events);
       getFestivalParticipation().then((entry) => {
-        if (!entry || entry.eventLat == null || entry.eventLng == null) return;
+        if (!entry) return;
         const elat = entry.eventLat;
         const elng = entry.eventLng;
-        if (typeof elat !== 'number' || typeof elng !== 'number' || !Number.isFinite(elat) || !Number.isFinite(elng)) return;
-        const km = distanceKm(myPos.latitude, myPos.longitude, elat, elng);
-        if (km > ZONE_RADIUS_KM) {
+        const km =
+          elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
+            ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
+            : Infinity;
+        const inZone = km <= ZONE_RADIUS_KM;
+        const participatingEvent = events.find((e) => String(e.id) === String(entry.eventId));
+        const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
+        const shouldClear = km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule);
+        if (shouldClear) {
           if (isLoggedIn) {
             completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
               .then(() => clearFestivalParticipation().then(() => refreshFestivalParticipation()))
@@ -360,7 +379,7 @@ export default function MapScreen() {
       }).then((fetched) => {
         setEventsNearMe(fetched);
         const list = fetched ?? [];
-        const firstInRange = list.find(
+        const firstInRange = list.filter(isEventCurrentlyScheduled).find(
           (e) =>
             e.latitude != null &&
             e.longitude != null &&
@@ -402,26 +421,28 @@ export default function MapScreen() {
             tryStart(myPos.latitude, myPos.longitude);
           }
         } else {
-          // API에서 가져온 행사 목록에 현재 위치 기준 반경 내 행사가 없으면 구역 밖으로 판정
+          // API에서 가져온 행사 목록에 현재 위치 기준 반경 내 일정 중인 행사가 없으면 구역 밖 또는 일정 종료로 판정
           wasInFestivalZoneRef.current = false;
           setIsFestivalActive(false);
-          // 저장된 참여 행사가 있으면 이탈 처리
           getFestivalParticipation().then((entry) => {
-            if (entry && entry.eventLat != null && entry.eventLng != null) {
-              const elat = entry.eventLat;
-              const elng = entry.eventLng;
-              if (typeof elat === 'number' && typeof elng === 'number' && Number.isFinite(elat) && Number.isFinite(elng)) {
-                const km = distanceKm(myPos.latitude, myPos.longitude, elat, elng);
-                if (km > ZONE_RADIUS_KM) {
-                  // 저장된 행사 좌표와도 거리가 멀면 이탈 처리 (퇴장 시간 서버 기록 후 로컬만 비움)
-                  if (isLoggedIn) {
-                    completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
-                      .then(() => clearFestivalParticipation().then(() => refreshFestivalParticipation()))
-                      .catch(() => refreshFestivalParticipation());
-                  } else {
-                    clearFestivalParticipation().then(() => refreshFestivalParticipation());
-                  }
-                }
+            if (!entry) return;
+            const elat = entry.eventLat;
+            const elng = entry.eventLng;
+            const km =
+              elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
+                ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
+                : Infinity;
+            const inZone = km <= ZONE_RADIUS_KM;
+            const participatingEvent = list.find((e) => String(e.id) === String(entry.eventId));
+            const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
+            const shouldClear = km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule);
+            if (shouldClear) {
+              if (isLoggedIn) {
+                completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
+                  .then(() => clearFestivalParticipation().then(() => refreshFestivalParticipation()))
+                  .catch(() => refreshFestivalParticipation());
+              } else {
+                clearFestivalParticipation().then(() => refreshFestivalParticipation());
               }
             }
           });
@@ -434,11 +455,13 @@ export default function MapScreen() {
     if (!eventsToCheck.length) {
       // 행사 목록 없을 때는 기존 참여 유지. 참여 행사 좌표가 있으면 그 기준으로 이탈 시에만 해제
       getFestivalParticipation().then((entry) => {
-        if (!entry || entry.eventLat == null || entry.eventLng == null) return;
+        if (!entry) return;
         const elat = entry.eventLat;
         const elng = entry.eventLng;
-        if (typeof elat !== 'number' || typeof elng !== 'number' || !Number.isFinite(elat) || !Number.isFinite(elng)) return;
-        const km = distanceKm(myPos.latitude, myPos.longitude, elat, elng);
+        const km =
+          elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
+            ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
+            : Infinity;
         if (km > ZONE_RADIUS_KM) {
           wasInFestivalZoneRef.current = false;
           setIsFestivalActive(false);
@@ -453,7 +476,7 @@ export default function MapScreen() {
       });
       return;
     }
-    const firstInRange = eventsToCheck.find(
+    const firstInRange = eventsToCheck.filter(isEventCurrentlyScheduled).find(
       (e) =>
         e.latitude != null &&
         e.longitude != null &&
@@ -498,12 +521,17 @@ export default function MapScreen() {
         }
         const elat = entry.eventLat;
         const elng = entry.eventLng;
+        const km = elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
+          ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
+          : Infinity;
+        const inZone = km <= ZONE_RADIUS_KM;
+        const participatingEvent = eventsToCheck.find((e) => String(e.id) === String(entry.eventId));
+        const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
         const shouldClear =
           elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng)
             ? true
-            : distanceKm(myPos.latitude, myPos.longitude, elat, elng) > ZONE_RADIUS_KM;
+            : km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule);
         if (shouldClear) {
-          // 구역 이탈 시 퇴장 시간 서버 기록 후 로컬 비움 → 참여한 축제에 1초라도 있으면 기록됨
           if (isLoggedIn) {
             completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
               .then(() => clearFestivalParticipation().then(() => refreshFestivalParticipation()))
@@ -514,7 +542,7 @@ export default function MapScreen() {
         }
       });
     }
-  }, [demoLocation, currentLocation, events, eventsNearMe, isLoggedIn, refreshFestivalParticipation, festivalEntry]);
+  }, [demoLocation, currentLocation, events, eventsNearMe, isLoggedIn, refreshFestivalParticipation, festivalEntry, isEventCurrentlyScheduled]);
 
   // 행사 새로고침 알림용: 구역·참여 상태·현재 위치를 ref에 동기화
   useEffect(() => {
