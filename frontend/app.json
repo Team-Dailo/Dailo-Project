@@ -61,7 +61,8 @@
         {
           "android": {
             "extraMavenRepos": [
-              "https://repository.map.naver.com/archive/maven"
+              "https://repository.map.naver.com/archive/maven",
+              "https://devrepo.kakao.com/nexus/content/groups/public/"
             ],
             "compileSdkVersion": 35,
             "targetSdkVersion": 35
