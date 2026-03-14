@@ -116,8 +116,8 @@ export default function MyPageScreen() {
           </View>
         )}
 
-        {/* 섹션: 활동 기록 (요청 순서) */}
-        <Section title="활동 기록">
+        {/* 섹션: 축제 기록 */}
+        <Section title="축제 기록">
           <MenuItem
             icon="calendar-outline"
             label="참여한 축제"
@@ -156,13 +156,17 @@ export default function MyPageScreen() {
           />
           <MenuItem
             icon="notifications-outline"
-            label="알림 예약한 행사"
+            label="알림 예약한 축제"
             onPress={() =>
               isLoggedIn
                 ? router.push("/(tabs)/mypage/saved-reminders")
                 : router.push("/login")
             }
           />
+        </Section>
+
+        {/* 섹션: 게시물 기록 */}
+        <Section title="게시물 기록">
           <MenuItem
             icon="document-text-outline"
             label="내가 쓴 게시글"

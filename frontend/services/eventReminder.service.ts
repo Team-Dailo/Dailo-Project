@@ -158,7 +158,7 @@ export async function cancelEventRemindersForOrigin(eventId: string, origin: Rem
 /**
  * 예약된 행사 알림에 해당하는 이벤트 ID 목록 (중복 제거)
  * origin 지정 시 해당 출처만, 미지정 시 전체
- * 마이페이지 "알림 예약한 행사" 목록용 → getScheduledEventIds('booked')
+ * 마이페이지 "알림 예약한 축제" 목록용 → getScheduledEventIds('booked')
  */
 export async function getScheduledEventIds(origin?: ReminderOrigin): Promise<string[]> {
   const pending = await Notifications.getAllScheduledNotificationsAsync();
