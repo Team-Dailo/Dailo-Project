@@ -1,5 +1,5 @@
 // app/(tabs)/mypage/notification-settings.tsx - 알림설정
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
   ToastAndroid,
   TextInput,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -55,6 +55,14 @@ export default function NotificationSettingsScreen() {
   const [regionTimeHour, setRegionTimeHour] = useState<number>(9);
   const [timeInput, setTimeInput] = useState<string>('9');
   const [regionMoreVisible, setRegionMoreVisible] = useState(false);
+
+  const handleBack = useCallback(() => {
+    if (params.from === 'home') {
+      router.replace('/(tabs)/home');
+    } else {
+      safeBack();
+    }
+  }, [params.from, safeBack]);
 
   useEffect(() => {
     (async () => {
@@ -278,7 +286,7 @@ export default function NotificationSettingsScreen() {
           headerShown: true,
           headerTitleAlign: 'center',
           headerLeft: () => (
-            <Pressable onPress={safeBack} hitSlop={8} style={styles.headerBackButton}>
+            <Pressable onPress={handleBack} hitSlop={8} style={styles.headerBackButton}>
               <Ionicons name="chevron-back" size={22} color="#111827" />
             </Pressable>
           ),

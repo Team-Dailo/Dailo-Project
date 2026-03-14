@@ -1,5 +1,5 @@
 // app/board/[id].tsx
-import React, { useState, useRef, useMemo, useEffect } from "react";
+import React, { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,10 +14,12 @@ import {
   ActivityIndicator,
   Image,
   useWindowDimensions,
+  RefreshControl,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import ImageViewing from "react-native-image-viewing";
 import * as Clipboard from "expo-clipboard";
 import { useAuthContext } from "../../contexts/AuthContext";
 import { usePostDetail, useComments } from "../../hooks/useBoard";
@@ -33,27 +35,35 @@ const DEFAULT_PROFILE_IMAGE = require("../../assets/images/default-profile.png")
 
 type CommentDisplay = {
   id: string;
+  authorId: number;
   author: string;
-  /** 작성자 프로필 이미지 URL (없으면 기본 이미지) */
   authorProfileImageUrl: string | null;
   time: string;
   content: string;
   likes: number;
+  createdAt: string;
+  updatedAt: string;
+  replies: CommentDisplay[];
 };
 
-function toCommentDisplay(c: { id: number; authorId: number; authorNickname?: string; authorProfileImageUrl?: string | null; author_profile_image_url?: string | null; content: string; likeCount: number; createdAt: string }): CommentDisplay {
+function toCommentDisplay(c: { id: number; authorId: number; authorNickname?: string; authorProfileImageUrl?: string | null; author_profile_image_url?: string | null; content: string; likeCount: number; createdAt: string; updatedAt?: string; replies?: unknown[] }): CommentDisplay {
   const raw = c as Record<string, unknown>;
   const nick = (c.authorNickname ?? raw.author_nickname) as string | undefined;
   const author = (typeof nick === "string" && nick.trim()) ? nick.trim() : `user_${c.authorId}`;
   const profileUrl = (raw.authorProfileImageUrl ?? raw.author_profile_image_url ?? c.authorProfileImageUrl) as string | null | undefined;
   const authorProfileImageUrl = profileUrl && typeof profileUrl === "string" && profileUrl.trim() ? profileUrl.trim() : null;
+  const replies = (c.replies ?? []).map((r: unknown) => toCommentDisplay(r as Parameters<typeof toCommentDisplay>[0]));
   return {
     id: String(c.id),
+    authorId: c.authorId,
     author,
     authorProfileImageUrl,
     time: formatRelativeTime(c.createdAt),
     content: c.content,
     likes: c.likeCount ?? 0,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt ?? c.createdAt,
+    replies,
   };
 }
 
@@ -70,13 +80,28 @@ export default function PostDetailScreen() {
   const [commentMenuId, setCommentMenuId] = useState<string | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentContent, setEditingCommentContent] = useState("");
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+  const [replyingToAuthor, setReplyingToAuthor] = useState<string | null>(null);
   /** 이 게시글에서 삭제한 댓글 ID (나갔다 들어와도 서버가 삭제된 댓글을 주는 경우 대비) */
   const [deletedCommentIds, setDeletedCommentIds] = useState<Set<string>>(new Set());
   const scrollViewRef = useRef<ScrollView>(null);
   const commentSectionY = useRef(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [imageViewerIndex, setImageViewerIndex] = useState(0);
 
   const { post, loading: postLoading, error: postError, refetch: refetchPost } = usePostDetail(id);
   const { comments: apiComments, loading: commentsLoading, refetch: refetchComments, removeComment } = useComments(id);
+
+  const onRefresh = useCallback(async () => {
+    if (refreshing) return; // 중복 새로고침 방지
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchPost(), refetchComments()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshing, refetchPost, refetchComments]);
 
   useEffect(() => {
     setDeletedCommentIds(new Set());
@@ -329,8 +354,14 @@ export default function PostDetailScreen() {
     }
     setSubmittingComment(true);
     try {
-      await boardService.createComment(id, { content: commentText.trim() });
+      const payload: { content: string; parentCommentId?: number } = { content: commentText.trim() };
+      if (replyingToCommentId) {
+        payload.parentCommentId = Number(replyingToCommentId);
+      }
+      await boardService.createComment(id, payload);
       setCommentText("");
+      setReplyingToCommentId(null);
+      setReplyingToAuthor(null);
       refetchComments();
       refetchPost();
     } catch {
@@ -338,6 +369,26 @@ export default function PostDetailScreen() {
     } finally {
       setSubmittingComment(false);
     }
+  };
+
+  const handleReply = (commentId: string, author: string) => {
+    // 수정 모드가 활성화되어 있으면 취소
+    if (editingCommentId) {
+      setEditingCommentId(null);
+      setEditingCommentContent("");
+    }
+    setReplyingToCommentId(commentId);
+    setReplyingToAuthor(author);
+  };
+
+  const handleCancelReply = () => {
+    setReplyingToCommentId(null);
+    setReplyingToAuthor(null);
+  };
+
+  const handleProfilePress = (authorId: number) => {
+    if (!authorId || authorId <= 0) return;
+    router.push(`/profile/${authorId}`);
   };
 
   const toggleLike = async () => {
@@ -459,6 +510,14 @@ export default function PostDetailScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#6366F1"]}
+              tintColor="#6366F1"
+            />
+          }
         >
           {postLoading ? (
             <View style={styles.loadingWrap}>
@@ -515,13 +574,20 @@ export default function PostDetailScreen() {
                   const size = Math.floor((winWidth - 32 - gap * 2) / 3);
                   return (
                     <View style={styles.postImagesWrap}>
-                      {list.map((uri) => (
-                        <Image
+                      {list.map((uri, index) => (
+                        <Pressable
                           key={uri}
-                          source={{ uri }}
-                          style={[styles.postImage, { width: size, height: size }]}
-                          resizeMode="cover"
-                        />
+                          onPress={() => {
+                            setImageViewerIndex(index);
+                            setImageViewerVisible(true);
+                          }}
+                        >
+                          <Image
+                            source={{ uri }}
+                            style={[styles.postImage, { width: size, height: size }]}
+                            resizeMode="cover"
+                          />
+                        </Pressable>
                       ))}
                     </View>
                   );
@@ -570,52 +636,124 @@ export default function PostDetailScreen() {
               const commentLikeCount = c.likes + (commentLiked ? 1 : 0);
               const isMine = isMyComment(c.id);
               const hasCommentPhoto = c.authorProfileImageUrl?.trim();
+              const isEdited = new Date(c.updatedAt) > new Date(c.createdAt);
               return (
-                <View key={c.id} style={styles.commentRow}>
-                  {hasCommentPhoto ? (
-                    <Image source={{ uri: c.authorProfileImageUrl! }} style={styles.commentAvatar} resizeMode="cover" />
-                  ) : (
-                    <View style={styles.commentAvatar}>
-                      <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.commentAvatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
-                    </View>
-                  )}
-                  <View style={styles.commentBody}>
-                    <View style={styles.commentHeader}>
-                      <Text style={styles.commentAuthor}>{c.author}</Text>
-                      <Text style={styles.commentTime}>{c.time}</Text>
-                      {isMine && (
-                        <Pressable
-                          style={styles.commentMenuBtn}
-                          onPress={() => setCommentMenuId(commentMenuId === c.id ? null : c.id)}
-                        >
-                          <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
-                        </Pressable>
+                <View key={c.id}>
+                  <View style={styles.commentRow}>
+                    <Pressable onPress={() => handleProfilePress(c.authorId)}>
+                      {hasCommentPhoto ? (
+                        <Image source={{ uri: c.authorProfileImageUrl! }} style={styles.commentAvatar} resizeMode="cover" />
+                      ) : (
+                        <View style={styles.commentAvatar}>
+                          <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.commentAvatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
+                        </View>
                       )}
-                    </View>
-                    <Text style={styles.commentContent}>{c.content}</Text>
-                  </View>
-                  <View style={styles.commentRight}>
-                    {commentMenuId === c.id && (
-                      <View style={styles.commentDropdown}>
-                        <Pressable style={styles.commentDropdownItem} onPress={() => handleStartEditComment(c.id, c.content)}>
-                          <Text style={styles.commentDropdownText}>수정</Text>
-                        </Pressable>
-                        <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
-                          <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
-                        </Pressable>
-                      </View>
-                    )}
-                    <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(c.id)}>
-                      <Ionicons
-                        name={commentLiked ? "heart" : "heart-outline"}
-                        size={16}
-                        color={commentLiked ? "#EF4444" : "#9CA3AF"}
-                      />
-                      <Text style={[styles.commentLikeCount, commentLiked && styles.commentLikeCountLiked]}>
-                        {commentLikeCount}
-                      </Text>
                     </Pressable>
+                    <View style={styles.commentBody}>
+                      <View style={styles.commentHeader}>
+                        <Pressable onPress={() => handleProfilePress(c.authorId)}>
+                          <Text style={styles.commentAuthor}>{c.author}</Text>
+                        </Pressable>
+                        <Text style={styles.commentTime}>{c.time}</Text>
+                        {isEdited && <Text style={styles.commentEdited}>(수정됨)</Text>}
+                        {isMine && (
+                          <Pressable
+                            style={styles.commentMenuBtn}
+                            onPress={() => setCommentMenuId(commentMenuId === c.id ? null : c.id)}
+                          >
+                            <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
+                          </Pressable>
+                        )}
+                      </View>
+                      <Text style={styles.commentContent}>{c.content}</Text>
+                      <Pressable style={styles.replyBtn} onPress={() => handleReply(c.id, c.author)}>
+                        <Text style={styles.replyBtnText}>답글</Text>
+                      </Pressable>
+                    </View>
+                    <View style={styles.commentRight}>
+                      {commentMenuId === c.id && (
+                        <View style={styles.commentDropdown}>
+                          <Pressable style={styles.commentDropdownItem} onPress={() => handleStartEditComment(c.id, c.content)}>
+                            <Text style={styles.commentDropdownText}>수정</Text>
+                          </Pressable>
+                          <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
+                            <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                      <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(c.id)}>
+                        <Ionicons
+                          name={commentLiked ? "heart" : "heart-outline"}
+                          size={16}
+                          color={commentLiked ? "#EF4444" : "#9CA3AF"}
+                        />
+                        <Text style={[styles.commentLikeCount, commentLiked && styles.commentLikeCountLiked]}>
+                          {commentLikeCount}
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
+                  {/* 대댓글 렌더링 */}
+                  {c.replies.map((reply) => {
+                    const replyLiked = likedCommentIds.has(reply.id);
+                    const replyLikeCount = reply.likes + (replyLiked ? 1 : 0);
+                    const isMyReply = isMyComment(reply.id);
+                    const hasReplyPhoto = reply.authorProfileImageUrl?.trim();
+                    const isReplyEdited = new Date(reply.updatedAt) > new Date(reply.createdAt);
+                    return (
+                      <View key={reply.id} style={styles.replyRow}>
+                        <Pressable onPress={() => handleProfilePress(reply.authorId)}>
+                          {hasReplyPhoto ? (
+                            <Image source={{ uri: reply.authorProfileImageUrl! }} style={styles.replyAvatar} resizeMode="cover" />
+                          ) : (
+                            <View style={styles.replyAvatar}>
+                              <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.replyAvatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
+                            </View>
+                          )}
+                        </Pressable>
+                        <View style={styles.commentBody}>
+                          <View style={styles.commentHeader}>
+                            <Pressable onPress={() => handleProfilePress(reply.authorId)}>
+                              <Text style={styles.commentAuthor}>{reply.author}</Text>
+                            </Pressable>
+                            <Text style={styles.commentTime}>{reply.time}</Text>
+                            {isReplyEdited && <Text style={styles.commentEdited}>(수정됨)</Text>}
+                            {isMyReply && (
+                              <Pressable
+                                style={styles.commentMenuBtn}
+                                onPress={() => setCommentMenuId(commentMenuId === reply.id ? null : reply.id)}
+                              >
+                                <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
+                              </Pressable>
+                            )}
+                          </View>
+                          <Text style={styles.commentContent}>{reply.content}</Text>
+                        </View>
+                        <View style={styles.commentRight}>
+                          {commentMenuId === reply.id && (
+                            <View style={styles.commentDropdown}>
+                              <Pressable style={styles.commentDropdownItem} onPress={() => handleStartEditComment(reply.id, reply.content)}>
+                                <Text style={styles.commentDropdownText}>수정</Text>
+                              </Pressable>
+                              <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
+                                <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                              </Pressable>
+                            </View>
+                          )}
+                          <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(reply.id)}>
+                            <Ionicons
+                              name={replyLiked ? "heart" : "heart-outline"}
+                              size={16}
+                              color={replyLiked ? "#EF4444" : "#9CA3AF"}
+                            />
+                            <Text style={[styles.commentLikeCount, replyLiked && styles.commentLikeCountLiked]}>
+                              {replyLikeCount}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
               );
             })
@@ -627,26 +765,38 @@ export default function PostDetailScreen() {
 
         {/* 댓글 입력 - 게시물 로드된 경우만 */}
         {post && (
-        <View style={styles.inputRow}>
-          <Text style={styles.inputLabel}>{isLoggedIn && user?.name ? user.name : "Me"}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="댓글을 입력하세요"
-            placeholderTextColor="#9CA3AF"
-            value={commentText}
-            onChangeText={setCommentText}
-            multiline
-            maxLength={500}
-          />
-          <Pressable
-            onPress={handleSubmitComment}
-            style={[styles.postBtn, (!commentText.trim() || submittingComment) && styles.postBtnDisabled]}
-            disabled={!commentText.trim() || submittingComment}
-          >
-            <Text style={[styles.postBtnText, !commentText.trim() && styles.postBtnTextDisabled]}>
-              {submittingComment ? "..." : "게시"}
-            </Text>
-          </Pressable>
+        <View>
+          {replyingToCommentId && (
+            <View style={styles.replyingIndicator}>
+              <Text style={styles.replyingText}>
+                {replyingToAuthor}님에게 답글 작성 중
+              </Text>
+              <Pressable onPress={handleCancelReply} hitSlop={8}>
+                <Ionicons name="close-circle" size={18} color="#6B7280" />
+              </Pressable>
+            </View>
+          )}
+          <View style={styles.inputRow}>
+            <Text style={styles.inputLabel}>{isLoggedIn && user?.name ? user.name : "Me"}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder={replyingToCommentId ? "답글을 입력하세요" : "댓글을 입력하세요"}
+              placeholderTextColor="#9CA3AF"
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline
+              maxLength={500}
+            />
+            <Pressable
+              onPress={handleSubmitComment}
+              style={[styles.postBtn, (!commentText.trim() || submittingComment) && styles.postBtnDisabled]}
+              disabled={!commentText.trim() || submittingComment}
+            >
+              <Text style={[styles.postBtnText, !commentText.trim() && styles.postBtnTextDisabled]}>
+                {submittingComment ? "..." : "게시"}
+              </Text>
+            </Pressable>
+          </View>
         </View>
         )}
       </KeyboardAvoidingView>
@@ -725,6 +875,20 @@ export default function PostDetailScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* 이미지 확대 뷰어 */}
+      <ImageViewing
+        images={(() => {
+          const urls = post?.imageUrls ?? (post as Record<string, unknown> | null)?.image_urls as string[] | undefined;
+          const list = Array.isArray(urls) ? urls : [];
+          return list.map((uri) => ({ uri }));
+        })()}
+        imageIndex={imageViewerIndex}
+        visible={imageViewerVisible}
+        onRequestClose={() => setImageViewerVisible(false)}
+        swipeToCloseEnabled
+        doubleTapToZoomEnabled
+      />
     </SafeAreaView>
   );
 }
@@ -824,6 +988,33 @@ const styles = StyleSheet.create({
   commentLikeWrap: { alignItems: "center", padding: 4, minWidth: 28 },
   commentLikeCount: { fontSize: 11, color: "#9CA3AF", marginTop: 2 },
   commentLikeCountLiked: { color: "#EF4444" },
+  commentEdited: { fontSize: 11, color: "#9CA3AF", fontStyle: "italic" },
+  replyBtn: { marginTop: 4 },
+  replyBtnText: { fontSize: 12, color: "#6B7280" },
+  replyRow: {
+    flexDirection: "row",
+    marginBottom: 16,
+    alignItems: "flex-start",
+    paddingLeft: 42, // 댓글 아바타(32) + 마진(10) = 42
+  },
+  replyAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#E5E7EB",
+    overflow: "hidden",
+  },
+  replyingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#F3F4F6",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  replyingText: { fontSize: 13, color: "#6B7280" },
   footerTextLiked: { color: "#EF4444" },
   editCommentOverlay: {
     flex: 1,

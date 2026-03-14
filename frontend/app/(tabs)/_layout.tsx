@@ -129,7 +129,14 @@ export default function TabsLayout() {
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (!navigation.canGoBack()) {
+      const state = navigation.getState();
+      const currentTab = state?.routes?.[state.index];
+      const nestedState = currentTab?.state as { index?: number; routes?: unknown[] } | undefined;
+      const isAtTabRoot =
+        !nestedState ||
+        typeof nestedState.index !== "number" ||
+        nestedState.index <= 0;
+      if (isAtTabRoot) {
         BackHandler.exitApp();
         return true;
       }
