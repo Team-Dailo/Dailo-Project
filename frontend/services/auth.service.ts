@@ -353,7 +353,8 @@ export async function getMe(): Promise<MemberResponseDto | null> {
 
     const contentType = res.headers.get('content-type') ?? '';
     if (!contentType.includes('application/json')) {
-      console.error('[getMe] JSON이 아닌 응답을 받음');
+      // 카카오 로그인 HTML 등 JSON 이외 응답이 오는 경우가 있어도 앱이 크래시 나지 않도록 경고만 남기고 조용히 무시
+      console.log('[getMe] non-JSON response, skipping me update');
       return null;
     }
 
@@ -428,6 +429,23 @@ export async function uploadProfileImage(imageUri: string): Promise<string> {
   const url = data?.imageUrl ?? '';
   if (!url) throw new Error('업로드 응답에 imageUrl이 없습니다.');
   return url;
+}
+
+export type MemberProfileDto = {
+  id: number;
+  nickname: string;
+  profileImageUrl?: string | null;
+};
+
+export async function getMemberProfile(memberId: number): Promise<MemberProfileDto | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/members/${memberId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data as MemberProfileDto;
+  } catch {
+    return null;
+  }
 }
 
 export async function getKakaoNativeTokenDto(kakaoAccessToken: string): Promise<TokenDto> {

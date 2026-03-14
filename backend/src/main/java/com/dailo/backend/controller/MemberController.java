@@ -1,5 +1,6 @@
 package com.dailo.backend.controller;
 
+import com.dailo.backend.dto.auth.MemberProfileResponseDto;
 import com.dailo.backend.dto.auth.MemberResponseDto;
 import com.dailo.backend.dto.auth.MemberUpdateRequestDto;
 import com.dailo.backend.service.MemberService;
@@ -63,6 +64,15 @@ public class MemberController {
         Map<String, Boolean> response = new HashMap<>();
         response.put("isAvailable", !isDuplicate);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 타 사용자 프로필 조회 (ID 기반)
+     * 댓글 작성자 프로필 보기 등에서 사용
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<MemberProfileResponseDto> getMemberProfile(@PathVariable Long id) {
+        return ResponseEntity.ok(memberService.getMemberProfile(id));
     }
 
     @PostMapping(value = "/me/image", consumes = "multipart/form-data")

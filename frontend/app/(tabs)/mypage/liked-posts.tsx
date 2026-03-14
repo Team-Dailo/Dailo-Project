@@ -1,13 +1,13 @@
 // app/(tabs)/mypage/liked-posts.tsx - 좋아요 누른 글 목록
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  ScrollView,
   FlatList,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -50,12 +50,19 @@ export default function LikedPostsScreen() {
   const { isLoggedIn } = useAuth();
   const { posts, loading, error, refetch } = useLikedPostList(!!isLoggedIn);
   const sortedPosts = useMemo(() => posts.map(toPostRow), [posts]);
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
       if (isLoggedIn) refetch();
     }, [isLoggedIn, refetch])
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const renderPost = ({ item }: { item: PostRow }) => (
     <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.id}`)}>
@@ -107,45 +114,47 @@ export default function LikedPostsScreen() {
           <View style={styles.headerRight} />
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {!isLoggedIn ? (
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>로그인하면 좋아요 누른 글이 표시됩니다.</Text>
-              <Pressable style={styles.loginBtn} onPress={() => router.push("/login")}>
-                <Text style={styles.loginBtnText}>로그인</Text>
-              </Pressable>
-            </View>
-          ) : loading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color="#4C8BF5" />
-              <Text style={styles.loadingText}>불러오는 중...</Text>
-            </View>
-          ) : error ? (
-            <View style={styles.errorWrap}>
-              <Text style={styles.errorText}>목록을 불러올 수 없습니다.</Text>
-              <Pressable style={styles.retryBtn} onPress={() => refetch()}>
-                <Text style={styles.retryText}>다시 시도</Text>
-              </Pressable>
-            </View>
-          ) : sortedPosts.length === 0 ? (
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>아직 좋아요 누른 글이 없습니다.</Text>
-            </View>
-          ) : (
-            <View style={styles.listWrap}>
-              <FlatList
-                data={sortedPosts}
-                keyExtractor={(item) => item.id}
-                renderItem={renderPost}
-                scrollEnabled={false}
+        {!isLoggedIn ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>로그인하면 좋아요 누른 글이 표시됩니다.</Text>
+            <Pressable style={styles.loginBtn} onPress={() => router.push("/login")}>
+              <Text style={styles.loginBtnText}>로그인</Text>
+            </Pressable>
+          </View>
+        ) : loading && !refreshing ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color="#4C8BF5" />
+            <Text style={styles.loadingText}>불러오는 중...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.errorWrap}>
+            <Text style={styles.errorText}>목록을 불러올 수 없습니다.</Text>
+            <Pressable style={styles.retryBtn} onPress={() => refetch()}>
+              <Text style={styles.retryText}>다시 시도</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <FlatList
+            data={sortedPosts}
+            keyExtractor={(item) => item.id}
+            renderItem={renderPost}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={["#6366F1"]}
+                tintColor="#6366F1"
               />
-            </View>
-          )}
-        </ScrollView>
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyText}>아직 좋아요 누른 글이 없습니다.</Text>
+              </View>
+            }
+          />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -190,9 +199,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
   },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 24 },
-  listWrap: { marginHorizontal: -24 },
+  listContent: { paddingBottom: 24 },
   loadingWrap: { paddingVertical: 48, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
   loadingText: { marginTop: 12, fontSize: 14, color: "#6B7280" },
   errorWrap: { paddingVertical: 48, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },

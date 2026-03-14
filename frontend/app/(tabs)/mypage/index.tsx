@@ -1,5 +1,5 @@
 // app/(tabs)/mypage/index.tsx
-import React from "react";
+import React, { useState } from "react";
 import {
   ScrollView,
   View,
@@ -20,9 +20,11 @@ import { API_BASE_URL } from "../../../constants/api";
 export default function MyPageScreen() {
   const { user, isLoggedIn, logout, refreshUser } = useAuth();
   const { entry: festivalEntry, elapsedFormatted: festivalElapsed, isCompleted: festivalIsCompleted } = useFestivalParticipation();
+  const [profileImageError, setProfileImageError] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
+      setProfileImageError(false); // 이미지 에러 상태 리셋
       refreshUser();
     }, [refreshUser])
   );
@@ -48,7 +50,7 @@ export default function MyPageScreen() {
             {(() => {
               const defaultProfile = require("../../../assets/images/default-profile.png");
               const profileUrl = user?.profileImageUrl?.trim();
-              if (!isLoggedIn || !profileUrl) {
+              if (!isLoggedIn || !profileUrl || profileImageError) {
                 return (
                   <View style={styles.avatar}>
                     <Image source={defaultProfile} style={[styles.avatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
@@ -64,6 +66,7 @@ export default function MyPageScreen() {
                   source={{ uri: finalUri }}
                   style={styles.avatar}
                   resizeMode="cover"
+                  onError={() => setProfileImageError(true)}
                 />
               );
             })()}
@@ -113,8 +116,8 @@ export default function MyPageScreen() {
           </View>
         )}
 
-        {/* 섹션: 활동 기록 (요청 순서) */}
-        <Section title="활동 기록">
+        {/* 섹션: 축제 기록 */}
+        <Section title="축제 기록">
           <MenuItem
             icon="calendar-outline"
             label="참여한 축제"
@@ -153,13 +156,17 @@ export default function MyPageScreen() {
           />
           <MenuItem
             icon="notifications-outline"
-            label="알림 예약한 행사"
+            label="알림 예약한 축제"
             onPress={() =>
               isLoggedIn
                 ? router.push("/(tabs)/mypage/saved-reminders")
                 : router.push("/login")
             }
           />
+        </Section>
+
+        {/* 섹션: 게시물 기록 */}
+        <Section title="게시물 기록">
           <MenuItem
             icon="document-text-outline"
             label="내가 쓴 게시글"

@@ -39,7 +39,15 @@ jobs:
         working-directory: ./backend
         run: ./gradlew clean build -x test
 
-      # 5) AWS 인증
+      # 5) OIDC 클레임 확인
+      - name: Debug OIDC claims
+        run: |
+          TOKEN_RESPONSE=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
+          ID_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.value')
+          PAYLOAD=$(echo "$ID_TOKEN" | cut -d '.' -f2 | tr '_-' '/+' | base64 -d 2>/dev/null || true)
+          echo "$PAYLOAD" | jq '{aud, sub, repository, repository_owner, ref, event_name, job_workflow_ref}'
+
+      # 6) AWS 인증
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -47,7 +55,7 @@ jobs:
           role-session-name: github-actions-cd-prod
           aws-region: ap-northeast-2
       
-      # 6) 인프라 준비 상태 확인 (ECS 클러스터)
+      # 7) 인프라 준비 상태 확인 (ECS 클러스터)
       - name: Check Infrastructure Readiness
         run: |
           echo "Checking if ECS cluster 'dailo-cluster' exists and is ACTIVE..."
@@ -58,12 +66,12 @@ jobs:
             exit 1
           fi
 
-      # 7) ECR 로그인
+      # 8) ECR 로그인
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      # 8) Docker 이미지 빌드/푸시 후 digest 기반 이미지 URI 생성
+      # 9) Docker 이미지 빌드/푸시 후 digest 기반 이미지 URI 생성
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         working-directory: ./backend
@@ -89,7 +97,7 @@ jobs:
           echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
           echo "Using image digest: $IMAGE_URI"
 
-      # 9) 현재 실행 중인 Task Definition 다운로드
+      # 10) 현재 실행 중인 Task Definition 다운로드
       - name: Download current task definition
         run: |
           CURRENT_TD_ARN=$(aws ecs describe-services \
@@ -102,7 +110,7 @@ jobs:
             --task-definition "$CURRENT_TD_ARN" \
             --query taskDefinition > task-definition.json
 
-      # 10) 새 이미지 digest를 Task Definition에 반영
+      # 11) 새 이미지 digest를 Task Definition에 반영
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -111,7 +119,7 @@ jobs:
           container-name: dailo-container
           image: ${{ env.IMAGE_URI }}
 
-      # 11) ECS 서비스에 새 Task Definition 배포
+      # 12) ECS 서비스에 새 Task Definition 배포
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
