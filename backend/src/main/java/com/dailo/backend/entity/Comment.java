@@ -3,7 +3,6 @@ package com.dailo.backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
 
 import java.time.LocalDateTime;
 
@@ -14,7 +13,6 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @SQLDelete(sql = "UPDATE comments SET deleted_at = NOW() WHERE id = ?")
-@Where(clause = "deleted_at IS NULL")
 public class Comment {
 
     @Id
@@ -80,5 +78,9 @@ public class Comment {
         if (this.likeCount > 0) {
             this.likeCount--;
         }
+    }
+
+    public boolean isDeleted() {
+        return this.deletedAt != null;
     }
 }
