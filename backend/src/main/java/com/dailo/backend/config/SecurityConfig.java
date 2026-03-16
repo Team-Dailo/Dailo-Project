@@ -99,7 +99,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/scraps/**").authenticated()
                         .requestMatchers("/api/location/**").authenticated()
 
-                        // 핵심 추가
+                        // 타 사용자 프로필 조회는 공개 (숫자 ID만 매칭)
+                        .requestMatchers(HttpMethod.GET, "/api/members/{id:\\d+}").permitAll()
+                        // 나머지 회원 API는 인증 필요
                         .requestMatchers("/api/members/**").authenticated()
 
                         .anyRequest().authenticated()
