@@ -61,7 +61,8 @@
         {
           "android": {
             "extraMavenRepos": [
-              "https://repository.map.naver.com/archive/maven"
+              "https://repository.map.naver.com/archive/maven",
+              "https://devrepo.kakao.com/nexus/content/groups/public/"
             ],
             "compileSdkVersion": 35,
             "targetSdkVersion": 35
@@ -73,6 +74,7 @@
         "@react-native-kakao/core",
         {
           "nativeAppKey": "aead9c7f96ba794087bc97918a16ba61",
+
           "android": { "authCodeHandlerActivity": true },
           "ios": { "handleKakaoOpenUrl": true }
         }

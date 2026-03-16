@@ -1,4 +1,4 @@
-// app/(tabs)/mypage/saved-reminders.tsx – 알림 예약한 행사 목록 (로컬 알림 기준, 행사 리스트 UI)
+// app/(tabs)/mypage/saved-reminders.tsx – 알림 예약한 축제 목록 (로컬 알림 기준, 행사 리스트 UI)
 import React, { useCallback, useState, useMemo } from "react";
 import {
   View,
@@ -131,7 +131,7 @@ export default function SavedRemindersScreen() {
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
           <View style={styles.headerTitleWrap} pointerEvents="box-none">
-            <Text style={styles.headerTitle}>알림 예약한 행사</Text>
+            <Text style={styles.headerTitle}>알림 예약한 축제</Text>
           </View>
           <View style={styles.headerRight} />
         </View>
@@ -147,7 +147,7 @@ export default function SavedRemindersScreen() {
         ) : list.length === 0 ? (
           <View style={styles.center}>
             <Ionicons name="notifications-outline" size={48} color="#D1D5DB" />
-            <Text style={styles.emptyText}>알림 예약한 행사가 없어요</Text>
+            <Text style={styles.emptyText}>알림 예약한 축제가 없어요</Text>
             <Text style={styles.emptySub}>
               행사 상세에서 알림 아이콘으로 예약할 수 있어요
             </Text>
@@ -186,7 +186,7 @@ export default function SavedRemindersScreen() {
               <View style={styles.eventCardList}>
                 {filteredList.length === 0 ? (
                   <Text style={styles.eventCardEmpty}>
-                    {searchQuery.trim() ? "조건에 맞는 알림 예약 행사가 없어요" : "알림 예약한 행사가 없어요"}
+                    {searchQuery.trim() ? "조건에 맞는 알림 예약한 축제가 없어요" : "알림 예약한 축제가 없어요"}
                   </Text>
                 ) : (
                   filteredList.map((item) => {

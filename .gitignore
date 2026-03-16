@@ -80,3 +80,5 @@ backend/docs/
 **/logs/
 .vscode/
 
+*.jks
+*.jks

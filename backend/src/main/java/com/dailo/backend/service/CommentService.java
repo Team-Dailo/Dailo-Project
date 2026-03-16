@@ -44,6 +44,7 @@ public class CommentService {
     }
 
     // 1. 댓글 목록 조회 (최상위 댓글 + 대댓글 포함, 작성자 닉네임 포함)
+    // 삭제된 댓글도 대댓글이 있으면 "(삭제된 댓글)"로 표시
     public Page<CommentResponseDto> getCommentsByPostId(Long postId, String email, Pageable pageable) {
         Long userId = getMemberIdByEmail(email);
 
@@ -52,17 +53,29 @@ public class CommentService {
 
         Set<Long> invisibleIds = (userId != null) ? blockService.getInvisibleUserIds(userId) : Collections.emptySet();
 
-        Page<Comment> topLevelComments;
-        if (invisibleIds.isEmpty()) {
-            topLevelComments = commentRepository.findByPostAndParentCommentIsNull(post, pageable);
-        } else {
-            topLevelComments = commentRepository.findByPostAndParentCommentIsNullExcludingAuthors(post, invisibleIds, pageable);
-        }
+        // 모든 최상위 댓글 조회 (삭제된 것 포함)
+        List<Comment> allTopLevel = commentRepository.findAllTopLevelByPost(post);
 
-        List<Comment> topList = topLevelComments.getContent();
+        // 필터링: 삭제되지 않은 댓글 + 삭제됐지만 대댓글이 있는 댓글
+        List<Comment> topList = allTopLevel.stream()
+                .filter(c -> {
+                    // 차단된 사용자 댓글 제외 (삭제된 댓글은 제외하지 않음 - 대댓글이 있을 수 있으므로)
+                    if (!c.isDeleted() && !invisibleIds.isEmpty() && invisibleIds.contains(c.getAuthorId())) {
+                        return false;
+                    }
+                    // 삭제된 댓글은 대댓글이 있어야만 표시
+                    if (c.isDeleted()) {
+                        return commentRepository.countActiveReplies(c) > 0;
+                    }
+                    return true;
+                })
+                .toList();
+
         Set<Long> authorIds = new java.util.HashSet<>();
         for (Comment c : topList) {
-            authorIds.add(c.getAuthorId());
+            if (!c.isDeleted()) {
+                authorIds.add(c.getAuthorId());
+            }
             for (Comment r : getReplies(c, invisibleIds)) {
                 authorIds.add(r.getAuthorId());
             }
@@ -95,7 +108,7 @@ public class CommentService {
                     return CommentResponseDto.fromWithReplies(comment, replies, authorNicknameMap, authorProfileImageUrlMap);
                 })
                 .toList();
-        return new PageImpl<>(dtos, pageable, topLevelComments.getTotalElements());
+        return new PageImpl<>(dtos, pageable, (long) topList.size());
     }
 
     // 대댓글 조회 (차단 필터 적용)
@@ -193,6 +206,11 @@ public class CommentService {
         Long authorId = getMemberIdByEmail(email);
         Comment comment = commentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Comment not found: " + id));
+
+        // 이미 삭제된 댓글인 경우
+        if (comment.isDeleted()) {
+            throw new NotFoundException("Comment not found: " + id);
+        }
 
         if (!comment.getAuthorId().equals(authorId)) {
             throw new ForbiddenException("You are not the author of this comment");
