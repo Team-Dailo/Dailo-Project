@@ -353,7 +353,8 @@ export async function getMe(): Promise<MemberResponseDto | null> {
 
     const contentType = res.headers.get('content-type') ?? '';
     if (!contentType.includes('application/json')) {
-      console.error('[getMe] JSON이 아닌 응답을 받음');
+      // 카카오 로그인 HTML 등 JSON 이외 응답이 오는 경우가 있어도 앱이 크래시 나지 않도록 경고만 남기고 조용히 무시
+      console.log('[getMe] non-JSON response, skipping me update');
       return null;
     }
 
