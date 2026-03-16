@@ -35,34 +35,39 @@ const DEFAULT_PROFILE_IMAGE = require("../../assets/images/default-profile.png")
 
 type CommentDisplay = {
   id: string;
-  authorId: number;
-  author: string;
+  authorId: number | null;
+  author: string | null;
   authorProfileImageUrl: string | null;
   time: string;
-  content: string;
+  content: string | null;
   likes: number;
   createdAt: string;
   updatedAt: string;
+  deleted: boolean;
   replies: CommentDisplay[];
 };
 
-function toCommentDisplay(c: { id: number; authorId: number; authorNickname?: string; authorProfileImageUrl?: string | null; author_profile_image_url?: string | null; content: string; likeCount: number; createdAt: string; updatedAt?: string; replies?: unknown[] }): CommentDisplay {
+function toCommentDisplay(c: { id: number; authorId: number | null; authorNickname?: string | null; authorProfileImageUrl?: string | null; author_profile_image_url?: string | null; content: string | null; likeCount: number; createdAt: string; updatedAt?: string; deleted?: boolean; replies?: unknown[] }): CommentDisplay {
   const raw = c as Record<string, unknown>;
-  const nick = (c.authorNickname ?? raw.author_nickname) as string | undefined;
-  const author = (typeof nick === "string" && nick.trim()) ? nick.trim() : `user_${c.authorId}`;
+  const isDeleted = c.deleted === true || raw.deleted === true;
+
+  const nick = (c.authorNickname ?? raw.author_nickname) as string | null | undefined;
+  const author = isDeleted ? null : (typeof nick === "string" && nick.trim()) ? nick.trim() : `user_${c.authorId}`;
   const profileUrl = (raw.authorProfileImageUrl ?? raw.author_profile_image_url ?? c.authorProfileImageUrl) as string | null | undefined;
-  const authorProfileImageUrl = profileUrl && typeof profileUrl === "string" && profileUrl.trim() ? profileUrl.trim() : null;
+  const authorProfileImageUrl = isDeleted ? null : (profileUrl && typeof profileUrl === "string" && profileUrl.trim() ? profileUrl.trim() : null);
   const replies = (c.replies ?? []).map((r: unknown) => toCommentDisplay(r as Parameters<typeof toCommentDisplay>[0]));
+
   return {
     id: String(c.id),
-    authorId: c.authorId,
+    authorId: isDeleted ? null : c.authorId,
     author,
     authorProfileImageUrl,
     time: formatRelativeTime(c.createdAt),
-    content: c.content,
-    likes: c.likeCount ?? 0,
+    content: isDeleted ? null : c.content,
+    likes: isDeleted ? 0 : (c.likeCount ?? 0),
     createdAt: c.createdAt,
     updatedAt: c.updatedAt ?? c.createdAt,
+    deleted: isDeleted,
     replies,
   };
 }
@@ -645,123 +650,147 @@ export default function PostDetailScreen() {
                   comments.map((c) => {
               const commentLiked = likedCommentIds.has(c.id);
               const commentLikeCount = c.likes + (commentLiked ? 1 : 0);
-              const isMine = isMyComment(c.id);
-              const hasCommentPhoto = c.authorProfileImageUrl?.trim();
-              const isEdited = new Date(c.updatedAt) > new Date(c.createdAt);
+              const isMine = !c.deleted && isMyComment(c.id);
+              const hasCommentPhoto = !c.deleted && c.authorProfileImageUrl?.trim();
+              const isEdited = !c.deleted && new Date(c.updatedAt) > new Date(c.createdAt);
               return (
                 <View key={c.id}>
                   <View style={styles.commentRow}>
-                    <Pressable onPress={() => handleProfilePress(c.authorId)}>
-                      {hasCommentPhoto ? (
-                        <Image source={{ uri: c.authorProfileImageUrl! }} style={styles.commentAvatar} resizeMode="cover" />
-                      ) : (
-                        <View style={styles.commentAvatar}>
-                          <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.commentAvatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
-                        </View>
-                      )}
-                    </Pressable>
-                    <View style={styles.commentBody}>
-                      <View style={styles.commentHeader}>
-                        <Pressable onPress={() => handleProfilePress(c.authorId)}>
-                          <Text style={styles.commentAuthor}>{c.author}</Text>
-                        </Pressable>
-                        <Text style={styles.commentTime}>{c.time}</Text>
-                        {isEdited && <Text style={styles.commentEdited}>(수정됨)</Text>}
-                        {isMine && (
-                          <Pressable
-                            style={styles.commentMenuBtn}
-                            onPress={() => setCommentMenuId(commentMenuId === c.id ? null : c.id)}
-                          >
-                            <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
-                          </Pressable>
+                    {c.deleted ? (
+                      <View style={styles.deletedCommentAvatar} />
+                    ) : (
+                      <Pressable onPress={() => c.authorId && handleProfilePress(c.authorId)}>
+                        {hasCommentPhoto ? (
+                          <Image source={{ uri: c.authorProfileImageUrl! }} style={styles.commentAvatar} resizeMode="cover" />
+                        ) : (
+                          <View style={styles.commentAvatar}>
+                            <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.commentAvatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
+                          </View>
                         )}
-                      </View>
-                      <Text style={styles.commentContent}>{c.content}</Text>
-                      <Pressable style={styles.replyBtn} onPress={() => handleReply(c.id, c.author)}>
-                        <Text style={styles.replyBtnText}>답글</Text>
                       </Pressable>
-                    </View>
-                    <View style={styles.commentRight}>
-                      {commentMenuId === c.id && (
-                        <View style={styles.commentDropdown}>
-                          <Pressable style={styles.commentDropdownItem} onPress={() => handleStartEditComment(c.id, c.content)}>
-                            <Text style={styles.commentDropdownText}>수정</Text>
-                          </Pressable>
-                          <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
-                            <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
-                          </Pressable>
-                        </View>
-                      )}
-                      <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(c.id)}>
-                        <Ionicons
-                          name={commentLiked ? "heart" : "heart-outline"}
-                          size={16}
-                          color={commentLiked ? "#EF4444" : "#9CA3AF"}
-                        />
-                        <Text style={[styles.commentLikeCount, commentLiked && styles.commentLikeCountLiked]}>
-                          {commentLikeCount}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                  {/* 대댓글 렌더링 */}
-                  {c.replies.map((reply) => {
-                    const replyLiked = likedCommentIds.has(reply.id);
-                    const replyLikeCount = reply.likes + (replyLiked ? 1 : 0);
-                    const isMyReply = isMyComment(reply.id);
-                    const hasReplyPhoto = reply.authorProfileImageUrl?.trim();
-                    const isReplyEdited = new Date(reply.updatedAt) > new Date(reply.createdAt);
-                    return (
-                      <View key={reply.id} style={styles.replyRow}>
-                        <Pressable onPress={() => handleProfilePress(reply.authorId)}>
-                          {hasReplyPhoto ? (
-                            <Image source={{ uri: reply.authorProfileImageUrl! }} style={styles.replyAvatar} resizeMode="cover" />
-                          ) : (
-                            <View style={styles.replyAvatar}>
-                              <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.replyAvatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
-                            </View>
-                          )}
-                        </Pressable>
-                        <View style={styles.commentBody}>
+                    )}
+                    <View style={styles.commentBody}>
+                      {c.deleted ? (
+                        <Text style={styles.deletedCommentText}>(삭제된 댓글)</Text>
+                      ) : (
+                        <>
                           <View style={styles.commentHeader}>
-                            <Pressable onPress={() => handleProfilePress(reply.authorId)}>
-                              <Text style={styles.commentAuthor}>{reply.author}</Text>
+                            <Pressable onPress={() => c.authorId && handleProfilePress(c.authorId)}>
+                              <Text style={styles.commentAuthor}>{c.author}</Text>
                             </Pressable>
-                            <Text style={styles.commentTime}>{reply.time}</Text>
-                            {isReplyEdited && <Text style={styles.commentEdited}>(수정됨)</Text>}
-                            {isMyReply && (
+                            <Text style={styles.commentTime}>{c.time}</Text>
+                            {isEdited && <Text style={styles.commentEdited}>(수정됨)</Text>}
+                            {isMine && (
                               <Pressable
                                 style={styles.commentMenuBtn}
-                                onPress={() => setCommentMenuId(commentMenuId === reply.id ? null : reply.id)}
+                                onPress={() => setCommentMenuId(commentMenuId === c.id ? null : c.id)}
                               >
                                 <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
                               </Pressable>
                             )}
                           </View>
-                          <Text style={styles.commentContent}>{reply.content}</Text>
-                        </View>
-                        <View style={styles.commentRight}>
-                          {commentMenuId === reply.id && (
-                            <View style={styles.commentDropdown}>
-                              <Pressable style={styles.commentDropdownItem} onPress={() => handleStartEditComment(reply.id, reply.content)}>
-                                <Text style={styles.commentDropdownText}>수정</Text>
-                              </Pressable>
-                              <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
-                                <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
-                              </Pressable>
-                            </View>
-                          )}
-                          <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(reply.id)}>
-                            <Ionicons
-                              name={replyLiked ? "heart" : "heart-outline"}
-                              size={16}
-                              color={replyLiked ? "#EF4444" : "#9CA3AF"}
-                            />
-                            <Text style={[styles.commentLikeCount, replyLiked && styles.commentLikeCountLiked]}>
-                              {replyLikeCount}
-                            </Text>
+                          <Text style={styles.commentContent}>{c.content}</Text>
+                          <Pressable style={styles.replyBtn} onPress={() => handleReply(c.id, c.author ?? "")}>
+                            <Text style={styles.replyBtnText}>답글</Text>
                           </Pressable>
+                        </>
+                      )}
+                    </View>
+                    {!c.deleted && (
+                      <View style={styles.commentRight}>
+                        {commentMenuId === c.id && (
+                          <View style={styles.commentDropdown}>
+                            <Pressable style={styles.commentDropdownItem} onPress={() => handleStartEditComment(c.id, c.content ?? "")}>
+                              <Text style={styles.commentDropdownText}>수정</Text>
+                            </Pressable>
+                            <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
+                              <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                            </Pressable>
+                          </View>
+                        )}
+                        <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(c.id)}>
+                          <Ionicons
+                            name={commentLiked ? "heart" : "heart-outline"}
+                            size={16}
+                            color={commentLiked ? "#EF4444" : "#9CA3AF"}
+                          />
+                          <Text style={[styles.commentLikeCount, commentLiked && styles.commentLikeCountLiked]}>
+                            {commentLikeCount}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )}
+                  </View>
+                  {/* 대댓글 렌더링 */}
+                  {c.replies.map((reply) => {
+                    const replyLiked = likedCommentIds.has(reply.id);
+                    const replyLikeCount = reply.likes + (replyLiked ? 1 : 0);
+                    const isMyReply = !reply.deleted && isMyComment(reply.id);
+                    const hasReplyPhoto = !reply.deleted && reply.authorProfileImageUrl?.trim();
+                    const isReplyEdited = !reply.deleted && new Date(reply.updatedAt) > new Date(reply.createdAt);
+                    return (
+                      <View key={reply.id} style={styles.replyRow}>
+                        {reply.deleted ? (
+                          <View style={styles.deletedReplyAvatar} />
+                        ) : (
+                          <Pressable onPress={() => reply.authorId && handleProfilePress(reply.authorId)}>
+                            {hasReplyPhoto ? (
+                              <Image source={{ uri: reply.authorProfileImageUrl! }} style={styles.replyAvatar} resizeMode="cover" />
+                            ) : (
+                              <View style={styles.replyAvatar}>
+                                <Image source={DEFAULT_PROFILE_IMAGE} style={[styles.replyAvatar, styles.defaultProfileImageZoom]} resizeMode="cover" />
+                              </View>
+                            )}
+                          </Pressable>
+                        )}
+                        <View style={styles.commentBody}>
+                          {reply.deleted ? (
+                            <Text style={styles.deletedCommentText}>(삭제된 댓글)</Text>
+                          ) : (
+                            <>
+                              <View style={styles.commentHeader}>
+                                <Pressable onPress={() => reply.authorId && handleProfilePress(reply.authorId)}>
+                                  <Text style={styles.commentAuthor}>{reply.author}</Text>
+                                </Pressable>
+                                <Text style={styles.commentTime}>{reply.time}</Text>
+                                {isReplyEdited && <Text style={styles.commentEdited}>(수정됨)</Text>}
+                                {isMyReply && (
+                                  <Pressable
+                                    style={styles.commentMenuBtn}
+                                    onPress={() => setCommentMenuId(commentMenuId === reply.id ? null : reply.id)}
+                                  >
+                                    <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
+                                  </Pressable>
+                                )}
+                              </View>
+                              <Text style={styles.commentContent}>{reply.content}</Text>
+                            </>
+                          )}
                         </View>
+                        {!reply.deleted && (
+                          <View style={styles.commentRight}>
+                            {commentMenuId === reply.id && (
+                              <View style={styles.commentDropdown}>
+                                <Pressable style={styles.commentDropdownItem} onPress={() => handleStartEditComment(reply.id, reply.content ?? "")}>
+                                  <Text style={styles.commentDropdownText}>수정</Text>
+                                </Pressable>
+                                <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
+                                  <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                                </Pressable>
+                              </View>
+                            )}
+                            <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(reply.id)}>
+                              <Ionicons
+                                name={replyLiked ? "heart" : "heart-outline"}
+                                size={16}
+                                color={replyLiked ? "#EF4444" : "#9CA3AF"}
+                              />
+                              <Text style={[styles.commentLikeCount, replyLiked && styles.commentLikeCountLiked]}>
+                                {replyLikeCount}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        )}
                       </View>
                     );
                   })}
@@ -1014,6 +1043,24 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: "#E5E7EB",
     overflow: "hidden",
+  },
+  deletedCommentAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#E5E7EB",
+  },
+  deletedReplyAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#E5E7EB",
+  },
+  deletedCommentText: {
+    fontSize: 13,
+    color: "#9CA3AF",
+    fontStyle: "italic",
+    paddingVertical: 4,
   },
   replyingIndicator: {
     flexDirection: "row",
