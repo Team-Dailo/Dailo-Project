@@ -433,8 +433,19 @@ export default function PostDetailScreen() {
   };
 
   const isMyComment = (commentId: string) => {
-    const full = apiComments.find((f) => String(f.id) === commentId);
-    return full && user?.id != null && full.authorId === user.id;
+    // 최상위 댓글에서 찾기
+    let comment = apiComments.find((f) => String(f.id) === commentId);
+    // 대댓글에서도 찾기
+    if (!comment) {
+      for (const c of apiComments) {
+        const reply = c.replies?.find((r) => String(r.id) === commentId);
+        if (reply) {
+          comment = reply;
+          break;
+        }
+      }
+    }
+    return comment && user?.id != null && Number(comment.authorId) === Number(user.id);
   };
 
   const handleDeleteComment = (commentId: string) => {
@@ -535,7 +546,7 @@ export default function PostDetailScreen() {
             <>
               {/* 게시물 본문 */}
               <View style={styles.postSection}>
-                <View style={styles.postHeader}>
+                <Pressable style={styles.postHeader} onPress={() => handleProfilePress(postAuthorId)}>
                   {hasPostAuthorPhoto ? (
                     <Image source={{ uri: postAuthorProfileUrl! }} style={styles.profileCircle} resizeMode="cover" />
                   ) : (
@@ -547,7 +558,7 @@ export default function PostDetailScreen() {
                     <Text style={styles.author}>{authorDisplayName}</Text>
                     <Text style={styles.timeText}>{formatRelativeTime(post.createdAt)}</Text>
                   </View>
-                </View>
+                </Pressable>
                 {post.title ? <Text style={styles.postTitle}>{post.title}</Text> : null}
                 {post.categoryType === "후기" && (post.eventTitle ?? (post as Record<string, unknown>).event_title) ? (
                   <Pressable
