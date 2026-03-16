@@ -38,23 +38,38 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds,
             Pageable pageable);
 
-    // 최상위 댓글만 조회 (parentComment가 null)
-    Page<Comment> findByPostAndParentCommentIsNull(Post post, Pageable pageable);
+    // 최상위 댓글만 조회 (parentComment가 null, 삭제되지 않은 것만)
+    @Query("SELECT c FROM Comment c WHERE c.post = :post AND c.parentComment IS NULL AND c.deletedAt IS NULL")
+    Page<Comment> findByPostAndParentCommentIsNull(@Param("post") Post post, Pageable pageable);
 
-    // 최상위 댓글 + 차단 필터
-    @Query("SELECT c FROM Comment c WHERE c.post = :post AND c.parentComment IS NULL AND c.authorId NOT IN :excludeAuthorIds")
+    // 최상위 댓글 + 차단 필터 (삭제되지 않은 것만)
+    @Query("SELECT c FROM Comment c WHERE c.post = :post AND c.parentComment IS NULL AND c.deletedAt IS NULL AND c.authorId NOT IN :excludeAuthorIds")
     Page<Comment> findByPostAndParentCommentIsNullExcludingAuthors(
             @Param("post") Post post,
             @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds,
             Pageable pageable);
 
-    // 특정 댓글의 대댓글 조회
-    @Query("SELECT c FROM Comment c WHERE c.parentComment = :parentComment ORDER BY c.createdAt ASC")
-    java.util.List<Comment> findByParentComment(@Param("parentComment") Comment parentComment);
+    // 최상위 댓글 조회 (삭제된 댓글 포함 - 대댓글이 있는 경우 표시용)
+    @Query("SELECT c FROM Comment c WHERE c.post = :post AND c.parentComment IS NULL ORDER BY c.createdAt ASC")
+    List<Comment> findAllTopLevelByPost(@Param("post") Post post);
 
-    // 특정 댓글의 대댓글 + 차단 필터
-    @Query("SELECT c FROM Comment c WHERE c.parentComment = :parentComment AND c.authorId NOT IN :excludeAuthorIds ORDER BY c.createdAt ASC")
-    java.util.List<Comment> findByParentCommentExcludingAuthors(
+    // 최상위 댓글 조회 + 차단 필터 (삭제된 댓글 포함)
+    @Query("SELECT c FROM Comment c WHERE c.post = :post AND c.parentComment IS NULL AND (c.deletedAt IS NOT NULL OR c.authorId NOT IN :excludeAuthorIds) ORDER BY c.createdAt ASC")
+    List<Comment> findAllTopLevelByPostExcludingAuthors(
+            @Param("post") Post post,
+            @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds);
+
+    // 특정 댓글의 대댓글 조회 (삭제되지 않은 것만)
+    @Query("SELECT c FROM Comment c WHERE c.parentComment = :parentComment AND c.deletedAt IS NULL ORDER BY c.createdAt ASC")
+    List<Comment> findByParentComment(@Param("parentComment") Comment parentComment);
+
+    // 특정 댓글의 대댓글 + 차단 필터 (삭제되지 않은 것만)
+    @Query("SELECT c FROM Comment c WHERE c.parentComment = :parentComment AND c.deletedAt IS NULL AND c.authorId NOT IN :excludeAuthorIds ORDER BY c.createdAt ASC")
+    List<Comment> findByParentCommentExcludingAuthors(
             @Param("parentComment") Comment parentComment,
             @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds);
+
+    // 삭제된 댓글 포함 대댓글 수 확인
+    @Query("SELECT COUNT(c) FROM Comment c WHERE c.parentComment = :parentComment AND c.deletedAt IS NULL")
+    long countActiveReplies(@Param("parentComment") Comment parentComment);
 }
