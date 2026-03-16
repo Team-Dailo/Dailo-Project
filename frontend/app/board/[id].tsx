@@ -266,7 +266,6 @@ export default function PostDetailScreen() {
     ]);
   };
 
-  /* 채팅 기능 주석 처리
   const handleSendChat = () => {
     setMenuVisible(false);
     const targetId = post?.authorId ?? postAuthorId;
@@ -316,7 +315,6 @@ export default function PostDetailScreen() {
       }
     })();
   };
-  */
 
   const handleEditPost = () => {
     setMenuVisible(false);
@@ -893,6 +891,9 @@ export default function PostDetailScreen() {
               </>
             ) : (
               <>
+                <Pressable style={styles.menuItem} onPress={handleSendChat}>
+                  <Text style={styles.menuText}>채팅하기</Text>
+                </Pressable>
                 <Pressable style={styles.menuItem} onPress={handleReport}>
                   <Text style={styles.menuText}>신고</Text>
                 </Pressable>
