@@ -21,6 +21,6 @@ public interface PostLikeRepository extends JpaRepository<PostLike, Long> {
     Set<Long> findPostIdsByMemberId(@Param("memberId") Long memberId);
 
     /** 사용자가 좋아요 누른 글 목록 (좋아요한 순 = 최신순, Post로 페이징) */
-    @Query("SELECT pl FROM PostLike pl WHERE pl.member.id = :memberId ORDER BY pl.post.createdAt DESC")
+    @Query("SELECT pl FROM PostLike pl WHERE pl.member.id = :memberId AND pl.post.deletedAt IS NULL ORDER BY pl.post.createdAt DESC")
     Page<PostLike> findByMemberIdOrderByPostCreatedAtDesc(@Param("memberId") Long memberId, Pageable pageable);
 }
