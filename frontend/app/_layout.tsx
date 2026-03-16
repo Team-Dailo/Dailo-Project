@@ -33,7 +33,8 @@ export default function RootLayout() {
   useEffect(() => {
     const onBackPress = () => {
       // 루트 화면(탭)이면 앱 종료 허용
-      if (segments.length === 0 || (segments.length === 1 && segments[0] === '(tabs)')) {
+      const firstSegment = segments[0] as string | undefined;
+      if (!firstSegment || firstSegment === '(tabs)') {
         return false; // 기본 동작(앱 종료) 허용
       }
       // 그 외에는 이전 화면으로 이동
