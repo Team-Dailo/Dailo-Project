@@ -83,8 +83,6 @@ export default function PostDetailScreen() {
   const [liked, setLiked] = useState(false);
   const [likedCommentIds, setLikedCommentIds] = useState<Set<string>>(new Set());
   const [commentMenuId, setCommentMenuId] = useState<string | null>(null);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingCommentContent, setEditingCommentContent] = useState("");
   const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
   const [replyingToAuthor, setReplyingToAuthor] = useState<string | null>(null);
   /** 이 게시글에서 삭제한 댓글 ID (나갔다 들어와도 서버가 삭제된 댓글을 주는 경우 대비) */
@@ -389,11 +387,6 @@ export default function PostDetailScreen() {
   };
 
   const handleReply = (commentId: string, author: string) => {
-    // 수정 모드가 활성화되어 있으면 취소
-    if (editingCommentId) {
-      setEditingCommentId(null);
-      setEditingCommentContent("");
-    }
     setReplyingToCommentId(commentId);
     setReplyingToAuthor(author);
   };
@@ -484,30 +477,6 @@ export default function PostDetailScreen() {
         },
       },
     ]);
-  };
-
-  const handleStartEditComment = (commentId: string, content: string) => {
-    setCommentMenuId(null);
-    setEditingCommentId(commentId);
-    setEditingCommentContent(content);
-  };
-
-  const handleSaveEditComment = async () => {
-    if (!editingCommentId || !editingCommentContent.trim()) {
-      setEditingCommentId(null);
-      return;
-    }
-    try {
-      await boardService.updateComment(editingCommentId, {
-        content: editingCommentContent.trim(),
-      });
-      refetchComments();
-      refetchPost();
-      setEditingCommentId(null);
-      setEditingCommentContent("");
-    } catch {
-      Alert.alert("오류", "댓글 수정에 실패했습니다.");
-    }
   };
 
   return (
@@ -712,9 +681,6 @@ export default function PostDetailScreen() {
                       <View style={styles.commentRight}>
                         {commentMenuId === c.id && (
                           <View style={styles.commentDropdown}>
-                            <Pressable style={styles.commentDropdownItem} onPress={() => handleStartEditComment(c.id, c.content ?? "")}>
-                              <Text style={styles.commentDropdownText}>수정</Text>
-                            </Pressable>
                             <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
                               <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
                             </Pressable>
@@ -783,9 +749,6 @@ export default function PostDetailScreen() {
                           <View style={styles.commentRight}>
                             {commentMenuId === reply.id && (
                               <View style={styles.commentDropdown}>
-                                <Pressable style={styles.commentDropdownItem} onPress={() => handleStartEditComment(reply.id, reply.content ?? "")}>
-                                  <Text style={styles.commentDropdownText}>수정</Text>
-                                </Pressable>
                                 <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
                                   <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
                                 </Pressable>
@@ -852,35 +815,6 @@ export default function PostDetailScreen() {
         </View>
         )}
       </KeyboardAvoidingView>
-
-      {/* 댓글 수정 모달 */}
-      <Modal visible={!!editingCommentId} transparent animationType="fade">
-        <Pressable style={styles.editCommentOverlay} onPress={() => setEditingCommentId(null)}>
-          <Pressable style={styles.editCommentCard} onPress={() => {}}>
-            <Text style={styles.editCommentTitle}>댓글 수정</Text>
-            <TextInput
-              style={styles.editCommentInput}
-              value={editingCommentContent}
-              onChangeText={setEditingCommentContent}
-              placeholder="댓글 내용"
-              placeholderTextColor="#9CA3AF"
-              multiline
-            />
-            <View style={styles.editCommentActions}>
-              <Pressable style={styles.editCommentCancel} onPress={() => setEditingCommentId(null)}>
-                <Text style={styles.editCommentCancelText}>취소</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.editCommentSave, !editingCommentContent.trim() && styles.editCommentSaveDisabled]}
-                onPress={handleSaveEditComment}
-                disabled={!editingCommentContent.trim()}
-              >
-                <Text style={styles.editCommentSaveText}>저장</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       {/* 더보기 메뉴: 본인글 → 저장, 수정, 삭제(빨간색) / 타인글 → 저장, 신고, 차단 (저장은 로그인 시에만) */}
       <Modal visible={menuVisible} transparent animationType="fade">
@@ -1089,48 +1023,6 @@ const styles = StyleSheet.create({
   },
   replyingText: { fontSize: 13, color: "#6B7280" },
   footerTextLiked: { color: "#EF4444" },
-  editCommentOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  editCommentCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 20,
-    width: "100%",
-    maxWidth: 360,
-  },
-  editCommentTitle: { fontSize: 16, fontWeight: "600", color: "#111827", marginBottom: 12 },
-  editCommentInput: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: "#111827",
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
-  editCommentActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 12,
-    marginTop: 16,
-  },
-  editCommentCancel: { paddingVertical: 8, paddingHorizontal: 16 },
-  editCommentCancelText: { fontSize: 14, color: "#6B7280" },
-  editCommentSave: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: "#4C8BF5",
-    borderRadius: 8,
-  },
-  editCommentSaveDisabled: { opacity: 0.5 },
-  editCommentSaveText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
