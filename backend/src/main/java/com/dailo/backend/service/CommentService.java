@@ -3,10 +3,12 @@ package com.dailo.backend.service;
 import com.dailo.backend.dto.CommentRequestDto;
 import com.dailo.backend.dto.CommentResponseDto;
 import com.dailo.backend.entity.Comment;
+import com.dailo.backend.entity.CommentLike;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.entity.Post;
 import com.dailo.backend.exception.ForbiddenException;
 import com.dailo.backend.exception.NotFoundException;
+import com.dailo.backend.repository.CommentLikeRepository;
 import com.dailo.backend.repository.CommentRepository;
 import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.repository.PostRepository;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
 public class CommentService {
 
     private final CommentRepository commentRepository;
+    private final CommentLikeRepository commentLikeRepository;
     private final PostRepository postRepository;
     private final MemberRepository memberRepository;
     private final BlockService blockService;

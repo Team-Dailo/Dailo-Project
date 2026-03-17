@@ -705,10 +705,37 @@ export default function PostDetailScreen() {
                               <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
                             </Pressable>
                           </View>
-                          <Text style={styles.commentContent}>{c.content}</Text>
-                          <Pressable style={styles.replyBtn} onPress={() => handleReply(c.id, c.author ?? "")}>
-                            <Text style={styles.replyBtnText}>답글</Text>
-                          </Pressable>
+                          {editingCommentId === c.id ? (
+                            <View style={styles.editCommentWrap}>
+                              <TextInput
+                                style={styles.editCommentInput}
+                                value={editingCommentText}
+                                onChangeText={setEditingCommentText}
+                                multiline
+                                autoFocus
+                                maxLength={500}
+                              />
+                              <View style={styles.editCommentBtns}>
+                                <Pressable style={styles.editCancelBtn} onPress={handleCancelEdit}>
+                                  <Text style={styles.editCancelBtnText}>취소</Text>
+                                </Pressable>
+                                <Pressable
+                                  style={[styles.editSaveBtn, !editingCommentText.trim() && styles.editSaveBtnDisabled]}
+                                  onPress={handleSaveEdit}
+                                  disabled={!editingCommentText.trim()}
+                                >
+                                  <Text style={[styles.editSaveBtnText, !editingCommentText.trim() && styles.editSaveBtnTextDisabled]}>저장</Text>
+                                </Pressable>
+                              </View>
+                            </View>
+                          ) : (
+                            <>
+                              <Text style={styles.commentContent}>{c.content}</Text>
+                              <Pressable style={styles.replyBtn} onPress={() => handleReply(c.id, c.author ?? "")}>
+                                <Text style={styles.replyBtnText}>답글</Text>
+                              </Pressable>
+                            </>
+                          )}
                         </>
                       )}
                     </View>
@@ -717,9 +744,14 @@ export default function PostDetailScreen() {
                         {commentMenuId === c.id && (
                           <View style={styles.commentDropdown}>
                             {isMine ? (
-                              <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
-                                <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
-                              </Pressable>
+                              <>
+                                <Pressable style={styles.commentDropdownItem} onPress={() => handleEditComment(c.id, c.content ?? "")}>
+                                  <Text style={styles.commentDropdownText}>수정</Text>
+                                </Pressable>
+                                <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
+                                  <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                                </Pressable>
+                              </>
                             ) : (
                               <Pressable style={styles.commentDropdownItem} onPress={() => c.authorId && handleSendCommentChat(c.authorId)}>
                                 <Text style={styles.commentDropdownText}>채팅하기</Text>
@@ -780,7 +812,32 @@ export default function PostDetailScreen() {
                                   <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
                                 </Pressable>
                               </View>
-                              <Text style={styles.commentContent}>{reply.content}</Text>
+                              {editingCommentId === reply.id ? (
+                                <View style={styles.editCommentWrap}>
+                                  <TextInput
+                                    style={styles.editCommentInput}
+                                    value={editingCommentText}
+                                    onChangeText={setEditingCommentText}
+                                    multiline
+                                    autoFocus
+                                    maxLength={500}
+                                  />
+                                  <View style={styles.editCommentBtns}>
+                                    <Pressable style={styles.editCancelBtn} onPress={handleCancelEdit}>
+                                      <Text style={styles.editCancelBtnText}>취소</Text>
+                                    </Pressable>
+                                    <Pressable
+                                      style={[styles.editSaveBtn, !editingCommentText.trim() && styles.editSaveBtnDisabled]}
+                                      onPress={handleSaveEdit}
+                                      disabled={!editingCommentText.trim()}
+                                    >
+                                      <Text style={[styles.editSaveBtnText, !editingCommentText.trim() && styles.editSaveBtnTextDisabled]}>저장</Text>
+                                    </Pressable>
+                                  </View>
+                                </View>
+                              ) : (
+                                <Text style={styles.commentContent}>{reply.content}</Text>
+                              )}
                             </>
                           )}
                         </View>
@@ -789,9 +846,14 @@ export default function PostDetailScreen() {
                             {commentMenuId === reply.id && (
                               <View style={styles.commentDropdown}>
                                 {isMyReply ? (
-                                  <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
-                                    <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
-                                  </Pressable>
+                                  <>
+                                    <Pressable style={styles.commentDropdownItem} onPress={() => handleEditComment(reply.id, reply.content ?? "")}>
+                                      <Text style={styles.commentDropdownText}>수정</Text>
+                                    </Pressable>
+                                    <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
+                                      <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                                    </Pressable>
+                                  </>
                                 ) : (
                                   <Pressable style={styles.commentDropdownItem} onPress={() => reply.authorId && handleSendCommentChat(reply.authorId)}>
                                     <Text style={styles.commentDropdownText}>채팅하기</Text>
@@ -1055,6 +1117,51 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontStyle: "italic",
     paddingVertical: 4,
+  },
+  editCommentWrap: {
+    marginTop: 4,
+  },
+  editCommentInput: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: "#111827",
+    minHeight: 60,
+    maxHeight: 120,
+    textAlignVertical: "top",
+  },
+  editCommentBtns: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 8,
+  },
+  editCancelBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  editCancelBtnText: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  editSaveBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#4C8BF5",
+    borderRadius: 6,
+  },
+  editSaveBtnDisabled: {
+    backgroundColor: "#E5E7EB",
+  },
+  editSaveBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  editSaveBtnTextDisabled: {
+    color: "#9CA3AF",
   },
   replyingIndicator: {
     flexDirection: "row",
