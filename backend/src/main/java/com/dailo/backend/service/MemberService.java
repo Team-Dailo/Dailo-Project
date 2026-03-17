@@ -5,6 +5,7 @@ import com.dailo.backend.dto.auth.MemberResponseDto;
 import com.dailo.backend.dto.auth.MemberUpdateRequestDto;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.MemberRepository;
+import com.dailo.backend.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberService {
 
     private final MemberRepository memberRepository;
+    private final PostRepository postRepository;
     private final S3UploadService s3UploadService;
 
     public MemberResponseDto getMyProfile(String email) {
@@ -31,14 +33,19 @@ public class MemberService {
     }
 
     /**
-     * 타 사용자 프로필 조회 (ID 기반)
+     * 타 사용자 프로필 조회 (ID 기반) - 통계 정보 포함
      */
     public MemberProfileResponseDto getMemberProfile(Long memberId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("존재하지 않는 회원입니다. id=" + memberId));
 
         String resolvedProfileImageUrl = resolveProfileImageUrl(member);
-        return MemberProfileResponseDto.of(member, resolvedProfileImageUrl);
+
+        // 통계 정보 조회
+        int postCount = (int) postRepository.countByAuthorId(memberId);
+        int receivedLikeCount = (int) postRepository.sumLikeCountByAuthorId(memberId);
+
+        return MemberProfileResponseDto.of(member, resolvedProfileImageUrl, postCount, receivedLikeCount);
     }
 
     private String resolveProfileImageUrl(Member member) {
