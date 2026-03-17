@@ -87,6 +87,9 @@ export default function PostDetailScreen() {
   const [replyingToAuthor, setReplyingToAuthor] = useState<string | null>(null);
   /** 이 게시글에서 삭제한 댓글 ID (나갔다 들어와도 서버가 삭제된 댓글을 주는 경우 대비) */
   const [deletedCommentIds, setDeletedCommentIds] = useState<Set<string>>(new Set());
+  /** 댓글 수정 상태 */
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
   const scrollViewRef = useRef<ScrollView>(null);
   const commentSectionY = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -110,7 +113,13 @@ export default function PostDetailScreen() {
     setDeletedCommentIds(new Set());
   }, [id]);
 
-  const postAuthorId = post ? Number((post as Record<string, unknown>).author_id ?? post.authorId ?? 0) : 0;
+  const postAuthorId = (() => {
+    if (!post) return 0;
+    const raw = post as Record<string, unknown>;
+    const id = raw.author_id ?? raw.authorId ?? post.authorId;
+    const num = Number(id);
+    return Number.isFinite(num) && num > 0 ? num : 0;
+  })();
   const isMyPost = Boolean(post && user?.id != null && postAuthorId !== 0 && Number(postAuthorId) === Number(user.id));
   const [blockCheck, setBlockCheck] = useState<{ iBlockedThem: boolean; theyBlockedMe: boolean } | null>(null);
   const [isSavedPost, setIsSavedPost] = useState(false);
@@ -480,6 +489,29 @@ export default function PostDetailScreen() {
     ]);
   };
 
+  const handleEditComment = (commentId: string, currentContent: string) => {
+    setCommentMenuId(null);
+    setEditingCommentId(commentId);
+    setEditingCommentText(currentContent);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingCommentText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCommentId || !editingCommentText.trim()) return;
+    try {
+      await boardService.updateComment(editingCommentId, { content: editingCommentText.trim() });
+      setEditingCommentId(null);
+      setEditingCommentText("");
+      refetchComments();
+    } catch {
+      Alert.alert("오류", "댓글 수정에 실패했습니다.");
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
@@ -533,7 +565,11 @@ export default function PostDetailScreen() {
             <>
               {/* 게시물 본문 */}
               <View style={styles.postSection}>
-                <Pressable style={styles.postHeader} onPress={() => handleProfilePress(postAuthorId)}>
+                <Pressable
+                  style={styles.postHeader}
+                  onPress={() => handleProfilePress(postAuthorId)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
                   {hasPostAuthorPhoto ? (
                     <Image source={{ uri: postAuthorProfileUrl! }} style={styles.profileCircle} resizeMode="cover" />
                   ) : (

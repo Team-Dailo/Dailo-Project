@@ -140,6 +140,11 @@ export default function TabsLayout() {
         BackHandler.exitApp();
         return true;
       }
+      // 탭 내부 서브 화면에서는 뒤로가기 실행
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+        return true;
+      }
       return false;
     });
     return () => sub.remove();
