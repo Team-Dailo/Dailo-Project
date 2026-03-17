@@ -99,7 +99,7 @@ export function MapBottomSheet({
         <View
           style={[
             styles.collapsedContainer,
-            { paddingBottom: insets.bottom },
+            { marginBottom: 12 }, // ✅ 기존 paddingBottom: insets.bottom
           ]}
           onLayout={(e) =>
             onCollapsedHeightChange?.(e.nativeEvent.layout.height)
@@ -154,7 +154,7 @@ export function MapBottomSheet({
               left: 16,
               right: 16,
               top: expandedTop,
-              bottom: insets.bottom,
+              bottom: 12, // ✅ 기존 bottom: insets.bottom
             },
           ]}
         >
