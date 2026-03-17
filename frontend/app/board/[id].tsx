@@ -273,6 +273,21 @@ export default function PostDetailScreen() {
       Alert.alert("알림", "본인 글에는 채팅을 보낼 수 없습니다.");
       return;
     }
+    sendChatToUser(Number(targetId));
+  };
+
+  const handleSendCommentChat = (authorId: number) => {
+    setCommentMenuId(null);
+    sendChatToUser(authorId);
+  };
+
+  const sendChatToUser = (targetId: number) => {
+    if (!targetId || targetId <= 0) return;
+    const myId = user?.id != null ? Number(user.id) : null;
+    if (myId != null && Number(targetId) === myId) {
+      Alert.alert("알림", "본인에게는 채팅을 보낼 수 없습니다.");
+      return;
+    }
     (async () => {
       try {
         const token = await authService.getAccessToken();
@@ -647,14 +662,12 @@ export default function PostDetailScreen() {
                             </Pressable>
                             <Text style={styles.commentTime}>{c.time}</Text>
                             {isEdited && <Text style={styles.commentEdited}>(수정됨)</Text>}
-                            {isMine && (
-                              <Pressable
-                                style={styles.commentMenuBtn}
-                                onPress={() => setCommentMenuId(commentMenuId === c.id ? null : c.id)}
-                              >
-                                <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
-                              </Pressable>
-                            )}
+                            <Pressable
+                              style={styles.commentMenuBtn}
+                              onPress={() => setCommentMenuId(commentMenuId === c.id ? null : c.id)}
+                            >
+                              <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
+                            </Pressable>
                           </View>
                           <Text style={styles.commentContent}>{c.content}</Text>
                           <Pressable style={styles.replyBtn} onPress={() => handleReply(c.id, c.author ?? "")}>
@@ -667,9 +680,15 @@ export default function PostDetailScreen() {
                       <View style={styles.commentRight}>
                         {commentMenuId === c.id && (
                           <View style={styles.commentDropdown}>
-                            <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
-                              <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
-                            </Pressable>
+                            {isMine ? (
+                              <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
+                                <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                              </Pressable>
+                            ) : (
+                              <Pressable style={styles.commentDropdownItem} onPress={() => c.authorId && handleSendCommentChat(c.authorId)}>
+                                <Text style={styles.commentDropdownText}>채팅하기</Text>
+                              </Pressable>
+                            )}
                           </View>
                         )}
                         <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(c.id)}>
@@ -718,14 +737,12 @@ export default function PostDetailScreen() {
                                 </Pressable>
                                 <Text style={styles.commentTime}>{reply.time}</Text>
                                 {isReplyEdited && <Text style={styles.commentEdited}>(수정됨)</Text>}
-                                {isMyReply && (
-                                  <Pressable
-                                    style={styles.commentMenuBtn}
-                                    onPress={() => setCommentMenuId(commentMenuId === reply.id ? null : reply.id)}
-                                  >
-                                    <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
-                                  </Pressable>
-                                )}
+                                <Pressable
+                                  style={styles.commentMenuBtn}
+                                  onPress={() => setCommentMenuId(commentMenuId === reply.id ? null : reply.id)}
+                                >
+                                  <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
+                                </Pressable>
                               </View>
                               <Text style={styles.commentContent}>{reply.content}</Text>
                             </>
@@ -735,9 +752,15 @@ export default function PostDetailScreen() {
                           <View style={styles.commentRight}>
                             {commentMenuId === reply.id && (
                               <View style={styles.commentDropdown}>
-                                <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
-                                  <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
-                                </Pressable>
+                                {isMyReply ? (
+                                  <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
+                                    <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                                  </Pressable>
+                                ) : (
+                                  <Pressable style={styles.commentDropdownItem} onPress={() => reply.authorId && handleSendCommentChat(reply.authorId)}>
+                                    <Text style={styles.commentDropdownText}>채팅하기</Text>
+                                  </Pressable>
+                                )}
                               </View>
                             )}
                             <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(reply.id)}>
