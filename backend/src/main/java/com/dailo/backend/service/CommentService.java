@@ -44,7 +44,7 @@ public class CommentService {
     }
 
     // 1. 댓글 목록 조회 (최상위 댓글 + 대댓글 포함, 작성자 닉네임 포함)
-    // 삭제된 댓글도 대댓글이 있으면 "(삭제된 댓글)"로 표시
+    // 삭제된 댓글도 보여줄 대댓글이 있으면 "삭제된 댓글"로 표시
     public Page<CommentResponseDto> getCommentsByPostId(Long postId, String email, Pageable pageable) {
         Long userId = getMemberIdByEmail(email);
 
@@ -54,18 +54,18 @@ public class CommentService {
         Set<Long> invisibleIds = (userId != null) ? blockService.getInvisibleUserIds(userId) : Collections.emptySet();
 
         // 모든 최상위 댓글 조회 (삭제된 것 포함)
-        List<Comment> allTopLevel = commentRepository.findAllTopLevelByPost(post);
+        List<Comment> allTopLevel = commentRepository.findTopLevelCommentsIncludingDeletedByPost(post);
 
-        // 필터링: 삭제되지 않은 댓글 + 삭제됐지만 대댓글이 있는 댓글
+        // 필터링: 삭제되지 않은 댓글 + 삭제됐지만 보여줄 대댓글이 있는 댓글
         List<Comment> topList = allTopLevel.stream()
                 .filter(c -> {
                     // 차단된 사용자 댓글 제외 (삭제된 댓글은 제외하지 않음 - 대댓글이 있을 수 있으므로)
                     if (!c.isDeleted() && !invisibleIds.isEmpty() && invisibleIds.contains(c.getAuthorId())) {
                         return false;
                     }
-                    // 삭제된 댓글은 대댓글이 있어야만 표시
+                    // 삭제된 댓글은 보여줄 대댓글이 있어야만 표시
                     if (c.isDeleted()) {
-                        return commentRepository.countActiveReplies(c) > 0;
+                        return commentRepository.countVisibleReplies(c) > 0;
                     }
                     return true;
                 })
@@ -73,6 +73,7 @@ public class CommentService {
 
         Set<Long> authorIds = new java.util.HashSet<>();
         for (Comment c : topList) {
+            // 삭제된 댓글은 작성자 정보 조회 불필요
             if (!c.isDeleted()) {
                 authorIds.add(c.getAuthorId());
             }
