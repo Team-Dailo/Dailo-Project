@@ -140,21 +140,7 @@ export default function PostDetailScreen() {
   const filteredApiComments = useMemo(
     () =>
       apiComments
-        .filter((c) => {
-          // 로컬에서 삭제한 댓글 제외
-          if (deletedCommentIds.has(String(c.id))) return false;
-          // 서버에서 삭제된 댓글 중 대댓글이 없는 것 제외
-          const raw = c as Record<string, unknown>;
-          const isDeleted = c.deleted === true || raw.deleted === true;
-          if (isDeleted) {
-            const replies = (c.replies ?? []).filter((r) => {
-              const rRaw = r as Record<string, unknown>;
-              return !(r.deleted === true || rRaw.deleted === true);
-            });
-            return replies.length > 0;
-          }
-          return true;
-        })
+        .filter((c) => !deletedCommentIds.has(String(c.id)))
         .map((c) => ({
           ...c,
           replies: (c.replies ?? []).filter((r) => !deletedCommentIds.has(String(r.id))),
