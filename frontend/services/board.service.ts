@@ -138,6 +138,20 @@ export async function getMyPosts(
   return normalizeListImageUrls(data);
 }
 
+/** 특정 사용자의 게시글 목록 (공개 조회) */
+export async function getPostsByMemberId(
+  memberId: number,
+  params?: { page?: number; size?: number }
+): Promise<PageResponse<PostListItem>> {
+  const page = params?.page ?? 0;
+  const size = params?.size ?? 20;
+  const url = `${API_BASE_URL}/api/posts/member/${memberId}?page=${page}&size=${size}`;
+  const res = await fetch(url, { headers: await getAuthHeaders() });
+  if (!res.ok) throw new Error(`getPostsByMemberId failed: ${res.status}`);
+  const data = await res.json();
+  return normalizeListImageUrls(data);
+}
+
 /** 상대 경로 이미지 URL을 API 기준으로 절대 URL로 변환 */
 function toAbsoluteImageUrls(urls: string[] | undefined): string[] {
   if (!urls || !Array.isArray(urls)) return [];
