@@ -59,8 +59,9 @@ public class PostController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        String email = userDetails.getUsername(); // 💡 Long 변환 제거
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        String email = userDetails.getUsername();
+        // Repository @Query에 ORDER BY가 있으므로 unsorted Pageable 사용
+        Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(postService.getLikedPosts(email, pageable));
     }
 
@@ -71,8 +72,9 @@ public class PostController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        String email = userDetails.getUsername(); // 💡 Long 변환 제거
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        String email = userDetails.getUsername();
+        // Repository native query에 ORDER BY가 있으므로 unsorted Pageable 사용
+        Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(postService.getCommentedPosts(email, pageable));
     }
 
