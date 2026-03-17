@@ -28,6 +28,8 @@ public class CommentResponseDto {
     private Integer likeCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    /** 삭제된 댓글 여부 */
+    private boolean deleted;
 
     @Builder.Default
     private List<CommentResponseDto> replies = new ArrayList<>();
@@ -38,23 +40,40 @@ public class CommentResponseDto {
     }
 
     public static CommentResponseDto from(Comment comment, String authorNickname, String authorProfileImageUrl) {
-        String stored = comment.getAuthorNickname();
-        String displayName = (stored != null && !stored.isBlank())
-                ? stored.trim()
-                : (authorNickname != null && !authorNickname.isBlank())
-                        ? authorNickname.trim()
-                        : "user_" + comment.getAuthorId();
+        boolean isDeleted = comment.isDeleted();
+
+        // 삭제된 댓글은 닉네임, 프로필, 내용 숨김
+        String displayName;
+        String profileUrl;
+        String content;
+
+        if (isDeleted) {
+            displayName = null;
+            profileUrl = null;
+            content = null;
+        } else {
+            String stored = comment.getAuthorNickname();
+            displayName = (stored != null && !stored.isBlank())
+                    ? stored.trim()
+                    : (authorNickname != null && !authorNickname.isBlank())
+                            ? authorNickname.trim()
+                            : "user_" + comment.getAuthorId();
+            profileUrl = (authorProfileImageUrl != null && !authorProfileImageUrl.isBlank()) ? authorProfileImageUrl : null;
+            content = comment.getContent();
+        }
+
         return CommentResponseDto.builder()
                 .id(comment.getId())
                 .postId(comment.getPost().getId())
                 .parentCommentId(comment.getParentComment() != null ? comment.getParentComment().getId() : null)
-                .authorId(comment.getAuthorId())
+                .authorId(isDeleted ? null : comment.getAuthorId())
                 .authorNickname(displayName)
-                .authorProfileImageUrl(authorProfileImageUrl != null && !authorProfileImageUrl.isBlank() ? authorProfileImageUrl : null)
-                .content(comment.getContent())
-                .likeCount(comment.getLikeCount())
+                .authorProfileImageUrl(profileUrl)
+                .content(content)
+                .likeCount(isDeleted ? 0 : comment.getLikeCount())
                 .createdAt(comment.getCreatedAt())
                 .updatedAt(comment.getUpdatedAt())
+                .deleted(isDeleted)
                 .replies(new ArrayList<>())
                 .build();
     }
