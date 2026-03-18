@@ -19,13 +19,12 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final S3UploadService s3UploadService;
 
-    public MemberResponseDto getMyProfile(String email) {
-        log.info("[MemberService.getMyProfile] email={}", email);
+    public MemberResponseDto getMyProfile(String principal) {
+        log.info("[MemberService.getMyProfile] principal={}", principal);
 
-        Member member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다. email=" + email));
+        Member member = findMemberByPrincipal(principal);
 
-        log.info("[MemberService.getMyProfile] member found id={}", member.getId());
+        log.info("[MemberService.getMyProfile] member found id={}, email={}", member.getId(), member.getEmail());
 
         return createDtoWithResolvedProfileImage(member);
     }
@@ -59,56 +58,53 @@ public class MemberService {
     }
 
     @Transactional
-    public MemberResponseDto updateProfile(String email, MemberUpdateRequestDto request) {
-        Member member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+    public MemberResponseDto updateProfile(String principal, MemberUpdateRequestDto request) {
+        Member member = findMemberByPrincipal(principal);
 
         String newNickname = request.getNickname();
-        if (newNickname != null && !newNickname.equals(member.getNickname())) {
+        if (newNickname != null) {
+            newNickname = newNickname.trim();
+        }
+
+        if (newNickname != null && !newNickname.isBlank() && !newNickname.equals(member.getNickname())) {
             if (memberRepository.existsByNickname(newNickname)) {
                 throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
             }
         }
 
-        //외부 URL만 여기서 처리
         String requestedProfileImageUrl = request.getProfileImageUrl();
+
         if (requestedProfileImageUrl != null) {
             if (requestedProfileImageUrl.isBlank()) {
-                member.clearProfileImage(); // [NEW]
+                member.clearProfileImage();
+                if (newNickname != null && !newNickname.isBlank()) {
+                    member.updateProfile(newNickname, null);
+                }
             } else if (requestedProfileImageUrl.startsWith("http://")
                     || requestedProfileImageUrl.startsWith("https://")) {
                 member.updateProfile(newNickname, requestedProfileImageUrl);
             } else {
-                //  혹시 key가 넘어오면 내부 이미지 key로 취급
                 if (newNickname != null && !newNickname.isBlank()) {
                     member.updateProfile(newNickname, null);
                 }
                 member.updateProfileImageKey(requestedProfileImageUrl);
             }
         } else {
-            //  이미지 변경 없이 닉네임만 변경
             member.updateProfile(newNickname, null);
-            if (newNickname == null || newNickname.isBlank()) {
-                // 아무 변경 없으면 nickname도 유지됨
-            }
         }
 
         return createDtoWithResolvedProfileImage(member);
     }
 
     @Transactional
-    public void updateProfileImage(String email, String imageKey) {
-        Member member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
-
-        // S3 key 전용 메서드 사용
+    public void updateProfileImage(String principal, String imageKey) {
+        Member member = findMemberByPrincipal(principal);
         member.updateProfileImageKey(imageKey);
     }
 
     @Transactional
-    public void withdraw(String email) {
-        Member member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+    public void withdraw(String principal) {
+        Member member = findMemberByPrincipal(principal);
         member.withdraw();
     }
 
@@ -125,7 +121,23 @@ public class MemberService {
         });
     }
 
-    // profileImageKey / profileImageExternalUrl 분리 반영
+    private Member findMemberByPrincipal(String principal) {
+        if (principal == null || principal.isBlank()) {
+            throw new RuntimeException("인증된 사용자 정보가 없습니다.");
+        }
+
+        // 카카오 로그인 토큰 subject가 memberId인 경우 대응
+        if (principal.matches("\\d+")) {
+            Long memberId = Long.valueOf(principal);
+            return memberRepository.findById(memberId)
+                    .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다. id=" + memberId));
+        }
+
+        // 일반 로그인(email subject) 대응
+        return memberRepository.findByEmail(principal)
+                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다. email=" + principal));
+    }
+
     private MemberResponseDto createDtoWithResolvedProfileImage(Member member) {
         String resolvedProfileImageUrl = null;
 
