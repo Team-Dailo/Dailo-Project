@@ -20,6 +20,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeBack } from '../../../hooks/useSafeBack';
 import * as eventReminder from '../../../services/eventReminder.service';
+import * as notificationService from '../../../services/notification.service';
+import { useAuthContext } from '../../../contexts/AuthContext';
 import { REGION_PICKER_OPTIONS } from '../../../utils/region';
 
 const STORAGE_KEYS = {
@@ -39,6 +41,7 @@ const STORAGE_KEYS = {
 export default function NotificationSettingsScreen() {
   const params = useLocalSearchParams<{ from?: string }>();
   const safeBack = useSafeBack();
+  const { isLoggedIn } = useAuthContext();
 
   const [pushEnabled, setPushEnabled] = useState(true);
   const [eventReminderOn, setEventReminderOn] = useState(true);
@@ -67,6 +70,7 @@ export default function NotificationSettingsScreen() {
   useEffect(() => {
     (async () => {
       try {
+        // 1. 로컬 저장소에서 불러오기
         const [push, reminder, booked, region, rKey, bookedDays, bookedTime, regionDays, regionTime] =
           await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.pushEnabled),
@@ -111,9 +115,34 @@ export default function NotificationSettingsScreen() {
             setRegionTimeHour(parsedTime);
           }
         }
+
+        // 2. 로그인 상태면 서버에서 설정 동기화
+        if (isLoggedIn) {
+          try {
+            const serverSettings = await notificationService.getNotificationSettings();
+            // 서버 설정이 있으면 로컬에 반영
+            if (serverSettings) {
+              setPushEnabled(serverSettings.newEventEnabled);
+              setEventReminderOn(serverSettings.eventReminderEnabled);
+              if (serverSettings.subscribedRegions) {
+                setRegionKey(serverSettings.subscribedRegions);
+                setRegionOn(true);
+              }
+              // 로컬 저장소에도 동기화
+              await AsyncStorage.setItem(STORAGE_KEYS.pushEnabled, String(serverSettings.newEventEnabled));
+              await AsyncStorage.setItem(STORAGE_KEYS.eventReminder, String(serverSettings.eventReminderEnabled));
+              if (serverSettings.subscribedRegions) {
+                await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionKey, serverSettings.subscribedRegions);
+                await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegion, 'true');
+              }
+            }
+          } catch {
+            // 서버 동기화 실패 시 로컬 설정 유지
+          }
+        }
       } catch {}
     })();
-  }, []);
+  }, [isLoggedIn]);
 
   const showToast = (message: string) => {
     if (Platform.OS === 'android') {
@@ -122,6 +151,24 @@ export default function NotificationSettingsScreen() {
       Alert.alert('', message, [{ text: '확인' }]);
     }
   };
+
+  // 서버에 알림 설정 동기화
+  const syncToServer = useCallback(async (settings: {
+    newEventEnabled: boolean;
+    eventReminderEnabled: boolean;
+    subscribedRegions: string | null;
+  }) => {
+    if (!isLoggedIn) return;
+    try {
+      await notificationService.updateNotificationSettings({
+        newEventEnabled: settings.newEventEnabled,
+        eventReminderEnabled: settings.eventReminderEnabled,
+        subscribedRegions: settings.subscribedRegions,
+      });
+    } catch {
+      // 서버 동기화 실패 시 무시 (로컬은 이미 저장됨)
+    }
+  }, [isLoggedIn]);
 
   const handlePushChange = async (value: boolean) => {
     setPushEnabled(value);
@@ -142,6 +189,12 @@ export default function NotificationSettingsScreen() {
       eventReminder.cancelScheduledByOrigin('booked').catch(() => {});
       eventReminder.cancelScheduledByOrigin('region').catch(() => {});
     }
+    // 서버 동기화
+    syncToServer({
+      newEventEnabled: value,
+      eventReminderEnabled: value ? eventReminderOn : false,
+      subscribedRegions: value ? regionKey : null,
+    });
   };
 
   const handleEventReminderChange = async (value: boolean) => {
@@ -158,6 +211,12 @@ export default function NotificationSettingsScreen() {
       await eventReminder.cancelScheduledByOrigin('booked');
       await eventReminder.cancelScheduledByOrigin('region');
     }
+    // 서버 동기화
+    syncToServer({
+      newEventEnabled: pushEnabled,
+      eventReminderEnabled: value,
+      subscribedRegions: value ? regionKey : null,
+    });
   };
 
   const handleBookedChange = async (value: boolean) => {
@@ -192,6 +251,12 @@ export default function NotificationSettingsScreen() {
       await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionKey, '');
     } catch {}
     await eventReminder.cancelScheduledByOrigin('region');
+    // 서버 동기화 (지역 설정 해제)
+    syncToServer({
+      newEventEnabled: pushEnabled,
+      eventReminderEnabled: eventReminderOn,
+      subscribedRegions: null,
+    });
   };
 
   const handleSelectRegion = async (key: string) => {
@@ -204,6 +269,12 @@ export default function NotificationSettingsScreen() {
         setRegionKey(key);
         await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegion, 'true');
         await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionKey, key);
+        // 서버 동기화
+        syncToServer({
+          newEventEnabled: pushEnabled,
+          eventReminderEnabled: eventReminderOn,
+          subscribedRegions: key,
+        });
         Alert.alert(
           '지역 행사 알림',
           result.count > 0

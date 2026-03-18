@@ -71,4 +71,26 @@ public class ChatRoomController {
         chatRoomService.leaveRoom(roomId, email);
         return ResponseEntity.ok().build();
     }
+
+    // 6. 채팅방 알림 토글
+    @PostMapping("/{roomId}/notification")
+    public ResponseEntity<java.util.Map<String, Boolean>> toggleNotification(
+            @PathVariable Long roomId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        String email = userDetails.getUsername();
+        boolean notificationOn = chatRoomService.toggleNotification(roomId, email);
+        return ResponseEntity.ok(java.util.Map.of("notificationOn", notificationOn));
+    }
+
+    // 7. 채팅방 알림 상태 조회
+    @GetMapping("/{roomId}/notification")
+    public ResponseEntity<java.util.Map<String, Boolean>> getNotificationStatus(
+            @PathVariable Long roomId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        String email = userDetails.getUsername();
+        boolean notificationOn = chatRoomService.isNotificationOn(roomId, email);
+        return ResponseEntity.ok(java.util.Map.of("notificationOn", notificationOn));
+    }
 }

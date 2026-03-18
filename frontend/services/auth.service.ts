@@ -435,6 +435,8 @@ export type MemberProfileDto = {
   id: number;
   nickname: string;
   profileImageUrl?: string | null;
+  postCount: number;
+  receivedLikeCount: number;
 };
 
 export async function getMemberProfile(memberId: number): Promise<MemberProfileDto | null> {
