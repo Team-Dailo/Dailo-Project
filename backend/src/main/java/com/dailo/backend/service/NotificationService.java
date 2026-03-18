@@ -75,9 +75,10 @@ public class NotificationService {
     }
 
     @Transactional
-    public void updateSetting(String email, boolean newEvent, boolean reminder, String categories, String regions) {
+    public NotificationSetting updateSetting(String email, boolean newEvent, boolean reminder, String categories, String regions) {
         NotificationSetting setting = getOrInitSetting(email);
-        // TODO: 세부 설정 업데이트 로직 구현 (필요 시)
+        setting.updateSettings(newEvent, reminder, categories, regions);
+        return setting;
     }
 
     @Transactional

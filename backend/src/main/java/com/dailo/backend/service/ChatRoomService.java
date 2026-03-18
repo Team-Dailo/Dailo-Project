@@ -215,4 +215,36 @@ public class ChatRoomService {
 
         return enrichRoom(room, userId);
     }
+
+    // 채팅방 알림 토글
+    @Transactional
+    public boolean toggleNotification(Long roomId, String email) {
+        Long userId = getMyIdByEmail(email);
+
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
+
+        ChatMember member = chatMemberRepository.findByRoomAndUserId(room, userId)
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+
+        if (!member.isActive()) {
+            throw new RuntimeException("You have left this room");
+        }
+
+        member.toggleMuted();
+        return !member.isMuted(); // 알림 켜짐 상태 반환 (muted의 반대)
+    }
+
+    // 채팅방 알림 상태 조회
+    public boolean isNotificationOn(Long roomId, String email) {
+        Long userId = getMyIdByEmail(email);
+
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
+
+        ChatMember member = chatMemberRepository.findByRoomAndUserId(room, userId)
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+
+        return !member.isMuted();
+    }
 }

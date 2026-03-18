@@ -137,3 +137,26 @@ export async function sendMessage(
   if (!res.ok) throw new Error(`send message failed: ${res.status}`);
   return res.json();
 }
+
+/** 채팅방 알림 토글 - POST /api/chat/rooms/{roomId}/notification */
+export async function toggleNotification(
+  roomId: number
+): Promise<{ notificationOn: boolean }> {
+  const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/notification`, {
+    method: 'POST',
+    headers: await getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(`toggle notification failed: ${res.status}`);
+  return res.json();
+}
+
+/** 채팅방 알림 상태 조회 - GET /api/chat/rooms/{roomId}/notification */
+export async function getNotificationStatus(
+  roomId: number
+): Promise<{ notificationOn: boolean }> {
+  const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/notification`, {
+    headers: await getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(`get notification status failed: ${res.status}`);
+  return res.json();
+}

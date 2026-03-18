@@ -224,4 +224,41 @@ public class CommentService {
         commentRepository.delete(comment);
         postRepository.decreaseCommentCount(postId);
     }
+
+    // 5. 댓글 좋아요 토글
+    @Transactional
+    public boolean toggleCommentLike(Long commentId, String email) {
+        Long userId = getMemberIdByEmail(email);
+        if (userId == null) {
+            throw new RuntimeException("로그인이 필요합니다.");
+        }
+
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new NotFoundException("Comment not found: " + commentId));
+
+        if (comment.isDeleted()) {
+            throw new NotFoundException("Comment not found: " + commentId);
+        }
+
+        Member member = memberRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Member not found: " + userId));
+
+        var existing = commentLikeRepository.findByMemberIdAndCommentId(userId, commentId);
+        if (existing.isPresent()) {
+            commentLikeRepository.delete(existing.get());
+            comment.decreaseLikeCount();
+            return false;
+        }
+
+        commentLikeRepository.save(CommentLike.builder().member(member).comment(comment).build());
+        comment.increaseLikeCount();
+        return true;
+    }
+
+    // 6. 댓글 좋아요 수 조회
+    public int getCommentLikeCount(Long commentId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new NotFoundException("Comment not found: " + commentId));
+        return comment.getLikeCount();
+    }
 }
