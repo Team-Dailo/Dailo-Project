@@ -87,6 +87,9 @@ export default function PostDetailScreen() {
   const [replyingToAuthor, setReplyingToAuthor] = useState<string | null>(null);
   /** 이 게시글에서 삭제한 댓글 ID (나갔다 들어와도 서버가 삭제된 댓글을 주는 경우 대비) */
   const [deletedCommentIds, setDeletedCommentIds] = useState<Set<string>>(new Set());
+  /** 댓글 수정 상태 */
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
   const scrollViewRef = useRef<ScrollView>(null);
   const commentSectionY = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -110,7 +113,13 @@ export default function PostDetailScreen() {
     setDeletedCommentIds(new Set());
   }, [id]);
 
-  const postAuthorId = post ? Number((post as Record<string, unknown>).author_id ?? post.authorId ?? 0) : 0;
+  const postAuthorId = (() => {
+    if (!post) return 0;
+    const raw = post as Record<string, unknown>;
+    const id = raw.author_id ?? raw.authorId ?? post.authorId;
+    const num = Number(id);
+    return Number.isFinite(num) && num > 0 ? num : 0;
+  })();
   const isMyPost = Boolean(post && user?.id != null && postAuthorId !== 0 && Number(postAuthorId) === Number(user.id));
   const [blockCheck, setBlockCheck] = useState<{ iBlockedThem: boolean; theyBlockedMe: boolean } | null>(null);
   const [isSavedPost, setIsSavedPost] = useState(false);
@@ -273,6 +282,21 @@ export default function PostDetailScreen() {
       Alert.alert("알림", "본인 글에는 채팅을 보낼 수 없습니다.");
       return;
     }
+    sendChatToUser(Number(targetId));
+  };
+
+  const handleSendCommentChat = (authorId: number) => {
+    setCommentMenuId(null);
+    sendChatToUser(authorId);
+  };
+
+  const sendChatToUser = (targetId: number) => {
+    if (!targetId || targetId <= 0) return;
+    const myId = user?.id != null ? Number(user.id) : null;
+    if (myId != null && Number(targetId) === myId) {
+      Alert.alert("알림", "본인에게는 채팅을 보낼 수 없습니다.");
+      return;
+    }
     (async () => {
       try {
         const token = await authService.getAccessToken();
@@ -412,7 +436,7 @@ export default function PostDetailScreen() {
     }
   };
 
-  const toggleCommentLike = (commentId: string) => {
+  const toggleCommentLike = async (commentId: string) => {
     if (!isLoggedIn) {
       Alert.alert("로그인 필요", "댓글에 좋아요를 누르려면 로그인해 주세요.", [
         { text: "취소", style: "cancel" },
@@ -420,12 +444,27 @@ export default function PostDetailScreen() {
       ]);
       return;
     }
+    // 낙관적 업데이트
     setLikedCommentIds((prev) => {
       const next = new Set(prev);
       if (next.has(commentId)) next.delete(commentId);
       else next.add(commentId);
       return next;
     });
+    try {
+      await boardService.toggleCommentLike(commentId);
+      refetchComments();
+    } catch (e) {
+      // 실패 시 롤백
+      setLikedCommentIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(commentId)) next.delete(commentId);
+        else next.add(commentId);
+        return next;
+      });
+      const msg = e instanceof Error ? e.message : "좋아요 처리에 실패했습니다.";
+      Alert.alert("오류", msg);
+    }
   };
 
   const isMyComment = (commentId: string) => {
@@ -463,6 +502,29 @@ export default function PostDetailScreen() {
         },
       },
     ]);
+  };
+
+  const handleEditComment = (commentId: string, currentContent: string) => {
+    setCommentMenuId(null);
+    setEditingCommentId(commentId);
+    setEditingCommentText(currentContent);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingCommentText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCommentId || !editingCommentText.trim()) return;
+    try {
+      await boardService.updateComment(editingCommentId, { content: editingCommentText.trim() });
+      setEditingCommentId(null);
+      setEditingCommentText("");
+      refetchComments();
+    } catch {
+      Alert.alert("오류", "댓글 수정에 실패했습니다.");
+    }
   };
 
   return (
@@ -518,7 +580,11 @@ export default function PostDetailScreen() {
             <>
               {/* 게시물 본문 */}
               <View style={styles.postSection}>
-                <Pressable style={styles.postHeader} onPress={() => handleProfilePress(postAuthorId)}>
+                <Pressable
+                  style={styles.postHeader}
+                  onPress={() => handleProfilePress(postAuthorId)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
                   {hasPostAuthorPhoto ? (
                     <Image source={{ uri: postAuthorProfileUrl! }} style={styles.profileCircle} resizeMode="cover" />
                   ) : (
@@ -647,19 +713,44 @@ export default function PostDetailScreen() {
                             </Pressable>
                             <Text style={styles.commentTime}>{c.time}</Text>
                             {isEdited && <Text style={styles.commentEdited}>(수정됨)</Text>}
-                            {isMine && (
-                              <Pressable
-                                style={styles.commentMenuBtn}
-                                onPress={() => setCommentMenuId(commentMenuId === c.id ? null : c.id)}
-                              >
-                                <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
-                              </Pressable>
-                            )}
+                            <Pressable
+                              style={styles.commentMenuBtn}
+                              onPress={() => setCommentMenuId(commentMenuId === c.id ? null : c.id)}
+                            >
+                              <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
+                            </Pressable>
                           </View>
-                          <Text style={styles.commentContent}>{c.content}</Text>
-                          <Pressable style={styles.replyBtn} onPress={() => handleReply(c.id, c.author ?? "")}>
-                            <Text style={styles.replyBtnText}>답글</Text>
-                          </Pressable>
+                          {editingCommentId === c.id ? (
+                            <View style={styles.editCommentWrap}>
+                              <TextInput
+                                style={styles.editCommentInput}
+                                value={editingCommentText}
+                                onChangeText={setEditingCommentText}
+                                multiline
+                                autoFocus
+                                maxLength={500}
+                              />
+                              <View style={styles.editCommentBtns}>
+                                <Pressable style={styles.editCancelBtn} onPress={handleCancelEdit}>
+                                  <Text style={styles.editCancelBtnText}>취소</Text>
+                                </Pressable>
+                                <Pressable
+                                  style={[styles.editSaveBtn, !editingCommentText.trim() && styles.editSaveBtnDisabled]}
+                                  onPress={handleSaveEdit}
+                                  disabled={!editingCommentText.trim()}
+                                >
+                                  <Text style={[styles.editSaveBtnText, !editingCommentText.trim() && styles.editSaveBtnTextDisabled]}>저장</Text>
+                                </Pressable>
+                              </View>
+                            </View>
+                          ) : (
+                            <>
+                              <Text style={styles.commentContent}>{c.content}</Text>
+                              <Pressable style={styles.replyBtn} onPress={() => handleReply(c.id, c.author ?? "")}>
+                                <Text style={styles.replyBtnText}>답글</Text>
+                              </Pressable>
+                            </>
+                          )}
                         </>
                       )}
                     </View>
@@ -667,9 +758,20 @@ export default function PostDetailScreen() {
                       <View style={styles.commentRight}>
                         {commentMenuId === c.id && (
                           <View style={styles.commentDropdown}>
-                            <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
-                              <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
-                            </Pressable>
+                            {isMine ? (
+                              <>
+                                <Pressable style={styles.commentDropdownItem} onPress={() => handleEditComment(c.id, c.content ?? "")}>
+                                  <Text style={styles.commentDropdownText}>수정</Text>
+                                </Pressable>
+                                <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
+                                  <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                                </Pressable>
+                              </>
+                            ) : (
+                              <Pressable style={styles.commentDropdownItem} onPress={() => c.authorId && handleSendCommentChat(c.authorId)}>
+                                <Text style={styles.commentDropdownText}>채팅하기</Text>
+                              </Pressable>
+                            )}
                           </View>
                         )}
                         <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(c.id)}>
@@ -718,16 +820,39 @@ export default function PostDetailScreen() {
                                 </Pressable>
                                 <Text style={styles.commentTime}>{reply.time}</Text>
                                 {isReplyEdited && <Text style={styles.commentEdited}>(수정됨)</Text>}
-                                {isMyReply && (
-                                  <Pressable
-                                    style={styles.commentMenuBtn}
-                                    onPress={() => setCommentMenuId(commentMenuId === reply.id ? null : reply.id)}
-                                  >
-                                    <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
-                                  </Pressable>
-                                )}
+                                <Pressable
+                                  style={styles.commentMenuBtn}
+                                  onPress={() => setCommentMenuId(commentMenuId === reply.id ? null : reply.id)}
+                                >
+                                  <Ionicons name="ellipsis-horizontal" size={16} color="#9CA3AF" />
+                                </Pressable>
                               </View>
-                              <Text style={styles.commentContent}>{reply.content}</Text>
+                              {editingCommentId === reply.id ? (
+                                <View style={styles.editCommentWrap}>
+                                  <TextInput
+                                    style={styles.editCommentInput}
+                                    value={editingCommentText}
+                                    onChangeText={setEditingCommentText}
+                                    multiline
+                                    autoFocus
+                                    maxLength={500}
+                                  />
+                                  <View style={styles.editCommentBtns}>
+                                    <Pressable style={styles.editCancelBtn} onPress={handleCancelEdit}>
+                                      <Text style={styles.editCancelBtnText}>취소</Text>
+                                    </Pressable>
+                                    <Pressable
+                                      style={[styles.editSaveBtn, !editingCommentText.trim() && styles.editSaveBtnDisabled]}
+                                      onPress={handleSaveEdit}
+                                      disabled={!editingCommentText.trim()}
+                                    >
+                                      <Text style={[styles.editSaveBtnText, !editingCommentText.trim() && styles.editSaveBtnTextDisabled]}>저장</Text>
+                                    </Pressable>
+                                  </View>
+                                </View>
+                              ) : (
+                                <Text style={styles.commentContent}>{reply.content}</Text>
+                              )}
                             </>
                           )}
                         </View>
@@ -735,9 +860,20 @@ export default function PostDetailScreen() {
                           <View style={styles.commentRight}>
                             {commentMenuId === reply.id && (
                               <View style={styles.commentDropdown}>
-                                <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
-                                  <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
-                                </Pressable>
+                                {isMyReply ? (
+                                  <>
+                                    <Pressable style={styles.commentDropdownItem} onPress={() => handleEditComment(reply.id, reply.content ?? "")}>
+                                      <Text style={styles.commentDropdownText}>수정</Text>
+                                    </Pressable>
+                                    <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
+                                      <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
+                                    </Pressable>
+                                  </>
+                                ) : (
+                                  <Pressable style={styles.commentDropdownItem} onPress={() => reply.authorId && handleSendCommentChat(reply.authorId)}>
+                                    <Text style={styles.commentDropdownText}>채팅하기</Text>
+                                  </Pressable>
+                                )}
                               </View>
                             )}
                             <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(reply.id)}>
@@ -996,6 +1132,51 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontStyle: "italic",
     paddingVertical: 4,
+  },
+  editCommentWrap: {
+    marginTop: 4,
+  },
+  editCommentInput: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: "#111827",
+    minHeight: 60,
+    maxHeight: 120,
+    textAlignVertical: "top",
+  },
+  editCommentBtns: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 8,
+  },
+  editCancelBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  editCancelBtnText: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  editSaveBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#4C8BF5",
+    borderRadius: 6,
+  },
+  editSaveBtnDisabled: {
+    backgroundColor: "#E5E7EB",
+  },
+  editSaveBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  editSaveBtnTextDisabled: {
+    color: "#9CA3AF",
   },
   replyingIndicator: {
     flexDirection: "row",

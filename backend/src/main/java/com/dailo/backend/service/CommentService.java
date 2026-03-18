@@ -3,10 +3,12 @@ package com.dailo.backend.service;
 import com.dailo.backend.dto.CommentRequestDto;
 import com.dailo.backend.dto.CommentResponseDto;
 import com.dailo.backend.entity.Comment;
+import com.dailo.backend.entity.CommentLike;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.entity.Post;
 import com.dailo.backend.exception.ForbiddenException;
 import com.dailo.backend.exception.NotFoundException;
+import com.dailo.backend.repository.CommentLikeRepository;
 import com.dailo.backend.repository.CommentRepository;
 import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.repository.PostRepository;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
 public class CommentService {
 
     private final CommentRepository commentRepository;
+    private final CommentLikeRepository commentLikeRepository;
     private final PostRepository postRepository;
     private final MemberRepository memberRepository;
     private final BlockService blockService;
@@ -220,5 +223,42 @@ public class CommentService {
         Long postId = comment.getPost().getId();
         commentRepository.delete(comment);
         postRepository.decreaseCommentCount(postId);
+    }
+
+    // 5. 댓글 좋아요 토글
+    @Transactional
+    public boolean toggleCommentLike(Long commentId, String email) {
+        Long userId = getMemberIdByEmail(email);
+        if (userId == null) {
+            throw new RuntimeException("로그인이 필요합니다.");
+        }
+
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new NotFoundException("Comment not found: " + commentId));
+
+        if (comment.isDeleted()) {
+            throw new NotFoundException("Comment not found: " + commentId);
+        }
+
+        Member member = memberRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Member not found: " + userId));
+
+        var existing = commentLikeRepository.findByMemberIdAndCommentId(userId, commentId);
+        if (existing.isPresent()) {
+            commentLikeRepository.delete(existing.get());
+            comment.decreaseLikeCount();
+            return false;
+        }
+
+        commentLikeRepository.save(CommentLike.builder().member(member).comment(comment).build());
+        comment.increaseLikeCount();
+        return true;
+    }
+
+    // 6. 댓글 좋아요 수 조회
+    public int getCommentLikeCount(Long commentId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new NotFoundException("Comment not found: " + commentId));
+        return comment.getLikeCount();
     }
 }

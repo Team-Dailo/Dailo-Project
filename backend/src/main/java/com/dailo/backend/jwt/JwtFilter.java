@@ -1,5 +1,6 @@
 package com.dailo.backend.jwt;
 
+import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.MemberRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,21 +24,18 @@ public class JwtFilter extends OncePerRequestFilter {
     private final MemberRepository memberRepository;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
 
         String jwt = resolveToken(request);
 
         if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
             Authentication authentication = tokenProvider.getAuthentication(jwt);
+            String principal = authentication.getName();
 
-            // JWT subject를 이메일로 사용하므로 authentication.getName()은 이메일입니다.
-            String email = authentication.getName();
+            Member member = findMemberByPrincipal(principal);
 
-            boolean isSuspended = memberRepository.findByEmail(email)
-                    .map(member -> member.isSuspended())
-                    .orElse(false);
-
-            if (isSuspended) {
+            if (member != null && member.isSuspended()) {
                 response.sendError(HttpServletResponse.SC_FORBIDDEN, "정지된 계정입니다.");
                 return;
             }
@@ -46,6 +44,18 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private Member findMemberByPrincipal(String principal) {
+        if (!StringUtils.hasText(principal)) {
+            return null;
+        }
+
+        if (principal.matches("\\d+")) {
+            return memberRepository.findById(Long.valueOf(principal)).orElse(null);
+        }
+
+        return memberRepository.findByEmail(principal).orElse(null);
     }
 
     private String resolveToken(HttpServletRequest request) {

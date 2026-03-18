@@ -48,10 +48,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         Member member;
         if (memberOptional.isPresent()) {
             member = memberOptional.get();
-            member.updateProfile(
-                    oAuth2UserInfo.getNickname() != null ? oAuth2UserInfo.getNickname() : member.getNickname(),
-                    oAuth2UserInfo.getImageUrl()
-            );
+
+            // 닉네임은 앱에서 사용자가 바꾼 값을 유지
+            // 카카오 프로필 이미지만 필요 시 갱신
+            String kakaoImageUrl = oAuth2UserInfo.getImageUrl();
+            if (kakaoImageUrl != null && !kakaoImageUrl.isBlank()) {
+                member.updateProfile(null, kakaoImageUrl);
+            }
+
             memberRepository.save(member);
         } else {
             String email = resolveEmail(oAuth2UserInfo.getEmail(), providerId);

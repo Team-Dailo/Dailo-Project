@@ -69,4 +69,16 @@ public class CommentController {
         commentService.deleteComment(id, email);
         return ResponseEntity.ok().build();
     }
+
+    // 5. 댓글 좋아요 토글
+    @PostMapping("/comments/{id}/like")
+    public ResponseEntity<java.util.Map<String, Object>> toggleCommentLike(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        String email = userDetails.getUsername();
+        boolean liked = commentService.toggleCommentLike(id, email);
+        int likeCount = commentService.getCommentLikeCount(id);
+        return ResponseEntity.ok(java.util.Map.of("liked", liked, "likeCount", likeCount));
+    }
 }

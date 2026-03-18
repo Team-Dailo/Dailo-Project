@@ -1,5 +1,7 @@
 package com.dailo.backend.controller;
 
+import com.dailo.backend.dto.NotificationSettingRequestDto;
+import com.dailo.backend.dto.NotificationSettingResponseDto;
 import com.dailo.backend.dto.PushTokenRequest;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.entity.NotificationSetting;
@@ -36,11 +38,29 @@ public class NotificationController {
 
     @Operation(summary = "알림 설정 조회", description = "사용자의 현재 알림 구독 상태를 가져옵니다.")
     @GetMapping("/settings")
-    public ResponseEntity<NotificationSetting> getSettings(
+    public ResponseEntity<NotificationSettingResponseDto> getSettings(
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         String email = userDetails.getUsername();
-        return ResponseEntity.ok(notificationService.getOrInitSetting(email));
+        NotificationSetting setting = notificationService.getOrInitSetting(email);
+        return ResponseEntity.ok(NotificationSettingResponseDto.from(setting));
+    }
+
+    @Operation(summary = "알림 설정 업데이트", description = "사용자의 알림 구독 설정을 변경합니다.")
+    @PutMapping("/settings")
+    public ResponseEntity<NotificationSettingResponseDto> updateSettings(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody NotificationSettingRequestDto request
+    ) {
+        String email = userDetails.getUsername();
+        NotificationSetting setting = notificationService.updateSetting(
+                email,
+                request.isNewEventEnabled(),
+                request.isEventReminderEnabled(),
+                request.getSubscribedCategories(),
+                request.getSubscribedRegions()
+        );
+        return ResponseEntity.ok(NotificationSettingResponseDto.from(setting));
     }
 
     // 테스트용 API는 관리자 권한이나 특정 상황에서 쓰이므로 그대로 두되,

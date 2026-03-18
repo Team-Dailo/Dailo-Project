@@ -358,4 +358,31 @@ public class PostService {
                 .map(Post::getLikeCount)
                 .orElse(0);
     }
+
+    /** 특정 사용자의 게시글 목록 (공개 조회) - 비로그인도 가능 */
+    public Page<PostListResponseDto> getPostsByMemberId(Long memberId, String email, Pageable pageable) {
+        Long viewerId = resolveMemberId(email);
+
+        // 차단 관계 확인 (로그인 시)
+        if (viewerId != null) {
+            Set<Long> blockedIds = blockService.getBlockedUserIds(viewerId);
+            if (blockedIds.contains(memberId)) {
+                throw new RuntimeException("차단한 사용자입니다.");
+            }
+        }
+
+        Page<Post> page = postRepository.findByAuthorId(memberId, pageable);
+        List<Post> posts = page.getContent();
+        var authorMaps = getAuthorNicknameAndProfileMaps(posts);
+        Map<Long, String> eventTitleMap = getEventTitleMap(posts);
+        Set<Long> likedPostIds = (viewerId != null) ? postLikeRepository.findPostIdsByMemberId(viewerId) : Set.of();
+
+        return page.map(post -> PostListResponseDto.from(
+                post,
+                authorMaps.getFirst().get(post.getAuthorId()),
+                likedPostIds.contains(post.getId()),
+                post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null,
+                authorMaps.getSecond().get(post.getAuthorId())
+        ));
+    }
 }

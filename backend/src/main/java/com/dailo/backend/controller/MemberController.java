@@ -26,30 +26,26 @@ public class MemberController {
 
     @GetMapping("/me")
     public ResponseEntity<MemberResponseDto> getMyProfile(@AuthenticationPrincipal UserDetails userDetails) {
-        System.out.println("[MemberController.getMyProfile] userDetails = " + userDetails);
-
         if (userDetails == null) {
             throw new RuntimeException("인증된 사용자 정보가 없습니다.");
         }
 
-        String email = userDetails.getUsername();
-        System.out.println("[MemberController.getMyProfile] email = " + email);
-
-        return ResponseEntity.ok(memberService.getMyProfile(email));
+        String principal = userDetails.getUsername();
+        return ResponseEntity.ok(memberService.getMyProfile(principal));
     }
 
     @PatchMapping("/me")
     public ResponseEntity<MemberResponseDto> updateProfile(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody MemberUpdateRequestDto request) {
-        String email = userDetails.getUsername();
-        return ResponseEntity.ok(memberService.updateProfile(email, request));
+        String principal = userDetails.getUsername();
+        return ResponseEntity.ok(memberService.updateProfile(principal, request));
     }
 
     @DeleteMapping("/me")
     public ResponseEntity<Map<String, String>> withdraw(@AuthenticationPrincipal UserDetails userDetails) {
-        String email = userDetails.getUsername();
-        memberService.withdraw(email);
+        String principal = userDetails.getUsername();
+        memberService.withdraw(principal);
 
         Map<String, String> response = new HashMap<>();
         response.put("status", "SUCCESS");
@@ -80,10 +76,10 @@ public class MemberController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestPart("file") MultipartFile file) throws IOException {
 
-        String email = userDetails.getUsername();
+        String principal = userDetails.getUsername();
 
         String imageKey = s3UploadService.upload(file, "profile");
-        memberService.updateProfileImage(email, imageKey);
+        memberService.updateProfileImage(principal, imageKey);
 
         String imageUrl = s3UploadService.getPresignedUrl(imageKey);
         Map<String, String> response = new HashMap<>();
