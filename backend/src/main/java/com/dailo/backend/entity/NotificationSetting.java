@@ -31,4 +31,11 @@ public class NotificationSetting {
         this.isNewEventEnabled = isNewEventEnabled;
         this.isEventReminderEnabled = isEventReminderEnabled;
     }
+
+    public void updateSettings(boolean newEventEnabled, boolean eventReminderEnabled, String categories, String regions) {
+        this.isNewEventEnabled = newEventEnabled;
+        this.isEventReminderEnabled = eventReminderEnabled;
+        this.subscribedCategories = categories;
+        this.subscribedRegions = regions;
+    }
 }

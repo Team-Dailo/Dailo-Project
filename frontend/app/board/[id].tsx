@@ -436,7 +436,7 @@ export default function PostDetailScreen() {
     }
   };
 
-  const toggleCommentLike = (commentId: string) => {
+  const toggleCommentLike = async (commentId: string) => {
     if (!isLoggedIn) {
       Alert.alert("로그인 필요", "댓글에 좋아요를 누르려면 로그인해 주세요.", [
         { text: "취소", style: "cancel" },
@@ -444,12 +444,27 @@ export default function PostDetailScreen() {
       ]);
       return;
     }
+    // 낙관적 업데이트
     setLikedCommentIds((prev) => {
       const next = new Set(prev);
       if (next.has(commentId)) next.delete(commentId);
       else next.add(commentId);
       return next;
     });
+    try {
+      await boardService.toggleCommentLike(commentId);
+      refetchComments();
+    } catch (e) {
+      // 실패 시 롤백
+      setLikedCommentIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(commentId)) next.delete(commentId);
+        else next.add(commentId);
+        return next;
+      });
+      const msg = e instanceof Error ? e.message : "좋아요 처리에 실패했습니다.";
+      Alert.alert("오류", msg);
+    }
   };
 
   const isMyComment = (commentId: string) => {

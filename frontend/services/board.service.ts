@@ -334,6 +334,22 @@ export async function deleteComment(commentId: number | string): Promise<void> {
   if (!res.ok) throw new Error(`deleteComment failed: ${res.status}`);
 }
 
+/** 댓글 좋아요 토글 (로그인 필요). { liked, likeCount } 반환 */
+export async function toggleCommentLike(
+  commentId: number | string
+): Promise<{ liked: boolean; likeCount: number }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}/like`, {
+    method: 'POST',
+    headers,
+  });
+  if (!res.ok) {
+    const msg = res.status === 401 ? '로그인이 만료되었습니다.' : `좋아요 처리 실패 (${res.status})`;
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
 /** 게시글 좋아요 토글 (로그인 필요). 기록 저장 후 { liked, likeCount } 반환 */
 export async function togglePostLike(
   postId: number | string,
