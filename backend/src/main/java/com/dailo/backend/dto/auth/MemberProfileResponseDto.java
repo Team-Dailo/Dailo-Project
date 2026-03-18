@@ -17,12 +17,16 @@ public class MemberProfileResponseDto {
     private Long id;
     private String nickname;
     private String profileImageUrl;
+    private int postCount;
+    private int receivedLikeCount;
 
-    public static MemberProfileResponseDto of(Member member, String resolvedProfileImageUrl) {
+    public static MemberProfileResponseDto of(Member member, String resolvedProfileImageUrl, int postCount, int receivedLikeCount) {
         return MemberProfileResponseDto.builder()
                 .id(member.getId())
                 .nickname(member.getNickname())
                 .profileImageUrl(resolvedProfileImageUrl)
+                .postCount(postCount)
+                .receivedLikeCount(receivedLikeCount)
                 .build();
     }
 }

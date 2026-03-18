@@ -32,14 +32,18 @@ export default function RootLayout() {
   // 안드로이드 하드웨어 뒤로가기 버튼 처리
   useEffect(() => {
     const onBackPress = () => {
-      // 루트 화면(탭)이면 앱 종료 허용
+      // segments 예시: ['(tabs)', 'home'] or ['(tabs)', 'mypage', 'settings'] or ['board', '123']
       const firstSegment = segments[0] as string | undefined;
-      if (!firstSegment || firstSegment === '(tabs)') {
-        return false; // 기본 동작(앱 종료) 허용
+
+      // 탭 외부 화면(board, event, login 등)에서는 뒤로가기
+      if (firstSegment && firstSegment !== '(tabs)') {
+        router.back();
+        return true; // 기본 동작 방지
       }
-      // 그 외에는 이전 화면으로 이동
-      router.back();
-      return true; // 기본 동작 방지
+
+      // 탭 내부에서는 (tabs)/_layout.tsx의 BackHandler가 처리하도록 위임
+      // return false로 다음 핸들러에게 전달
+      return false;
     };
 
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
