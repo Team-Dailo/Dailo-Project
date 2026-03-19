@@ -20,10 +20,13 @@ import * as chatService from '../../services/chat.service';
 import * as blockService from '../../services/block.service';
 import * as reportService from '../../services/report.service';
 import * as boardService from '../../services/board.service';
+import type { MemberCommentItem } from '../../services/board.service';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { formatRelativeTime } from '../../utils/formatDate';
 import type { PostListItem } from '../../types/board';
+
+type TabType = 'posts' | 'comments';
 
 const DEFAULT_PROFILE_IMAGE = require('../../assets/images/default-profile.png');
 
@@ -40,12 +43,21 @@ export default function MemberProfileScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [blockCheck, setBlockCheck] = useState<{ iBlockedThem: boolean; theyBlockedMe: boolean } | null>(null);
 
+  // 탭 상태
+  const [activeTab, setActiveTab] = useState<TabType>('posts');
+
   // 게시글 목록
   const [posts, setPosts] = useState<PostListItem[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [postsPage, setPostsPage] = useState(0);
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // 댓글 목록
+  const [comments, setComments] = useState<MemberCommentItem[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsPage, setCommentsPage] = useState(0);
+  const [hasMoreComments, setHasMoreComments] = useState(true);
 
   const memberId = Number(id);
   const isMyProfile = currentUser?.id != null && Number(currentUser.id) === memberId;
@@ -108,10 +120,31 @@ export default function MemberProfileScreen() {
     }
   }, [memberId, postsLoading]);
 
-  // 프로필 로드 후 게시글 로드
+  // 댓글 로드
+  const loadComments = useCallback(async (page: number = 0, reset: boolean = false) => {
+    if (commentsLoading && !reset) return;
+    setCommentsLoading(true);
+    try {
+      const data = await boardService.getCommentsByMemberId(memberId, { page, size: 10 });
+      if (page === 0 || reset) {
+        setComments(data.content);
+      } else {
+        setComments(prev => [...prev, ...data.content]);
+      }
+      setHasMoreComments(data.content.length === 10);
+      setCommentsPage(page);
+    } catch (e) {
+      console.error('Failed to load comments:', e);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [memberId, commentsLoading]);
+
+  // 프로필 로드 후 게시글과 댓글 로드
   useEffect(() => {
     if (profile && memberId > 0) {
       loadPosts(0, true);
+      loadComments(0, true);
     }
   }, [profile, memberId]);
 
@@ -122,11 +155,11 @@ export default function MemberProfileScreen() {
     try {
       const data = await authService.getMemberProfile(memberId);
       if (data) setProfile(data);
-      await loadPosts(0, true);
+      await Promise.all([loadPosts(0, true), loadComments(0, true)]);
     } finally {
       setRefreshing(false);
     }
-  }, [memberId, refreshing, loadPosts]);
+  }, [memberId, refreshing, loadPosts, loadComments]);
 
   // 채팅하기
   const handleSendChat = async () => {
@@ -231,9 +264,20 @@ export default function MemberProfileScreen() {
 
   // 더 불러오기
   const handleLoadMore = () => {
-    if (hasMorePosts && !postsLoading) {
-      loadPosts(postsPage + 1);
+    if (activeTab === 'posts') {
+      if (hasMorePosts && !postsLoading) {
+        loadPosts(postsPage + 1);
+      }
+    } else {
+      if (hasMoreComments && !commentsLoading) {
+        loadComments(commentsPage + 1);
+      }
     }
+  };
+
+  // 댓글 클릭 (해당 게시글로 이동)
+  const handleCommentPress = (postId: number) => {
+    router.push(`/board/${postId}`);
   };
 
   const profileImageUrl = profile?.profileImageUrl?.trim();
@@ -261,6 +305,29 @@ export default function MemberProfileScreen() {
         {hasImage && (
           <Image source={{ uri: imageUrls[0] }} style={styles.postThumbnail} />
         )}
+      </Pressable>
+    );
+  };
+
+  // 댓글 아이템 렌더링
+  const renderCommentItem = ({ item }: { item: MemberCommentItem }) => {
+    return (
+      <Pressable style={styles.commentItem} onPress={() => handleCommentPress(item.postId)}>
+        <View style={styles.commentContent}>
+          {item.postTitle && (
+            <Text style={styles.commentPostTitle} numberOfLines={1}>
+              {item.postTitle}
+            </Text>
+          )}
+          <Text style={styles.commentText} numberOfLines={2}>{item.content}</Text>
+          <View style={styles.postMeta}>
+            <Text style={styles.postTime}>{formatRelativeTime(item.createdAt)}</Text>
+            <View style={styles.postStats}>
+              <Ionicons name="heart-outline" size={12} color="#9CA3AF" />
+              <Text style={styles.postStatText}>{item.likeCount ?? 0}</Text>
+            </View>
+          </View>
+        </View>
       </Pressable>
     );
   };
@@ -308,28 +375,47 @@ export default function MemberProfileScreen() {
         <Text style={styles.chatButtonText}>채팅하기</Text>
       </Pressable>
 
-      {/* 게시글 섹션 타이틀 */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>작성 게시글</Text>
+      {/* 탭 버튼 */}
+      <View style={styles.tabContainer}>
+        <Pressable
+          style={[styles.tabButton, activeTab === 'posts' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('posts')}
+        >
+          <Text style={[styles.tabButtonText, activeTab === 'posts' && styles.tabButtonTextActive]}>
+            게시물
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tabButton, activeTab === 'comments' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('comments')}
+        >
+          <Text style={[styles.tabButtonText, activeTab === 'comments' && styles.tabButtonTextActive]}>
+            댓글
+          </Text>
+        </Pressable>
       </View>
     </View>
   );
 
   // 빈 목록 컴포넌트
-  const renderEmpty = () => (
-    !postsLoading ? (
+  const renderEmpty = () => {
+    const isLoading = activeTab === 'posts' ? postsLoading : commentsLoading;
+    const emptyText = activeTab === 'posts' ? '작성한 게시글이 없습니다.' : '작성한 댓글이 없습니다.';
+    return !isLoading ? (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>작성한 게시글이 없습니다.</Text>
+        <Text style={styles.emptyText}>{emptyText}</Text>
       </View>
-    ) : null
-  );
+    ) : null;
+  };
 
   // 푸터 컴포넌트
-  const renderFooter = () => (
-    postsLoading && posts.length > 0 ? (
+  const renderFooter = () => {
+    const isLoading = activeTab === 'posts' ? postsLoading : commentsLoading;
+    const dataLength = activeTab === 'posts' ? posts.length : comments.length;
+    return isLoading && dataLength > 0 ? (
       <ActivityIndicator size="small" color="#4C8BF5" style={{ paddingVertical: 16 }} />
-    ) : null
-  );
+    ) : null;
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -363,9 +449,12 @@ export default function MemberProfileScreen() {
         </View>
       ) : (
         <FlatList
-          data={posts}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={renderPostItem}
+          data={activeTab === 'posts' ? posts : comments}
+          keyExtractor={(item) => `${activeTab}-${item.id}`}
+          renderItem={activeTab === 'posts'
+            ? (props) => renderPostItem(props as { item: PostListItem })
+            : (props) => renderCommentItem(props as { item: MemberCommentItem })
+          }
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}
@@ -514,14 +603,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  sectionHeader: {
+  tabContainer: {
+    flexDirection: 'row',
     width: '100%',
-    paddingTop: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    marginTop: 8,
   },
-  sectionTitle: {
-    fontSize: 16,
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabButtonActive: {
+    borderBottomColor: '#4C8BF5',
+  },
+  tabButtonText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#9CA3AF',
+  },
+  tabButtonTextActive: {
+    color: '#4C8BF5',
     fontWeight: '600',
-    color: '#111827',
   },
   postItem: {
     flexDirection: 'row',
@@ -569,6 +675,26 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 8,
     backgroundColor: '#F3F4F6',
+  },
+  commentItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  commentContent: {
+    flex: 1,
+  },
+  commentPostTitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  commentText: {
+    fontSize: 15,
+    color: '#111827',
+    lineHeight: 20,
+    marginBottom: 8,
   },
   emptyContainer: {
     paddingVertical: 48,

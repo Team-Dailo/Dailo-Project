@@ -28,6 +28,9 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     // 작성자별 댓글 조회
     Page<Comment> findByAuthorId(Long authorId, Pageable pageable);
 
+    // 작성자별 댓글 조회 (삭제되지 않은 것만)
+    Page<Comment> findByAuthorIdAndDeletedAtIsNull(Long authorId, Pageable pageable);
+
     // 게시글별 댓글 수 조회
     long countByPost(Post post);
 
