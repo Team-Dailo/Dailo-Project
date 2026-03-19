@@ -261,4 +261,76 @@ public class CommentService {
                 .orElseThrow(() -> new NotFoundException("Comment not found: " + commentId));
         return comment.getLikeCount();
     }
+
+    // 7. 특정 사용자의 댓글 목록 조회
+    public Page<CommentResponseDto> getCommentsByMemberId(Long memberId, String email, Pageable pageable) {
+        Long viewerId = null;
+        if (email != null) {
+            viewerId = memberRepository.findByEmail(email)
+                    .map(Member::getId)
+                    .orElse(null);
+        }
+
+        // 차단 관계 확인
+        if (viewerId != null) {
+            Set<Long> blockedIds = blockService.getBlockedUserIds(viewerId);
+            if (blockedIds.contains(memberId)) {
+                throw new RuntimeException("차단한 사용자입니다.");
+            }
+        }
+
+        // 삭제되지 않은 댓글만 조회
+        Page<Comment> commentPage = commentRepository.findByAuthorIdAndDeletedAtIsNull(memberId, pageable);
+
+        // 게시글 정보 조회를 위한 ID 수집
+        Set<Long> postIds = commentPage.getContent().stream()
+                .map(c -> c.getPost().getId())
+                .collect(Collectors.toSet());
+
+        Map<Long, Post> postMap = postIds.isEmpty() ? Collections.emptyMap()
+                : postRepository.findAllById(postIds).stream()
+                .collect(Collectors.toMap(Post::getId, p -> p));
+
+        // 작성자 프로필 이미지 조회
+        String profileUrl = null;
+        Member author = memberRepository.findById(memberId).orElse(null);
+        if (author != null) {
+            String nickname = author.getNickname();
+            if (nickname == null || nickname.isBlank()) {
+                String authorEmail = author.getEmail();
+                nickname = (authorEmail != null && authorEmail.contains("@"))
+                        ? authorEmail.split("@")[0].trim()
+                        : "user_" + memberId;
+            }
+            if (author.getProfileImageUrl() != null && !author.getProfileImageUrl().isBlank()) {
+                try {
+                    profileUrl = s3UploadService.getPresignedUrl(author.getProfileImageUrl());
+                } catch (Exception ignored) {}
+            }
+
+            String finalNickname = nickname;
+            String finalProfileUrl = profileUrl;
+            return commentPage.map(comment -> {
+                CommentResponseDto dto = CommentResponseDto.from(comment, finalNickname, finalProfileUrl);
+                // 게시글 제목 추가를 위해 빌더로 새로 생성
+                Post post = postMap.get(comment.getPost().getId());
+                return CommentResponseDto.builder()
+                        .id(dto.getId())
+                        .postId(dto.getPostId())
+                        .postTitle(post != null ? post.getTitle() : null)
+                        .parentCommentId(dto.getParentCommentId())
+                        .authorId(dto.getAuthorId())
+                        .authorNickname(dto.getAuthorNickname())
+                        .authorProfileImageUrl(dto.getAuthorProfileImageUrl())
+                        .content(dto.getContent())
+                        .likeCount(dto.getLikeCount())
+                        .createdAt(dto.getCreatedAt())
+                        .updatedAt(dto.getUpdatedAt())
+                        .deleted(dto.isDeleted())
+                        .build();
+            });
+        }
+
+        return Page.empty(pageable);
+    }
 }
