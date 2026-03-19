@@ -140,7 +140,7 @@ export default function PostWriteScreen() {
     } catch (e) {
       Alert.alert("오류", e instanceof Error ? e.message : "사진을 불러올 수 없습니다.");
     }
-  }, [existingImageUrls.length]);
+  }, [existingImageUrls.length, selectedImageUris.length]);
 
   const removeImage = useCallback((uri: string) => {
     if (uri.startsWith("http")) {
@@ -172,7 +172,7 @@ export default function PostWriteScreen() {
         await boardService.updatePost(editIdParam, body, authorIdOrUndefined);
         nav.replace(`/board/${editIdParam}`);
       } else {
-        const created = await boardService.createPost(body, authorIdOrUndefined);
+        const created = await boardService.createPost(body);
         nav.replace(`/board/${created.id}`);
       }
     },
@@ -561,7 +561,7 @@ export default function PostWriteScreen() {
                     value={eventPickerKeyword}
                     onChangeText={setEventPickerKeyword}
                   />
-                  <Pressable style={styles.eventPickerSearchBtn} onPress={loadEventListForPicker} disabled={eventListLoading}>
+                  <Pressable onPress={() => loadEventListForPicker()} >
                     <Text style={styles.eventPickerSearchBtnText}>검색</Text>
                   </Pressable>
                 </View>
@@ -577,7 +577,7 @@ export default function PostWriteScreen() {
                     <Pressable
                       style={styles.modalItem}
                       onPress={() => {
-                        setSelectedEventId(item.id);
+                        setSelectedEventId(Number(item.id));
                         setSelectedEventTitle(item.title ?? "");
                         setEventPickerVisible(false);
                       }}

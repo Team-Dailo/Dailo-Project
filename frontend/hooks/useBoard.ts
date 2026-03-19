@@ -1,17 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import type { PostListItem, PostDetail, CommentItem, PageResponse } from '../types/board';
-import * as boardService from '../services/board.service';
+import { useState, useEffect, useCallback } from "react";
+import * as boardService from "../services/board.service";
 
-type Category = '전체' | '후기' | '질문' | '자유';
-type SortType = 'latest' | 'popular';
+type Category = "전체" | "후기" | "질문" | "자유";
+type SortType = "latest" | "popular";
 
-/** 게시글 목록 (카테고리 + 정렬). 후기일 때 reviewEventId 있으면 해당 행사 후기만 */
-export function usePostList(
-  selectedCategory: Category,
-  sortType: SortType,
-  reviewEventId?: number | null
-) {
-  const [posts, setPosts] = useState<PostListItem[]>([]);
+export function usePostList(selectedCategory: Category, sortType: SortType) {
+  const [posts, setPosts] = useState<any[]>([]);
   const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -20,73 +14,23 @@ export function usePostList(
     setLoading(true);
     setError(null);
     try {
-      let data: PageResponse<PostListItem>;
-      if (selectedCategory === '전체') {
-        data = await boardService.getPostList({
-          page: 0,
-          size: 50,
-          sort: sortType === 'popular' ? 'likeCount' : 'createdAt',
-          direction: 'DESC',
-        });
-        if (sortType === 'popular' && data.content?.length) {
-          data = {
-            ...data,
-            content: [...data.content].sort((a, b) => {
-              const la = a.likeCount ?? 0;
-              const lb = b.likeCount ?? 0;
-              if (lb !== la) return lb - la;
-              const ca = a.commentCount ?? 0;
-              const cb = b.commentCount ?? 0;
-              if (cb !== ca) return cb - ca;
-              return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
-            }),
-          };
-        }
-      } else if (selectedCategory === '후기' && reviewEventId != null && reviewEventId > 0) {
-        data = await boardService.getPostsByEventId(reviewEventId, { page: 0, size: 50 });
-        if (sortType === 'popular') {
-          data = {
-            ...data,
-            content: [...data.content].sort((a, b) => {
-              const la = a.likeCount ?? 0;
-              const lb = b.likeCount ?? 0;
-              if (lb !== la) return lb - la;
-              const ca = a.commentCount ?? 0;
-              const cb = b.commentCount ?? 0;
-              if (cb !== ca) return cb - ca;
-              return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
-            }),
-          };
-        }
-      } else {
-        data = await boardService.getPostListByCategory(selectedCategory, {
-          page: 0,
-          size: 50,
-        });
-        if (sortType === 'popular') {
-          data = {
-            ...data,
-            content: [...data.content].sort((a, b) => {
-              const la = a.likeCount ?? 0;
-              const lb = b.likeCount ?? 0;
-              if (lb !== la) return lb - la;
-              const ca = a.commentCount ?? 0;
-              const cb = b.commentCount ?? 0;
-              if (cb !== ca) return cb - ca;
-              return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
-            }),
-          };
-        }
-      }
-      setPosts(data.content ?? []);
-      setTotalElements(data.totalElements ?? 0);
+      const res = await boardService.getPosts({
+        categoryType: selectedCategory === "전체" ? undefined : selectedCategory,
+        sort: sortType,
+        page: 0,
+        size: 20,
+      });
+
+      setPosts(res.content ?? []);
+      setTotalElements(res.totalElements ?? 0);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
       setPosts([]);
+      setTotalElements(0);
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory, sortType, reviewEventId]);
+  }, [selectedCategory, sortType]);
 
   useEffect(() => {
     fetchList();
@@ -95,9 +39,8 @@ export function usePostList(
   return { posts, totalElements, loading, error, refetch: fetchList };
 }
 
-/** 게시글 상세 */
 export function usePostDetail(id: string | undefined) {
-  const [post, setPost] = useState<PostDetail | null>(null);
+  const [post, setPost] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -107,11 +50,12 @@ export function usePostDetail(id: string | undefined) {
       setLoading(false);
       return;
     }
+
     setLoading(true);
     setError(null);
     try {
-      const data = await boardService.getPostById(id);
-      setPost(data);
+      const res = await boardService.getPostById(id);
+      setPost(res);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
       setPost(null);
@@ -127,202 +71,8 @@ export function usePostDetail(id: string | undefined) {
   return { post, loading, error, refetch: fetchDetail };
 }
 
-/** 내가 쓴 글 목록 (게시판 기록) - 로그인 시 JWT로 조회 (userId 불필요) */
-export function useMyPostList(enabled: boolean) {
-  const [posts, setPosts] = useState<PostListItem[]>([]);
-  const [totalElements, setTotalElements] = useState(0);
-  const [loading, setLoading] = useState(enabled);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchList = useCallback(async () => {
-    if (!enabled) {
-      setPosts([]);
-      setTotalElements(0);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await boardService.getMyPosts(undefined, { page: 0, size: 50 });
-      setPosts(data.content ?? []);
-      setTotalElements(data.totalElements ?? 0);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-      setPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [enabled]);
-
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
-
-  return { posts, totalElements, loading, error, refetch: fetchList };
-}
-
-/** 댓글 단 글 목록 (마이페이지) - 로그인 시에만 조회 */
-export function useMyCommentedPostList(enabled: boolean) {
-  const [posts, setPosts] = useState<PostListItem[]>([]);
-  const [totalElements, setTotalElements] = useState(0);
-  const [loading, setLoading] = useState(enabled);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchList = useCallback(async () => {
-    if (!enabled) {
-      setPosts([]);
-      setTotalElements(0);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await boardService.getMyCommentedPosts({ page: 0, size: 50 });
-      setPosts(data.content ?? []);
-      setTotalElements(data.totalElements ?? 0);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-      setPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [enabled]);
-
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
-
-  return { posts, totalElements, loading, error, refetch: fetchList };
-}
-
-/** 좋아요 누른 글 목록 (마이페이지) - 로그인 시에만 조회 */
-export function useLikedPostList(enabled: boolean = true) {
-  const [posts, setPosts] = useState<PostListItem[]>([]);
-  const [totalElements, setTotalElements] = useState(0);
-  const [loading, setLoading] = useState(enabled);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchList = useCallback(async () => {
-    if (!enabled) {
-      setPosts([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await boardService.getLikedPosts({ page: 0, size: 50 });
-      setPosts(data.content ?? []);
-      setTotalElements(data.totalElements ?? 0);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-      setPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [enabled]);
-
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
-
-  return { posts, totalElements, loading, error, refetch: fetchList };
-}
-
-/** 홈 인기 게시물: 카테고리별 좋아요 최다 1개씩 (후기, 질문, 자유) */
-const HOME_CATEGORIES = ['후기', '질문', '자유'] as const;
-
-export function useHomePopularPosts() {
-  const [posts, setPosts] = useState<PostListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchList = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await boardService.getPostList({
-        page: 0,
-        size: 80,
-        sort: 'likeCount',
-        direction: 'DESC',
-      });
-      const content = data.content ?? [];
-      // 좋아요 많은 순, 같으면 댓글 많은 순
-      content.sort((a, b) => {
-        const la = a.likeCount ?? 0;
-        const lb = b.likeCount ?? 0;
-        if (lb !== la) return lb - la;
-        const ca = a.commentCount ?? 0;
-        const cb = b.commentCount ?? 0;
-        if (cb !== ca) return cb - ca;
-        return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
-      });
-      const byCategory: Record<string, PostListItem> = {};
-      for (const post of content) {
-        const cat = post.categoryType ?? '';
-        if (HOME_CATEGORIES.includes(cat as typeof HOME_CATEGORIES[number]) && !byCategory[cat]) {
-          byCategory[cat] = post;
-        }
-      }
-      const ordered = HOME_CATEGORIES.map((c) => byCategory[c]).filter(Boolean);
-      setPosts(ordered);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-      setPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
-
-  return { posts, loading, error, refetch: fetchList };
-}
-
-/** 게시글 검색 (GET /api/posts/search) */
-export function useSearchPosts(keyword: string | undefined) {
-  const [posts, setPosts] = useState<PostListItem[]>([]);
-  const [totalElements, setTotalElements] = useState(0);
-  const [loading, setLoading] = useState(!!keyword);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchList = useCallback(async () => {
-    const k = keyword?.trim();
-    if (!k) {
-      setPosts([]);
-      setTotalElements(0);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await boardService.searchPosts(k, { page: 0, size: 50 });
-      setPosts(data.content ?? []);
-      setTotalElements(data.totalElements ?? 0);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-      setPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [keyword]);
-
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
-
-  return { posts, totalElements, loading, error, refetch: fetchList };
-}
-
-/** 댓글 목록 */
 export function useComments(postId: string | undefined) {
-  const [comments, setComments] = useState<CommentItem[]>([]);
+  const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -332,11 +82,12 @@ export function useComments(postId: string | undefined) {
       setLoading(false);
       return;
     }
+
     setLoading(true);
     setError(null);
     try {
-      const data = await boardService.getComments(postId, { page: 0, size: 100 });
-      setComments(data.content ?? []);
+      const res = await boardService.getComments(postId);
+      setComments(res.content ?? res ?? []);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
       setComments([]);
@@ -345,22 +96,85 @@ export function useComments(postId: string | undefined) {
     }
   }, [postId]);
 
-  /** 삭제된 댓글을 목록에서 즉시 제거 (삭제 API 성공 후 호출) */
-  const removeComment = useCallback((commentId: number | string) => {
-    const idStr = String(commentId);
-    setComments((prev) =>
-      prev
-        .filter((c) => String(c.id) !== idStr)
-        .map((c) => ({
-          ...c,
-          replies: (c.replies ?? []).filter((r) => String(r.id) !== idStr),
-        }))
-    );
-  }, []);
-
   useEffect(() => {
     fetchComments();
   }, [fetchComments]);
 
-  return { comments, loading, error, refetch: fetchComments, removeComment };
+  return { comments, loading, error, refetch: fetchComments };
+}
+
+export function useSearchPosts(keyword?: string) {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchSearch = useCallback(async () => {
+    if (!keyword?.trim()) {
+      setPosts([]);
+      setTotalElements(0);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await boardService.searchPosts(keyword, 0, 20);
+      setPosts(res.content ?? []);
+      setTotalElements(res.totalElements ?? 0);
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setPosts([]);
+      setTotalElements(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [keyword]);
+
+  useEffect(() => {
+    fetchSearch();
+  }, [fetchSearch]);
+
+  return { posts, totalElements, loading, error, refetch: fetchSearch };
+}
+
+type HomePopularPost = {
+  id: number;
+  title?: string;
+  contentPreview?: string;
+  categoryType?: string;
+  createdAt?: string;
+};
+
+export function useHomePopularPosts() {
+  const [posts, setPosts] = useState<HomePopularPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchPopularPosts = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await boardService.getPosts({
+        sort: "popular",
+        page: 0,
+        size: 3,
+      });
+
+      setPosts(res.content ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPopularPosts();
+  }, [fetchPopularPosts]);
+
+  return { posts, loading, error, refetch: fetchPopularPosts };
 }

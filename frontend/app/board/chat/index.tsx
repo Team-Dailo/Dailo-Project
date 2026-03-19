@@ -89,7 +89,7 @@ export default function ChatListScreen() {
     const other = room.members?.find((m) => m.userId !== myUserId);
     if (!other) return "알 수 없음";
     const raw = other as Record<string, unknown>;
-    const nick = (other.nickname ?? raw.nick_name ?? "").trim();
+    const nick = String(other.nickname ?? raw.nick_name ?? "").trim();
     return nick || `user_${other.userId}`;
   };
 
