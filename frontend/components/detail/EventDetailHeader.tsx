@@ -96,7 +96,12 @@ interface Props {
 
 export default function EventDetailHeader({ id, event, loading, error, onShare, onSave, isLiked = false, likeCount, onLike, isLoggedIn = false, isScraped = false }: Props) {
   const router = useRouter();
-  const posterUri = event?.posterUrls?.[0] ?? DEFAULT_POSTER_URI;
+  // 등록 시 선택한 대표 썸네일(thumbnailUrl)을 우선 사용하고,
+  // 없으면 상세 포스터 배열의 첫 번째 이미지를 사용
+  const posterUri =
+    (event?.thumbnailUrl as string | null | undefined)?.trim() ||
+    event?.posterUrls?.[0] ||
+    DEFAULT_POSTER_URI;
   const [clickCount, setClickCount] = useState<number | null>(null);
   const [hasReminder, setHasReminder] = useState(false);
 

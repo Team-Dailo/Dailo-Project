@@ -1,5 +1,5 @@
 // app/(tabs)/mypage/board-commented.tsx - 댓글 단 게시글 목록
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,12 +8,15 @@ import {
   ScrollView,
   FlatList,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "../../../hooks/useAuth";
+import { useAuth, useMyUserId } from "../../../hooks/useAuth";
 import { useMyCommentedPostList } from "../../../hooks/useBoard";
+import * as boardService from "../../../services/board.service";
+import type { CommentItem } from "../../../types/board";
 import { formatRelativeTime } from "../../../utils/formatDate";
 import type { PostListItem } from "../../../types/board";
 
@@ -26,6 +29,17 @@ type PostRow = {
   content: string;
   likes: number;
   comments: number;
+};
+
+type MyCommentRow = {
+  commentId: string;
+  postId: string;
+  postTitle?: string;
+  categoryType?: string;
+  /** 내가 쓴 댓글 내용 */
+  commentContent: string;
+  /** 댓글 작성 시각 (상대 시간 문자열) */
+  time: string;
 };
 
 function toPostRow(item: PostListItem): PostRow {
@@ -48,8 +62,13 @@ function toPostRow(item: PostListItem): PostRow {
 
 export default function BoardCommentedScreen() {
   const { isLoggedIn } = useAuth();
+  const myUserId = useMyUserId();
   const { posts, loading, error, refetch } = useMyCommentedPostList(!!isLoggedIn);
   const sortedPosts = useMemo(() => posts.map(toPostRow), [posts]);
+  const [myComments, setMyComments] = useState<MyCommentRow[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
 
   useFocusEffect(
     React.useCallback(() => {
@@ -57,26 +76,99 @@ export default function BoardCommentedScreen() {
     }, [isLoggedIn, refetch])
   );
 
-  const renderPost = ({ item }: { item: PostRow }) => (
-    <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.id}`)}>
+  // 각 게시글의 댓글 목록을 조회해 "내가 쓴 댓글"만 모아서 리스트로 구성
+  useEffect(() => {
+    if (!isLoggedIn || !myUserId || !sortedPosts.length) {
+      setMyComments([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        setCommentsLoading(true);
+        const rows: MyCommentRow[] = [];
+        for (const post of sortedPosts) {
+          try {
+            const res = await boardService.getComments(post.id, { page: 0, size: 100 });
+            const contents = res.content ?? [];
+            const pushComment = (c: CommentItem) => {
+              const raw = c as Record<string, unknown>;
+              const authorId = Number(
+                (c.authorId as number | undefined) ??
+                  (raw.author_id as number | undefined) ??
+                  0
+              );
+              if (!Number.isFinite(authorId) || authorId !== myUserId) return;
+              const createdAt =
+                (c.createdAt as string | undefined) ??
+                (raw.createdAt as string | undefined) ??
+                (raw.created_at as string | undefined) ??
+                "";
+              rows.push({
+                commentId: String(c.id),
+                postId: post.id,
+                postTitle: post.title,
+                categoryType: post.tag,
+                commentContent: c.content ?? "",
+                time: formatRelativeTime(createdAt || post.time),
+              });
+            };
+            contents.forEach((c: CommentItem & { replies?: CommentItem[] }) => {
+              pushComment(c);
+              (c.replies ?? []).forEach(pushComment);
+            });
+          } catch {
+            // 해당 게시글 댓글 조회 실패는 무시
+          }
+        }
+        if (!cancelled) {
+          // 최신 순으로 정렬
+          setMyComments(
+            rows.sort((a, b) => (a.time > b.time ? -1 : 1))
+          );
+        }
+      } finally {
+        if (!cancelled) setCommentsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, myUserId, sortedPosts]);
+
+  const filteredComments = useMemo(() => {
+    const q = appliedSearch.trim().toLowerCase();
+    if (!q) return myComments;
+    return myComments.filter((c) => {
+      const title = c.postTitle ?? "";
+      const content = c.commentContent ?? "";
+      return (
+        title.toLowerCase().includes(q) ||
+        content.toLowerCase().includes(q)
+      );
+    });
+  }, [myComments, appliedSearch]);
+
+  const renderPost = ({ item }: { item: MyCommentRow }) => (
+    <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.postId}`)}>
       <View style={styles.postRowBody}>
         <View style={styles.postRowTop}>
-          <Text style={styles.author}>{item.author}</Text>
-          {item.tag ? (
+          <Text style={styles.author}>내가 쓴 댓글</Text>
+          {item.categoryType ? (
             <View style={styles.tagBadge}>
-              <Text style={styles.tagText}>{item.tag}</Text>
+              <Text style={styles.tagText}>{item.categoryType}</Text>
             </View>
           ) : null}
           <Text style={styles.timeText}>{item.time}</Text>
         </View>
-        {item.title ? (
+        {item.postTitle ? (
           <Text style={styles.postTitle} numberOfLines={1} ellipsizeMode="tail">
-            {item.title}
+            {item.postTitle}
           </Text>
         ) : null}
-        {item.content ? (
+        {item.commentContent ? (
           <Text style={styles.postPreview} numberOfLines={2} ellipsizeMode="tail">
-            {item.content}
+            {item.commentContent}
           </Text>
         ) : null}
         <View style={styles.postRowFooter}>
@@ -102,7 +194,7 @@ export default function BoardCommentedScreen() {
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
           <View style={styles.headerTitleWrap} pointerEvents="box-none">
-            <Text style={styles.headerTitle}>댓글단 게시글</Text>
+            <Text style={styles.headerTitle}>내가 쓴 댓글</Text>
           </View>
           <View style={styles.headerRight} />
         </View>
@@ -119,7 +211,7 @@ export default function BoardCommentedScreen() {
                 <Text style={styles.loginBtnText}>로그인</Text>
               </Pressable>
             </View>
-          ) : loading ? (
+          ) : loading || commentsLoading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator size="large" color="#4C8BF5" />
               <Text style={styles.loadingText}>불러오는 중...</Text>
@@ -131,19 +223,61 @@ export default function BoardCommentedScreen() {
                 <Text style={styles.retryText}>다시 시도</Text>
               </Pressable>
             </View>
-          ) : sortedPosts.length === 0 ? (
+          ) : myComments.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyText}>아직 댓글 단 글이 없습니다.</Text>
             </View>
           ) : (
-            <View style={styles.listWrap}>
-              <FlatList
-                data={sortedPosts}
-                keyExtractor={(item) => item.id}
-                renderItem={renderPost}
-                scrollEnabled={false}
-              />
-            </View>
+            <>
+              {/* 검색창 */}
+              <View style={styles.searchBarWrap}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="게시글 제목 또는 댓글 내용 검색"
+                  placeholderTextColor="#9CA3AF"
+                  value={searchKeyword}
+                  onChangeText={setSearchKeyword}
+                  returnKeyType="search"
+                  onSubmitEditing={() =>
+                    setAppliedSearch(searchKeyword.trim())
+                  }
+                />
+                {searchKeyword.length > 0 ? (
+                  <Pressable
+                    onPress={() => setSearchKeyword("")}
+                    style={styles.searchClear}
+                    hitSlop={8}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color="#9CA3AF"
+                    />
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  onPress={() => setAppliedSearch(searchKeyword.trim())}
+                  style={styles.searchButton}
+                  hitSlop={8}
+                >
+                  <Ionicons name="search" size={22} color="#111827" />
+                </Pressable>
+              </View>
+
+              <View style={styles.listWrap}>
+                <FlatList
+                  data={filteredComments}
+                  keyExtractor={(item) => item.commentId}
+                  renderItem={renderPost}
+                  scrollEnabled={false}
+                />
+              </View>
+              {filteredComments.length === 0 && appliedSearch.trim() ? (
+                <Text style={styles.searchEmpty}>
+                  조건에 맞는 댓글이 없어요
+                </Text>
+              ) : null}
+            </>
           )}
         </ScrollView>
       </View>
@@ -152,8 +286,8 @@ export default function BoardCommentedScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#F9FAFB" },
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
+  safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -203,6 +337,32 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 14, color: "#6B7280", marginBottom: 16 },
   loginBtn: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: "#4C8BF5", borderRadius: 8 },
   loginBtnText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    marginTop: 12,
+    marginBottom: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#111827",
+    paddingVertical: 8,
+    paddingRight: 8,
+  },
+  searchClear: { padding: 4 },
+  searchButton: { padding: 4, marginLeft: 4 },
+  searchEmpty: {
+    paddingVertical: 24,
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
   postRow: {
     flexDirection: "row",
     alignItems: "center",
