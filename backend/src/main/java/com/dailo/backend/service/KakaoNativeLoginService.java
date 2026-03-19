@@ -6,9 +6,11 @@ import com.dailo.backend.dto.KakaoUserInfo;
 import com.dailo.backend.dto.OAuth2UserInfo;
 import com.dailo.backend.dto.auth.KakaoNativeLoginRequestDto;
 import com.dailo.backend.entity.Member;
+import com.dailo.backend.entity.RefreshToken;
 import com.dailo.backend.jwt.TokenDto;
 import com.dailo.backend.jwt.TokenProvider;
 import com.dailo.backend.repository.MemberRepository;
+import com.dailo.backend.repository.RefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -34,6 +36,7 @@ public class KakaoNativeLoginService {
     private final PasswordEncoder passwordEncoder;
     private final TokenProvider tokenProvider;
     private final RestTemplate restTemplate;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Transactional
     public TokenDto loginWithKakaoToken(KakaoNativeLoginRequestDto request) {
@@ -44,10 +47,19 @@ public class KakaoNativeLoginService {
 
         log.info("카카오 로그인 성공 - Member ID: {}", savedMember.getId());
 
-        return tokenProvider.generateTokenDtoForMember(
+        TokenDto tokenDto = tokenProvider.generateTokenDtoForMember(
                 savedMember.getEmail(),
                 savedMember.getRole() != null ? savedMember.getRole().name() : Role.USER.name()
         );
+
+        // 카카오 네이티브 로그인도 Refresh Token DB 저장
+        RefreshToken refreshToken = RefreshToken.builder()
+                .keyId(savedMember.getEmail())
+                .value(tokenDto.getRefreshToken())
+                .build();
+        refreshTokenRepository.save(refreshToken);
+
+        return tokenDto;
     }
 
     private String validateAccessToken(KakaoNativeLoginRequestDto request) {
@@ -78,7 +90,6 @@ public class KakaoNativeLoginService {
 
         if (memberOptional.isPresent()) {
             Member existingMember = memberOptional.get();
-            // [CHANGED] 외부 URL 필드로 저장
             existingMember.updateProfile(
                     userInfo.getNickname() != null ? userInfo.getNickname() : existingMember.getNickname(),
                     userInfo.getImageUrl()
@@ -103,7 +114,6 @@ public class KakaoNativeLoginService {
                                 ? userInfo.getNickname()
                                 : "카카오유저"
                 )
-                // [CHANGED] 외부 URL 저장
                 .profileImageExternalUrl(userInfo.getImageUrl())
                 .profileImageKey(null)
                 .role(Role.USER)
