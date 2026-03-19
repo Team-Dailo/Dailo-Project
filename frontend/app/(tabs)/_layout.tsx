@@ -145,8 +145,8 @@ export default function TabsLayout() {
     return () => sub.remove();
   }, [navigation]);
 
-  // 아이폰은 하단 버튼 없음 → 여백 최소, Android(삼성 등)는 네비 버튼과 겹치지 않도록 safe area 적용
-  const bottomInset = Platform.OS === "ios" ? 0 : Math.max(insets.bottom ?? 0, 24);
+  // 하단 시스템 네비게이션 바 높이만큼만 안전 영역을 적용 (강제 여백 X)
+  const bottomInset = insets.bottom ?? 0;
   return (
     <Tabs
       tabBar={(props) => (
