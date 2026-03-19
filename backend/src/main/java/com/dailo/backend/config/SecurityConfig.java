@@ -103,6 +103,8 @@ public class SecurityConfig {
 
                         // 타 사용자 프로필 조회는 공개 (숫자 ID만 매칭)
                         .requestMatchers(HttpMethod.GET, "/api/members/{id:\\d+}").permitAll()
+                        // 타 사용자 댓글 목록 조회는 공개
+                        .requestMatchers(HttpMethod.GET, "/api/members/{id:\\d+}/comments").permitAll()
                         // 나머지 회원 API는 인증 필요
                         .requestMatchers("/api/members/**").authenticated()
 
