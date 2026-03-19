@@ -25,8 +25,8 @@ import { useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { useHomePopularPosts } from "../../../hooks/useBoard";
 import { useEventList } from "../../../hooks/useEvent";
-import type { PopularEventItem } from "../../../services/event.service";
 import type { Event } from "../../../types/event";
+import type { PopularEventItem } from "../../../services/event.service";
 import { useAuth } from "../../../hooks/useAuth";
 import { getDemoLocation } from "../../../services/demoLocationStorage";
 import * as eventReminder from "../../../services/eventReminder.service";
@@ -401,7 +401,34 @@ export default function HomeScreen() {
             ) : eventList.length === 0 ? (
               <Text style={styles.eventCardEmpty}>등록된 행사가 없어요</Text>
             ) : (
-              eventList.slice(0, 3).map((event) => {
+              // 홈 탭에서는 기본적으로 이미 종료된 행사는 숨기고,
+              // 오늘과 가장 가까운 시작일 순으로 정렬된 행사 중 3개만 노출
+              (() => {
+                const todayStr = new Date().toISOString().slice(0, 10);
+                const activeEvents = eventList.filter((e: Event) => {
+                  if (!e.endAt) return true;
+                  try {
+                    const endStr = e.endAt.slice(0, 10);
+                    return endStr >= todayStr;
+                  } catch {
+                    return true;
+                  }
+                });
+                const withDays = activeEvents.map((e) => {
+                  try {
+                    const start = new Date(e.startAt);
+                    const today = new Date();
+                    start.setHours(0, 0, 0, 0);
+                    today.setHours(0, 0, 0, 0);
+                    const diff = start.getTime() - today.getTime();
+                    const days = Math.round(diff / (24 * 60 * 60 * 1000));
+                    return { event: e, daysUntil: Math.max(0, days) };
+                  } catch {
+                    return { event: e, daysUntil: Number.MAX_SAFE_INTEGER };
+                  }
+                });
+                withDays.sort((a, b) => a.daysUntil - b.daysUntil);
+                return withDays.slice(0, 3).map(({ event }) => {
                 const dateStr = event.startAt
                   ? (() => {
                       try {
@@ -434,7 +461,7 @@ export default function HomeScreen() {
                         })()
                       : "";
                 const catLabel = { FESTIVAL: "축제", EXHIBITION: "전시", PERFORMANCE: "공연", EXPERIENCE_BOOTH: "체험부스", FOOD_TRUCK: "푸드트럭", TRAFFIC: "교통", CONSTRUCTION: "공사", ETC: "기타" }[event.category] ?? "기타";
-                return (
+                  return (
                   <Pressable
                     key={event.id}
                     style={styles.eventCard}
@@ -463,8 +490,9 @@ export default function HomeScreen() {
                       </View>
                     </View>
                   </Pressable>
-                );
-              })
+                  );
+                });
+              })()
             )}
           </View>
         </View>

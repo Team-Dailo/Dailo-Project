@@ -61,10 +61,11 @@ function getEventDayLabels(startAt?: string | null, endAt?: string | null): stri
 export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
   const { isLoggedIn } = useAuth();
-  const { id, source, tab: tabParam } = useLocalSearchParams<{
+  const { id, source, tab: tabParam, thumb } = useLocalSearchParams<{
     id: string;
     source?: string;
     tab?: string;
+    thumb?: string;
   }>();
   const { detail: event, loading, error, refetch: refetchDetail } = useEventDetail(id, source ?? "detail");
   const initialTab: TabKey =
@@ -85,6 +86,26 @@ export default function EventDetailScreen() {
     }
     return event?.startAt ? formatEventDate(event.startAt) : null;
   }, [extra.timeline, event?.startAt]);
+
+  const thumbnailFromRoute = useMemo(() => {
+    if (!thumb || typeof thumb !== "string") return null;
+    const t = thumb.trim();
+    return t.length > 0 ? t : null;
+  }, [thumb]);
+
+  const eventWithThumbnail = useMemo(
+    () =>
+      event
+        ? {
+            ...event,
+            thumbnailUrl:
+              (thumbnailFromRoute as string | null | undefined) ??
+              (event as typeof event & { thumbnailUrl?: string | null }).thumbnailUrl ??
+              (event.posterUrls?.[0] ?? null),
+          }
+        : event,
+    [event, thumbnailFromRoute]
+  );
 
   const eventDayLabels = useMemo(
     () => getEventDayLabels(event?.startAt ?? null, event?.endAt ?? null),
@@ -240,7 +261,7 @@ export default function EventDetailScreen() {
       >
         <EventDetailHeader
           id={id}
-          event={event}
+          event={eventWithThumbnail}
           loading={loading}
           error={error}
           onSave={handleSave}
@@ -260,13 +281,15 @@ export default function EventDetailScreen() {
 
         <View style={styles.body}>
           {tab === "news" && (
-            <EventNewsTab
-              news={extra.news}
-              eventId={event?.id != null ? Number(event.id) : undefined}
-            />
+            <View style={styles.bodyInner}>
+              <EventNewsTab
+                news={extra.news}
+                eventId={event?.id != null ? Number(event.id) : undefined}
+              />
+            </View>
           )}
           {(tab === "timeline" || tab === "booths") && (
-            <View style={styles.timelineWrap}>
+            <View style={[styles.timelineWrap, styles.bodyInner]}>
               {tab === "timeline" && isMultiDayTimeline && (
                 <View style={styles.timelineDateNavRow}>
                   <Pressable
@@ -353,9 +376,11 @@ const styles = StyleSheet.create({
   },
   body: {
     paddingHorizontal: 16,
-    paddingTop: 10,
     paddingBottom: 20,
     minHeight: SCREEN_HEIGHT * 0.5,
+  },
+  bodyInner: {
+    paddingTop: 10,
   },
   timelineWrap: { flex: 1 },
   timelineDateNavRow: {
