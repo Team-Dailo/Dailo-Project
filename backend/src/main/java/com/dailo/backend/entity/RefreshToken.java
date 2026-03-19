@@ -1,5 +1,6 @@
 package com.dailo.backend.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.Builder;
@@ -14,7 +15,8 @@ public class RefreshToken {
     @Id
     private String keyId; // 유저의 ID (이메일 또는 고유번호)
 
-    private String value; // Refresh Token 문자열
+    @Column(nullable = false, length = 1000)
+    private String value;
 
     @Builder
     public RefreshToken(String keyId, String value) {

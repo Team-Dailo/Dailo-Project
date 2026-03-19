@@ -1,7 +1,10 @@
 package com.dailo.backend.jwt;
 
+import com.dailo.backend.domain.enums.SocialType;
 import com.dailo.backend.entity.Member;
+import com.dailo.backend.entity.RefreshToken;
 import com.dailo.backend.repository.MemberRepository;
+import com.dailo.backend.repository.RefreshTokenRepository;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -15,6 +18,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -22,6 +26,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final MemberRepository memberRepository;
     private final TokenProvider tokenProvider;
+    private final RefreshTokenRepository refreshTokenRepository; // ㄱ 수정
 
     @Override
     public void onAuthenticationSuccess(
@@ -34,7 +39,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
 
-        // Kakao는 user-name-attribute=id로 설정되어 있으니 attributes에서 id를 꺼낼 수 있음
         Object kakaoIdObj = oAuth2User.getAttributes().get("id");
         String kakaoId = kakaoIdObj != null ? String.valueOf(kakaoIdObj) : null;
 
@@ -44,24 +48,28 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             return;
         }
 
-        Member member = memberRepository.findBySocialTypeAndSocialId(
-                com.dailo.backend.domain.enums.SocialType.KAKAO, kakaoId
-        ).orElseThrow(() -> new IllegalStateException("Member not found for kakaoId=" + kakaoId));;
+        Member member = memberRepository.findBySocialTypeAndSocialId(SocialType.KAKAO, kakaoId)
+                .orElseThrow(() -> new IllegalStateException("Member not found for kakaoId=" + kakaoId));
 
         TokenDto tokenDto = tokenProvider.generateTokenDtoForMember(
-                String.valueOf(member.getId()),
+                member.getEmail(),
                 member.getRole().name()
         );
 
-        // 모바일 앱 딥링크로 리다이렉트 (Expo app.json의 scheme = "app")
+        RefreshToken refreshToken = RefreshToken.builder()
+                .keyId(member.getEmail())
+                .value(tokenDto.getRefreshToken())
+                .build();
+        refreshTokenRepository.save(refreshToken);
+
         String accessToken = URLEncoder.encode(tokenDto.getAccessToken(), StandardCharsets.UTF_8);
-        String refreshToken = URLEncoder.encode(tokenDto.getRefreshToken(), StandardCharsets.UTF_8);
+        String refreshTokenValue = URLEncoder.encode(tokenDto.getRefreshToken(), StandardCharsets.UTF_8);
         long expiresIn = tokenDto.getAccessTokenExpiresIn();
 
         String redirectUrl = String.format(
                 "app://kakao-login?accessToken=%s&refreshToken=%s&accessTokenExpiresIn=%d",
                 accessToken,
-                refreshToken,
+                refreshTokenValue,
                 expiresIn
         );
 
