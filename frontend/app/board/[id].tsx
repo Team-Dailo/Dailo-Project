@@ -77,8 +77,6 @@ export default function PostDetailScreen() {
   const router = useRouter();
   const { width: winWidth } = useWindowDimensions();
   const { isLoggedIn, user, logout } = useAuthContext();
-  // 디버그: user.id 확인
-  console.log('[board/[id]] user:', user?.id, 'isLoggedIn:', isLoggedIn);
   const [menuVisible, setMenuVisible] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
@@ -497,26 +495,24 @@ export default function PostDetailScreen() {
         text: "삭제",
         style: "destructive",
         onPress: async () => {
+          // 먼저 로컬 상태에서 즉시 제거 (낙관적 업데이트)
+          setDeletedCommentIds((prev) => new Set(prev).add(commentId));
+          removeComment(commentId);
+
           try {
-            console.log('[handleDeleteComment] 삭제 시도:', commentId);
             await boardService.deleteComment(commentId);
-            console.log('[handleDeleteComment] 삭제 API 성공');
-            // 로컬 상태에서 즉시 제거
-            setDeletedCommentIds((prev) => new Set(prev).add(commentId));
-            removeComment(commentId);
-            // 서버에서 최신 데이터 다시 불러오기
-            await Promise.all([refetchPost(), refetchComments()]);
-            console.log('[handleDeleteComment] refetch 완료');
+            // 댓글 수만 업데이트 (refetchComments 제거하여 삭제된 댓글이 다시 나타나는 문제 방지)
+            await refetchPost();
           } catch (e) {
             const msg = e instanceof Error ? e.message : "댓글 삭제에 실패했습니다.";
-            console.error('[handleDeleteComment] 삭제 실패:', msg);
             Alert.alert("오류", msg);
-            // 삭제 실패 시 로컬 상태 롤백
+            // 삭제 실패 시 로컬 상태 롤백 및 댓글 목록 다시 불러오기
             setDeletedCommentIds((prev) => {
               const next = new Set(prev);
               next.delete(commentId);
               return next;
             });
+            await refetchComments();
           }
         },
       },
