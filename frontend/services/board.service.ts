@@ -152,6 +152,33 @@ export async function getPostsByMemberId(
   return normalizeListImageUrls(data);
 }
 
+/** 특정 사용자의 댓글 목록 (공개 조회) */
+export type MemberCommentItem = {
+  id: number;
+  postId: number;
+  postTitle?: string;
+  content: string;
+  authorId: number;
+  authorNickname: string;
+  authorProfileImageUrl?: string;
+  likeCount: number;
+  createdAt: string;
+  updatedAt?: string;
+  deleted?: boolean;
+};
+
+export async function getCommentsByMemberId(
+  memberId: number,
+  params?: { page?: number; size?: number }
+): Promise<PageResponse<MemberCommentItem>> {
+  const page = params?.page ?? 0;
+  const size = params?.size ?? 20;
+  const url = `${API_BASE_URL}/api/members/${memberId}/comments?page=${page}&size=${size}`;
+  const res = await fetch(url, { headers: await getAuthHeaders() });
+  if (!res.ok) throw new Error(`getCommentsByMemberId failed: ${res.status}`);
+  return res.json();
+}
+
 /** 상대 경로 이미지 URL을 API 기준으로 절대 URL로 변환 */
 function toAbsoluteImageUrls(urls: string[] | undefined): string[] {
   if (!urls || !Array.isArray(urls)) return [];

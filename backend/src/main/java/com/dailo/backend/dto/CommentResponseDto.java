@@ -18,6 +18,8 @@ public class CommentResponseDto {
 
     private Long id;
     private Long postId;
+    /** 게시글 제목 (사용자별 댓글 목록 조회 시 사용) */
+    private String postTitle;
     private Long parentCommentId;
     private Long authorId;
     /** 댓글 작성자 닉네임 (표시용) */

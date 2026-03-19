@@ -482,20 +482,11 @@ export default function PostDetailScreen() {
         }
       }
     }
-    if (!comment) {
-      console.log('[isMyComment] comment not found for id:', commentId);
-      return false;
-    }
+    if (!comment) return false;
     // snake_case와 camelCase 모두 처리
     const authorId = comment.authorId ?? comment.author_id;
-    console.log('[isMyComment] commentId:', commentId, 'authorId:', authorId, 'user.id:', user?.id);
-    if (authorId == null || user?.id == null) {
-      console.log('[isMyComment] null check failed - authorId:', authorId, 'user.id:', user?.id);
-      return false;
-    }
-    const result = Number(authorId) === Number(user.id);
-    console.log('[isMyComment] result:', result, 'Number(authorId):', Number(authorId), 'Number(user.id):', Number(user.id));
-    return result;
+    if (authorId == null || user?.id == null) return false;
+    return Number(authorId) === Number(user.id);
   };
 
   const handleDeleteComment = (commentId: string) => {
@@ -507,12 +498,25 @@ export default function PostDetailScreen() {
         style: "destructive",
         onPress: async () => {
           try {
+            console.log('[handleDeleteComment] 삭제 시도:', commentId);
             await boardService.deleteComment(commentId);
+            console.log('[handleDeleteComment] 삭제 API 성공');
+            // 로컬 상태에서 즉시 제거
             setDeletedCommentIds((prev) => new Set(prev).add(commentId));
             removeComment(commentId);
-            await refetchPost();
-          } catch {
-            Alert.alert("오류", "댓글 삭제에 실패했습니다.");
+            // 서버에서 최신 데이터 다시 불러오기
+            await Promise.all([refetchPost(), refetchComments()]);
+            console.log('[handleDeleteComment] refetch 완료');
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "댓글 삭제에 실패했습니다.";
+            console.error('[handleDeleteComment] 삭제 실패:', msg);
+            Alert.alert("오류", msg);
+            // 삭제 실패 시 로컬 상태 롤백
+            setDeletedCommentIds((prev) => {
+              const next = new Set(prev);
+              next.delete(commentId);
+              return next;
+            });
           }
         },
       },
@@ -1094,9 +1098,13 @@ const styles = StyleSheet.create({
   commentAuthor: { fontSize: 13, fontWeight: "600", color: "#111827" },
   commentTime: { fontSize: 11, color: "#9CA3AF" },
   commentContent: { fontSize: 13, color: "#374151", lineHeight: 18 },
-  commentRight: { alignItems: "flex-end", gap: 4 },
+  commentRight: { alignItems: "flex-end", gap: 4, position: "relative", zIndex: 10 },
   commentMenuBtn: { padding: 4, marginLeft: 4 },
   commentDropdown: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    zIndex: 100,
     backgroundColor: "#FFFFFF",
     borderRadius: 8,
     borderWidth: 1,
@@ -1105,7 +1113,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 10,
     minWidth: 100,
   },
   commentDropdownItem: { paddingVertical: 10, paddingHorizontal: 14 },
