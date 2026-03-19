@@ -74,6 +74,33 @@ function eventOverlapsDateRange(event: Event, range: DateRange): boolean {
   return eventStart <= range.end && eventEnd >= range.start;
 }
 
+/** 오늘 기준으로 이미 종료된 행사인지 여부 */
+function isEventEnded(event: Event): boolean {
+  if (!event.endAt) return false;
+  try {
+    const endStr = event.endAt.slice(0, 10);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return endStr < todayStr;
+  } catch {
+    return false;
+  }
+}
+
+/** 오늘 기준으로 행사 시작일까지 남은 일 수 (지났으면 0) */
+function daysUntilStart(event: Event): number {
+  try {
+    const start = new Date(event.startAt);
+    const today = new Date();
+    start.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    const diff = start.getTime() - today.getTime();
+    const days = Math.round(diff / (24 * 60 * 60 * 1000));
+    return Math.max(0, days);
+  } catch {
+    return 0;
+  }
+}
+
 /** 두 점 거리(km) 대략 계산 (Haversine 아님, 위도·경도 차이 근사) */
 function approxKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
@@ -88,6 +115,9 @@ function approxKm(lat1: number, lng1: number, lat2: number, lng2: number): numbe
 
 export default function EventListScreen() {
   const router = useRouter();
+  // 홈 탭 행사 리스트 진입 시 기본 정렬은 "최신순"이 되도록,
+  // 인기/조회수 필터가 선택된 경우에만 sort 파라미터를 넘긴다.
+  const [popularFilter, setPopularFilter] = useState<string>("all");
   const sort: EventListSort =
     popularFilter === "all" ? null : (popularFilter as EventListSort);
   const { events, loading, error, refetch } = useEventList({ size: 50, sort });
@@ -98,7 +128,6 @@ export default function EventListScreen() {
   >(null);
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [popularFilter, setPopularFilter] = useState<string>("all");
   const [distanceFilter, setDistanceFilter] = useState<string>("all");
   const [scaleFilter, setScaleFilter] = useState<string>("all");
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -140,6 +169,12 @@ export default function EventListScreen() {
   /** 날짜·카테고리·규모·검색·정렬(거리) 적용 */
   const filteredEvents = useMemo(() => {
     let list = events;
+    const hasCustomDateRange = !!dateRange;
+
+    // 기본 진입 시(기간 필터 없음)에는 이미 종료된 행사는 숨김
+    if (!hasCustomDateRange) {
+      list = list.filter((e) => !isEventEnded(e));
+    }
     if (dateRange) {
       list = list.filter((e) => eventOverlapsDateRange(e, dateRange));
     }
@@ -164,6 +199,9 @@ export default function EventListScreen() {
           approxKm(userLocation.lat, userLocation.lng, a.latitude, a.longitude) -
           approxKm(userLocation.lat, userLocation.lng, b.latitude, b.longitude)
       );
+    } else if (!hasCustomDateRange) {
+      // 기본 진입(기간·거리 필터 없음)에서는 오늘과 가까운 행사부터 정렬
+      list = [...list].sort((a, b) => daysUntilStart(a) - daysUntilStart(b));
     }
     return list;
   }, [
@@ -285,6 +323,7 @@ export default function EventListScreen() {
             filteredEvents.map((event: Event) => {
               const dateStr = formatDate(event.startAt);
               const timeStr = formatTimeRange(event.startAt, event.endAt);
+              const ended = isEventEnded(event);
               return (
                 <Pressable
                   key={event.id}
@@ -298,9 +337,16 @@ export default function EventListScreen() {
                     style={styles.eventImage}
                   />
                   <View style={styles.eventInfo}>
-                    <Text style={styles.eventCategory}>
-                      {categoryLabel(event.category)}
-                    </Text>
+                    <View style={styles.eventHeaderRow}>
+                      <Text style={styles.eventCategory}>
+                        {categoryLabel(event.category)}
+                      </Text>
+                      {ended && (
+                        <View style={styles.eventEndedBadge}>
+                          <Text style={styles.eventEndedBadgeText}>종료</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.eventTitle} numberOfLines={2}>
                       {event.title}
                     </Text>
@@ -483,13 +529,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 2,
   },
+  eventHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
   eventCategory: {
     fontSize: 11,
     fontWeight: "600",
     color: "#6B7280",
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    marginBottom: 4,
+  },
+  eventEndedBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "#E5E7EB",
+  },
+  eventEndedBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#6B7280",
   },
   eventTitle: {
     fontSize: 15,
