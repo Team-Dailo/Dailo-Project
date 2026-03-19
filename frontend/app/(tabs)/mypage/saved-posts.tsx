@@ -21,6 +21,8 @@ import * as Clipboard from "expo-clipboard";
 import * as savedPostService from "../../../services/savedPost.service";
 import { formatRelativeTime } from "../../../utils/formatDate";
 
+const DEFAULT_PROFILE_IMAGE = require("../../../assets/images/default-profile.png");
+
 type SavedRow = {
   id: string;
   title: string;
@@ -91,7 +93,18 @@ export default function SavedPostsScreen() {
     <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.id}`)}>
       <View style={styles.postRowBody}>
         <View style={styles.postRowTop}>
-          <Text style={styles.timeText}>{item.time || "저장한 글"}</Text>
+          <View style={styles.postAuthorAvatar}>
+            <Image
+              source={DEFAULT_PROFILE_IMAGE}
+              style={[styles.postAuthorAvatar, styles.defaultProfileImageZoom]}
+              resizeMode="cover"
+            />
+          </View>
+          <Text style={styles.author}>저장한 글</Text>
+          <View style={styles.tagBadge}>
+            <Text style={styles.tagText}>저장</Text>
+          </View>
+          <Text style={styles.timeText}>{item.time}</Text>
         </View>
         {item.title ? (
           <Text style={styles.postTitle} numberOfLines={1} ellipsizeMode="tail">
@@ -358,9 +371,37 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 4,
   },
+  postAuthorAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#E5E7EB",
+    overflow: "hidden",
+  },
+  defaultProfileImageZoom: {
+    position: "absolute",
+    transform: [{ scale: 1.35 }],
+  },
+  author: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: "#6B7280",
+  },
+  tagBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "#F3F4FF",
+  },
+  tagText: {
+    fontSize: 11,
+    color: "#4F46E5",
+    fontWeight: "500",
+  },
   timeText: {
     fontSize: 11,
     color: "#9CA3AF",
+    marginLeft: 6,
   },
   postTitle: {
     fontSize: 14,
