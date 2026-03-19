@@ -77,6 +77,8 @@ export default function PostDetailScreen() {
   const router = useRouter();
   const { width: winWidth } = useWindowDimensions();
   const { isLoggedIn, user, logout } = useAuthContext();
+  // 디버그: user.id 확인
+  console.log('[board/[id]] user:', user?.id, 'isLoggedIn:', isLoggedIn);
   const [menuVisible, setMenuVisible] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
@@ -469,7 +471,7 @@ export default function PostDetailScreen() {
 
   const isMyComment = (commentId: string) => {
     // 최상위 댓글에서 찾기
-    let comment = apiComments.find((f) => String(f.id) === commentId);
+    let comment: Record<string, unknown> | undefined = apiComments.find((f) => String(f.id) === commentId);
     // 대댓글에서도 찾기
     if (!comment) {
       for (const c of apiComments) {
@@ -480,7 +482,20 @@ export default function PostDetailScreen() {
         }
       }
     }
-    return comment && user?.id != null && Number(comment.authorId) === Number(user.id);
+    if (!comment) {
+      console.log('[isMyComment] comment not found for id:', commentId);
+      return false;
+    }
+    // snake_case와 camelCase 모두 처리
+    const authorId = comment.authorId ?? comment.author_id;
+    console.log('[isMyComment] commentId:', commentId, 'authorId:', authorId, 'user.id:', user?.id);
+    if (authorId == null || user?.id == null) {
+      console.log('[isMyComment] null check failed - authorId:', authorId, 'user.id:', user?.id);
+      return false;
+    }
+    const result = Number(authorId) === Number(user.id);
+    console.log('[isMyComment] result:', result, 'Number(authorId):', Number(authorId), 'Number(user.id):', Number(user.id));
+    return result;
   };
 
   const handleDeleteComment = (commentId: string) => {
