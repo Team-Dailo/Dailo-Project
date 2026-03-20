@@ -469,7 +469,7 @@ export default function PostDetailScreen() {
 
   const isMyComment = (commentId: string) => {
     // 최상위 댓글에서 찾기
-    let comment = apiComments.find((f) => String(f.id) === commentId);
+    let comment: Record<string, unknown> | undefined = apiComments.find((f) => String(f.id) === commentId);
     // 대댓글에서도 찾기
     if (!comment) {
       for (const c of apiComments) {
@@ -480,7 +480,11 @@ export default function PostDetailScreen() {
         }
       }
     }
-    return comment && user?.id != null && Number(comment.authorId) === Number(user.id);
+    if (!comment) return false;
+    // snake_case와 camelCase 모두 처리
+    const authorId = comment.authorId ?? comment.author_id;
+    if (authorId == null || user?.id == null) return false;
+    return Number(authorId) === Number(user.id);
   };
 
   const handleDeleteComment = (commentId: string) => {
@@ -491,13 +495,24 @@ export default function PostDetailScreen() {
         text: "삭제",
         style: "destructive",
         onPress: async () => {
+          // 먼저 로컬 상태에서 즉시 제거 (낙관적 업데이트)
+          setDeletedCommentIds((prev) => new Set(prev).add(commentId));
+          removeComment(commentId);
+
           try {
             await boardService.deleteComment(commentId);
-            setDeletedCommentIds((prev) => new Set(prev).add(commentId));
-            removeComment(commentId);
+            // 댓글 수만 업데이트 (refetchComments 제거하여 삭제된 댓글이 다시 나타나는 문제 방지)
             await refetchPost();
-          } catch {
-            Alert.alert("오류", "댓글 삭제에 실패했습니다.");
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "댓글 삭제에 실패했습니다.";
+            Alert.alert("오류", msg);
+            // 삭제 실패 시 로컬 상태 롤백 및 댓글 목록 다시 불러오기
+            setDeletedCommentIds((prev) => {
+              const next = new Set(prev);
+              next.delete(commentId);
+              return next;
+            });
+            await refetchComments();
           }
         },
       },
@@ -1079,9 +1094,13 @@ const styles = StyleSheet.create({
   commentAuthor: { fontSize: 13, fontWeight: "600", color: "#111827" },
   commentTime: { fontSize: 11, color: "#9CA3AF" },
   commentContent: { fontSize: 13, color: "#374151", lineHeight: 18 },
-  commentRight: { alignItems: "flex-end", gap: 4 },
+  commentRight: { alignItems: "flex-end", gap: 4, position: "relative", zIndex: 10 },
   commentMenuBtn: { padding: 4, marginLeft: 4 },
   commentDropdown: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    zIndex: 100,
     backgroundColor: "#FFFFFF",
     borderRadius: 8,
     borderWidth: 1,
@@ -1090,7 +1109,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 10,
     minWidth: 100,
   },
   commentDropdownItem: { paddingVertical: 10, paddingHorizontal: 14 },

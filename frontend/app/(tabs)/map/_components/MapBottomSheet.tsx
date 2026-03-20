@@ -64,7 +64,16 @@ export function MapBottomSheet({
   const isCollapsed = mode === 'collapsed';
 
   const handlePressDetail = () => {
-    router.push(`/event/${event.id}?source=map`);
+    const thumb = (event.thumbnailUrl ?? '').trim();
+    // 지도 → 상세 이동 시, 등록 시 선택한 대표 썸네일(thumbnailUrl)을 함께 전달해
+    // 상세 상단 이미지가 큰 카드와 항상 일치하도록 함
+    router.push({
+      pathname: `/event/${event.id}`,
+      params: {
+        source: 'map',
+        ...(thumb ? { thumb } : {}),
+      },
+    } as never);
     onClose();
   };
 
@@ -158,6 +167,15 @@ export function MapBottomSheet({
             },
           ]}
         >
+          {/* 큰 카드 닫기 버튼 (우상단 X) */}
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={onClose}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="close" size={18} color="#6B7280" />
+          </TouchableOpacity>
+
           <ScrollView
             style={styles.largeScroll}
             contentContainerStyle={styles.largeContent}
@@ -238,6 +256,20 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'flex-end',
     alignItems: 'stretch',
+  },
+
+  // 큰 카드 우상단 닫기 버튼
+  closeButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    zIndex: 10,
   },
 
   // 공통 텍스트 스타일

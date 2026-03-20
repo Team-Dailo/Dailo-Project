@@ -50,7 +50,9 @@ public class TokenProvider {
                 .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
 
+        //  refresh token에도 subject 저장
         String refreshToken = Jwts.builder()
+                .setSubject(authentication.getName())
                 .setExpiration(new Date(now + REFRESH_TOKEN_EXPIRE_TIME))
                 .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
@@ -75,7 +77,9 @@ public class TokenProvider {
                 .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
 
+        // refresh token에도 subject 저장
         String refreshToken = Jwts.builder()
+                .setSubject(subject)
                 .setExpiration(new Date(now + REFRESH_TOKEN_EXPIRE_TIME))
                 .signWith(key, SignatureAlgorithm.HS512)
                 .compact();
@@ -103,6 +107,11 @@ public class TokenProvider {
         UserDetails principal = new User(claims.getSubject(), "", authorities);
 
         return new UsernamePasswordAuthenticationToken(principal, "", authorities);
+    }
+
+    // refresh token에서 subject(email) 꺼내는 메서드 추가
+    public String getSubject(String token) {
+        return parseClaims(token).getSubject();
     }
 
     public boolean validateToken(String token) {
