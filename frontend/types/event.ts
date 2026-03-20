@@ -92,6 +92,8 @@ export interface EventExtra {
 export interface EventDetail {
   id: number;
   title: string;
+  /** 등록 시 선택한 대표 썸네일(포스터) — 목록/지도/상세 공통 사용 */
+  thumbnailUrl?: string | null;
   posterUrls: string[];
   startAt: string;
   endAt: string;

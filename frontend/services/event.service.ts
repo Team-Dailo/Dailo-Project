@@ -231,6 +231,7 @@ export async function getEventsOnMap(params: {
 type EventDetailResponseRaw = {
   id: number;
   title: string;
+  thumbnailUrl?: string | null;
   posterUrls: string[] | null;
   startAt: string | number[];
   endAt: string | number[];
@@ -264,6 +265,7 @@ export async function getEventDetail(id: string): Promise<EventDetail> {
   return {
     id: raw.id,
     title: raw.title,
+    thumbnailUrl: raw.thumbnailUrl ?? null,
     posterUrls: raw.posterUrls ?? [],
     startAt: typeof raw.startAt === 'string' ? raw.startAt : toIsoDateString(raw.startAt),
     endAt: typeof raw.endAt === 'string' ? raw.endAt : toIsoDateString(raw.endAt),

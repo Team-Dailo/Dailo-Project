@@ -19,7 +19,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as savedPostService from "../../../services/savedPost.service";
+import * as boardService from "../../../services/board.service";
 import { formatRelativeTime } from "../../../utils/formatDate";
+
+const DEFAULT_PROFILE_IMAGE = require("../../../assets/images/default-profile.png");
 
 type SavedRow = {
   id: string;
@@ -49,14 +52,38 @@ export default function SavedPostsScreen() {
     else setLoading(true);
     try {
       const data = await savedPostService.getSavedPostSummaries();
-      setList(
+      const rows: SavedRow[] =
         (data ?? []).map((p) => ({
           id: String(p.id),
           title: p.title || `게시글 #${p.id}`,
           time: p.createdAt ? formatRelativeTime(p.createdAt) : "",
-          imageUri: (p as { imageUrl?: string }).imageUrl,
-        }))
-      );
+          imageUri: p.imageUrl,
+        }));
+      setList(rows);
+
+      // 썸네일이 비어 있는 항목들은 백엔드에서 한 번 더 가져와 채운다.
+      const missing = (data ?? []).filter((p) => !p.imageUrl);
+      if (missing.length > 0) {
+        missing.forEach(async (p) => {
+          try {
+            const detail = await boardService.getPostById(p.id);
+            const first =
+              (detail.imageUrls && detail.imageUrls[0]) ||
+              (detail as any).image_urls?.[0];
+            if (!first) return;
+            // 화면 상태 업데이트
+            setList((prev) =>
+              prev.map((row) =>
+                Number(row.id) === p.id ? { ...row, imageUri: first } : row
+              )
+            );
+            // 로컬 스토리지에도 반영
+            await savedPostService.updateSavedPostThumbnail(p.id, first);
+          } catch {
+            // 개별 게시글 실패는 무시
+          }
+        });
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -91,7 +118,18 @@ export default function SavedPostsScreen() {
     <Pressable style={styles.postRow} onPress={() => router.push(`/board/${item.id}`)}>
       <View style={styles.postRowBody}>
         <View style={styles.postRowTop}>
-          <Text style={styles.timeText}>{item.time || "저장한 글"}</Text>
+          <View style={styles.postAuthorAvatar}>
+            <Image
+              source={DEFAULT_PROFILE_IMAGE}
+              style={[styles.postAuthorAvatar, styles.defaultProfileImageZoom]}
+              resizeMode="cover"
+            />
+          </View>
+          <Text style={styles.author}>저장한 글</Text>
+          <View style={styles.tagBadge}>
+            <Text style={styles.tagText}>저장</Text>
+          </View>
+          <Text style={styles.timeText}>{item.time}</Text>
         </View>
         {item.title ? (
           <Text style={styles.postTitle} numberOfLines={1} ellipsizeMode="tail">
@@ -358,9 +396,37 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 4,
   },
+  postAuthorAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#E5E7EB",
+    overflow: "hidden",
+  },
+  defaultProfileImageZoom: {
+    position: "absolute",
+    transform: [{ scale: 1.35 }],
+  },
+  author: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: "#6B7280",
+  },
+  tagBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "#F3F4FF",
+  },
+  tagText: {
+    fontSize: 11,
+    color: "#4F46E5",
+    fontWeight: "500",
+  },
   timeText: {
     fontSize: 11,
     color: "#9CA3AF",
+    marginLeft: 6,
   },
   postTitle: {
     fontSize: 14,
