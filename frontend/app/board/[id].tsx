@@ -775,9 +775,11 @@ export default function PostDetailScreen() {
                           <View style={styles.commentDropdown}>
                             {isMine ? (
                               <>
+                                {/* 댓글 수정 기능 비활성화
                                 <Pressable style={styles.commentDropdownItem} onPress={() => handleEditComment(c.id, c.content ?? "")}>
                                   <Text style={styles.commentDropdownText}>수정</Text>
                                 </Pressable>
+                                */}
                                 <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
                                   <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
                                 </Pressable>
@@ -877,9 +879,11 @@ export default function PostDetailScreen() {
                               <View style={styles.commentDropdown}>
                                 {isMyReply ? (
                                   <>
+                                    {/* 댓글 수정 기능 비활성화
                                     <Pressable style={styles.commentDropdownItem} onPress={() => handleEditComment(reply.id, reply.content ?? "")}>
                                       <Text style={styles.commentDropdownText}>수정</Text>
                                     </Pressable>
+                                    */}
                                     <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
                                       <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
                                     </Pressable>
