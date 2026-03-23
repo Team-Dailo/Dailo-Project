@@ -83,4 +83,8 @@ public class Comment {
     public boolean isDeleted() {
         return this.deletedAt != null;
     }
+
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
+    }
 }
