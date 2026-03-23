@@ -8,6 +8,7 @@ import {
   Pressable,
   GestureResponderEvent,
   Linking,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -32,24 +33,79 @@ export default function BoothDetailModal({
 }: Props) {
   if (!visible || !booth) return null;
 
-  return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      {/* 어두운 배경 */}
-      <Pressable style={styles.backdrop} onPress={onClose} />
+  const formatPriceLabel = (raw: string): string | null => {
+    const s = raw.trim();
+    // 이미 "5천원" 같은 형태가 들어오는 경우
+    const wonThousand = s.match(/(\d+)\s*천원/i);
+    if (wonThousand) return `${wonThousand[1]}천원`;
 
-      {/* 가운데 카드 */}
-      <View style={styles.card}>
-        {/* 상단 이름 + 즐겨찾기 */}
+    const won = s.match(/([\d,]+)\s*원/i);
+    if (!won) return null;
+    const value = parseInt(won[1].replace(/,/g, ""), 10);
+    if (Number.isNaN(value)) return null;
+
+    if (value % 1000 === 0) return `${value / 1000}천원`;
+    if (value >= 1000) return `${Math.round(value / 1000)}천원`;
+    return `${value}원`;
+  };
+
+  const formatQuantityLabel = (raw: string): string | null => {
+    const s = raw.trim();
+    const asKorean = s.match(/(\d+)\s*개/i);
+    if (asKorean) return `${asKorean[1]}개`;
+
+    // admin input 예: (6pcs)
+    const asPcs = s.match(/(\d+)\s*pcs/i);
+    if (asPcs) return `${asPcs[1]}개`;
+
+    const asEa = s.match(/(\d+)\s*ea/i);
+    if (asEa) return `${asEa[1]}개`;
+
+    return null;
+  };
+
+  const formatFoodMenuLine = (line: string): string => {
+    const normalized = line.replace(/[—–]/g, "-");
+    const parts = normalized
+      .split("-")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const left = parts[0] ?? normalized;
+    const right = parts[parts.length - 1] ?? "";
+
+    const qty = formatQuantityLabel(left);
+    const price = formatPriceLabel(right);
+    if (qty && price) return `${qty} — ${price}`;
+
+    // fallback: 구분자만 화면용으로 바꿔줌
+    return line.replace(/[—–]/g, "—").replace(/\s*-\s*/g, " — ");
+  };
+
+  return (
+    <Modal visible transparent animationType="fade">
+      <View style={styles.modalRoot} pointerEvents="box-none">
+        {/* 어두운 배경 */}
+        <Pressable style={styles.backdrop} onPress={() => onClose()} />
+
+        {/* 가운데 카드 */}
+        <View style={styles.card}>
+        {/* 상단 아이콘 + 이름/운영시간 + 즐겨찾기 */}
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.boothName}>{booth.name}</Text>
-            {!!booth.time && (
-              <Text style={styles.metaText}>운영시간: {booth.time}</Text>
-            )}
-            {!!booth.host && (
-              <Text style={styles.metaText}>주최: {booth.host}</Text>
-            )}
+          <View style={styles.headerLeft}>
+            <View style={styles.iconWrap}>
+              <Ionicons name="megaphone-outline" size={18} color="#4C8BF5" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.boothName}>{booth.name}</Text>
+              {!!booth.time && (
+                <Text style={styles.metaText}>운영시간: {booth.time}</Text>
+              )}
+              {!!booth.host && (
+                <Text style={styles.metaText}>주최: {booth.host}</Text>
+              )}
+            </View>
           </View>
+
           {eventId != null && onToggleFavorite ? (
             <Pressable
               onPress={onToggleFavorite}
@@ -68,15 +124,18 @@ export default function BoothDetailModal({
         </View>
 
         {/* 내용 영역 */}
-        {booth.type === "food" && booth.menu && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>메뉴</Text>
-            {booth.menu.map((m) => (
-              <Text key={m} style={styles.bodyText}>
-                {m}
-              </Text>
-            ))}
-          </View>
+        {booth.type === "food" && booth.menu && booth.menu.length > 0 && (
+          <>
+            <View style={styles.infoDivider} />
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>메뉴</Text>
+              {booth.menu.map((m) => (
+                <View key={m} style={styles.menuCard}>
+                  <Text style={styles.menuCardText}>{formatFoodMenuLine(m)}</Text>
+                </View>
+              ))}
+            </View>
+          </>
         )}
 
         {booth.type === "experience" && (
@@ -130,14 +189,15 @@ export default function BoothDetailModal({
             </Pressable>
           </View>
         )}
+        </View>
       </View>
-    </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
+  modalRoot: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 20,
@@ -161,7 +221,21 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    flex: 1,
+    gap: 10,
+  },
+  iconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "#FFE9C7",
+    justifyContent: "center",
+    alignItems: "center",
   },
   boothName: {
     fontSize: 16,
@@ -171,6 +245,12 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 12,
     color: "#666",
+  },
+  infoDivider: {
+    marginTop: 10,
+    marginBottom: 10,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E5E7EB",
   },
   starButton: {
     marginLeft: 8,
@@ -188,6 +268,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#444",
     lineHeight: 18,
+  },
+  menuCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  menuCardText: {
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "700",
   },
   linkRow: {
     flexDirection: "row",

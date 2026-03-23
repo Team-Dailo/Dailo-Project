@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 public class TokenRequestDto {
-    private String accessToken;
+
+    // 재발급은 refresh token만 받도록 단순화
     private String refreshToken;
 }
