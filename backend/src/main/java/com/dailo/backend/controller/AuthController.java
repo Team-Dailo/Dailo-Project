@@ -4,6 +4,7 @@ import com.dailo.backend.dto.auth.KakaoNativeLoginRequestDto;
 import com.dailo.backend.dto.auth.LoginRequestDto;
 import com.dailo.backend.dto.auth.MemberRequestDto;
 import com.dailo.backend.dto.auth.MemberResponseDto;
+import com.dailo.backend.dto.auth.TokenRequestDto;
 import com.dailo.backend.jwt.TokenDto;
 import com.dailo.backend.service.AuthService;
 import com.dailo.backend.service.KakaoNativeLoginService;
@@ -71,9 +72,9 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "토큰 재발급", description = "만료된 Access Token과 Refresh Token을 보내 새로운 토큰 셋을 발급받습니다.")
+    @Operation(summary = "토큰 재발급", description = "Refresh Token을 보내 새로운 토큰 셋을 발급받습니다.")
     @PostMapping("/reissue")
-    public ResponseEntity<TokenDto> reissue(@RequestBody com.dailo.backend.dto.auth.TokenRequestDto requestDto) {
+    public ResponseEntity<TokenDto> reissue(@RequestBody TokenRequestDto requestDto) {
         return ResponseEntity.ok(authService.reissue(requestDto));
     }
 

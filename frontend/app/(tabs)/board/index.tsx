@@ -13,6 +13,7 @@ import {
   Share,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useFocusEffect, useRoute, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -123,6 +124,24 @@ export default function BoardScreen() {
     reviewEventId
   );
   const sortedPosts = useMemo(() => apiPosts.map(toPost), [apiPosts]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = React.useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await refetch();
+      try {
+        const res = await noticeService.getNotices({ page: 0, size: 1 });
+        const first = res.content?.[0] ?? null;
+        setLatestNotice(first);
+      } catch {
+        setLatestNotice(null);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshing, refetch]);
 
   /** 축제 선택 모달: 과거 6개월 ~ 미래 12개월 행사 한 번에 로드, 월별로 그룹 */
   const loadBoardEventPickerByMonth = React.useCallback(async () => {
@@ -415,6 +434,14 @@ export default function BoardScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing || loading}
+              onRefresh={handleRefresh}
+              colors={["#6366F1"]}
+              tintColor="#6366F1"
+            />
+          }
         >
           {/* 공지 카드: 실제 공지사항 API 연동 */}
           <Pressable style={styles.noticeCard} onPress={() => router.push("/board/notice")}>
