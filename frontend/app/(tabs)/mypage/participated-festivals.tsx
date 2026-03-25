@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useNavigation, TabActions, StackActions } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { getCompletedStaySessions, type StaySessionResponseDto } from "../../../services/location.service";
@@ -26,11 +25,10 @@ import {
 
 export default function ParticipatedFestivalsScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
-  const navigation = useNavigation();
   const goBack = () => {
     if (from === 'map') {
-      navigation.dispatch(StackActions.popToTop());
-      navigation.dispatch(TabActions.jumpTo('map/index'));
+      router.replace('/(tabs)/mypage');
+      router.replace('/(tabs)/map');
     } else {
       router.back();
     }

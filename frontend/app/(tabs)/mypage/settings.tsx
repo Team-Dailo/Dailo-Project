@@ -6,18 +6,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../hooks/useAuth';
 import { useSafeBack } from '../../../hooks/useSafeBack';
-import { useNavigation, TabActions, StackActions } from '@react-navigation/native';
 import * as authService from '../../../services/auth.service';
 
 export default function MyPageSettingsScreen() {
   const { isLoggedIn, logout } = useAuth();
   const safeBack = useSafeBack();
-  const navigation = useNavigation();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const goBack = () => {
     if (from === 'map') {
-      navigation.dispatch(StackActions.popToTop());
-      navigation.dispatch(TabActions.jumpTo('map/index'));
+      router.replace('/(tabs)/mypage');
+      router.replace('/(tabs)/map');
     } else {
       safeBack();
     }

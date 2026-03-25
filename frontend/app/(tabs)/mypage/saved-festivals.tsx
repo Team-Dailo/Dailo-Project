@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useNavigation, TabActions, StackActions } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as scrapService from "../../../services/scrap.service";
 
@@ -45,11 +44,10 @@ function formatTimeRange(startIso: string, endIso?: string): string {
 
 export default function SavedFestivalsScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
-  const navigation = useNavigation();
   const goBack = () => {
     if (from === 'map') {
-      navigation.dispatch(StackActions.popToTop());
-      navigation.dispatch(TabActions.jumpTo('map/index'));
+      router.replace('/(tabs)/mypage');
+      router.replace('/(tabs)/map');
     } else {
       router.replace('/(tabs)/mypage');
     }

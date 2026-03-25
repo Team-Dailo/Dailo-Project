@@ -11,7 +11,6 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useNavigation, TabActions, StackActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as contentService from '../../../services/content.service';
@@ -42,11 +41,10 @@ function renderLine(line: string, index: number): React.ReactNode {
 
 export default function GuideScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
-  const navigation = useNavigation();
   const goBack = () => {
     if (from === 'map') {
-      navigation.dispatch(StackActions.popToTop());
-      navigation.dispatch(TabActions.jumpTo('map/index'));
+      router.replace('/(tabs)/mypage');
+      router.replace('/(tabs)/map');
     } else {
       router.replace('/(tabs)/mypage');
     }
