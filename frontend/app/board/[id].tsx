@@ -780,9 +780,11 @@ export default function PostDetailScreen() {
                           <View style={styles.commentDropdown}>
                             {isMine ? (
                               <>
+                                {/* 댓글 수정 기능 비활성화
                                 <Pressable style={styles.commentDropdownItem} onPress={() => handleEditComment(c.id, c.content ?? "")}>
                                   <Text style={styles.commentDropdownText}>수정</Text>
                                 </Pressable>
+                                */}
                                 <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(c.id)}>
                                   <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
                                 </Pressable>
@@ -882,6 +884,7 @@ export default function PostDetailScreen() {
                               <View style={styles.commentDropdown}>
                                 {isMyReply ? (
                                   <>
+<<<<<<< HEAD
                                     <Pressable
                                       style={styles.commentDropdownItem}
                                       onPress={() => handleEditComment(reply.id, reply.content ?? "")}
@@ -892,6 +895,14 @@ export default function PostDetailScreen() {
                                       style={styles.commentDropdownItem}
                                       onPress={() => handleDeleteComment(reply.id)}
                                     >
+=======
+                                    {/* 댓글 수정 기능 비활성화
+                                    <Pressable style={styles.commentDropdownItem} onPress={() => handleEditComment(reply.id, reply.content ?? "")}>
+                                      <Text style={styles.commentDropdownText}>수정</Text>
+                                    </Pressable>
+                                    */}
+                                    <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
+>>>>>>> 9a38a8afea6fbfec1d29863b76306e078d448e1f
                                       <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
                                     </Pressable>
                                   </>

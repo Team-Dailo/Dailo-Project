@@ -125,7 +125,7 @@ public class ChatRoomService {
 
         LocalDateTime lastRead = chatMemberRepository.findByRoomAndUserId(room, myUserId)
                 .map(ChatMember::getLastReadAt)
-                .orElse(LocalDateTime.MIN);
+                .orElse(LocalDateTime.of(1970, 1, 1, 0, 0, 0));
 
         int unread = (int) chatMessageRepository.countByRoomAndCreatedAtAfter(room, lastRead);
 
@@ -172,7 +172,7 @@ public class ChatRoomService {
         return rooms.stream().map(room -> {
             LocalDateTime lastRead = chatMemberRepository.findByRoomAndUserId(room, userId)
                     .map(ChatMember::getLastReadAt)
-                    .orElse(LocalDateTime.MIN);
+                    .orElse(LocalDateTime.of(1970, 1, 1, 0, 0, 0));
             int unread = (int) chatMessageRepository.countByRoomAndCreatedAtAfter(room, lastRead);
             Optional<ChatMessage> lastMsg = chatMessageRepository
                     .findByRoomOrderByCreatedAtDesc(room, PageRequest.of(0, 1))
