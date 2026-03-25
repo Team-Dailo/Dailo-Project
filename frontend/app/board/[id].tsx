@@ -97,10 +97,10 @@ export default function PostDetailScreen() {
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
 
   const { post, loading: postLoading, error: postError, refetch: refetchPost } = usePostDetail(id);
-  const { comments: apiComments, loading: commentsLoading, refetch: refetchComments, removeComment } = useComments(id);
+  const { comments: apiComments, loading: commentsLoading, refetch: refetchComments, removeComment, updateCommentLike } = useComments(id);
 
   const onRefresh = useCallback(async () => {
-    if (refreshing) return; // 중복 새로고침 방지
+    if (refreshing) return;
     setRefreshing(true);
     try {
       await Promise.all([refetchPost(), refetchComments()]);
@@ -459,24 +459,10 @@ export default function PostDetailScreen() {
       ]);
       return;
     }
-    // 낙관적 업데이트
-    setLikedCommentIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(commentId)) next.delete(commentId);
-      else next.add(commentId);
-      return next;
-    });
     try {
-      await boardService.toggleCommentLike(commentId);
-      refetchComments();
+      const result = await boardService.toggleCommentLike(commentId);
+      updateCommentLike(commentId, result.liked, result.likeCount);
     } catch (e) {
-      // 실패 시 롤백
-      setLikedCommentIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(commentId)) next.delete(commentId);
-        else next.add(commentId);
-        return next;
-      });
       const msg = e instanceof Error ? e.message : "좋아요 처리에 실패했습니다.";
       Alert.alert("오류", msg);
     }
@@ -690,7 +676,7 @@ export default function PostDetailScreen() {
                   >
                     <Ionicons name="chatbubble-ellipses-outline" size={18} color="#4B5563" />
                     <Text style={styles.footerText}>
-                      {commentsLoading ? (post.commentCount ?? 0) : comments.length}
+                      {commentsLoading ? (post.commentCount ?? 0) : comments.reduce((acc, c) => acc + 1 + (c.replies?.length ?? 0), 0)}
                     </Text>
                   </Pressable>
                   {/* 종이비행기(공유/채팅) 아이콘 비노출 처리
