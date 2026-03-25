@@ -1328,7 +1328,9 @@ export default function MapScreen() {
                   if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return;
                   const centerLat = r.latitude + r.latitudeDelta / 2;
                   const centerLng = r.longitude + r.longitudeDelta / 2;
-                  const zoom = 14 - Math.round(Math.log2(r.latitudeDelta / 0.01));
+                  const zoom = params.zoom != null
+                    ? Math.round(params.zoom)
+                    : 14 - Math.round(Math.log2(r.latitudeDelta / 0.01));
                   lastCameraRef.current = {
                     latitude: centerLat,
                     longitude: centerLng,
@@ -1541,11 +1543,7 @@ export default function MapScreen() {
                       const centerLng = lastCameraRef.current?.longitude ?? (region ? region.longitude + region.longitudeDelta / 2 : DEFAULT_CAMERA.longitude);
                       const currentZoom = lastCameraRef.current?.zoom ?? naverMapCamera.zoom;
                       if (!mapRef.current) return;
-                      /** 확대 1회 누르면 기본 배율(16)로, 그 이상이면 1단계씩 */
-                      const DEFAULT_ZOOM_LEVEL = 16;
-                      const newZoom = currentZoom < DEFAULT_ZOOM_LEVEL
-                        ? DEFAULT_ZOOM_LEVEL
-                        : Math.min(18, currentZoom + 1);
+                      const newZoom = Math.min(18, currentZoom + 1);
                       lastCameraRef.current = { latitude: centerLat, longitude: centerLng, zoom: newZoom };
                       mapRef.current.animateCameraTo({
                         latitude: centerLat,
