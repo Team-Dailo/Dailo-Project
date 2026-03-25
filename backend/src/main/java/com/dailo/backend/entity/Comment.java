@@ -57,17 +57,13 @@ public class Comment {
         this.updatedAt = LocalDateTime.now();
     }
 
-    @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
-
     // 비즈니스 메서드
     public void update(String content) {
         if (content == null || content.trim().isEmpty()) {
             throw new IllegalArgumentException("Content cannot be empty");
         }
         this.content = content;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void increaseLikeCount() {
