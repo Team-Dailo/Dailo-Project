@@ -12,7 +12,8 @@ import {
   Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useNavigation, TabActions, StackActions } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as scrapService from "../../../services/scrap.service";
 
@@ -43,6 +44,16 @@ function formatTimeRange(startIso: string, endIso?: string): string {
 }
 
 export default function SavedFestivalsScreen() {
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const navigation = useNavigation();
+  const goBack = () => {
+    if (from === 'map') {
+      navigation.dispatch(StackActions.popToTop());
+      navigation.dispatch(TabActions.jumpTo('map/index'));
+    } else {
+      router.replace('/(tabs)/mypage');
+    }
+  };
   const [list, setList] = useState<scrapService.ScrapEventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -119,7 +130,7 @@ export default function SavedFestivalsScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
         <View style={styles.header}>
-          <Pressable style={styles.headerBack} onPress={() => router.replace("/(tabs)/mypage")}>
+          <Pressable style={styles.headerBack} onPress={() => goBack()}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
           <View style={styles.headerTitleWrap} pointerEvents="box-none">
@@ -137,7 +148,7 @@ export default function SavedFestivalsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.header}>
-        <Pressable style={styles.headerBack} onPress={() => router.replace("/(tabs)/mypage")}>
+        <Pressable style={styles.headerBack} onPress={() => goBack()}>
           <Ionicons name="arrow-back" size={22} color="#111827" />
         </Pressable>
         <View style={styles.headerTitleWrap} pointerEvents="box-none">
