@@ -27,18 +27,30 @@ public class ChatMessageService {
     private final MemberRepository memberRepository; // 💡 추가: 이메일 조회를 위해 주입
     private final BlockService blockService;
 
-    // 💡 이메일로 내 ID를 찾아주는 헬퍼 메서드
-    private Long getMemberIdByEmail(String email) {
-        if (email == null) return null;
-        return memberRepository.findByEmail(email)
+    // principal(email 또는 memberId)로 내 ID를 찾아주는 헬퍼 메서드
+    private Long getMemberIdByPrincipal(String principal) {
+        if (principal == null || principal.isBlank()) {
+            throw new RuntimeException("인증된 사용자 정보가 없습니다.");
+        }
+
+        // 카카오 로그인 토큰 subject가 memberId인 경우 대응
+        if (principal.matches("\\d+")) {
+            Long memberId = Long.valueOf(principal);
+            return memberRepository.findById(memberId)
+                    .map(Member::getId)
+                    .orElseThrow(() -> new RuntimeException("Member not found: id=" + memberId));
+        }
+
+        // 일반 로그인(email subject) 대응
+        return memberRepository.findByEmail(principal)
                 .map(Member::getId)
-                .orElseThrow(() -> new RuntimeException("Member not found for email: " + email));
+                .orElseThrow(() -> new RuntimeException("Member not found: " + principal));
     }
 
     // 메시지 전송
     @Transactional
     public ChatMessageResponseDto sendMessage(Long roomId, String email, String content, MessageType messageType) {
-        Long senderId = getMemberIdByEmail(email);
+        Long senderId = getMemberIdByPrincipal(email);
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
 
@@ -76,7 +88,7 @@ public class ChatMessageService {
 
     // 메시지 히스토리 조회
     public Page<ChatMessageResponseDto> getMessages(Long roomId, String email, Pageable pageable) {
-        Long userId = getMemberIdByEmail(email);
+        Long userId = getMemberIdByPrincipal(email);
 
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));

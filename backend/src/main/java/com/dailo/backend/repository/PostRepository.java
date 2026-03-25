@@ -56,4 +56,11 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Post p SET p.commentCount = p.commentCount - 1 WHERE p.id = :postId AND p.commentCount > 0")
     void decreaseCommentCount(@Param("postId") Long postId);
+
+    /** 특정 사용자의 게시글 수 */
+    long countByAuthorId(Long authorId);
+
+    /** 특정 사용자의 게시글들이 받은 총 좋아요 수 */
+    @Query("SELECT COALESCE(SUM(p.likeCount), 0) FROM Post p WHERE p.authorId = :authorId")
+    long sumLikeCountByAuthorId(@Param("authorId") Long authorId);
 }

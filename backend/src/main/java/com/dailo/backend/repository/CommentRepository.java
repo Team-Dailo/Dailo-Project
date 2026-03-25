@@ -28,6 +28,9 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     // 작성자별 댓글 조회
     Page<Comment> findByAuthorId(Long authorId, Pageable pageable);
 
+    // 작성자별 댓글 조회 (삭제되지 않은 것만)
+    Page<Comment> findByAuthorIdAndDeletedAtIsNull(Long authorId, Pageable pageable);
+
     // 게시글별 댓글 수 조회
     long countByPost(Post post);
 
@@ -49,13 +52,13 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds,
             Pageable pageable);
 
-    // 최상위 댓글 조회 (삭제된 댓글 포함 - 대댓글이 있는 경우 표시용)
+    // 최상위 댓글 조회 (삭제된 댓글 포함 - 대댓글이 있는 경우 "삭제된 댓글" 표시용)
     @Query("SELECT c FROM Comment c WHERE c.post = :post AND c.parentComment IS NULL ORDER BY c.createdAt ASC")
-    List<Comment> findAllTopLevelByPost(@Param("post") Post post);
+    List<Comment> findTopLevelCommentsIncludingDeletedByPost(@Param("post") Post post);
 
     // 최상위 댓글 조회 + 차단 필터 (삭제된 댓글 포함)
     @Query("SELECT c FROM Comment c WHERE c.post = :post AND c.parentComment IS NULL AND (c.deletedAt IS NOT NULL OR c.authorId NOT IN :excludeAuthorIds) ORDER BY c.createdAt ASC")
-    List<Comment> findAllTopLevelByPostExcludingAuthors(
+    List<Comment> findTopLevelCommentsIncludingDeletedByPostExcludingAuthors(
             @Param("post") Post post,
             @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds);
 
@@ -69,7 +72,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             @Param("parentComment") Comment parentComment,
             @Param("excludeAuthorIds") Collection<Long> excludeAuthorIds);
 
-    // 삭제된 댓글 포함 대댓글 수 확인
+    // 보여줄 수 있는 대댓글 수 (삭제되지 않은 대댓글만 카운트)
     @Query("SELECT COUNT(c) FROM Comment c WHERE c.parentComment = :parentComment AND c.deletedAt IS NULL")
-    long countActiveReplies(@Param("parentComment") Comment parentComment);
+    long countVisibleReplies(@Param("parentComment") Comment parentComment);
 }

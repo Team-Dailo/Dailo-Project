@@ -35,6 +35,10 @@ public class ChatMember {
     @Column(name = "left_at")
     private LocalDateTime leftAt;  // 소프트 삭제용
 
+    @Column(name = "muted")
+    @Builder.Default
+    private Boolean muted = false;  // 알림 음소거 설정
+
     @PrePersist
     protected void onCreate() {
         this.joinedAt = LocalDateTime.now();
@@ -55,5 +59,13 @@ public class ChatMember {
 
     public void updateLastReadAt() {
         this.lastReadAt = LocalDateTime.now();
+    }
+
+    public void toggleMuted() {
+        this.muted = !Boolean.TRUE.equals(this.muted);
+    }
+
+    public boolean isMuted() {
+        return Boolean.TRUE.equals(this.muted);
     }
 }

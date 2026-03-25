@@ -22,47 +22,47 @@ public class BlockService {
     private final BlockRepository blockRepository;
     private final MemberRepository memberRepository;
 
-    // --- 외부(Controller) 호출용 이메일 기반 메서드 ---
+    // --- 외부(Controller) 호출용 principal 기반 메서드 ---
 
-    /** 1. 차단하기 (이메일 기반) */
-    @Transactional
-    public BlockResponseDto blockUserByEmail(String email, Long blockedId) {
-        if (email == null) {
+    /** principal(email 또는 memberId)로 Member를 찾는 헬퍼 */
+    private Member findMemberByPrincipal(String principal) {
+        if (principal == null || principal.isBlank()) {
             throw new com.dailo.backend.exception.UnauthorizedException("로그인이 필요합니다.");
         }
-        Member blocker = memberRepository.findByEmail(email)
+        // memberId(숫자)인 경우
+        if (principal.matches("\\d+")) {
+            Long memberId = Long.valueOf(principal);
+            return memberRepository.findById(memberId)
+                    .orElseThrow(() -> new com.dailo.backend.exception.NotFoundException("사용자를 찾을 수 없습니다."));
+        }
+        // 이메일인 경우
+        return memberRepository.findByEmail(principal)
                 .orElseThrow(() -> new com.dailo.backend.exception.NotFoundException("사용자를 찾을 수 없습니다."));
+    }
+
+    /** 1. 차단하기 */
+    @Transactional
+    public BlockResponseDto blockUserByEmail(String principal, Long blockedId) {
+        Member blocker = findMemberByPrincipal(principal);
         return blockUser(blocker.getId(), blockedId);
     }
 
-    /** 2. 차단 해제 (이메일 기반) */
+    /** 2. 차단 해제 */
     @Transactional
-    public void unblockUserByEmail(String email, Long blockedId) {
-        if (email == null) {
-            throw new com.dailo.backend.exception.UnauthorizedException("로그인이 필요합니다.");
-        }
-        Member blocker = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new com.dailo.backend.exception.NotFoundException("사용자를 찾을 수 없습니다."));
+    public void unblockUserByEmail(String principal, Long blockedId) {
+        Member blocker = findMemberByPrincipal(principal);
         unblockUser(blocker.getId(), blockedId);
     }
 
-    /** 3. 내 차단 목록 조회 (이메일 기반) */
-    public List<BlockResponseDto> getMyBlocksByEmail(String email) {
-        if (email == null) {
-            throw new com.dailo.backend.exception.UnauthorizedException("로그인이 필요합니다.");
-        }
-        Member blocker = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new com.dailo.backend.exception.NotFoundException("사용자를 찾을 수 없습니다."));
+    /** 3. 내 차단 목록 조회 */
+    public List<BlockResponseDto> getMyBlocksByEmail(String principal) {
+        Member blocker = findMemberByPrincipal(principal);
         return getMyBlocks(blocker.getId());
     }
 
-    /** 4. 차단 방향 확인 (이메일 기반) */
-    public BlockCheckResponseDto checkBlockDirectionByEmail(String email, Long targetUserId) {
-        if (email == null) {
-            throw new com.dailo.backend.exception.UnauthorizedException("로그인이 필요합니다.");
-        }
-        Member me = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new com.dailo.backend.exception.NotFoundException("사용자를 찾을 수 없습니다."));
+    /** 4. 차단 방향 확인 */
+    public BlockCheckResponseDto checkBlockDirectionByEmail(String principal, Long targetUserId) {
+        Member me = findMemberByPrincipal(principal);
         return checkBlockDirection(me.getId(), targetUserId);
     }
 

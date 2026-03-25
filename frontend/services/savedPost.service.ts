@@ -69,3 +69,18 @@ export async function toggleSavedPost(
   await setStored(list);
   return true;
 }
+
+/** 이미 저장된 게시글의 썸네일 URL을 갱신 (백필용) */
+export async function updateSavedPostThumbnail(
+  postId: number,
+  imageUrl: string
+): Promise<void> {
+  const list = await getStored();
+  const idx = list.findIndex((p) => p.id === postId);
+  if (idx < 0) return;
+  list[idx] = {
+    ...list[idx],
+    imageUrl,
+  };
+  await setStored(list);
+}

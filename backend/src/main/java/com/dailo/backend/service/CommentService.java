@@ -3,10 +3,12 @@ package com.dailo.backend.service;
 import com.dailo.backend.dto.CommentRequestDto;
 import com.dailo.backend.dto.CommentResponseDto;
 import com.dailo.backend.entity.Comment;
+import com.dailo.backend.entity.CommentLike;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.entity.Post;
 import com.dailo.backend.exception.ForbiddenException;
 import com.dailo.backend.exception.NotFoundException;
+import com.dailo.backend.repository.CommentLikeRepository;
 import com.dailo.backend.repository.CommentRepository;
 import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.repository.PostRepository;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
 public class CommentService {
 
     private final CommentRepository commentRepository;
+    private final CommentLikeRepository commentLikeRepository;
     private final PostRepository postRepository;
     private final MemberRepository memberRepository;
     private final BlockService blockService;
@@ -44,7 +47,7 @@ public class CommentService {
     }
 
     // 1. 댓글 목록 조회 (최상위 댓글 + 대댓글 포함, 작성자 닉네임 포함)
-    // 삭제된 댓글도 대댓글이 있으면 "(삭제된 댓글)"로 표시
+    // 삭제된 댓글도 보여줄 대댓글이 있으면 "삭제된 댓글"로 표시
     public Page<CommentResponseDto> getCommentsByPostId(Long postId, String email, Pageable pageable) {
         Long userId = getMemberIdByEmail(email);
 
@@ -54,18 +57,18 @@ public class CommentService {
         Set<Long> invisibleIds = (userId != null) ? blockService.getInvisibleUserIds(userId) : Collections.emptySet();
 
         // 모든 최상위 댓글 조회 (삭제된 것 포함)
-        List<Comment> allTopLevel = commentRepository.findAllTopLevelByPost(post);
+        List<Comment> allTopLevel = commentRepository.findTopLevelCommentsIncludingDeletedByPost(post);
 
-        // 필터링: 삭제되지 않은 댓글 + 삭제됐지만 대댓글이 있는 댓글
+        // 필터링: 삭제되지 않은 댓글 + 삭제됐지만 보여줄 대댓글이 있는 댓글
         List<Comment> topList = allTopLevel.stream()
                 .filter(c -> {
                     // 차단된 사용자 댓글 제외 (삭제된 댓글은 제외하지 않음 - 대댓글이 있을 수 있으므로)
                     if (!c.isDeleted() && !invisibleIds.isEmpty() && invisibleIds.contains(c.getAuthorId())) {
                         return false;
                     }
-                    // 삭제된 댓글은 대댓글이 있어야만 표시
+                    // 삭제된 댓글은 보여줄 대댓글이 있어야만 표시
                     if (c.isDeleted()) {
-                        return commentRepository.countActiveReplies(c) > 0;
+                        return commentRepository.countVisibleReplies(c) > 0;
                     }
                     return true;
                 })
@@ -73,6 +76,7 @@ public class CommentService {
 
         Set<Long> authorIds = new java.util.HashSet<>();
         for (Comment c : topList) {
+            // 삭제된 댓글은 작성자 정보 조회 불필요
             if (!c.isDeleted()) {
                 authorIds.add(c.getAuthorId());
             }
@@ -219,5 +223,114 @@ public class CommentService {
         Long postId = comment.getPost().getId();
         commentRepository.delete(comment);
         postRepository.decreaseCommentCount(postId);
+    }
+
+    // 5. 댓글 좋아요 토글
+    @Transactional
+    public boolean toggleCommentLike(Long commentId, String email) {
+        Long userId = getMemberIdByEmail(email);
+        if (userId == null) {
+            throw new RuntimeException("로그인이 필요합니다.");
+        }
+
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new NotFoundException("Comment not found: " + commentId));
+
+        if (comment.isDeleted()) {
+            throw new NotFoundException("Comment not found: " + commentId);
+        }
+
+        Member member = memberRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Member not found: " + userId));
+
+        var existing = commentLikeRepository.findByMemberIdAndCommentId(userId, commentId);
+        if (existing.isPresent()) {
+            commentLikeRepository.delete(existing.get());
+            comment.decreaseLikeCount();
+            return false;
+        }
+
+        commentLikeRepository.save(CommentLike.builder().member(member).comment(comment).build());
+        comment.increaseLikeCount();
+        return true;
+    }
+
+    // 6. 댓글 좋아요 수 조회
+    public int getCommentLikeCount(Long commentId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new NotFoundException("Comment not found: " + commentId));
+        return comment.getLikeCount();
+    }
+
+    // 7. 특정 사용자의 댓글 목록 조회
+    public Page<CommentResponseDto> getCommentsByMemberId(Long memberId, String email, Pageable pageable) {
+        Long viewerId = null;
+        if (email != null) {
+            viewerId = memberRepository.findByEmail(email)
+                    .map(Member::getId)
+                    .orElse(null);
+        }
+
+        // 차단 관계 확인
+        if (viewerId != null) {
+            Set<Long> blockedIds = blockService.getBlockedUserIds(viewerId);
+            if (blockedIds.contains(memberId)) {
+                throw new RuntimeException("차단한 사용자입니다.");
+            }
+        }
+
+        // 삭제되지 않은 댓글만 조회
+        Page<Comment> commentPage = commentRepository.findByAuthorIdAndDeletedAtIsNull(memberId, pageable);
+
+        // 게시글 정보 조회를 위한 ID 수집
+        Set<Long> postIds = commentPage.getContent().stream()
+                .map(c -> c.getPost().getId())
+                .collect(Collectors.toSet());
+
+        Map<Long, Post> postMap = postIds.isEmpty() ? Collections.emptyMap()
+                : postRepository.findAllById(postIds).stream()
+                .collect(Collectors.toMap(Post::getId, p -> p));
+
+        // 작성자 프로필 이미지 조회
+        String profileUrl = null;
+        Member author = memberRepository.findById(memberId).orElse(null);
+        if (author != null) {
+            String nickname = author.getNickname();
+            if (nickname == null || nickname.isBlank()) {
+                String authorEmail = author.getEmail();
+                nickname = (authorEmail != null && authorEmail.contains("@"))
+                        ? authorEmail.split("@")[0].trim()
+                        : "user_" + memberId;
+            }
+            if (author.getProfileImageUrl() != null && !author.getProfileImageUrl().isBlank()) {
+                try {
+                    profileUrl = s3UploadService.getPresignedUrl(author.getProfileImageUrl());
+                } catch (Exception ignored) {}
+            }
+
+            String finalNickname = nickname;
+            String finalProfileUrl = profileUrl;
+            return commentPage.map(comment -> {
+                CommentResponseDto dto = CommentResponseDto.from(comment, finalNickname, finalProfileUrl);
+                // 게시글 제목 추가를 위해 빌더로 새로 생성
+                Post post = postMap.get(comment.getPost().getId());
+                return CommentResponseDto.builder()
+                        .id(dto.getId())
+                        .postId(dto.getPostId())
+                        .postTitle(post != null ? post.getTitle() : null)
+                        .parentCommentId(dto.getParentCommentId())
+                        .authorId(dto.getAuthorId())
+                        .authorNickname(dto.getAuthorNickname())
+                        .authorProfileImageUrl(dto.getAuthorProfileImageUrl())
+                        .content(dto.getContent())
+                        .likeCount(dto.getLikeCount())
+                        .createdAt(dto.getCreatedAt())
+                        .updatedAt(dto.getUpdatedAt())
+                        .deleted(dto.isDeleted())
+                        .build();
+            });
+        }
+
+        return Page.empty(pageable);
     }
 }
