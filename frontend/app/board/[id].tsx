@@ -166,6 +166,18 @@ export default function PostDetailScreen() {
     setLiked(post?.isLiked ?? false);
   }, [post?.id, post?.isLiked]);
 
+  useEffect(() => {
+    if (!apiComments.length) return;
+    const ids = new Set<string>();
+    apiComments.forEach((c) => {
+      if (c.isLiked) ids.add(String(c.id));
+      (c.replies ?? []).forEach((r) => {
+        if (r.isLiked) ids.add(String(r.id));
+      });
+    });
+    setLikedCommentIds(ids);
+  }, [apiComments]);
+
   const handleSavePost = async () => {
     setMenuVisible(false);
     if (!isLoggedIn) {
@@ -702,7 +714,7 @@ export default function PostDetailScreen() {
                 ) : (
                   comments.map((c) => {
               const commentLiked = likedCommentIds.has(c.id);
-              const commentLikeCount = c.likes + (commentLiked ? 1 : 0);
+              const commentLikeCount = c.likes;
               const isMine = !c.deleted && isMyComment(c.id);
               const hasCommentPhoto = !c.deleted && c.authorProfileImageUrl?.trim();
               const isEdited = !c.deleted && new Date(c.updatedAt) > new Date(c.createdAt);
@@ -812,7 +824,7 @@ export default function PostDetailScreen() {
                   {/* 대댓글 렌더링 */}
                   {c.replies.map((reply) => {
                     const replyLiked = likedCommentIds.has(reply.id);
-                    const replyLikeCount = reply.likes + (replyLiked ? 1 : 0);
+                    const replyLikeCount = reply.likes;
                     const isMyReply = !reply.deleted && isMyComment(reply.id);
                     const hasReplyPhoto = !reply.deleted && reply.authorProfileImageUrl?.trim();
                     const isReplyEdited = !reply.deleted && new Date(reply.updatedAt) > new Date(reply.createdAt);

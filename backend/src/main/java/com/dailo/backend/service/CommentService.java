@@ -106,10 +106,20 @@ public class CommentService {
                     }
                 }));
 
+        // 현재 유저가 좋아요 누른 댓글 ID 조회 (한 번의 쿼리로)
+        Set<Long> allCommentIds = new java.util.HashSet<>();
+        for (Comment c : topList) {
+            allCommentIds.add(c.getId());
+            getReplies(c, invisibleIds).forEach(r -> allCommentIds.add(r.getId()));
+        }
+        Set<Long> likedCommentIds = (userId != null && !allCommentIds.isEmpty())
+                ? commentLikeRepository.findLikedCommentIds(userId, allCommentIds)
+                : Collections.emptySet();
+
         List<CommentResponseDto> dtos = topList.stream()
                 .map(comment -> {
                     List<Comment> replies = getReplies(comment, invisibleIds);
-                    return CommentResponseDto.fromWithReplies(comment, replies, authorNicknameMap, authorProfileImageUrlMap);
+                    return CommentResponseDto.fromWithReplies(comment, replies, authorNicknameMap, authorProfileImageUrlMap, likedCommentIds);
                 })
                 .toList();
         return new PageImpl<>(dtos, pageable, (long) topList.size());
