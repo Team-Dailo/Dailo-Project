@@ -1,12 +1,14 @@
 // app/_layout.tsx
 import React, { useEffect } from 'react';
-import { BackHandler } from 'react-native';
+import { AppState, BackHandler } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '../contexts/AuthContext';
 import { LoginVerifiedHandler } from '../components/LoginVerifiedHandler';
 import { KakaoLoginHandler } from '../components/KakaoLoginHandler';
+import { reconcileFestivalParticipationIfOutsideZone } from '../services/festivalParticipationReconcile';
+import { flushPendingStaySyncQueue } from '../services/staySessionSync';
 
 function getKakaoNativeAppKey(): string {
   const plugins = Constants.expoConfig?.plugins as [string, { nativeAppKey?: string }][] | undefined;
@@ -49,6 +51,21 @@ export default function RootLayout() {
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
   }, [segments, router]);
+
+  // 체류 종료 대기 큐 → 구역 밖 재검증(지도 미오픈 시에도 서버·로컬 일치)
+  useEffect(() => {
+    const run = async () => {
+      await flushPendingStaySyncQueue();
+      await reconcileFestivalParticipationIfOutsideZone();
+    };
+    void run();
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') {
+        void run();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     // Expo Go에서는 Kakao SDK 초기화 스킵

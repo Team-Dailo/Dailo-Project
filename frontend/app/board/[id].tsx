@@ -139,7 +139,10 @@ export default function PostDetailScreen() {
 
   /** 항상 API에서 온 작성자 닉네임 표시 (백엔드가 실제 작성자 정보 반환) */
   const authorDisplayName = post
-    ? (post.authorNickname ?? (post as Record<string, unknown>).author_nickname ?? `user_${postAuthorId}`)
+    ? (() => {
+        const raw = post.authorNickname ?? (post as Record<string, unknown>).author_nickname;
+        return typeof raw === "string" && raw.trim() ? raw.trim() : `user_${postAuthorId}`;
+      })()
     : "";
   const postAuthorProfileUrl = post
     ? ((post as Record<string, unknown>).authorProfileImageUrl ?? (post as Record<string, unknown>).author_profile_image_url) as string | null | undefined
@@ -541,7 +544,6 @@ export default function PostDetailScreen() {
       Alert.alert("오류", "댓글 수정에 실패했습니다.");
     }
   };
-
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
@@ -626,7 +628,10 @@ export default function PostDetailScreen() {
                   >
                     <Ionicons name="calendar-outline" size={14} color="#4C8BF5" />
                     <Text style={styles.eventBadgeText}>
-                      {post.eventTitle ?? (post as Record<string, unknown>).event_title ?? ""}
+                      {(() => {
+                        const raw = post.eventTitle ?? (post as Record<string, unknown>).event_title;
+                        return typeof raw === "string" ? raw : "";
+                      })()}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -879,17 +884,24 @@ export default function PostDetailScreen() {
                               <View style={styles.commentDropdown}>
                                 {isMyReply ? (
                                   <>
-                                    {/* 댓글 수정 기능 비활성화
-                                    <Pressable style={styles.commentDropdownItem} onPress={() => handleEditComment(reply.id, reply.content ?? "")}>
+                                    <Pressable
+                                      style={styles.commentDropdownItem}
+                                      onPress={() => handleEditComment(reply.id, reply.content ?? "")}
+                                    >
                                       <Text style={styles.commentDropdownText}>수정</Text>
                                     </Pressable>
-                                    */}
-                                    <Pressable style={styles.commentDropdownItem} onPress={() => handleDeleteComment(reply.id)}>
+                                    <Pressable
+                                      style={styles.commentDropdownItem}
+                                      onPress={() => handleDeleteComment(reply.id)}
+                                    >
                                       <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>삭제</Text>
                                     </Pressable>
                                   </>
                                 ) : (
-                                  <Pressable style={styles.commentDropdownItem} onPress={() => reply.authorId && handleSendCommentChat(reply.authorId)}>
+                                  <Pressable
+                                    style={styles.commentDropdownItem}
+                                    onPress={() => reply.authorId && handleSendCommentChat(reply.authorId)}
+                                  >
                                     <Text style={styles.commentDropdownText}>채팅하기</Text>
                                   </Pressable>
                                 )}
