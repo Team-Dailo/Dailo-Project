@@ -11,7 +11,8 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import { useNavigation, TabActions, StackActions } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { getCompletedStaySessions, type StaySessionResponseDto } from "../../../services/location.service";
@@ -24,6 +25,16 @@ import {
 } from "../../../utils/staySessionFormat";
 
 export default function ParticipatedFestivalsScreen() {
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const navigation = useNavigation();
+  const goBack = () => {
+    if (from === 'map') {
+      navigation.dispatch(StackActions.popToTop());
+      navigation.dispatch(TabActions.jumpTo('map/index'));
+    } else {
+      router.back();
+    }
+  };
   const [list, setList] = useState<StaySessionResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +75,7 @@ export default function ParticipatedFestivalsScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable style={styles.headerBack} onPress={() => router.back()}>
+          <Pressable style={styles.headerBack} onPress={goBack}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
           <View style={styles.headerTitleWrap} pointerEvents="box-none">

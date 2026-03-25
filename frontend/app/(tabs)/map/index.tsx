@@ -1087,7 +1087,7 @@ export default function MapScreen() {
       ]);
       return;
     }
-    router.push('/(tabs)/mypage/saved-festivals');
+    router.push({ pathname: '/(tabs)/mypage/saved-festivals', params: { from: 'map' } });
   };
 
   const handlePressActiveFestivalFromMenu = () => {
@@ -1743,11 +1743,11 @@ export default function MapScreen() {
             ]);
             return;
           }
-          router.push('/(tabs)/mypage/saved-festivals');
+          router.push({ pathname: '/(tabs)/mypage/saved-festivals', params: { from: 'map' } });
         }}
         onPressMyActivities={() => {
           setIsMenuOpen(false);
-          router.push('/(tabs)/mypage/participated-festivals');
+          router.push({ pathname: '/(tabs)/mypage/participated-festivals', params: { from: 'map' } });
         }}
         onPressDirection={() => {
           setIsMenuOpen(false);
@@ -1759,7 +1759,7 @@ export default function MapScreen() {
         }}
         onPressSettings={() => {
           setIsMenuOpen(false);
-          router.push('/(tabs)/mypage/settings');
+          router.push({ pathname: '/(tabs)/mypage/settings', params: { from: 'map' } });
         }}
         onPressRefreshLocationAndCheck={handleRefreshLocationAndCheckZone}
       />
