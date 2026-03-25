@@ -1,12 +1,14 @@
 // app/_layout.tsx
 import React, { useEffect } from 'react';
-import { BackHandler } from 'react-native';
+import { AppState, BackHandler } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '../contexts/AuthContext';
 import { LoginVerifiedHandler } from '../components/LoginVerifiedHandler';
 import { KakaoLoginHandler } from '../components/KakaoLoginHandler';
+import { reconcileFestivalParticipationIfOutsideZone } from '../services/festivalParticipationReconcile';
+import { flushPendingStaySyncQueue } from '../services/staySessionSync';
 
 function getKakaoNativeAppKey(): string {
   const plugins = Constants.expoConfig?.plugins as [string, { nativeAppKey?: string }][] | undefined;
@@ -32,19 +34,38 @@ export default function RootLayout() {
   // 안드로이드 하드웨어 뒤로가기 버튼 처리
   useEffect(() => {
     const onBackPress = () => {
-      // 루트 화면(탭)이면 앱 종료 허용
+      // segments 예시: ['(tabs)', 'home'] or ['(tabs)', 'mypage', 'settings'] or ['board', '123']
       const firstSegment = segments[0] as string | undefined;
-      if (!firstSegment || firstSegment === '(tabs)') {
-        return false; // 기본 동작(앱 종료) 허용
+
+      // 탭 외부 화면(board, event, login 등)에서는 뒤로가기
+      if (firstSegment && firstSegment !== '(tabs)') {
+        router.back();
+        return true; // 기본 동작 방지
       }
-      // 그 외에는 이전 화면으로 이동
-      router.back();
-      return true; // 기본 동작 방지
+
+      // 탭 내부에서는 (tabs)/_layout.tsx의 BackHandler가 처리하도록 위임
+      // return false로 다음 핸들러에게 전달
+      return false;
     };
 
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
   }, [segments, router]);
+
+  // 체류 종료 대기 큐 → 구역 밖 재검증(지도 미오픈 시에도 서버·로컬 일치)
+  useEffect(() => {
+    const run = async () => {
+      await flushPendingStaySyncQueue();
+      await reconcileFestivalParticipationIfOutsideZone();
+    };
+    void run();
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') {
+        void run();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     // Expo Go에서는 Kakao SDK 초기화 스킵

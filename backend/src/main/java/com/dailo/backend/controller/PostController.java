@@ -167,4 +167,16 @@ public class PostController {
         int likeCount = postService.getLikeCount(id);
         return ResponseEntity.ok(new PostLikeResponseDto(liked, likeCount));
     }
+
+    /** 특정 사용자의 작성 게시글 목록 (공개 조회) */
+    @GetMapping("/member/{memberId}")
+    public ResponseEntity<Page<PostListResponseDto>> getPostsByMemberId(
+            @PathVariable Long memberId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        String email = SecurityUtil.getCurrentMemberEmail();
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(postService.getPostsByMemberId(memberId, email, pageable));
+    }
 }

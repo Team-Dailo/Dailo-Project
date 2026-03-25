@@ -32,17 +32,30 @@ public class ChatRoomService {
     private final MemberRepository memberRepository;
     private final BlockService blockService;
 
-    // 이메일로 내 ID를 찾아주는 헬퍼 메서드
-    private Long getMyIdByEmail(String email) {
-        return memberRepository.findByEmail(email)
+    // principal(email 또는 memberId)로 내 ID를 찾아주는 헬퍼 메서드
+    private Long getMyIdByPrincipal(String principal) {
+        if (principal == null || principal.isBlank()) {
+            throw new RuntimeException("인증된 사용자 정보가 없습니다.");
+        }
+
+        // 카카오 로그인 토큰 subject가 memberId인 경우 대응
+        if (principal.matches("\\d+")) {
+            Long memberId = Long.valueOf(principal);
+            return memberRepository.findById(memberId)
+                    .map(Member::getId)
+                    .orElseThrow(() -> new RuntimeException("Member not found: id=" + memberId));
+        }
+
+        // 일반 로그인(email subject) 대응
+        return memberRepository.findByEmail(principal)
                 .map(Member::getId)
-                .orElseThrow(() -> new RuntimeException("Member not found: " + email));
+                .orElseThrow(() -> new RuntimeException("Member not found: " + principal));
     }
 
     // 채팅방 생성 (1:1)
     @Transactional
     public ChatRoomResponseDto createRoom(String email, Long targetUserId) {
-        Long userId = getMyIdByEmail(email);
+        Long userId = getMyIdByPrincipal(email);
 
         // 1. 자기 자신과 채팅 불가
         if (userId.equals(targetUserId)) {
@@ -143,7 +156,7 @@ public class ChatRoomService {
 
     // 내 채팅방 목록
     public List<ChatRoomResponseDto> getMyRooms(String email) {
-        Long userId = getMyIdByEmail(email);
+        Long userId = getMyIdByPrincipal(email);
 
         List<ChatRoom> rooms = chatRoomRepository.findMyRooms(userId);
         List<Long> allUserIds = rooms.stream()
@@ -172,7 +185,7 @@ public class ChatRoomService {
 
     @Transactional
     public void markAsRead(Long roomId, String email) {
-        Long userId = getMyIdByEmail(email);
+        Long userId = getMyIdByPrincipal(email);
 
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
@@ -185,7 +198,7 @@ public class ChatRoomService {
 
     @Transactional
     public void leaveRoom(Long roomId, String email) {
-        Long userId = getMyIdByEmail(email);
+        Long userId = getMyIdByPrincipal(email);
 
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
@@ -201,7 +214,7 @@ public class ChatRoomService {
     }
 
     public ChatRoomResponseDto getRoom(Long roomId, String email) {
-        Long userId = getMyIdByEmail(email);
+        Long userId = getMyIdByPrincipal(email);
 
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
@@ -214,5 +227,37 @@ public class ChatRoomService {
         }
 
         return enrichRoom(room, userId);
+    }
+
+    // 채팅방 알림 토글
+    @Transactional
+    public boolean toggleNotification(Long roomId, String email) {
+        Long userId = getMyIdByPrincipal(email);
+
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
+
+        ChatMember member = chatMemberRepository.findByRoomAndUserId(room, userId)
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+
+        if (!member.isActive()) {
+            throw new RuntimeException("You have left this room");
+        }
+
+        member.toggleMuted();
+        return !member.isMuted(); // 알림 켜짐 상태 반환 (muted의 반대)
+    }
+
+    // 채팅방 알림 상태 조회
+    public boolean isNotificationOn(Long roomId, String email) {
+        Long userId = getMyIdByPrincipal(email);
+
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
+
+        ChatMember member = chatMemberRepository.findByRoomAndUserId(room, userId)
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+
+        return !member.isMuted();
     }
 }

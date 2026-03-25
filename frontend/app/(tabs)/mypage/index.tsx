@@ -177,6 +177,15 @@ export default function MyPageScreen() {
             }
           />
           <MenuItem
+            icon="chatbubble-ellipses-outline"
+            label="내가 쓴 댓글"
+            onPress={() =>
+              isLoggedIn
+                ? router.push("/(tabs)/mypage/board-commented")
+                : router.push("/login")
+            }
+          />
+          <MenuItem
             icon="bookmark-outline"
             label="저장한 게시글"
             onPress={() =>

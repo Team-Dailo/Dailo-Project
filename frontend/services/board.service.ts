@@ -138,6 +138,47 @@ export async function getMyPosts(
   return normalizeListImageUrls(data);
 }
 
+/** 특정 사용자의 게시글 목록 (공개 조회) */
+export async function getPostsByMemberId(
+  memberId: number,
+  params?: { page?: number; size?: number }
+): Promise<PageResponse<PostListItem>> {
+  const page = params?.page ?? 0;
+  const size = params?.size ?? 20;
+  const url = `${API_BASE_URL}/api/posts/member/${memberId}?page=${page}&size=${size}`;
+  const res = await fetch(url, { headers: await getAuthHeaders() });
+  if (!res.ok) throw new Error(`getPostsByMemberId failed: ${res.status}`);
+  const data = await res.json();
+  return normalizeListImageUrls(data);
+}
+
+/** 특정 사용자의 댓글 목록 (공개 조회) */
+export type MemberCommentItem = {
+  id: number;
+  postId: number;
+  postTitle?: string;
+  content: string;
+  authorId: number;
+  authorNickname: string;
+  authorProfileImageUrl?: string;
+  likeCount: number;
+  createdAt: string;
+  updatedAt?: string;
+  deleted?: boolean;
+};
+
+export async function getCommentsByMemberId(
+  memberId: number,
+  params?: { page?: number; size?: number }
+): Promise<PageResponse<MemberCommentItem>> {
+  const page = params?.page ?? 0;
+  const size = params?.size ?? 20;
+  const url = `${API_BASE_URL}/api/members/${memberId}/comments?page=${page}&size=${size}`;
+  const res = await fetch(url, { headers: await getAuthHeaders() });
+  if (!res.ok) throw new Error(`getCommentsByMemberId failed: ${res.status}`);
+  return res.json();
+}
+
 /** 상대 경로 이미지 URL을 API 기준으로 절대 URL로 변환 */
 function toAbsoluteImageUrls(urls: string[] | undefined): string[] {
   if (!urls || !Array.isArray(urls)) return [];
@@ -318,6 +359,22 @@ export async function deleteComment(commentId: number | string): Promise<void> {
   const url = `${API_BASE_URL}/api/comments/${commentId}`;
   const res = await fetch(url, { method: 'DELETE', headers: await getAuthHeaders() });
   if (!res.ok) throw new Error(`deleteComment failed: ${res.status}`);
+}
+
+/** 댓글 좋아요 토글 (로그인 필요). { liked, likeCount } 반환 */
+export async function toggleCommentLike(
+  commentId: number | string
+): Promise<{ liked: boolean; likeCount: number }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}/like`, {
+    method: 'POST',
+    headers,
+  });
+  if (!res.ok) {
+    const msg = res.status === 401 ? '로그인이 만료되었습니다.' : `좋아요 처리 실패 (${res.status})`;
+    throw new Error(msg);
+  }
+  return res.json();
 }
 
 /** 게시글 좋아요 토글 (로그인 필요). 기록 저장 후 { liked, likeCount } 반환 */

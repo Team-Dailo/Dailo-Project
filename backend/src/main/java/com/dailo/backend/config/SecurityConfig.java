@@ -9,11 +9,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -101,10 +103,20 @@ public class SecurityConfig {
 
                         // 타 사용자 프로필 조회는 공개 (숫자 ID만 매칭)
                         .requestMatchers(HttpMethod.GET, "/api/members/{id:\\d+}").permitAll()
+                        // 타 사용자 댓글 목록 조회는 공개
+                        .requestMatchers(HttpMethod.GET, "/api/members/{id:\\d+}/comments").permitAll()
                         // 나머지 회원 API는 인증 필요
                         .requestMatchers("/api/members/**").authenticated()
 
                         .anyRequest().authenticated()
+                )
+
+                // API 요청은 인증 실패 시 로그인 페이지로 리다이렉트하지 말고 401 반환
+                .exceptionHandling(exception -> exception
+                        .defaultAuthenticationEntryPointFor(
+                                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                                request -> request.getRequestURI().startsWith("/api/")
+                        )
                 )
 
                 .oauth2Login(oauth2 -> oauth2

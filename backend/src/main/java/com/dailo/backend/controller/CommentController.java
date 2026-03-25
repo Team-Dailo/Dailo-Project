@@ -69,4 +69,28 @@ public class CommentController {
         commentService.deleteComment(id, email);
         return ResponseEntity.ok().build();
     }
+
+    // 5. 댓글 좋아요 토글
+    @PostMapping("/comments/{id}/like")
+    public ResponseEntity<java.util.Map<String, Object>> toggleCommentLike(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        String email = userDetails.getUsername();
+        boolean liked = commentService.toggleCommentLike(id, email);
+        int likeCount = commentService.getCommentLikeCount(id);
+        return ResponseEntity.ok(java.util.Map.of("liked", liked, "likeCount", likeCount));
+    }
+
+    // 6. 특정 사용자의 댓글 목록 조회 (공개)
+    @GetMapping("/members/{memberId}/comments")
+    public Page<CommentResponseDto> getCommentsByMemberId(
+            @PathVariable Long memberId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        String email = SecurityUtil.getCurrentMemberEmail();
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return commentService.getCommentsByMemberId(memberId, email, pageable);
+    }
 }

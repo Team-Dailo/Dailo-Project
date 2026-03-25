@@ -19,7 +19,10 @@ import java.util.List;
 public class EventDetailResponse {
     private Long id;
     private String title;
-    private List<String> posterUrls;     // 포스터 이미지 리스트
+    /** 대표 썸네일(리스트·지도·상세 상단 공통) */
+    private String thumbnailUrl;
+    /** 상세 포스터 이미지 리스트 (0번 = 대표 썸네일) */
+    private List<String> posterUrls;
     private LocalDateTime startAt;       // 시작 일시
     private LocalDateTime endAt;         // 종료 일시
     private String placeName;            // 장소명
@@ -69,10 +72,27 @@ public class EventDetailResponse {
             }
         }
 
+        // 대표 썸네일
+        String thumb = event.getThumbnailUrl();
+
+        // 포스터 리스트: 0번에 대표 썸네일을 두고, 나머지 고화질 포스터를 뒤에 이어 붙인다.
+        List<String> posters = new java.util.ArrayList<>();
+        if (thumb != null && !thumb.isBlank()) {
+            posters.add(thumb);
+        }
+        if (event.getPosterUrls() != null) {
+            for (String url : event.getPosterUrls()) {
+                if (url != null && !url.isBlank() && !url.equals(thumb)) {
+                    posters.add(url);
+                }
+            }
+        }
+
         return EventDetailResponse.builder()
                 .id(event.getId())
                 .title(event.getTitle())
-                .posterUrls(event.getPosterUrls())
+                .thumbnailUrl(thumb)
+                .posterUrls(posters)
                 .startAt(event.getStartAt())
                 .endAt(event.getEndAt())
                 .placeName(event.getPlaceName())
@@ -94,6 +114,7 @@ public class EventDetailResponse {
         return EventDetailResponse.builder()
                 .id(base.getId())
                 .title(base.getTitle())
+                .thumbnailUrl(base.getThumbnailUrl())
                 .posterUrls(base.getPosterUrls())
                 .startAt(base.getStartAt())
                 .endAt(base.getEndAt())

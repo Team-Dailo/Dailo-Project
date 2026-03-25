@@ -69,11 +69,13 @@ export default function ChatRoomScreen() {
     try {
       const uid = await authService.getStoredUserId();
       setMyUserId(uid ?? null);
-      const [roomData, msgData] = await Promise.all([
+      const [roomData, msgData, notifStatus] = await Promise.all([
         chatService.getRoom(roomId),
         chatService.getMessages(roomId),
+        chatService.getNotificationStatus(roomId).catch(() => ({ notificationOn: true })),
       ]);
       setRoom(roomData);
+      setNotificationsOn(notifStatus.notificationOn);
       const myId = uid ?? 0;
       // API는 최신순(Desc)이므로 채팅은 과거→최신 순으로 보이도록 뒤집기
       const raw = (msgData.content ?? []).map((m) => ({
@@ -131,9 +133,19 @@ export default function ChatRoomScreen() {
     }
   };
 
-  const handleToggleNotification = () => {
-    setNotificationsOn((prev) => !prev);
+  const handleToggleNotification = async () => {
     setMenuVisible(false);
+    if (!roomId) return;
+    // 낙관적 업데이트
+    setNotificationsOn((prev) => !prev);
+    try {
+      const result = await chatService.toggleNotification(roomId);
+      setNotificationsOn(result.notificationOn);
+    } catch {
+      // 실패 시 롤백
+      setNotificationsOn((prev) => !prev);
+      Alert.alert("오류", "알림 설정 변경에 실패했습니다.");
+    }
   };
 
   const handleBlock = () => {
