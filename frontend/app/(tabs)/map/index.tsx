@@ -1202,6 +1202,19 @@ export default function MapScreen() {
     closeEventListSheet();
     handleMarkerPress(event);
     setSheetMode('collapsed');
+    if (
+      mapRef.current &&
+      event.latitude != null &&
+      event.longitude != null &&
+      Number.isFinite(event.latitude) &&
+      Number.isFinite(event.longitude)
+    ) {
+      mapRef.current.animateCameraTo({
+        latitude: event.latitude,
+        longitude: event.longitude,
+        zoom: 15,
+      });
+    }
   };
 
   // 행사 참여 칩: 왼쪽 상단 (필터 칩 아래 10dp). 규모·북마크: 칩이 있으면 칩 아래에 배치.
