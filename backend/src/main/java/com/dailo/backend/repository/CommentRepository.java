@@ -75,4 +75,8 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     // 보여줄 수 있는 대댓글 수 (삭제되지 않은 대댓글만 카운트)
     @Query("SELECT COUNT(c) FROM Comment c WHERE c.parentComment = :parentComment AND c.deletedAt IS NULL")
     long countVisibleReplies(@Param("parentComment") Comment parentComment);
+
+    // 여러 게시글의 삭제되지 않은 댓글 수 (대댓글 포함) 배치 조회
+    @Query("SELECT c.post.id, COUNT(c) FROM Comment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL GROUP BY c.post.id")
+    List<Object[]> countNonDeletedCommentsByPostIds(@Param("postIds") java.util.Collection<Long> postIds);
 }

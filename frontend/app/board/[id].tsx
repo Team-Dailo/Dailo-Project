@@ -15,6 +15,7 @@ import {
   Image,
   useWindowDimensions,
   RefreshControl,
+  Animated,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -93,14 +94,22 @@ export default function PostDetailScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const commentSectionY = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
+  const postLikeAnim = useRef(new Animated.Value(1)).current;
+  const commentLikeAnims = useRef<Map<string, Animated.Value>>(new Map());
+  const getCommentLikeAnim = useCallback((commentId: string) => {
+    if (!commentLikeAnims.current.has(commentId)) {
+      commentLikeAnims.current.set(commentId, new Animated.Value(1));
+    }
+    return commentLikeAnims.current.get(commentId)!;
+  }, []);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
 
   const { post, loading: postLoading, error: postError, refetch: refetchPost } = usePostDetail(id);
-  const { comments: apiComments, loading: commentsLoading, refetch: refetchComments, removeComment } = useComments(id);
+  const { comments: apiComments, loading: commentsLoading, refetch: refetchComments, removeComment, updateCommentLike } = useComments(id);
 
   const onRefresh = useCallback(async () => {
-    if (refreshing) return; // 중복 새로고침 방지
+    if (refreshing) return;
     setRefreshing(true);
     try {
       await Promise.all([refetchPost(), refetchComments()]);
@@ -160,11 +169,25 @@ export default function PostDetailScreen() {
     [apiComments, deletedCommentIds]
   );
   const comments = useMemo(() => filteredApiComments.map(toCommentDisplay), [filteredApiComments]);
-  const likeCount = post ? (post.likeCount ?? 0) : 0;
+  const [localLikeCount, setLocalLikeCount] = useState<number | null>(null);
+  const likeCount = localLikeCount ?? (post ? (post.likeCount ?? 0) : 0);
 
   useEffect(() => {
     setLiked(post?.isLiked ?? false);
+    setLocalLikeCount(null);
   }, [post?.id, post?.isLiked]);
+
+  useEffect(() => {
+    if (!apiComments.length) return;
+    const ids = new Set<string>();
+    apiComments.forEach((c) => {
+      if (c.isLiked) ids.add(String(c.id));
+      (c.replies ?? []).forEach((r) => {
+        if (r.isLiked) ids.add(String(r.id));
+      });
+    });
+    setLikedCommentIds(ids);
+  }, [apiComments]);
 
   const handleSavePost = async () => {
     setMenuVisible(false);
@@ -414,6 +437,13 @@ export default function PostDetailScreen() {
     router.push(`/profile/${authorId}`);
   };
 
+  const runLikeAnim = useCallback((anim: Animated.Value) => {
+    Animated.sequence([
+      Animated.spring(anim, { toValue: 1.5, useNativeDriver: true, speed: 30, bounciness: 12 }),
+      Animated.spring(anim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 4 }),
+    ]).start();
+  }, []);
+
   const toggleLike = async () => {
     if (!isLoggedIn) {
       Alert.alert("로그인 필요", "좋아요를 누르려면 로그인해 주세요.", [
@@ -426,8 +456,9 @@ export default function PostDetailScreen() {
     try {
       const userId = user?.id != null ? Number(user.id) : undefined;
       const res = await boardService.togglePostLike(id, userId);
+      if (res.liked) runLikeAnim(postLikeAnim);
       setLiked(res.liked);
-      await refetchPost();
+      setLocalLikeCount(res.likeCount ?? (likeCount + (res.liked ? 1 : -1)));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "좋아요 처리에 실패했습니다.";
       const isAuthError = msg.includes("로그인이 만료");
@@ -447,24 +478,11 @@ export default function PostDetailScreen() {
       ]);
       return;
     }
-    // 낙관적 업데이트
-    setLikedCommentIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(commentId)) next.delete(commentId);
-      else next.add(commentId);
-      return next;
-    });
     try {
-      await boardService.toggleCommentLike(commentId);
-      refetchComments();
+      const result = await boardService.toggleCommentLike(commentId);
+      if (result.liked) runLikeAnim(getCommentLikeAnim(commentId));
+      updateCommentLike(commentId, result.liked, result.likeCount);
     } catch (e) {
-      // 실패 시 롤백
-      setLikedCommentIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(commentId)) next.delete(commentId);
-        else next.add(commentId);
-        return next;
-      });
       const msg = e instanceof Error ? e.message : "좋아요 처리에 실패했습니다.";
       Alert.alert("오류", msg);
     }
@@ -664,7 +682,9 @@ export default function PostDetailScreen() {
                 <Text style={styles.postContent}>{post.content}</Text>
                 <View style={styles.postFooter}>
                   <Pressable style={styles.footerItem} onPress={toggleLike}>
-                    <Ionicons name={liked ? "heart" : "heart-outline"} size={18} color={liked ? "#EF4444" : "#4B5563"} />
+                    <Animated.View style={{ transform: [{ scale: postLikeAnim }] }}>
+                      <Ionicons name={liked ? "heart" : "heart-outline"} size={18} color={liked ? "#EF4444" : "#4B5563"} />
+                    </Animated.View>
                     <Text style={[styles.footerText, liked && styles.footerTextLiked]}>{likeCount}</Text>
                   </Pressable>
                   <Pressable
@@ -678,7 +698,7 @@ export default function PostDetailScreen() {
                   >
                     <Ionicons name="chatbubble-ellipses-outline" size={18} color="#4B5563" />
                     <Text style={styles.footerText}>
-                      {commentsLoading ? (post.commentCount ?? 0) : comments.length}
+                      {commentsLoading ? (post.commentCount ?? 0) : comments.reduce((acc, c) => acc + 1 + (c.replies?.length ?? 0), 0)}
                     </Text>
                   </Pressable>
                   {/* 종이비행기(공유/채팅) 아이콘 비노출 처리
@@ -702,7 +722,7 @@ export default function PostDetailScreen() {
                 ) : (
                   comments.map((c) => {
               const commentLiked = likedCommentIds.has(c.id);
-              const commentLikeCount = c.likes + (commentLiked ? 1 : 0);
+              const commentLikeCount = c.likes;
               const isMine = !c.deleted && isMyComment(c.id);
               const hasCommentPhoto = !c.deleted && c.authorProfileImageUrl?.trim();
               const isEdited = !c.deleted && new Date(c.updatedAt) > new Date(c.createdAt);
@@ -797,11 +817,13 @@ export default function PostDetailScreen() {
                           </View>
                         )}
                         <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(c.id)}>
-                          <Ionicons
-                            name={commentLiked ? "heart" : "heart-outline"}
-                            size={16}
-                            color={commentLiked ? "#EF4444" : "#9CA3AF"}
-                          />
+                          <Animated.View style={{ transform: [{ scale: getCommentLikeAnim(c.id) }] }}>
+                            <Ionicons
+                              name={commentLiked ? "heart" : "heart-outline"}
+                              size={16}
+                              color={commentLiked ? "#EF4444" : "#9CA3AF"}
+                            />
+                          </Animated.View>
                           <Text style={[styles.commentLikeCount, commentLiked && styles.commentLikeCountLiked]}>
                             {commentLikeCount}
                           </Text>
@@ -812,7 +834,7 @@ export default function PostDetailScreen() {
                   {/* 대댓글 렌더링 */}
                   {c.replies.map((reply) => {
                     const replyLiked = likedCommentIds.has(reply.id);
-                    const replyLikeCount = reply.likes + (replyLiked ? 1 : 0);
+                    const replyLikeCount = reply.likes;
                     const isMyReply = !reply.deleted && isMyComment(reply.id);
                     const hasReplyPhoto = !reply.deleted && reply.authorProfileImageUrl?.trim();
                     const isReplyEdited = !reply.deleted && new Date(reply.updatedAt) > new Date(reply.createdAt);
@@ -908,11 +930,13 @@ export default function PostDetailScreen() {
                               </View>
                             )}
                             <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(reply.id)}>
-                              <Ionicons
-                                name={replyLiked ? "heart" : "heart-outline"}
-                                size={16}
-                                color={replyLiked ? "#EF4444" : "#9CA3AF"}
-                              />
+                              <Animated.View style={{ transform: [{ scale: getCommentLikeAnim(reply.id) }] }}>
+                                <Ionicons
+                                  name={replyLiked ? "heart" : "heart-outline"}
+                                  size={16}
+                                  color={replyLiked ? "#EF4444" : "#9CA3AF"}
+                                />
+                              </Animated.View>
                               <Text style={[styles.commentLikeCount, replyLiked && styles.commentLikeCountLiked]}>
                                 {replyLikeCount}
                               </Text>

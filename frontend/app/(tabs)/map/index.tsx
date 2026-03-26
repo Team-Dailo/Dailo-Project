@@ -1087,7 +1087,7 @@ export default function MapScreen() {
       ]);
       return;
     }
-    router.push('/(tabs)/mypage/saved-festivals');
+    router.push({ pathname: '/(tabs)/mypage/saved-festivals', params: { from: 'map' } });
   };
 
   const handlePressActiveFestivalFromMenu = () => {
@@ -1202,6 +1202,19 @@ export default function MapScreen() {
     closeEventListSheet();
     handleMarkerPress(event);
     setSheetMode('collapsed');
+    if (
+      mapRef.current &&
+      event.latitude != null &&
+      event.longitude != null &&
+      Number.isFinite(event.latitude) &&
+      Number.isFinite(event.longitude)
+    ) {
+      mapRef.current.animateCameraTo({
+        latitude: event.latitude,
+        longitude: event.longitude,
+        zoom: 15,
+      });
+    }
   };
 
   // 행사 참여 칩: 왼쪽 상단 (필터 칩 아래 10dp). 규모·북마크: 칩이 있으면 칩 아래에 배치.
@@ -1328,7 +1341,9 @@ export default function MapScreen() {
                   if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return;
                   const centerLat = r.latitude + r.latitudeDelta / 2;
                   const centerLng = r.longitude + r.longitudeDelta / 2;
-                  const zoom = 14 - Math.round(Math.log2(r.latitudeDelta / 0.01));
+                  const zoom = params.zoom != null
+                    ? Math.round(params.zoom)
+                    : 14 - Math.round(Math.log2(r.latitudeDelta / 0.01));
                   lastCameraRef.current = {
                     latitude: centerLat,
                     longitude: centerLng,
@@ -1541,11 +1556,7 @@ export default function MapScreen() {
                       const centerLng = lastCameraRef.current?.longitude ?? (region ? region.longitude + region.longitudeDelta / 2 : DEFAULT_CAMERA.longitude);
                       const currentZoom = lastCameraRef.current?.zoom ?? naverMapCamera.zoom;
                       if (!mapRef.current) return;
-                      /** 확대 1회 누르면 기본 배율(16)로, 그 이상이면 1단계씩 */
-                      const DEFAULT_ZOOM_LEVEL = 16;
-                      const newZoom = currentZoom < DEFAULT_ZOOM_LEVEL
-                        ? DEFAULT_ZOOM_LEVEL
-                        : Math.min(18, currentZoom + 1);
+                      const newZoom = Math.min(18, currentZoom + 1);
                       lastCameraRef.current = { latitude: centerLat, longitude: centerLng, zoom: newZoom };
                       mapRef.current.animateCameraTo({
                         latitude: centerLat,
@@ -1732,11 +1743,11 @@ export default function MapScreen() {
             ]);
             return;
           }
-          router.push('/(tabs)/mypage/saved-festivals');
+          router.push({ pathname: '/(tabs)/mypage/saved-festivals', params: { from: 'map' } });
         }}
         onPressMyActivities={() => {
           setIsMenuOpen(false);
-          router.push('/(tabs)/mypage/participated-festivals');
+          router.push({ pathname: '/(tabs)/mypage/participated-festivals', params: { from: 'map' } });
         }}
         onPressDirection={() => {
           setIsMenuOpen(false);
@@ -1748,7 +1759,7 @@ export default function MapScreen() {
         }}
         onPressSettings={() => {
           setIsMenuOpen(false);
-          router.push('/(tabs)/mypage/settings');
+          router.push({ pathname: '/(tabs)/mypage/settings', params: { from: 'map' } });
         }}
         onPressRefreshLocationAndCheck={handleRefreshLocationAndCheckZone}
       />
