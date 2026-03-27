@@ -1,6 +1,8 @@
 /**
  * 체류 인증 API (구역 1초 이상 체류 시 참여 기록 - 날짜·진입시간·체류시간)
- * POST /api/location/start, POST /api/location/complete
+ * POST /api/location/start — 반경 내 체류 시작
+ * POST /api/location/complete — 반경 안에서만 완료(수동 종료 등)
+ * POST /api/location/ping — 반경 밖이면 자동 종료(구역 이탈 시 이쪽 사용)
  * GET /api/location/stay-sessions/completed
  */
 import { API_BASE_URL } from '../constants/api';
@@ -44,7 +46,7 @@ export async function startStay(eventId: number, latitude: number, longitude: nu
   }
 }
 
-/** 체류 완료 (구역 이탈 시 또는 30분 경과 시 호출, 1초라도 있었으면 기록) */
+/** 체류 완료 (행사장 반경 200m 안에서만 허용 — 앱 내 “구역 안에서 완료”용) */
 export async function completeStay(eventId: number, latitude: number, longitude: number): Promise<void> {
   const res = await authFetch('/api/location/complete', {
     method: 'POST',
@@ -54,6 +56,33 @@ export async function completeStay(eventId: number, latitude: number, longitude:
     const text = await res.text();
     throw new Error(text || `체류 완료 실패 (${res.status})`);
   }
+}
+
+/**
+ * 위치 ping — 반경 밖이면 PENDING 세션을 자동 완료함(구역 이탈·앱 재개 후 이탈 판정에 사용).
+ * 반경 안이면 마지막 위치만 갱신.
+ */
+export async function pingStay(eventId: number, latitude: number, longitude: number): Promise<void> {
+  const res = await authFetch('/api/location/ping', {
+    method: 'POST',
+    body: JSON.stringify({ eventId, latitude, longitude }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `위치 ping 실패 (${res.status})`);
+  }
+}
+
+/** 진행 중(PENDING) 체류 세션이 있으면 반환, 없으면 null */
+export async function getActiveStaySession(eventId: number): Promise<StaySessionResponseDto | null> {
+  const res = await authFetch(`/api/location/stay-sessions/active?eventId=${eventId}`);
+  if (res.status === 204) return null;
+  if (res.status === 401 || res.status === 403) return null;
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `진행 세션 조회 실패 (${res.status})`);
+  }
+  return (await res.json()) as StaySessionResponseDto;
 }
 
 /** 완료된 체류 세션 목록 (참여한 축제: 1초라도 있었으면, 같은 날 같은 행사 1건) */
