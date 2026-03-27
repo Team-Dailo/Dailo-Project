@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { getCompletedStaySessions, type StaySessionResponseDto } from "../../../services/location.service";
@@ -24,6 +24,15 @@ import {
 } from "../../../utils/staySessionFormat";
 
 export default function ParticipatedFestivalsScreen() {
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const goBack = () => {
+    if (from === 'map') {
+      router.replace('/(tabs)/mypage');
+      router.replace('/(tabs)/map');
+    } else {
+      router.back();
+    }
+  };
   const [list, setList] = useState<StaySessionResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +73,7 @@ export default function ParticipatedFestivalsScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable style={styles.headerBack} onPress={() => router.back()}>
+          <Pressable style={styles.headerBack} onPress={goBack}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
           <View style={styles.headerTitleWrap} pointerEvents="box-none">
@@ -83,6 +92,9 @@ export default function ParticipatedFestivalsScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.contents}>
+            <Text style={styles.listHint}>
+              구역 체류가 서버에 종료로 저장된 기록입니다. 10분만 머물어도 표시되며, 30분 이상만 보는 미션 목록은 다른 메뉴입니다.
+            </Text>
             {list.length === 0 ? (
               <Text style={styles.empty}>축제 구역에 참여한 기록이 없습니다.</Text>
             ) : (
@@ -212,6 +224,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
+  },
+  listHint: {
+    fontSize: 12,
+    color: "#6B7280",
+    lineHeight: 18,
+    marginBottom: 14,
+    paddingHorizontal: 2,
   },
   contents: { padding: 16 },
   dateSection: { marginBottom: 20 },

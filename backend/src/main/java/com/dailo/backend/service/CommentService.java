@@ -106,10 +106,20 @@ public class CommentService {
                     }
                 }));
 
+        // 현재 유저가 좋아요 누른 댓글 ID 조회 (한 번의 쿼리로)
+        Set<Long> allCommentIds = new java.util.HashSet<>();
+        for (Comment c : topList) {
+            allCommentIds.add(c.getId());
+            getReplies(c, invisibleIds).forEach(r -> allCommentIds.add(r.getId()));
+        }
+        Set<Long> likedCommentIds = (userId != null && !allCommentIds.isEmpty())
+                ? commentLikeRepository.findLikedCommentIds(userId, allCommentIds)
+                : Collections.emptySet();
+
         List<CommentResponseDto> dtos = topList.stream()
                 .map(comment -> {
                     List<Comment> replies = getReplies(comment, invisibleIds);
-                    return CommentResponseDto.fromWithReplies(comment, replies, authorNicknameMap, authorProfileImageUrlMap);
+                    return CommentResponseDto.fromWithReplies(comment, replies, authorNicknameMap, authorProfileImageUrlMap, likedCommentIds);
                 })
                 .toList();
         return new PageImpl<>(dtos, pageable, (long) topList.size());
@@ -124,7 +134,7 @@ public class CommentService {
     }
 
     // 2. 댓글 생성
-    @Transactional
+    @Transactional(readOnly = false)
     public CommentResponseDto createComment(Long postId, CommentRequestDto requestDto, String email) {
         Long authorId = getMemberIdByEmail(email);
         requestDto.validate();
@@ -177,7 +187,7 @@ public class CommentService {
     }
 
     // 3. 댓글 수정
-    @Transactional
+    @Transactional(readOnly = false)
     public CommentResponseDto updateComment(Long id, CommentRequestDto requestDto, String email) {
         Long authorId = getMemberIdByEmail(email);
         requestDto.validate();
@@ -205,7 +215,7 @@ public class CommentService {
     }
 
     // 4. 댓글 삭제
-    @Transactional
+    @Transactional(readOnly = false)
     public void deleteComment(Long id, String email) {
         Long authorId = getMemberIdByEmail(email);
         Comment comment = commentRepository.findById(id)
@@ -221,12 +231,13 @@ public class CommentService {
         }
 
         Long postId = comment.getPost().getId();
-        commentRepository.delete(comment);
+        comment.softDelete();
+        commentRepository.saveAndFlush(comment);
         postRepository.decreaseCommentCount(postId);
     }
 
     // 5. 댓글 좋아요 토글
-    @Transactional
+    @Transactional(readOnly = false)
     public boolean toggleCommentLike(Long commentId, String email) {
         Long userId = getMemberIdByEmail(email);
         if (userId == null) {

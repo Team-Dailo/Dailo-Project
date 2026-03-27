@@ -56,7 +56,7 @@ type Props = {
   events: Event[];
   onMarkerPress: (event: Event) => void;
   /** 카메라 이동이 끝났을 때(드래그/줌 후) 호출. region 동기화용 (latitude/longitude는 남서쪽, center 아님) */
-  onCameraIdle?: (params: { region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number } }) => void;
+  onCameraIdle?: (params: { region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }; zoom?: number }) => void;
   /** 현재 위치 버튼을 눌렀을 때 표시할 파란 동그라미 위치 */
   currentLocation?: { latitude: number; longitude: number } | null;
   /** 동그라미 표시용 좌표(실제 위치 못 받을 때 fallback 등). 있으면 이걸 우선 사용 */

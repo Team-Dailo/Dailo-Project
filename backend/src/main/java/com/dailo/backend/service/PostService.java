@@ -83,6 +83,17 @@ public class PostService {
         return events.stream().collect(Collectors.toMap(Event::getId, Event::getTitle, (a, b) -> a));
     }
 
+    /** postId -> 실제 삭제되지 않은 댓글 수 (대댓글 포함) 배치 조회 */
+    private Map<Long, Integer> getCommentCountMap(List<Post> posts) {
+        Set<Long> postIds = posts.stream().map(Post::getId).collect(Collectors.toSet());
+        if (postIds.isEmpty()) return Map.of();
+        return commentRepository.countNonDeletedCommentsByPostIds(postIds).stream()
+                .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).longValue(),
+                        row -> ((Number) row[1]).intValue()
+                ));
+    }
+
     /** 내가 쓴 글 목록 (마이페이지 게시판 기록) */
     public Page<PostListResponseDto> getMyPosts(String email, Pageable pageable) {
         Long authorId = resolveMemberId(email);
@@ -90,7 +101,8 @@ public class PostService {
         List<Post> posts = page.getContent();
         var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
-        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), null, post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())));
+        Map<Long, Integer> commentCountMap = getCommentCountMap(posts);
+        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), null, post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId()), commentCountMap.getOrDefault(post.getId(), 0)));
     }
 
     public Page<PostListResponseDto> getAllPosts(String email, Pageable pageable) {
@@ -107,8 +119,9 @@ public class PostService {
         List<Post> posts = page.getContent();
         var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
+        Map<Long, Integer> commentCountMap = getCommentCountMap(posts);
         Set<Long> likedPostIds = (userId != null) ? postLikeRepository.findPostIdsByMemberId(userId) : Set.of();
-        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())));
+        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId()), commentCountMap.getOrDefault(post.getId(), 0)));
     }
 
     @Transactional
@@ -200,8 +213,9 @@ public class PostService {
         List<Post> posts = page.getContent();
         var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
+        Map<Long, Integer> commentCountMap = getCommentCountMap(posts);
         Set<Long> likedPostIds = (userId != null) ? postLikeRepository.findPostIdsByMemberId(userId) : Set.of();
-        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())));
+        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId()), commentCountMap.getOrDefault(post.getId(), 0)));
     }
 
     /** 내가 댓글 단 글 목록 (마이페이지) - 인증 필요 */
@@ -217,9 +231,10 @@ public class PostService {
         List<Post> ordered = postIds.stream().map(postMap::get).filter(p -> p != null).toList();
         var authorMaps = getAuthorNicknameAndProfileMaps(ordered);
         Map<Long, String> eventTitleMap = getEventTitleMap(ordered);
+        Map<Long, Integer> commentCountMap = getCommentCountMap(ordered);
         Set<Long> likedPostIds = postLikeRepository.findPostIdsByMemberId(userId);
         List<PostListResponseDto> content = ordered.stream()
-                .map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())))
+                .map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId()), commentCountMap.getOrDefault(post.getId(), 0)))
                 .toList();
         return new PageImpl<>(content, pageable, total);
     }
@@ -231,10 +246,11 @@ public class PostService {
         List<Post> posts = likePage.getContent().stream().map(PostLike::getPost).toList();
         var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
+        Map<Long, Integer> commentCountMap = getCommentCountMap(posts);
         List<PostListResponseDto> content = likePage.getContent().stream()
                 .map(pl -> {
                     Post p = pl.getPost();
-                    return PostListResponseDto.from(p, authorMaps.getFirst().get(p.getAuthorId()), true, p.getEventId() != null ? eventTitleMap.get(p.getEventId()) : null, authorMaps.getSecond().get(p.getAuthorId()));
+                    return PostListResponseDto.from(p, authorMaps.getFirst().get(p.getAuthorId()), true, p.getEventId() != null ? eventTitleMap.get(p.getEventId()) : null, authorMaps.getSecond().get(p.getAuthorId()), commentCountMap.getOrDefault(p.getId(), 0));
                 })
                 .toList();
         return new PageImpl<>(content, likePage.getPageable(), likePage.getTotalElements());
@@ -282,8 +298,9 @@ public class PostService {
         List<Post> posts = page.getContent();
         var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
+        Map<Long, Integer> commentCountMap = getCommentCountMap(posts);
         Set<Long> likedPostIds = (userId != null) ? postLikeRepository.findPostIdsByMemberId(userId) : Set.of();
-        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())));
+        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId()), commentCountMap.getOrDefault(post.getId(), 0)));
     }
 
     public Page<PostListResponseDto> searchPosts(String keyword, String email, Pageable pageable) {
@@ -301,8 +318,9 @@ public class PostService {
                             List<Post> one = List.of(post);
                             var authorMaps = getAuthorNicknameAndProfileMaps(one);
                             Map<Long, String> eventTitleMap = getEventTitleMap(one);
+                            Map<Long, Integer> commentCountMap = getCommentCountMap(one);
                             Set<Long> likedPostIds = (userId != null) ? postLikeRepository.findPostIdsByMemberId(userId) : Set.of();
-                            PostListResponseDto dto = PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId()));
+                            PostListResponseDto dto = PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId()), commentCountMap.getOrDefault(post.getId(), 0));
                             return new PageImpl<>(List.of(dto), pageable, 1);
                         })
                         .orElseGet(() -> searchPostsByTitle(keyword, userId, pageable));
@@ -326,8 +344,9 @@ public class PostService {
         List<Post> posts = page.getContent();
         var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
+        Map<Long, Integer> commentCountMap = getCommentCountMap(posts);
         Set<Long> likedPostIds = (userId != null) ? postLikeRepository.findPostIdsByMemberId(userId) : Set.of();
-        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId())));
+        return page.map(post -> PostListResponseDto.from(post, authorMaps.getFirst().get(post.getAuthorId()), likedPostIds.contains(post.getId()), post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null, authorMaps.getSecond().get(post.getAuthorId()), commentCountMap.getOrDefault(post.getId(), 0)));
     }
 
     /** 게시글 좋아요 토글. 반환값: 좋아요 누른 상태(true) / 취소(false) */
@@ -375,6 +394,7 @@ public class PostService {
         List<Post> posts = page.getContent();
         var authorMaps = getAuthorNicknameAndProfileMaps(posts);
         Map<Long, String> eventTitleMap = getEventTitleMap(posts);
+        Map<Long, Integer> commentCountMap = getCommentCountMap(posts);
         Set<Long> likedPostIds = (viewerId != null) ? postLikeRepository.findPostIdsByMemberId(viewerId) : Set.of();
 
         return page.map(post -> PostListResponseDto.from(
@@ -382,7 +402,8 @@ public class PostService {
                 authorMaps.getFirst().get(post.getAuthorId()),
                 likedPostIds.contains(post.getId()),
                 post.getEventId() != null ? eventTitleMap.get(post.getEventId()) : null,
-                authorMaps.getSecond().get(post.getAuthorId())
+                authorMaps.getSecond().get(post.getAuthorId()),
+                commentCountMap.getOrDefault(post.getId(), 0)
         ));
     }
 }

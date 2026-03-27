@@ -1,7 +1,7 @@
 // app/(tabs)/mypage/settings.tsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../hooks/useAuth';
@@ -11,6 +11,15 @@ import * as authService from '../../../services/auth.service';
 export default function MyPageSettingsScreen() {
   const { isLoggedIn, logout } = useAuth();
   const safeBack = useSafeBack();
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const goBack = () => {
+    if (from === 'map') {
+      router.replace('/(tabs)/mypage');
+      router.replace('/(tabs)/map');
+    } else {
+      safeBack();
+    }
+  };
   const [withdrawing, setWithdrawing] = useState(false);
 
   const handleWithdraw = () => {
@@ -59,7 +68,7 @@ export default function MyPageSettingsScreen() {
           headerTitleAlign: 'center',
           headerLeft: () => (
             <Pressable
-              onPress={safeBack}
+              onPress={goBack}
               hitSlop={8}
               style={styles.headerBackButton}
             >
