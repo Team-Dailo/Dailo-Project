@@ -116,17 +116,6 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles
 
-      - name: Debug signing assets
-        run: |
-          echo "== Identities in keychain =="
-          security find-identity -v -p codesigning "$RUNNER_TEMP/app-signing.keychain-db" || true
-
-          echo "== Profile info =="
-          security cms -D -i "$RUNNER_TEMP/build_pp.mobileprovision" > /tmp/profile.plist
-          /usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist
-          /usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist
-          /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/profile.plist
-
       - name: Verify code signing identities
         run: |
           security find-identity -v -p codesigning "$RUNNER_TEMP/app-signing.keychain-db" || true
@@ -138,7 +127,8 @@ jobs:
           IOS_PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
           IOS_CODE_SIGN_IDENTITY: ${{ secrets.IOS_CODE_SIGN_IDENTITY }}
         run: |
-          WORKSPACE=$(find . -maxdepth 2 -type d -name "*.xcworkspace" -not -path "./Pods/*" | head -n 1)
+          WORKSPACE=$(find . -maxdepth 2 -type d -name "*.xcworkspace" -not -path "./Pods/*" -not -path "*.xcodeproj/*" | head -n 1)
+          
           if [ -n "$WORKSPACE" ]; then
             SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" | awk '
               $1=="Schemes:"{found=1;next}
@@ -160,6 +150,7 @@ jobs:
             exit 0
           fi
 
+          # WORKSPACE가 진짜 없을 때만 플랜 B(xcodeproj) 실행
           PROJECT=$(find . -maxdepth 2 -type d -name "*.xcodeproj" -not -path "./Pods/*" | head -n 1)
           if [ -z "$PROJECT" ]; then
             echo "No .xcworkspace or .xcodeproj found in ios/. Did prebuild succeed?"
