@@ -74,7 +74,7 @@ resource "aws_ssm_parameter" "jwt_secret" {
 # 1. VPC 모듈
 # ------------------------------------------------------------------------------
 module "vpc" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/vpc?ref=v0.1.3"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/vpc?ref=v0.1.4"
 
   name     = local.name
   region   = "ap-northeast-2"
@@ -94,7 +94,7 @@ module "vpc" {
 # 2. ecs 모듈
 # ------------------------------------------------------------------------------
 module "ecs" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/ecs?ref=v0.1.3"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/ecs?ref=v0.1.4"
 
   name   = local.name
   region = "ap-northeast-2" # CloudWatch 로그 등을 위해 사용
@@ -118,9 +118,11 @@ module "ecs" {
   asg_desired = 2
 
   # 테스크 값
-  #desired_count = 2
+  desired_count = 4
+  min_desired_count = 4
+  max_desired_count = 10
   cpu = 512
-  memory = 1024
+  memory = 700
   container_port = 8080
   container_env = [
     {
@@ -176,7 +178,7 @@ module "ecs" {
 # 3. RDS 모듈
 # ------------------------------------------------------------------------------
 module "rds" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/rds?ref=v0.1.3"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/rds?ref=v0.1.4"
 
   name   = local.name
   vpc_id = module.vpc.vpc_id
@@ -201,7 +203,7 @@ module "rds" {
 # 4. cdn 모듈
 # ------------------------------------------------------------------------------
 module "cdn" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=v0.1.3"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=v0.1.4"
   
   name        = local.name
   bucket_name = local.static_bucket_name
@@ -220,7 +222,7 @@ module "cdn" {
 # 5. Monitoring (Grafana) 모듈 테스트
 # ------------------------------------------------------------------------------
 module "monitoring" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/monitoring?ref=v0.1.3" 
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/monitoring?ref=v0.1.4" 
 
   name   = local.name   
   region = "ap-northeast-2"
@@ -239,7 +241,7 @@ module "monitoring" {
   domain_name     = local.domain_name
   
   cpu    = 512  
-  memory = 512 
+  memory = 300
 
   rds_endpoint = module.rds.address 
 
