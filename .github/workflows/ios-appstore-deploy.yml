@@ -122,22 +122,45 @@ jobs:
           IOS_PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
           IOS_CODE_SIGN_IDENTITY: ${{ secrets.IOS_CODE_SIGN_IDENTITY }}
         run: |
-          WORKSPACE=$(ls *.xcworkspace | head -n 1)
-          if [ -z "$WORKSPACE" ]; then
-            echo "No .xcworkspace found in ios/. Did prebuild succeed?"
+          WORKSPACE=$(find . -maxdepth 2 -type d -name "*.xcworkspace" -not -path "./Pods/*" | head -n 1)
+          if [ -n "$WORKSPACE" ]; then
+            SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" | awk '
+              $1=="Schemes:"{found=1;next}
+              found && NF{print $1; exit}
+            ')
+            if [ -z "$SCHEME" ]; then
+              SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+            fi
+
+            xcodebuild archive \
+              -workspace "$WORKSPACE" \
+              -scheme "$SCHEME" \
+              -configuration Release \
+              -archivePath "$PWD/build/App.xcarchive" \
+              CODE_SIGN_STYLE=Manual \
+              DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+              PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
+              CODE_SIGN_IDENTITY="$IOS_CODE_SIGN_IDENTITY"
+            exit 0
+          fi
+
+          PROJECT=$(find . -maxdepth 2 -type d -name "*.xcodeproj" -not -path "./Pods/*" | head -n 1)
+          if [ -z "$PROJECT" ]; then
+            echo "No .xcworkspace or .xcodeproj found in ios/. Did prebuild succeed?"
+            ls -la
             exit 1
           fi
 
-          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" | awk '
+          SCHEME=$(xcodebuild -list -project "$PROJECT" | awk '
             $1=="Schemes:"{found=1;next}
             found && NF{print $1; exit}
           ')
           if [ -z "$SCHEME" ]; then
-            SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+            SCHEME=$(basename "$PROJECT" .xcodeproj)
           fi
 
           xcodebuild archive \
-            -workspace "$WORKSPACE" \
+            -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Release \
             -archivePath "$PWD/build/App.xcarchive" \
