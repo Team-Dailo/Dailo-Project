@@ -109,11 +109,27 @@ jobs:
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -s "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles
+
+      - name: Debug signing assets
+        run: |
+          echo "== Identities in keychain =="
+          security find-identity -v -p codesigning "$RUNNER_TEMP/app-signing.keychain-db" || true
+
+          echo "== Profile info =="
+          security cms -D -i "$RUNNER_TEMP/build_pp.mobileprovision" > /tmp/profile.plist
+          /usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist
+          /usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist
+          /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/profile.plist
+
+      - name: Verify code signing identities
+        run: |
+          security find-identity -v -p codesigning "$RUNNER_TEMP/app-signing.keychain-db" || true
 
       - name: Build and Archive iOS app
         working-directory: ./frontend/ios
