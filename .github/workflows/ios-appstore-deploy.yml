@@ -130,13 +130,8 @@ jobs:
           WORKSPACE=$(find . -maxdepth 2 -type d -name "*.xcworkspace" -not -path "./Pods/*" -not -path "*.xcodeproj/*" | head -n 1)
           
           if [ -n "$WORKSPACE" ]; then
-            SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" | awk '
-              $1=="Schemes:"{found=1;next}
-              found && NF{print $1; exit}
-            ')
-            if [ -z "$SCHEME" ]; then
-              SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-            fi
+            SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+            echo " 타겟 스킴이 [$SCHEME] 로 설정되었습니다."
 
             xcodebuild archive \
               -workspace "$WORKSPACE" \
@@ -158,13 +153,8 @@ jobs:
             exit 1
           fi
 
-          SCHEME=$(xcodebuild -list -project "$PROJECT" | awk '
-            $1=="Schemes:"{found=1;next}
-            found && NF{print $1; exit}
-          ')
-          if [ -z "$SCHEME" ]; then
-            SCHEME=$(basename "$PROJECT" .xcodeproj)
-          fi
+          SCHEME=$(basename "$PROJECT" .xcodeproj)
+          echo "(플랜 B) 타겟 스킴이 [$SCHEME] 로 설정되었습니다."
 
           xcodebuild archive \
             -project "$PROJECT" \
