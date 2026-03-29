@@ -116,6 +116,17 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles
 
+      - name: Debug signing assets
+        run: |
+          echo "== Identities in keychain =="
+          security find-identity -v -p codesigning "$RUNNER_TEMP/app-signing.keychain-db" || true
+
+          echo "== Profile info =="
+          security cms -D -i "$RUNNER_TEMP/build_pp.mobileprovision" > /tmp/profile.plist
+          /usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist
+          /usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist
+          /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/profile.plist
+
       - name: Verify code signing identities
         run: |
           security find-identity -v -p codesigning "$RUNNER_TEMP/app-signing.keychain-db" || true
