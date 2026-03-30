@@ -421,13 +421,11 @@ export default function BoardScreen() {
         {/* 헤더 */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>게시판</Text>
-          {/* 채팅하기 아이콘 주석 처리
           <View style={styles.headerRight}>
             <Pressable onPress={() => router.push("/board/chat")} style={styles.headerIconBtn}>
               <Ionicons name="chatbubble-outline" size={22} color="#111827" />
             </Pressable>
           </View>
-          */}
         </View>
 
         <ScrollView
