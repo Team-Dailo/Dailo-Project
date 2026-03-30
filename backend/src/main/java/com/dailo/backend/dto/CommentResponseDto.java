@@ -28,6 +28,8 @@ public class CommentResponseDto {
     private String authorProfileImageUrl;
     private String content;
     private Integer likeCount;
+    /** 현재 로그인 사용자가 이 댓글에 좋아요를 눌렀는지 */
+    private Boolean isLiked;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     /** 삭제된 댓글 여부 */
@@ -84,12 +86,26 @@ public class CommentResponseDto {
     public static CommentResponseDto fromWithReplies(Comment comment, List<Comment> replies,
                                                      java.util.Map<Long, String> authorNicknameMap,
                                                      java.util.Map<Long, String> authorProfileImageUrlMap) {
+        return fromWithReplies(comment, replies, authorNicknameMap, authorProfileImageUrlMap, java.util.Collections.emptySet());
+    }
+
+    public static CommentResponseDto fromWithReplies(Comment comment, List<Comment> replies,
+                                                     java.util.Map<Long, String> authorNicknameMap,
+                                                     java.util.Map<Long, String> authorProfileImageUrlMap,
+                                                     java.util.Set<Long> likedIds) {
         String fromMap = authorNicknameMap != null ? authorNicknameMap.get(comment.getAuthorId()) : null;
         String profileUrl = authorProfileImageUrlMap != null ? authorProfileImageUrlMap.get(comment.getAuthorId()) : null;
         CommentResponseDto dto = from(comment, fromMap, profileUrl);
+        dto.isLiked = likedIds.contains(comment.getId());
         if (replies != null && !replies.isEmpty()) {
             dto.getReplies().addAll(replies.stream()
-                    .map(r -> from(r, authorNicknameMap != null ? authorNicknameMap.get(r.getAuthorId()) : null, authorProfileImageUrlMap != null ? authorProfileImageUrlMap.get(r.getAuthorId()) : null))
+                    .map(r -> {
+                        CommentResponseDto replyDto = from(r,
+                                authorNicknameMap != null ? authorNicknameMap.get(r.getAuthorId()) : null,
+                                authorProfileImageUrlMap != null ? authorProfileImageUrlMap.get(r.getAuthorId()) : null);
+                        replyDto.isLiked = likedIds.contains(r.getId());
+                        return replyDto;
+                    })
                     .toList());
         }
         return dto;

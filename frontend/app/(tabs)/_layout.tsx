@@ -83,7 +83,8 @@ function CustomTabBar({ state, descriptors, navigation, bottomInset, tabBarHeigh
           });
 
           if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name as never, route.params as never);
+            // expo-router route params 타입이 route별로 달라 never 캐스팅 시 타입오류가 자주 발생
+            navigation.navigate(route.name as any, route.params as any);
           }
         };
 
@@ -107,7 +108,8 @@ function RootTabButton(
   props: {
     target: string;
     params?: object;
-    onPress?: () => void;
+    // expo-router Tabs tabBarButton에 전달되는 onPress 시그니처가 플랫폼/타입별로 달라서 완화
+    onPress?: (e?: any) => void;
     children: React.ReactNode;
     [key: string]: unknown;
   }
@@ -151,7 +153,7 @@ export default function TabsLayout() {
   }, [navigation]);
 
   // 하단 시스템 네비게이션 바 높이만큼만 안전 영역을 적용 (강제 여백 X)
-  const bottomInset = insets.bottom ?? 0;
+  const bottomInset = Platform.OS === "ios" ? 0 : Math.max(insets.bottom ?? 0, 24);
   return (
     <Tabs
       tabBar={(props) => (
