@@ -16,6 +16,8 @@ public class ChatMemberDto {
     private String nickname;
     private LocalDateTime joinedAt;
     private LocalDateTime lastReadAt;
+    /** 채팅방 나가기 시각 (null이면 아직 참여 중) */
+    private LocalDateTime leftAt;
 
     public static ChatMemberDto from(ChatMember member) {
         return ChatMemberDto.builder()
@@ -24,6 +26,7 @@ public class ChatMemberDto {
                 .nickname(null)
                 .joinedAt(member.getJoinedAt())
                 .lastReadAt(member.getLastReadAt())
+                .leftAt(member.getLeftAt())
                 .build();
     }
 
@@ -35,6 +38,7 @@ public class ChatMemberDto {
                 .nickname(nickname)
                 .joinedAt(member.getJoinedAt())
                 .lastReadAt(member.getLastReadAt())
+                .leftAt(member.getLeftAt())
                 .build();
     }
 }

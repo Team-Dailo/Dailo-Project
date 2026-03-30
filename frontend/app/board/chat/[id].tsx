@@ -69,7 +69,8 @@ export default function ChatRoomScreen() {
 
   const partner = room?.members?.find((m) => m.userId !== myUserId);
   const partnerNick = partner ? ((partner as { nickname?: string; nick_name?: string }).nickname ?? (partner as { nick_name?: string }).nick_name ?? "").trim() : "";
-  const partnerName = partner ? (partnerNick || `user_${partner.userId}`) : "대화 상대";
+  const partnerLeft = !!partner?.leftAt;
+  const partnerName = partner ? (partnerLeft ? "알 수 없음" : (partnerNick || `user_${partner.userId}`)) : "대화 상대";
   const partnerUserId = partner?.userId ?? 0;
 
   useEffect(() => {
@@ -313,34 +314,40 @@ export default function ChatRoomScreen() {
         )}
 
         {/* 입력 영역 */}
-        <View style={styles.inputRow}>
-          <Pressable style={styles.inputIcon}>
-            <Ionicons name="image-outline" size={24} color="#4C8BF5" />
-          </Pressable>
-          <TextInput
-            style={styles.input}
-            placeholder="메시지 보내기.."
-            placeholderTextColor="#9CA3AF"
-            value={input}
-            onChangeText={setInput}
-            multiline
-            maxLength={500}
-          />
-          <Pressable style={styles.inputIcon}>
-            <Ionicons name="mic-outline" size={22} color="#6B7280" />
-          </Pressable>
-          <Pressable
-            onPress={handleSend}
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
-            disabled={!input.trim()}
-          >
-            <Ionicons
-              name="send"
-              size={20}
-              color={input.trim() ? "#4C8BF5" : "#9CA3AF"}
+        {partnerLeft ? (
+          <View style={styles.partnerLeftBanner}>
+            <Text style={styles.partnerLeftText}>상대방이 채팅방을 나갔습니다.</Text>
+          </View>
+        ) : (
+          <View style={styles.inputRow}>
+            <Pressable style={styles.inputIcon}>
+              <Ionicons name="image-outline" size={24} color="#4C8BF5" />
+            </Pressable>
+            <TextInput
+              style={styles.input}
+              placeholder="메시지 보내기.."
+              placeholderTextColor="#9CA3AF"
+              value={input}
+              onChangeText={setInput}
+              multiline
+              maxLength={500}
             />
-          </Pressable>
-        </View>
+            <Pressable style={styles.inputIcon}>
+              <Ionicons name="mic-outline" size={22} color="#6B7280" />
+            </Pressable>
+            <Pressable
+              onPress={handleSend}
+              style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
+              disabled={!input.trim()}
+            >
+              <Ionicons
+                name="send"
+                size={20}
+                color={input.trim() ? "#4C8BF5" : "#9CA3AF"}
+              />
+            </Pressable>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -455,4 +462,12 @@ const styles = StyleSheet.create({
   menuItemDanger: { borderTopWidth: 1, borderTopColor: "#F3F4F6" },
   menuItemTextDanger: { fontSize: 15, color: "#DC2626", fontWeight: "500" },
   loadingWrap: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 48 },
+  partnerLeftBanner: {
+    paddingVertical: 14,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+  },
+  partnerLeftText: { fontSize: 14, color: "#6B7280" },
 });
