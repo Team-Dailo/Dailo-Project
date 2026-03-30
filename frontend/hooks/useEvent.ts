@@ -115,10 +115,11 @@ export function useEventDetail(id: string | undefined, source?: string) {
     try {
       const data = await eventService.getEventDetail(id);
       setDetail(data);
-      const eventIdNum = Number(id);
-      if (Number.isFinite(eventIdNum) && (source ?? 'detail')) {
-        logService.logClick({ eventId: eventIdNum, source: source ?? 'detail' }).catch(() => {});
-      }
+      // logClick은 EventDetailHeader에서 처리 (중복 호출 방지)
+      // const eventIdNum = Number(id);
+      // if (Number.isFinite(eventIdNum) && (source ?? 'detail')) {
+      //   logService.logClick({ eventId: eventIdNum, source: source ?? 'detail' }).catch(() => {});
+      // }
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
       setDetail(null);
