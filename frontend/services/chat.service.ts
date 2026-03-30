@@ -20,6 +20,8 @@ export type ChatMember = {
   nickname?: string | null;
   joinedAt: string;
   lastReadAt?: string;
+  /** 채팅방 나가기 시각 (null이면 아직 참여 중) */
+  leftAt?: string | null;
 };
 
 export type ChatRoomResponse = {
