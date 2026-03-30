@@ -24,7 +24,23 @@ type Message = {
   isMe: boolean;
   text: string;
   time?: string;
+  createdAt?: string;
 };
+
+function formatDateLabel(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  if (isSameDay(d, today)) return "오늘";
+  if (isSameDay(d, yesterday)) return "어제";
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
 
 function formatMessageTime(iso?: string): string {
   try {
@@ -83,6 +99,7 @@ export default function ChatRoomScreen() {
         isMe: m.senderId === myId,
         text: m.content ?? "",
         time: formatMessageTime(m.createdAt),
+        createdAt: m.createdAt,
       }));
       setMessages([...raw].reverse());
       await chatService.markRoomAsRead(roomId);
@@ -109,9 +126,10 @@ export default function ChatRoomScreen() {
     if (!text || !roomId) return;
     setInput("");
     const optimisticId = `m${Date.now()}`;
+    const now = new Date().toISOString();
     setMessages((prev) => [
       ...prev,
-      { id: optimisticId, isMe: true, text, time: formatMessageTime() },
+      { id: optimisticId, isMe: true, text, time: formatMessageTime(now), createdAt: now },
     ]);
     try {
       const sent = await chatService.sendMessage(roomId, text);
@@ -240,10 +258,6 @@ export default function ChatRoomScreen() {
           </Pressable>
         </Modal>
 
-        <View style={styles.dateWrap}>
-          <Text style={styles.dateText}>오늘</Text>
-        </View>
-
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color="#6366F1" />
@@ -261,28 +275,38 @@ export default function ChatRoomScreen() {
               (index === messages.length - 1 || messages[index + 1].isMe);
             const hasNextOther =
               !msg.isMe && index < messages.length - 1 && !messages[index + 1].isMe;
-            return msg.isMe ? (
-              <View key={msg.id} style={styles.myRow}>
-                {msg.time ? <Text style={styles.messageTime}>{msg.time}</Text> : null}
-                <View style={styles.myBubble}>
-                  <Text style={styles.myText}>{msg.text}</Text>
-                </View>
-              </View>
-            ) : (
-              <View
-                key={msg.id}
-                style={[styles.otherRow, hasNextOther && styles.otherRowTight]}
-              >
-                {isLastOtherInRow ? (
-                  <View style={styles.otherAvatar} />
-                ) : (
-                  <View style={styles.otherAvatarPlaceholder} />
+            const prevMsg = index > 0 ? messages[index - 1] : null;
+            const showDateSeparator =
+              !prevMsg ||
+              formatDateLabel(msg.createdAt) !== formatDateLabel(prevMsg.createdAt);
+            return (
+              <React.Fragment key={msg.id}>
+                {showDateSeparator && (
+                  <View style={styles.dateWrap}>
+                    <Text style={styles.dateText}>{formatDateLabel(msg.createdAt)}</Text>
+                  </View>
                 )}
-                <View style={styles.otherBubble}>
-                  <Text style={styles.otherText}>{msg.text}</Text>
-                </View>
-                {msg.time ? <Text style={styles.messageTime}>{msg.time}</Text> : null}
-              </View>
+                {msg.isMe ? (
+                  <View style={styles.myRow}>
+                    {msg.time ? <Text style={styles.messageTime}>{msg.time}</Text> : null}
+                    <View style={styles.myBubble}>
+                      <Text style={styles.myText}>{msg.text}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={[styles.otherRow, hasNextOther && styles.otherRowTight]}>
+                    {isLastOtherInRow ? (
+                      <View style={styles.otherAvatar} />
+                    ) : (
+                      <View style={styles.otherAvatarPlaceholder} />
+                    )}
+                    <View style={styles.otherBubble}>
+                      <Text style={styles.otherText}>{msg.text}</Text>
+                    </View>
+                    {msg.time ? <Text style={styles.messageTime}>{msg.time}</Text> : null}
+                  </View>
+                )}
+              </React.Fragment>
             );
           })}
         </ScrollView>
