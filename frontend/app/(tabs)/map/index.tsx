@@ -19,6 +19,7 @@ import {
   ImageBackground,
   FlatList,
   Image,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,8 +52,16 @@ import {
   setFestivalParticipation,
   clearFestivalParticipation,
   getFestivalParticipation,
+  type FestivalParticipation,
 } from '../../../services/festivalParticipationStorage';
-import { startStay, completeStay } from '../../../services/location.service';
+import { startStay } from '../../../services/location.service';
+import { reconcileFestivalParticipationIfOutsideZone } from '../../../services/festivalParticipationReconcile';
+import {
+  syncStayExitWithRetry,
+  isStaySessionEndedAfterPing,
+  enqueuePendingStaySync,
+  flushPendingStaySyncQueue,
+} from '../../../services/staySessionSync';
 import * as scrapService from '../../../services/scrap.service';
 import { useFestivalParticipation } from '../../../hooks/useFestivalParticipation';
 import { distanceKm } from '../../../utils/geo';
@@ -202,6 +211,9 @@ export default function MapScreen() {
   const [isFestivalActive, setIsFestivalActive] = useState(false);
   const wasInFestivalZoneRef = useRef(false);
   const { entry: festivalEntry, elapsedFormatted: festivalElapsed, isCompleted: festivalIsCompleted, refresh: refreshFestivalParticipation } = useFestivalParticipation();
+  /** 구역 이탈 직후 잠시 표시하는 완료 칩(타이머는 이미 끔) */
+  const [participationExitBanner, setParticipationExitBanner] = useState<{ eventTitle: string } | null>(null);
+  const participationBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** 축제 구역 진입/이탈 판정 반경 (km). 이 거리 이내면 "참여 중" */
   /** 축제 구역 인식 반경: 200m (마커 선택 시 표시되는 빨간 원과 동일) */
@@ -242,6 +254,105 @@ export default function MapScreen() {
     refetchMapEvents,
     refetchWithBounds,
   } = useMap();
+
+  /**
+   * 구역 이탈·일정 종료: 서버(ping/complete) 성공 후에만 로컬 해제·완료 칩 표시(동기 일치).
+   * 실패 시 대기 큐에 넣고 참여 표시는 유지, 포그라운드에서 자동 재시도.
+   */
+  const finalizeParticipationExit = useCallback(
+    async (
+      entry: FestivalParticipation,
+      myPos: { latitude: number; longitude: number },
+      mode: 'left_zone' | 'schedule_ended'
+    ) => {
+      const eventId = Number(entry.eventId);
+      const title = entry.eventTitle ?? '';
+
+      if (!isLoggedIn) {
+        await clearFestivalParticipation();
+        await refreshFestivalParticipation();
+        setParticipationExitBanner({ eventTitle: title });
+        if (participationBannerTimerRef.current) {
+          clearTimeout(participationBannerTimerRef.current);
+          participationBannerTimerRef.current = null;
+        }
+        participationBannerTimerRef.current = setTimeout(() => {
+          setParticipationExitBanner(null);
+          participationBannerTimerRef.current = null;
+        }, 8000);
+        return;
+      }
+
+      try {
+        await syncStayExitWithRetry(eventId, myPos.latitude, myPos.longitude, mode);
+        if (mode === 'left_zone') {
+          const ended = await isStaySessionEndedAfterPing(eventId);
+          if (!ended) {
+            await refreshFestivalParticipation();
+            return;
+          }
+        }
+        await clearFestivalParticipation();
+        await refreshFestivalParticipation();
+        setParticipationExitBanner({ eventTitle: title });
+        if (participationBannerTimerRef.current) {
+          clearTimeout(participationBannerTimerRef.current);
+          participationBannerTimerRef.current = null;
+        }
+        participationBannerTimerRef.current = setTimeout(() => {
+          setParticipationExitBanner(null);
+          participationBannerTimerRef.current = null;
+        }, 8000);
+      } catch {
+        await enqueuePendingStaySync({
+          eventId,
+          latitude: myPos.latitude,
+          longitude: myPos.longitude,
+          mode,
+          eventTitle: title,
+        });
+        await refreshFestivalParticipation();
+        Alert.alert(
+          '기록 동기화',
+          '네트워크 오류로 서버에 체류 종료를 저장하지 못했습니다. 연결이 복구되면 자동으로 다시 시도합니다. 참여 중 표시는 서버에 반영될 때까지 유지됩니다.'
+        );
+      }
+    },
+    [isLoggedIn, refreshFestivalParticipation]
+  );
+
+  useEffect(
+    () => () => {
+      if (participationBannerTimerRef.current) {
+        clearTimeout(participationBannerTimerRef.current);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (festivalEntry) {
+      setParticipationExitBanner(null);
+    }
+  }, [festivalEntry]);
+
+  /** 지도 포커스 시: 대기 큐 플러시 후 구역 밖이면 서버와 맞춤 */
+  const reconcileParticipationOnForeground = useCallback(async () => {
+    await flushPendingStaySyncQueue();
+    let preferred = demoLocation ?? currentLocation ?? null;
+    if (!preferred) {
+      const p = await refreshCurrentLocation();
+      preferred = p;
+    }
+    await reconcileFestivalParticipationIfOutsideZone(preferred);
+  }, [demoLocation, currentLocation, refreshCurrentLocation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void reconcileParticipationOnForeground();
+    }, [reconcileParticipationOnForeground])
+  );
+
   useEffect(() => {
     const myPos = demoLocation ?? currentLocation ?? null;
     if (!myPos || !isLoggedIn) {
@@ -353,15 +464,22 @@ export default function MapScreen() {
         const inZone = km <= ZONE_RADIUS_KM;
         const participatingEvent = events.find((e) => String(e.id) === String(entry.eventId));
         const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
-        const shouldClear = km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule);
+        /** 목록에 참여 행사가 안 잡히면(줌/바운드) 거리만으로 막히지 않게 이탈 후보로 본다 */
+        const shouldClear =
+          km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule) || participatingEvent == null;
         if (shouldClear) {
-          if (isLoggedIn) {
-            completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
-              .then(() => clearFestivalParticipation().then(() => refreshFestivalParticipation()))
-              .catch(() => refreshFestivalParticipation());
-          } else {
-            clearFestivalParticipation().then(() => refreshFestivalParticipation());
-          }
+          const missingCoords =
+            elat == null ||
+            elng == null ||
+            !Number.isFinite(elat) ||
+            !Number.isFinite(elng);
+          const mode: 'left_zone' | 'schedule_ended' =
+            missingCoords || km > ZONE_RADIUS_KM || participatingEvent == null ? 'left_zone' : 'schedule_ended';
+          void finalizeParticipationExit(
+            entry,
+            { latitude: myPos.latitude, longitude: myPos.longitude },
+            mode
+          );
         }
       });
       return;
@@ -435,15 +553,21 @@ export default function MapScreen() {
             const inZone = km <= ZONE_RADIUS_KM;
             const participatingEvent = list.find((e) => String(e.id) === String(entry.eventId));
             const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
-            const shouldClear = km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule);
+            const shouldClear =
+              km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule) || participatingEvent == null;
             if (shouldClear) {
-              if (isLoggedIn) {
-                completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
-                  .then(() => clearFestivalParticipation().then(() => refreshFestivalParticipation()))
-                  .catch(() => refreshFestivalParticipation());
-              } else {
-                clearFestivalParticipation().then(() => refreshFestivalParticipation());
-              }
+              const missingCoords =
+                elat == null ||
+                elng == null ||
+                !Number.isFinite(elat) ||
+                !Number.isFinite(elng);
+              const mode: 'left_zone' | 'schedule_ended' =
+                missingCoords || km > ZONE_RADIUS_KM || participatingEvent == null ? 'left_zone' : 'schedule_ended';
+              void finalizeParticipationExit(
+                entry,
+                { latitude: myPos.latitude, longitude: myPos.longitude },
+                mode
+              );
             }
           });
         }
@@ -465,13 +589,11 @@ export default function MapScreen() {
         if (km > ZONE_RADIUS_KM) {
           wasInFestivalZoneRef.current = false;
           setIsFestivalActive(false);
-          if (isLoggedIn) {
-            completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
-              .then(() => clearFestivalParticipation().then(() => refreshFestivalParticipation()))
-              .catch(() => refreshFestivalParticipation());
-          } else {
-            clearFestivalParticipation().then(() => refreshFestivalParticipation());
-          }
+          void finalizeParticipationExit(
+            entry,
+            { latitude: myPos.latitude, longitude: myPos.longitude },
+            'left_zone'
+          );
         }
       });
       return;
@@ -530,19 +652,34 @@ export default function MapScreen() {
         const shouldClear =
           elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng)
             ? true
-            : km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule);
+            : km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule) || participatingEvent == null;
         if (shouldClear) {
-          if (isLoggedIn) {
-            completeStay(Number(entry.eventId), myPos.latitude, myPos.longitude)
-              .then(() => clearFestivalParticipation().then(() => refreshFestivalParticipation()))
-              .catch(() => refreshFestivalParticipation());
-          } else {
-            clearFestivalParticipation().then(() => refreshFestivalParticipation());
-          }
+          const missingCoords =
+            elat == null ||
+            elng == null ||
+            !Number.isFinite(elat) ||
+            !Number.isFinite(elng);
+          const mode: 'left_zone' | 'schedule_ended' =
+            missingCoords || km > ZONE_RADIUS_KM || participatingEvent == null ? 'left_zone' : 'schedule_ended';
+          void finalizeParticipationExit(
+            entry,
+            { latitude: myPos.latitude, longitude: myPos.longitude },
+            mode
+          );
         }
       });
     }
-  }, [demoLocation, currentLocation, events, eventsNearMe, isLoggedIn, refreshFestivalParticipation, festivalEntry, isEventCurrentlyScheduled]);
+  }, [
+    demoLocation,
+    currentLocation,
+    events,
+    eventsNearMe,
+    isLoggedIn,
+    refreshFestivalParticipation,
+    festivalEntry,
+    isEventCurrentlyScheduled,
+    finalizeParticipationExit,
+  ]);
 
   // 행사 새로고침 알림용: 구역·참여 상태·현재 위치를 ref에 동기화
   useEffect(() => {
@@ -950,7 +1087,7 @@ export default function MapScreen() {
       ]);
       return;
     }
-    router.push('/(tabs)/mypage/saved-festivals');
+    router.push({ pathname: '/(tabs)/mypage/saved-festivals', params: { from: 'map' } });
   };
 
   const handlePressActiveFestivalFromMenu = () => {
@@ -997,21 +1134,15 @@ export default function MapScreen() {
     ) {
       userRequestedRefreshRef.current = false;
       if (!inZone && entry) {
-        let lat: number;
-        let lng: number;
         if (myPos && Number.isFinite(myPos.latitude) && Number.isFinite(myPos.longitude)) {
-          lat = myPos.latitude;
-          lng = myPos.longitude;
-        } else if (entry && Number.isFinite(entry.eventLat) && Number.isFinite(entry.eventLng)) {
-          lat = entry.eventLat!;
-          lng = entry.eventLng!;
+          void finalizeParticipationExit(
+            entry,
+            { latitude: myPos.latitude, longitude: myPos.longitude },
+            'left_zone'
+          );
         } else {
-          lat = 0;
-          lng = 0;
+          void clearFestivalParticipation().then(() => refreshFestivalParticipation());
         }
-        completeStay(Number(entry.eventId), lat, lng)
-          .then(() => clearFestivalParticipation().then(() => refreshFestivalParticipation()))
-          .catch(() => refreshFestivalParticipation());
       } else if (!inZone) {
         clearFestivalParticipation().then(() => refreshFestivalParticipation());
       }
@@ -1025,7 +1156,7 @@ export default function MapScreen() {
         { text: '확인', onPress: () => refreshFestivalParticipation() },
       ]);
     }
-  }, [refreshCurrentLocation, refetchMapEvents, refreshFestivalParticipation]);
+  }, [refreshCurrentLocation, refetchMapEvents, refreshFestivalParticipation, finalizeParticipationExit]);
 
   /** 지도 카메라가 비추는 지역 기준으로 목록 시트 오픈. 같은 지역이면 해당 지역 전체 행사 조회 후 표시 (카메라에 안 잡혀도 조건 맞으면 목록에 표시) */
   const onPressFestivalList = () => {
@@ -1071,6 +1202,19 @@ export default function MapScreen() {
     closeEventListSheet();
     handleMarkerPress(event);
     setSheetMode('collapsed');
+    if (
+      mapRef.current &&
+      event.latitude != null &&
+      event.longitude != null &&
+      Number.isFinite(event.latitude) &&
+      Number.isFinite(event.longitude)
+    ) {
+      mapRef.current.animateCameraTo({
+        latitude: event.latitude,
+        longitude: event.longitude,
+        zoom: 15,
+      });
+    }
   };
 
   // 행사 참여 칩: 왼쪽 상단 (필터 칩 아래 10dp). 규모·북마크: 칩이 있으면 칩 아래에 배치.
@@ -1079,8 +1223,10 @@ export default function MapScreen() {
   const row1Top = filterBottomY + 10;
   const scaleLeft = SPACING.scaleButtonLeft;
   const SCALE_BTN_WIDTH = 56;
+  const showParticipationChip =
+    participationExitBanner != null || (isLoggedIn && festivalEntry != null);
   // 축제 참여 칩이 있으면 칩 아래에 규모 버튼 배치, 없으면 row1Top 사용
-  const scaleTop = isLoggedIn && festivalEntry != null ? row1Top + ACTIVE_CHIP_HEIGHT + CHIP_TO_BUTTON_GAP : row1Top;
+  const scaleTop = showParticipationChip ? row1Top + ACTIVE_CHIP_HEIGHT + CHIP_TO_BUTTON_GAP : row1Top;
   // 북마크: 항상 오른쪽 위, 필터 칩 바로 아래
   const bookmarkTop = row1Top;
   const bookmarkRight = SPACING.base;
@@ -1142,7 +1288,7 @@ export default function MapScreen() {
 
   // 하단 탭 바 높이 + safe area만큼 올려서 탭과 겹치지 않게 (_layout.tsx tabBar height 72와 동일)
   const TAB_BAR_HEIGHT = 72;
-  const bottomInset = insets.bottom ?? 0;
+  const bottomInset = Platform.OS === 'ios' ? 0 : Math.max(insets.bottom ?? 0, 24);
   const tabBarOffset = TAB_BAR_HEIGHT + bottomInset;
 
   // 필터칩 위 여백: 검색창과 필터칩 사이 간격 (이전처럼 복원)
@@ -1195,7 +1341,9 @@ export default function MapScreen() {
                   if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return;
                   const centerLat = r.latitude + r.latitudeDelta / 2;
                   const centerLng = r.longitude + r.longitudeDelta / 2;
-                  const zoom = 14 - Math.round(Math.log2(r.latitudeDelta / 0.01));
+                  const zoom = params.zoom != null
+                    ? Math.round(params.zoom)
+                    : 14 - Math.round(Math.log2(r.latitudeDelta / 0.01));
                   lastCameraRef.current = {
                     latitude: centerLat,
                     longitude: centerLng,
@@ -1238,8 +1386,33 @@ export default function MapScreen() {
               { zIndex: isBottomSheetOpen ? 10 : 10 },
             ]}
           >
-            {/* 축제 참여 칩: 로그인 + 저장된 참여 정보가 있을 때만 표시 */}
-            {isLoggedIn && festivalEntry != null && (
+            {/* 축제 참여 칩: 참여 중(타이머) 또는 방금 구역 이탈·완료 안내 */}
+            {participationExitBanner != null && (
+              <View
+                style={[
+                  styles.activeChip,
+                  {
+                    top: row1Top,
+                    left: SPACING.base,
+                    zIndex: 12,
+                    elevation: 12,
+                  },
+                ]}
+              >
+                <View style={styles.activeChipLeft}>
+                  <View style={styles.activeChipIconCircle}>
+                    <Text style={styles.activeChipEmoji}>✓</Text>
+                  </View>
+                  <View style={styles.activeChipTextCol}>
+                    <Text style={styles.activeChipLabel}>행사 참여 완료</Text>
+                    <Text style={styles.activeChipTimer} numberOfLines={1}>
+                      구역 이탈 · {participationExitBanner.eventTitle || '참여 반영'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+            {isLoggedIn && festivalEntry != null && participationExitBanner == null && (
               <View
                 style={[
                   styles.activeChip,
@@ -1383,11 +1556,7 @@ export default function MapScreen() {
                       const centerLng = lastCameraRef.current?.longitude ?? (region ? region.longitude + region.longitudeDelta / 2 : DEFAULT_CAMERA.longitude);
                       const currentZoom = lastCameraRef.current?.zoom ?? naverMapCamera.zoom;
                       if (!mapRef.current) return;
-                      /** 확대 1회 누르면 기본 배율(16)로, 그 이상이면 1단계씩 */
-                      const DEFAULT_ZOOM_LEVEL = 16;
-                      const newZoom = currentZoom < DEFAULT_ZOOM_LEVEL
-                        ? DEFAULT_ZOOM_LEVEL
-                        : Math.min(18, currentZoom + 1);
+                      const newZoom = Math.min(18, currentZoom + 1);
                       lastCameraRef.current = { latitude: centerLat, longitude: centerLng, zoom: newZoom };
                       mapRef.current.animateCameraTo({
                         latitude: centerLat,
@@ -1574,11 +1743,11 @@ export default function MapScreen() {
             ]);
             return;
           }
-          router.push('/(tabs)/mypage/saved-festivals');
+          router.push({ pathname: '/(tabs)/mypage/saved-festivals', params: { from: 'map' } });
         }}
         onPressMyActivities={() => {
           setIsMenuOpen(false);
-          router.push('/(tabs)/mypage/participated-festivals');
+          router.push({ pathname: '/(tabs)/mypage/participated-festivals', params: { from: 'map' } });
         }}
         onPressDirection={() => {
           setIsMenuOpen(false);
@@ -1590,7 +1759,7 @@ export default function MapScreen() {
         }}
         onPressSettings={() => {
           setIsMenuOpen(false);
-          router.push('/(tabs)/mypage/settings');
+          router.push({ pathname: '/(tabs)/mypage/settings', params: { from: 'map' } });
         }}
         onPressRefreshLocationAndCheck={handleRefreshLocationAndCheckZone}
       />

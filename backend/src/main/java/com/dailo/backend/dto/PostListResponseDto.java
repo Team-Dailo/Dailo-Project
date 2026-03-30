@@ -67,6 +67,10 @@ public class PostListResponseDto {
     }
 
     public static PostListResponseDto from(Post post, String authorNickname, Boolean liked, String eventTitle, String authorProfileImageUrl) {
+        return from(post, authorNickname, liked, eventTitle, authorProfileImageUrl, null);
+    }
+
+    public static PostListResponseDto from(Post post, String authorNickname, Boolean liked, String eventTitle, String authorProfileImageUrl, Integer commentCount) {
         return PostListResponseDto.builder()
                 .id(post.getId())
                 .authorId(post.getAuthorId())
@@ -79,7 +83,7 @@ public class PostListResponseDto {
                 .imageUrls(parseImageUrls(post.getImageUrlsJson()))
                 .viewCount(post.getViewCount())
                 .likeCount(post.getLikeCount())
-                .commentCount(post.getCommentCount())
+                .commentCount(commentCount != null ? commentCount : post.getCommentCount())
                 .createdAt(post.getCreatedAt())
                 .liked(liked)
                 .build();

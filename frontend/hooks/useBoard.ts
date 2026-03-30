@@ -358,9 +358,25 @@ export function useComments(postId: string | undefined) {
     );
   }, []);
 
+  /** 댓글/대댓글 좋아요 상태와 카운트를 로컬에서 즉시 업데이트 */
+  const updateCommentLike = useCallback((commentId: number | string, liked: boolean, likeCount: number) => {
+    const idStr = String(commentId);
+    setComments((prev) =>
+      prev.map((c) => {
+        if (String(c.id) === idStr) return { ...c, isLiked: liked, likeCount };
+        return {
+          ...c,
+          replies: (c.replies ?? []).map((r) =>
+            String(r.id) === idStr ? { ...r, isLiked: liked, likeCount } : r
+          ),
+        };
+      })
+    );
+  }, []);
+
   useEffect(() => {
     fetchComments();
   }, [fetchComments]);
 
-  return { comments, loading, error, refetch: fetchComments, removeComment };
+  return { comments, loading, error, refetch: fetchComments, removeComment, updateCommentLike };
 }

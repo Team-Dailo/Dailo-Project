@@ -62,6 +62,7 @@ export type CommentItem = {
   authorProfileImageUrl?: string | null;
   content: string;
   likeCount: number;
+  isLiked?: boolean;
   createdAt: string;
   updatedAt: string;
   replies: CommentItem[];

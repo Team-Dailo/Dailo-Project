@@ -220,7 +220,7 @@ export function SideMenu({
               onPress={() => {
                 onClose();
                 if (onPressGuide) onPressGuide();
-                else router.push('/(tabs)/mypage/guide');
+                else router.push({ pathname: '/(tabs)/mypage/guide', params: { from: 'map' } });
               }}
             />
             <MenuRow

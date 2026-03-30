@@ -10,7 +10,7 @@ import {
   Pressable,
   RefreshControl,
 } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as contentService from '../../../services/content.service';
@@ -40,6 +40,15 @@ function renderLine(line: string, index: number): React.ReactNode {
 }
 
 export default function GuideScreen() {
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const goBack = () => {
+    if (from === 'map') {
+      router.replace('/(tabs)/mypage');
+      router.replace('/(tabs)/map');
+    } else {
+      router.replace('/(tabs)/mypage');
+    }
+  };
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -75,7 +84,7 @@ export default function GuideScreen() {
           headerTitleAlign: 'center',
           headerLeft: () => (
             <Pressable
-              onPress={() => router.replace('/(tabs)/mypage')}
+              onPress={goBack}
               hitSlop={8}
               style={{ paddingHorizontal: 4 }}
             >
