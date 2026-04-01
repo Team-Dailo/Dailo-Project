@@ -1,10 +1,18 @@
 // app/(tabs)/_layout.tsx
-import React, { useEffect } from "react";
-import { Image, StyleSheet, Pressable, Platform, BackHandler, View, Text } from "react-native";
-import { Tabs } from "expo-router";
-import { useNavigation } from "@react-navigation/native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import { Tabs } from "expo-router";
+import React, { useEffect } from "react";
+import {
+  BackHandler,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const TAB_ICONS = {
   home: require("../../assets/images/tab-home.png"),
@@ -63,8 +71,8 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             typeof labelOption === "string"
               ? labelOption
               : typeof title === "string"
-              ? title
-              : route.name;
+                ? title
+                : route.name;
 
           const onPress = () => {
             const event = navigation.emit({
@@ -80,11 +88,18 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           };
 
           return (
-            <Pressable key={route.key} style={styles.customTabItem} onPress={onPress}>
+            <Pressable
+              key={route.key}
+              style={styles.customTabItem}
+              onPress={onPress}
+            >
               {typeof tabBarIcon === "function"
                 ? tabBarIcon({ focused: isFocused, color, size: 24 })
                 : null}
-              <Text style={[styles.customTabLabel, { color }]} numberOfLines={1}>
+              <Text
+                style={[styles.customTabLabel, { color }]}
+                numberOfLines={1}
+              >
                 {label}
               </Text>
             </Pressable>
@@ -96,20 +111,20 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 }
 
 /** 탭 아이콘을 눌렀을 때 항상 해당 탭의 루트 화면으로 이동시키는 버튼 */
-function RootTabButton(
-  props: {
-    target: string;
-    params?: object;
-    // expo-router Tabs tabBarButton에 전달되는 onPress 시그니처가 플랫폼/타입별로 달라서 완화
-    onPress?: (e?: any) => void;
-    children: React.ReactNode;
-    [key: string]: unknown;
-  }
-) {
+function RootTabButton(props: {
+  target: string;
+  params?: object;
+  // expo-router Tabs tabBarButton에 전달되는 onPress 시그니처가 플랫폼/타입별로 달라서 완화
+  onPress?: (e?: any) => void;
+  children: React.ReactNode;
+  [key: string]: unknown;
+}) {
   const navigation = useNavigation();
   const { target, params, onPress: defaultOnPress, ...rest } = props;
   const onPress = () => {
-    (navigation as { navigate: (name: string, params?: object) => void }).navigate(target, params);
+    (
+      navigation as { navigate: (name: string, params?: object) => void }
+    ).navigate(target, params);
     defaultOnPress?.();
   };
   return <Pressable {...(rest as any)} onPress={onPress} />;
@@ -123,7 +138,9 @@ export default function TabsLayout() {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       const state = navigation.getState();
       const currentTab = state?.routes?.[state.index];
-      const nestedState = currentTab?.state as { index?: number; routes?: unknown[] } | undefined;
+      const nestedState = currentTab?.state as
+        | { index?: number; routes?: unknown[] }
+        | undefined;
       const isAtTabRoot =
         !nestedState ||
         typeof nestedState.index !== "number" ||
@@ -158,9 +175,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <TabIcon source={TAB_ICONS.home} color={color} size={size} />
           ),
-          tabBarButton: (props) => (
-            <RootTabButton {...props} target="home" />
-          ),
+          tabBarButton: (props) => <RootTabButton {...props} target="home" />,
         }}
       />
       <Tabs.Screen
@@ -207,7 +222,11 @@ export default function TabsLayout() {
             <TabIcon source={TAB_ICONS.mypage} color={color} size={size} />
           ),
           tabBarButton: (props) => (
-            <RootTabButton {...props} target="mypage" params={{ screen: "index" }} />
+            <RootTabButton
+              {...props}
+              target="mypage"
+              params={{ screen: "index" }}
+            />
           ),
         }}
       />
@@ -225,14 +244,14 @@ const styles = StyleSheet.create({
   },
   customTabBar: {
     flexDirection: "row",
-    height: 72,
+    height: 60,
     borderTopColor: "#E5E5E5",
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   customTabItem: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     paddingTop: 10,
   },
   customTabLabel: {
