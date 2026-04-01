@@ -1,9 +1,9 @@
 // app/(tabs)/_layout.tsx
 import React, { useEffect } from "react";
 import { Image, StyleSheet, Pressable, Platform, BackHandler, View, Text } from "react-native";
-import { Tabs, router } from "expo-router";
+import { Tabs } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
 const TAB_ICONS = {
@@ -40,66 +40,58 @@ function TabIcon({
   );
 }
 
-type CustomTabBarProps = BottomTabBarProps & {
-  bottomInset: number;
-  tabBarHeight: number;
-};
-
-function CustomTabBar({ state, descriptors, navigation, bottomInset, tabBarHeight }: CustomTabBarProps) {
+function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const firstRoute = state.routes[0];
   const baseOptions = firstRoute ? descriptors[firstRoute.key].options : {};
   const activeColor = baseOptions.tabBarActiveTintColor ?? "#565656";
   const inactiveColor = baseOptions.tabBarInactiveTintColor ?? "#A0A0A0";
 
   return (
-    <View
-      style={[
-        styles.customTabBar,
-        { height: tabBarHeight + bottomInset, paddingBottom: bottomInset },
-      ]}
-    >
-      {MAIN_TAB_ROUTE_NAMES.map((name) => {
-        const routeIndex = state.routes.findIndex((r) => r.name === name);
-        if (routeIndex === -1) return null;
-        const route = state.routes[routeIndex];
-        const descriptor = descriptors[route.key];
-        const isFocused = state.index === routeIndex;
-        const color = isFocused ? activeColor : inactiveColor;
-        const tabBarIcon = descriptor.options.tabBarIcon;
-        const labelOption = descriptor.options.tabBarLabel;
-        const title = descriptor.options.title;
-        const label =
-          typeof labelOption === "string"
-            ? labelOption
-            : typeof title === "string"
-            ? title
-            : route.name;
+    <SafeAreaView edges={["bottom"]} style={styles.safeArea}>
+      <View style={styles.customTabBar}>
+        {MAIN_TAB_ROUTE_NAMES.map((name) => {
+          const routeIndex = state.routes.findIndex((r) => r.name === name);
+          if (routeIndex === -1) return null;
+          const route = state.routes[routeIndex];
+          const descriptor = descriptors[route.key];
+          const isFocused = state.index === routeIndex;
+          const color = isFocused ? activeColor : inactiveColor;
+          const tabBarIcon = descriptor.options.tabBarIcon;
+          const labelOption = descriptor.options.tabBarLabel;
+          const title = descriptor.options.title;
+          const label =
+            typeof labelOption === "string"
+              ? labelOption
+              : typeof title === "string"
+              ? title
+              : route.name;
 
-        const onPress = () => {
-          const event = navigation.emit({
-            type: "tabPress",
-            target: route.key,
-            canPreventDefault: true,
-          });
+          const onPress = () => {
+            const event = navigation.emit({
+              type: "tabPress",
+              target: route.key,
+              canPreventDefault: true,
+            });
 
-          if (!isFocused && !event.defaultPrevented) {
-            // expo-router route params 타입이 route별로 달라 never 캐스팅 시 타입오류가 자주 발생
-            navigation.navigate(route.name as any, route.params as any);
-          }
-        };
+            if (!isFocused && !event.defaultPrevented) {
+              // expo-router route params 타입이 route별로 달라 never 캐스팅 시 타입오류가 자주 발생
+              navigation.navigate(route.name as any, route.params as any);
+            }
+          };
 
-        return (
-          <Pressable key={route.key} style={styles.customTabItem} onPress={onPress}>
-            {typeof tabBarIcon === "function"
-              ? tabBarIcon({ focused: isFocused, color, size: 24 })
-              : null}
-            <Text style={[styles.customTabLabel, { color }]} numberOfLines={1}>
-              {label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
+          return (
+            <Pressable key={route.key} style={styles.customTabItem} onPress={onPress}>
+              {typeof tabBarIcon === "function"
+                ? tabBarIcon({ focused: isFocused, color, size: 24 })
+                : null}
+              <Text style={[styles.customTabLabel, { color }]} numberOfLines={1}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -124,9 +116,7 @@ function RootTabButton(
 }
 
 export default function TabsLayout() {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const tabBarHeight = 72;
 
   useEffect(() => {
     if (Platform.OS !== "android") return;
@@ -152,17 +142,9 @@ export default function TabsLayout() {
     return () => sub.remove();
   }, [navigation]);
 
-  // 하단 시스템 네비게이션 바 높이만큼만 안전 영역을 적용 (강제 여백 X)
-  const bottomInset = Platform.OS === "ios" ? 0 : Math.max(insets.bottom ?? 0, 24);
   return (
     <Tabs
-      tabBar={(props) => (
-        <CustomTabBar
-          {...props}
-          bottomInset={bottomInset}
-          tabBarHeight={tabBarHeight}
-        />
-      )}
+      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: "#565656",
@@ -238,11 +220,14 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
   },
+  safeArea: {
+    backgroundColor: "#FFFFFF",
+  },
   customTabBar: {
     flexDirection: "row",
+    height: 72,
     borderTopColor: "#E5E5E5",
     borderTopWidth: StyleSheet.hairlineWidth,
-    backgroundColor: "#FFFFFF",
   },
   customTabItem: {
     flex: 1,
