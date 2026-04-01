@@ -1391,6 +1391,7 @@ export default function MapScreen() {
               <View
                 style={[
                   styles.activeChip,
+                  styles.activeChipExitBanner,
                   {
                     top: row1Top,
                     left: SPACING.base,
@@ -1403,10 +1404,10 @@ export default function MapScreen() {
                   <View style={styles.activeChipIconCircle}>
                     <Text style={styles.activeChipEmoji}>✓</Text>
                   </View>
-                  <View style={styles.activeChipTextCol}>
+                  <View style={[styles.activeChipTextCol, styles.activeChipTextColExitBanner]}>
                     <Text style={styles.activeChipLabel}>행사 참여 완료</Text>
                     <Text style={styles.activeChipTimer} numberOfLines={1}>
-                      구역 이탈 · {participationExitBanner.eventTitle || '참여 반영'}
+                      구역 이탈 · 참여 반영
                     </Text>
                   </View>
                 </View>
@@ -2334,6 +2335,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 10,
+  },
+  /** 구역 이탈 안내 칩: 기본 칩(123)보다 넓게 */
+  activeChipExitBanner: {
+    width: 228,
+    minWidth: 200,
+    maxWidth: '88%',
+    paddingHorizontal: 12,
+  },
+  activeChipTextColExitBanner: {
+    flex: 1,
+    minWidth: 0,
   },
   activeChipLeft: {
     flexDirection: 'row',

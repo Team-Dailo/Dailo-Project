@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 2,
   },
   monthText: {
     marginHorizontal: 32,
@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
   // 요일 / 날짜 정렬
   weekRow: {
     flexDirection: 'row',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   weekDayText: {
     width: '14.2857%', // 100 / 7
