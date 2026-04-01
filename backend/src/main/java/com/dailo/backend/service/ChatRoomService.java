@@ -127,7 +127,7 @@ public class ChatRoomService {
                 .map(ChatMember::getLastReadAt)
                 .orElse(LocalDateTime.of(1970, 1, 1, 0, 0, 0));
 
-        int unread = (int) chatMessageRepository.countByRoomAndCreatedAtAfter(room, lastRead);
+        int unread = (int) chatMessageRepository.countByRoomAndCreatedAtAfterAndSenderIdNot(room, lastRead, myUserId);
 
         Optional<ChatMessage> lastMsg = chatMessageRepository
                 .findByRoomOrderByCreatedAtDesc(room, PageRequest.of(0, 1))
@@ -173,7 +173,7 @@ public class ChatRoomService {
             LocalDateTime lastRead = chatMemberRepository.findByRoomAndUserId(room, userId)
                     .map(ChatMember::getLastReadAt)
                     .orElse(LocalDateTime.of(1970, 1, 1, 0, 0, 0));
-            int unread = (int) chatMessageRepository.countByRoomAndCreatedAtAfter(room, lastRead);
+            int unread = (int) chatMessageRepository.countByRoomAndCreatedAtAfterAndSenderIdNot(room, lastRead, userId);
             Optional<ChatMessage> lastMsg = chatMessageRepository
                     .findByRoomOrderByCreatedAtDesc(room, PageRequest.of(0, 1))
                     .stream().findFirst();
@@ -211,6 +211,16 @@ public class ChatRoomService {
         }
 
         member.leave();
+        // 재채팅 시 새 방이 생성되도록 key 초기화
+        room.clearDirectRoomKey();
+
+        // 모든 멤버가 나갔으면 방·메시지 영구 삭제
+        boolean allLeft = room.getMembers().stream().allMatch(m -> !m.isActive());
+        if (allLeft) {
+            chatMessageRepository.deleteByRoom(room);
+            chatMemberRepository.deleteAll(room.getMembers());
+            chatRoomRepository.delete(room);
+        }
     }
 
     public ChatRoomResponseDto getRoom(Long roomId, String email) {
