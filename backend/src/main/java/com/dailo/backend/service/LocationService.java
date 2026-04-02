@@ -11,6 +11,7 @@ import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.repository.StaySessionRepository;
 import com.dailo.backend.util.GeometryUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,10 +19,12 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class LocationService {
@@ -210,7 +213,8 @@ public class LocationService {
         List<StaySession> sessions = staySessionRepository
                 .findByMemberIdAndStatusOrderByEndTimeDesc(memberId, StayStatus.COMPLETED);
         return sessions.stream()
-                .map(this::toResponseDto)
+                .map(this::toResponseDtoSafe)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
@@ -221,7 +225,8 @@ public class LocationService {
         List<StaySession> sessions = staySessionRepository
                 .findByMemberIdAndStatusOrderByEndTimeDesc(memberId, StayStatus.COMPLETED);
         return sessions.stream()
-                .map(this::toResponseDto)
+                .map(this::toResponseDtoSafe)
+                .filter(Objects::nonNull)
                 .filter(dto -> dto.getDurationMinutes() >= 30L)
                 .collect(Collectors.toList());
     }
@@ -254,5 +259,17 @@ public class LocationService {
                 .endTime(s.getEndTime())
                 .durationMinutes(minutes)
                 .build();
+    }
+
+    /**
+     * 연관 Event 로딩 실패(삭제/불일치 등)가 있어도 목록 API 전체가 500으로 깨지지 않게 방어.
+     */
+    private StaySessionResponseDto toResponseDtoSafe(StaySession s) {
+        try {
+            return toResponseDto(s);
+        } catch (RuntimeException ex) {
+            log.warn("체류 세션 DTO 변환 실패: sessionId={}, memberId={}", s.getId(), s.getMember() != null ? s.getMember().getId() : null, ex);
+            return null;
+        }
     }
 }
