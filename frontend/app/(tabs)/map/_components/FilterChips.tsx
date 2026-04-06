@@ -10,13 +10,18 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { ScaleIconChip } from './ScaleIcon';
+import { EventStatusSliderIcon } from '../../../../components/common/EventStatusSliderIcon';
 
 type Props = {
+  /** 홈 목록 등: 맨 왼쪽 행사 상태(전체·진행중·예정·종료). 없으면 칩 미표시 */
+  onPressStatus?: () => void;
   onPressDate: () => void;
   onPressCategory: () => void;
   onPressPopular: () => void;
   onPressDistance: () => void;
   onPressScale: () => void;
+  /** 'all'이면 요약 없음 → 칩에 "전체" 표시 */
+  selectedStatusSummary?: string | null;
   selectedDateSummary?: string | null;
   selectedCategorySummary?: string | null;
   selectedPopularSummary?: string | null;
@@ -68,6 +73,7 @@ function Chip({ label, icon, onPress, selected }: FilterChipProps) {
 const ICON_SIZE = 16;
 const ICON_GAP = 6;
 const CHIP_COLORS = {
+  status: '#A855F7',    // 진행 상태 퍼플
   date: '#EF4444',      // 날짜 레드
   category: '#F59E0B',  // 카테고리 오렌지
   popular: '#FACC15',    // 인기/추천 옐로우
@@ -80,17 +86,20 @@ function IconWrap({ children }: { children: React.ReactNode }) {
 }
 
 export function FilterChips({
+  onPressStatus,
   onPressDate,
   onPressCategory,
   onPressPopular,
   onPressDistance,
   onPressScale,
+  selectedStatusSummary,
   selectedDateSummary,
   selectedCategorySummary,
   selectedPopularSummary,
   selectedDistanceSummary,
   selectedScaleSummary,
 }: Props) {
+  const statusLabel = selectedStatusSummary || '전체';
   const dateLabel = selectedDateSummary || '날짜';
   const categoryLabel = selectedCategorySummary || '카테고리';
   const popularLabel = selectedPopularSummary || '인기/추천';
@@ -104,6 +113,46 @@ export function FilterChips({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
+        {onPressStatus != null ? (
+          <Chip
+            label={statusLabel}
+            icon={
+              <IconWrap>
+                {selectedStatusSummary === '진행중' ? (
+                  <EventStatusSliderIcon
+                    variant="ongoing"
+                    size={14}
+                    color={CHIP_COLORS.status}
+                    fillColor="#FFFFFF"
+                  />
+                ) : selectedStatusSummary === '종료' ? (
+                  <EventStatusSliderIcon
+                    variant="ended"
+                    size={14}
+                    color="#6B7280"
+                    fillColor="#FFFFFF"
+                  />
+                ) : selectedStatusSummary === '예정' ? (
+                  <EventStatusSliderIcon
+                    variant="ongoing"
+                    size={14}
+                    color={CHIP_COLORS.category}
+                    fillColor="#FFFFFF"
+                  />
+                ) : (
+                  <EventStatusSliderIcon
+                    variant="ended"
+                    size={14}
+                    color="#9CA3AF"
+                    fillColor="#FFFFFF"
+                  />
+                )}
+              </IconWrap>
+            }
+            onPress={onPressStatus}
+            selected={!!selectedStatusSummary}
+          />
+        ) : null}
         <Chip
           label={dateLabel}
           icon={
