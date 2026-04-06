@@ -5,8 +5,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '../contexts/AuthContext';
-import { LoginVerifiedHandler } from '../components/LoginVerifiedHandler';
-import { KakaoLoginHandler } from '../components/KakaoLoginHandler';
+import { AuthDeepLinkHandler } from '../components/AuthDeepLinkHandler';
 import { reconcileFestivalParticipationIfOutsideZone } from '../services/festivalParticipationReconcile';
 import { flushPendingStaySyncQueue } from '../services/staySessionSync';
 
@@ -102,8 +101,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <LoginVerifiedHandler />
-      <KakaoLoginHandler />
+      <AuthDeepLinkHandler />
       <Stack screenOptions={{ headerShown: false }}>
         {/* 하단 탭 그룹 */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
