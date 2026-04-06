@@ -1146,7 +1146,11 @@ export default function MapScreen() {
       } else if (!inZone) {
         clearFestivalParticipation().then(() => refreshFestivalParticipation());
       }
-      const elapsedSec = entry ? Math.floor((Date.now() - entry.enteredAt) / 1000) : 0;
+      const elapsedSec = entry
+        ? entry.participationCompletedToday
+          ? 30 * 60
+          : Math.floor((Date.now() - entry.enteredAt) / 1000)
+        : 0;
       const statusLabel = elapsedSec >= 30 * 60 ? '축제 참여 완료' : '축제 참여중';
       const msg =
         inZone && entry
