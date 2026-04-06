@@ -100,6 +100,35 @@ function getCurrentRegionKey(lat: number, lng: number): string | null {
 /** 축제 목록 시트에서 같은 지역 행사 전부 보여주기 위한 bounds 델타 (도 단위) */
 const REGION_LIST_DELTA = 0.45;
 
+function todayYyyyMmDdUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function eventEndDateYyyyMmDdUtc(e: Event): string {
+  return e.endAt ? new Date(e.endAt).toISOString().slice(0, 10) : '';
+}
+
+/**
+ * 날짜 필터가 없을 때: 종료일이 오늘(UTC) 이전이면 제외.
+ * (filteredEvents·축제 목록 시트 listSheetEvents 공통)
+ */
+function eventNotEndedBeforeTodayUtc(e: Event): boolean {
+  return eventEndDateYyyyMmDdUtc(e) >= todayYyyyMmDdUtc();
+}
+
+/**
+ * 인기순이 아닐 때 축제 목록 정렬: 진행 중(0) → 예정(시작이 가까운 순) → 그 외.
+ * 동점이면 지도/거리 중심과의 km 오름차순.
+ */
+function eventTimeProximityMs(e: Event, now: number): number {
+  const start = new Date(e.startAt).getTime();
+  const end = new Date(e.endAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return Number.MAX_SAFE_INTEGER;
+  if (now >= start && now <= end) return 0;
+  if (now < start) return start - now;
+  return Number.MAX_SAFE_INTEGER;
+}
+
 type SheetMode = 'collapsed' | 'expanded';
 
 // 지도 필터 요약 표시용 라벨 매핑 (모달 옵션과 동일하게 유지)
@@ -813,13 +842,9 @@ export default function MapScreen() {
       list = list.filter((e) => (e.scale ?? 'PERSONAL') === scaleFilter);
     }
     // 날짜가 지난 행사는 기본적으로 제외. 날짜필터를 쓰면(과거/현재/미래 겹쳐도) 종료 행사 포함 → 지도에서 회색 마커+종료 표시
-    const todayStr = new Date().toISOString().slice(0, 10);
     const hasDateFilter = dateFilter != null;
     if (!hasDateFilter) {
-      list = list.filter((e) => {
-        const endStr = e.endAt ? new Date(e.endAt).toISOString().slice(0, 10) : '';
-        return endStr >= todayStr;
-      });
+      list = list.filter(eventNotEndedBeforeTodayUtc);
     }
     return list;
   }, [events, distanceKmLimit, demoLocation, currentLocation, currentRegionKey, dateFilter, categoryFilter, scaleFilter, eventOverlapsDateRange]);
@@ -859,6 +884,11 @@ export default function MapScreen() {
     if (scaleFilter !== 'all') {
       list = list.filter((e) => (e.scale ?? 'PERSONAL') === scaleFilter);
     }
+    // listSheetEvents는 지역 bounds API 원본이라 filteredEvents와 달리 종료 행사가 섞일 수 있음 → 날짜 필터 없을 때 동일 제외
+    const hasDateFilter = dateFilter != null;
+    if (!hasDateFilter) {
+      list = list.filter(eventNotEndedBeforeTodayUtc);
+    }
     const withDist = list.map((e) => ({
       event: e,
       km: distanceKm(center.latitude, center.longitude, e.latitude ?? 0, e.longitude ?? 0),
@@ -866,7 +896,13 @@ export default function MapScreen() {
     if (popularFilter === 'popular') {
       withDist.sort((a, b) => (b.event.likeCount ?? 0) - (a.event.likeCount ?? 0));
     } else {
-      withDist.sort((a, b) => a.km - b.km);
+      const now = Date.now();
+      withDist.sort((a, b) => {
+        const ta = eventTimeProximityMs(a.event, now);
+        const tb = eventTimeProximityMs(b.event, now);
+        if (ta !== tb) return ta - tb;
+        return a.km - b.km;
+      });
     }
     return withDist.slice(0, MAX_EVENT_LIST_ITEMS).map((x) => x.event);
   }, [listSheetEvents, filteredEvents, distanceFilterCenter, listSheetCameraCenter, region, distanceKmLimit, demoLocation, currentLocation, currentRegionKey, dateFilter, categoryFilter, scaleFilter, popularFilter, eventOverlapsDateRange]);

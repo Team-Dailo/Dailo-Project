@@ -23,6 +23,7 @@ import {
   PopularFilterModal,
   DistanceFilterModal,
   ScaleFilterModal,
+  StatusFilterModal,
   type DateRange,
 } from "../map/_components/FilterModals";
 import { getDemoLocation } from "../../../services/demoLocationStorage";
@@ -74,16 +75,62 @@ function eventOverlapsDateRange(event: Event, range: DateRange): boolean {
   return eventStart <= range.end && eventEnd >= range.start;
 }
 
+function todayYyyyMmDdUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toYyyyMmDd(iso: string): string {
+  try {
+    return iso.slice(0, 10);
+  } catch {
+    return "";
+  }
+}
+
 /** 오늘 기준으로 이미 종료된 행사인지 여부 */
 function isEventEnded(event: Event): boolean {
   if (!event.endAt) return false;
   try {
     const endStr = event.endAt.slice(0, 10);
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = todayYyyyMmDdUtc();
     return endStr < todayStr;
   } catch {
     return false;
   }
+}
+
+/** 오늘(UTC 날짜) 기준 아직 시작 전 */
+function isEventUpcoming(event: Event): boolean {
+  const start = toYyyyMmDd(event.startAt);
+  if (!start) return false;
+  return start > todayYyyyMmDdUtc();
+}
+
+/** 오늘(UTC 날짜) 기준 진행 중 (시작일 ≤ 오늘 ≤ 종료일, 단일일은 종료일=시작일) */
+function isEventOngoing(event: Event): boolean {
+  if (isEventUpcoming(event)) return false;
+  if (isEventEnded(event)) return false;
+  const today = todayYyyyMmDdUtc();
+  const start = toYyyyMmDd(event.startAt);
+  const end = event.endAt ? toYyyyMmDd(event.endAt) : start;
+  if (!start || !end) return false;
+  return start <= today && today <= end;
+}
+
+type StatusFilter = "all" | "ongoing" | "upcoming" | "ended";
+
+const STATUS_FILTER_LABEL: Record<StatusFilter, string> = {
+  all: "전체",
+  ongoing: "진행중",
+  upcoming: "예정",
+  ended: "종료",
+};
+
+function rankForSort(e: Event): number {
+  if (isEventEnded(e)) return 2;
+  if (isEventOngoing(e)) return 0;
+  if (isEventUpcoming(e)) return 1;
+  return 3;
 }
 
 /** 오늘 기준으로 행사 시작일까지 남은 일 수 (지났으면 0) */
@@ -124,12 +171,13 @@ export default function EventListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<
-    "date" | "category" | "popular" | "distance" | "scale" | null
+    "status" | "date" | "category" | "popular" | "distance" | "scale" | null
   >(null);
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [distanceFilter, setDistanceFilter] = useState<string>("all");
   const [scaleFilter, setScaleFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   // 필터 요약 텍스트 (칩에 표시)
@@ -146,7 +194,7 @@ export default function EventListScreen() {
     } catch {
       return null;
     }
-  }, [dateRange?.start, dateRange?.end]);
+  }, [dateRange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,18 +214,23 @@ export default function EventListScreen() {
     setRefreshing(false);
   }, [refetch]);
 
-  /** 날짜·카테고리·규모·검색·정렬(거리) 적용 */
+  /** 날짜·카테고리·규모·검색·정렬(거리)·진행 상태(전체/진행중/예정/종료) 적용 */
   const filteredEvents = useMemo(() => {
     let list = events;
     const hasCustomDateRange = !!dateRange;
 
-    // 기본 진입 시(기간 필터 없음)에는 이미 종료된 행사는 숨김
-    if (!hasCustomDateRange) {
-      list = list.filter((e) => !isEventEnded(e));
-    }
     if (dateRange) {
       list = list.filter((e) => eventOverlapsDateRange(e, dateRange));
     }
+
+    if (statusFilter === "ongoing") {
+      list = list.filter(isEventOngoing);
+    } else if (statusFilter === "upcoming") {
+      list = list.filter(isEventUpcoming);
+    } else if (statusFilter === "ended") {
+      list = list.filter(isEventEnded);
+    }
+    // statusFilter === "all": 종료 행사 포함
     if (categoryFilter !== "all") {
       list = list.filter((e) => (e.category ?? "ETC") === categoryFilter);
     }
@@ -200,8 +253,34 @@ export default function EventListScreen() {
           approxKm(userLocation.lat, userLocation.lng, b.latitude, b.longitude)
       );
     } else if (!hasCustomDateRange) {
-      // 기본 진입(기간·거리 필터 없음)에서는 오늘과 가까운 행사부터 정렬
-      list = [...list].sort((a, b) => daysUntilStart(a) - daysUntilStart(b));
+      if (statusFilter === "ended") {
+        list = [...list].sort((a, b) =>
+          toYyyyMmDd(b.endAt ?? "").localeCompare(toYyyyMmDd(a.endAt ?? ""))
+        );
+      } else if (statusFilter === "upcoming") {
+        list = [...list].sort((a, b) => daysUntilStart(a) - daysUntilStart(b));
+      } else if (statusFilter === "ongoing") {
+        list = [...list].sort((a, b) =>
+          toYyyyMmDd(a.endAt || a.startAt).localeCompare(toYyyyMmDd(b.endAt || b.startAt))
+        );
+      } else {
+        // 전체: 진행중 → 예정 → 종료, 그룹 내 가까운 순
+        list = [...list].sort((a, b) => {
+          const ra = rankForSort(a);
+          const rb = rankForSort(b);
+          if (ra !== rb) return ra - rb;
+          if (ra === 0) {
+            return toYyyyMmDd(a.endAt || a.startAt).localeCompare(
+              toYyyyMmDd(b.endAt || b.startAt)
+            );
+          }
+          if (ra === 1) return daysUntilStart(a) - daysUntilStart(b);
+          if (ra === 2) {
+            return toYyyyMmDd(b.endAt ?? "").localeCompare(toYyyyMmDd(a.endAt ?? ""));
+          }
+          return 0;
+        });
+      }
     }
     return list;
   }, [
@@ -212,6 +291,7 @@ export default function EventListScreen() {
     searchQuery,
     distanceFilter,
     userLocation,
+    statusFilter,
   ]);
 
   if (error) {
@@ -257,14 +337,20 @@ export default function EventListScreen() {
           ) : null}
         </View>
 
-        {/* 지도 탭과 동일한 필터 칩 (날짜·카테고리·인기/추천·거리·규모) */}
+        {/* 지도 탭과 동일한 필터 칩 (날짜·카테고리·인기/추천·거리·규모) — 검색창 바로 아래 */}
         <View style={styles.filterChipsWrap}>
           <FilterChips
+            onPressStatus={() => setActiveFilter("status")}
             onPressDate={() => setActiveFilter("date")}
             onPressCategory={() => setActiveFilter("category")}
             onPressPopular={() => setActiveFilter("popular")}
             onPressDistance={() => setActiveFilter("distance")}
             onPressScale={() => setActiveFilter("scale")}
+            selectedStatusSummary={
+              statusFilter === "all"
+                ? undefined
+                : STATUS_FILTER_LABEL[statusFilter]
+            }
             selectedDateSummary={dateSummary ?? undefined}
             selectedCategorySummary={
               categoryFilter !== "all"
@@ -338,14 +424,17 @@ export default function EventListScreen() {
                   />
                   <View style={styles.eventInfo}>
                     <View style={styles.eventHeaderRow}>
-                      <Text style={styles.eventCategory}>
+                      <Text
+                        style={styles.eventCategory}
+                        numberOfLines={1}
+                      >
                         {categoryLabel(event.category)}
                       </Text>
-                      {ended && (
+                      {ended ? (
                         <View style={styles.eventEndedBadge}>
                           <Text style={styles.eventEndedBadgeText}>종료</Text>
                         </View>
-                      )}
+                      ) : null}
                     </View>
                     <Text style={styles.eventTitle} numberOfLines={2}>
                       {event.title}
@@ -376,7 +465,16 @@ export default function EventListScreen() {
         </View>
       </View>
 
-      {/* 필터 모달 (지도 탭과 동일) */}
+      {/* 필터 모달 (지도 탭과 동일 + 행사 상태) */}
+      <StatusFilterModal
+        visible={activeFilter === "status"}
+        onClose={() => setActiveFilter(null)}
+        selectedValue={statusFilter}
+        onSelect={(v) => {
+          setStatusFilter(v as StatusFilter);
+          setActiveFilter(null);
+        }}
+      />
       <DateFilterModal
         visible={activeFilter === "date"}
         onClose={() => setActiveFilter(null)}
@@ -534,8 +632,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 4,
+    gap: 8,
   },
   eventCategory: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 11,
     fontWeight: "600",
     color: "#6B7280",
@@ -543,6 +644,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   eventEndedBadge: {
+    flexShrink: 0,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
