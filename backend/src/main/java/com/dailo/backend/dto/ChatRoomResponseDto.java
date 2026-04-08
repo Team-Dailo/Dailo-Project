@@ -28,7 +28,6 @@ public class ChatRoomResponseDto {
 
     public static ChatRoomResponseDto from(ChatRoom room) {
         List<ChatMemberDto> activeMembers = room.getMembers().stream()
-                .filter(m -> m.getLeftAt() == null)
                 .map(ChatMemberDto::from)
                 .collect(Collectors.toList());
         return ChatRoomResponseDto.builder()
@@ -49,7 +48,6 @@ public class ChatRoomResponseDto {
     public static ChatRoomResponseDto from(ChatRoom room, Map<Long, String> nicknameByUserId, Integer unreadCount,
                                           String lastMessageContent, LocalDateTime lastMessageAt) {
         List<ChatMemberDto> activeMembers = room.getMembers().stream()
-                .filter(m -> m.getLeftAt() == null)
                 .map(m -> ChatMemberDto.from(m, nicknameByUserId.getOrDefault(m.getUserId(), null)))
                 .collect(Collectors.toList());
         return ChatRoomResponseDto.builder()

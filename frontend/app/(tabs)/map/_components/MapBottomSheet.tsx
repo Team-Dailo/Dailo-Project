@@ -1,20 +1,30 @@
 // app/(tabs)/map/_components/MapBottomSheet.tsx
-import React from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
+  ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import type { Event, EventCategory } from '../../../../types/event';
+import type { Event, EventCategory, EventDetail } from '../../../../types/event';
 import { formatDate, formatDateTimeRange } from '../../../../utils/formatDate';
 import { formatTime, formatTimeRange } from '../../../../utils/formatTime';
+import { getEventDetail } from '../../../../services/event.service';
+import { toggleScrap } from '../../../../services/scrap.service';
+import { useAuth } from '../../../../hooks/useAuth';
+import { parseEventExtra } from '../../../../utils/eventExtra';
+import EventDetailTabs, { TabKey } from '../../../../components/detail/EventDetailTabs';
+import Timeline from '../../../../components/detail/Timeline';
+import EventNewsTab from '../../../../components/detail/EventNewsTab';
+import EventBoothTab from '../../../../components/detail/EventBoothTab';
 
 const CATEGORY_LABEL: Record<EventCategory, string> = {
   FESTIVAL: '축제',
@@ -59,6 +69,50 @@ export function MapBottomSheet({
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  const { isLoggedIn } = useAuth();
+  const [detail, setDetail] = useState<EventDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [tab, setTab] = useState<TabKey>('news');
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+
+  // expanded 모드 진입 시 상세 데이터 fetch + 탭/북마크 초기화
+  useEffect(() => {
+    if (!visible || !event || mode !== 'expanded') return;
+    setDetail(null);
+    setTab('news');
+    setIsBookmarked(event.isBookmarked ?? false);
+    setDetailLoading(true);
+    getEventDetail(event.id)
+      .then((d) => {
+        setDetail(d);
+        setIsBookmarked(d.isBookmarked ?? event.isBookmarked ?? false);
+      })
+      .catch(() => setDetail(null))
+      .finally(() => setDetailLoading(false));
+  }, [visible, event?.id, mode]);
+
+  const handleToggleBookmark = async () => {
+    if (!event) return;
+    if (!isLoggedIn) {
+      Alert.alert('로그인 필요', '로그인 후 저장할 수 있습니다.');
+      return;
+    }
+    if (bookmarkLoading) return;
+    setBookmarkLoading(true);
+    try {
+      const saved = await toggleScrap(Number(event.id));
+      setIsBookmarked(saved);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '저장에 실패했습니다.';
+      Alert.alert('알림', msg);
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
+
+  const extra = useMemo(() => parseEventExtra(detail?.extraJson ?? null), [detail?.extraJson]);
+
   if (!visible || !event) return null;
 
   const isCollapsed = mode === 'collapsed';
@@ -94,10 +148,6 @@ export function MapBottomSheet({
   const placeText = event.address || event.placeName || '위치 없음';
   const categoryLabel =
     (event.category && CATEGORY_LABEL[event.category as EventCategory]) ?? '기타';
-  const posterUri =
-    event.thumbnailUrl ??
-    'https://via.placeholder.com/700x380.png?text=Poster';
-
   // 큰 카드 상단 위치: 필터 칩 아래 + 8px 정도 여백
   const expandedTop = filterBottomY + 8;
 
@@ -154,7 +204,7 @@ export function MapBottomSheet({
           </View>
         </View>
       ) : (
-        // 🔹 큰 카드 모드 (카테고리 칩 바로 아래부터 시작, 내부 스크롤)
+        // 🔹 큰 카드 모드 (카테고리 칩 바로 아래부터 시작)
         <View
           style={[
             styles.largeContainer,
@@ -163,36 +213,42 @@ export function MapBottomSheet({
               left: 16,
               right: 16,
               top: expandedTop,
-              bottom: 12, // ✅ 기존 bottom: insets.bottom
+              bottom: 12,
             },
           ]}
         >
-          {/* 큰 카드 닫기 버튼 (우상단 X) */}
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={onClose}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="close" size={18} color="#6B7280" />
-          </TouchableOpacity>
-
-          <ScrollView
-            style={styles.largeScroll}
-            contentContainerStyle={styles.largeContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.cardHeader}>
+          {/* 고정 헤더: 카테고리, 제목, 메타 정보, 설명 */}
+          <View style={styles.largeHeader}>
+            {/* 카테고리 + 북마크/닫기 버튼 행 */}
+            <View style={styles.headerTopRow}>
               <Text style={styles.category}>{categoryLabel}</Text>
+              <View style={styles.headerButtons}>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={handleToggleBookmark}
+                  activeOpacity={0.8}
+                  disabled={bookmarkLoading}
+                >
+                  <Ionicons
+                    name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
+                    size={20}
+                    color={isBookmarked ? '#4C8BF5' : '#6B7280'}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={onClose}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="close" size={20} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
             </View>
-
             <Text style={styles.title}>{event.title}</Text>
             {placeText !== '위치 없음' ? (
-              <Text style={styles.subtitle} numberOfLines={1}>
-                {placeText}
-              </Text>
+              <Text style={styles.subtitle} numberOfLines={1}>{placeText}</Text>
             ) : null}
-
-            <View style={[styles.metaRow, { marginTop: 12 }]}>
+            <View style={[styles.metaRow, { marginTop: 8 }]}>
               <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
               <Text style={styles.metaText}>{dateText}</Text>
             </View>
@@ -204,23 +260,59 @@ export function MapBottomSheet({
               <Ionicons name="location-outline" size={14} color="#9CA3AF" />
               <Text style={styles.metaText}>{placeText}</Text>
             </View>
-
-            {/* 상세 내용은 상세보기에서 */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                자세한 일정과 소개는 아래 상세보기에서 확인할 수 있습니다.
+            {detail?.description ? (
+              <Text style={styles.description} numberOfLines={3}>
+                {detail.description}
               </Text>
-            </View>
+            ) : null}
+          </View>
 
-            {/* 포스터 영역: 행사 썸네일(포스터) 이미지 표시 */}
-            <View style={styles.posterPlaceholder}>
-              <Image
-                source={{ uri: posterUri }}
-                style={styles.posterImage}
-                resizeMode="cover"
-              />
-            </View>
-          </ScrollView>
+          {/* 미리보기 박스 (명확히 구분된 네모 영역) */}
+          <View style={styles.previewBox}>
+            {detailLoading ? (
+              <View style={styles.loadingSection}>
+                <ActivityIndicator size="small" color="#4C8BF5" />
+              </View>
+            ) : (
+              <>
+                {/* 탭 바 */}
+                <EventDetailTabs value={tab} onChange={setTab} />
+
+                {/* 탭 콘텐츠 (박스 안에서만 스크롤) */}
+                <ScrollView
+                  style={styles.tabContent}
+                  contentContainerStyle={styles.tabContentInner}
+                  showsVerticalScrollIndicator={false}
+                  nestedScrollEnabled
+                >
+                  {tab === 'news' && (
+                    <EventNewsTab
+                      news={extra.news}
+                      eventId={detail?.id != null ? Number(detail.id) : undefined}
+                    />
+                  )}
+                  {tab === 'timeline' && (
+                    <Timeline
+                      dateLabel={extra.timeline?.[0]?.dateLabel ?? null}
+                      items={extra.timeline}
+                    />
+                  )}
+                  {tab === 'booths' && (
+                    <EventBoothTab
+                      eventId={detail?.id != null ? Number(detail.id) : undefined}
+                      eventTitle={event.title}
+                      foodBooths={extra.foodBooths}
+                      experienceBooths={extra.experienceBooths}
+                      eventLatitude={event.latitude}
+                      eventLongitude={event.longitude}
+                      foodArea={extra.foodArea}
+                      experienceArea={extra.experienceArea}
+                    />
+                  )}
+                </ScrollView>
+              </>
+            )}
+          </View>
 
           {/* 하단 버튼 (길찾기 / 상세보기) */}
           <View style={styles.largeButtonRow}>
@@ -408,15 +500,61 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#4B5563',
   },
-  posterPlaceholder: {
-    marginTop: 18,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#E5E7EB',
+  loadingSection: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  posterImage: {
-    width: '100%',
-    aspectRatio: 4 / 3,
+  largeHeader: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  iconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  description: {
+    fontSize: 13,
+    color: '#374151',
+    marginTop: 10,
+    lineHeight: 19,
+  },
+  previewBox: {
+    flex: 1,
+    marginHorizontal: 14,
+    marginTop: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    overflow: 'hidden',
+  },
+  tabContent: {
+    flex: 1,
+  },
+  tabContentInner: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   largeButtonRow: {
     flexDirection: 'row',
