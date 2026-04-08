@@ -56,4 +56,9 @@ public class ChatRoom {
     public void updateTimestamp() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    // 나가기 시 재사용 방지 (재채팅 시 새 방 생성)
+    public void clearDirectRoomKey() {
+        this.directRoomKey = null;
+    }
 }

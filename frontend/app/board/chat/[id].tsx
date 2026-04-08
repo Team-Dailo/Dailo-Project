@@ -1,30 +1,46 @@
 // app/board/chat/[id].tsx - 채팅화면 (1:1 대화, 백엔드 메시지 히스토리 연동)
-import React, { useState, useEffect, useCallback } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  Pressable,
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
-  Alert,
-  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import * as chatService from "../../../services/chat.service";
-import * as blockService from "../../../services/block.service";
 import * as authService from "../../../services/auth.service";
+import * as blockService from "../../../services/block.service";
+import * as chatService from "../../../services/chat.service";
 
 type Message = {
   id: string;
   isMe: boolean;
   text: string;
   time?: string;
+  createdAt?: string;
 };
+
+function formatDateLabel(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  if (isSameDay(d, today)) return "오늘";
+  if (isSameDay(d, yesterday)) return "어제";
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
 
 function formatMessageTime(iso?: string): string {
   try {
@@ -52,8 +68,19 @@ export default function ChatRoomScreen() {
   const [notificationsOn, setNotificationsOn] = useState(true);
 
   const partner = room?.members?.find((m) => m.userId !== myUserId);
-  const partnerNick = partner ? ((partner as { nickname?: string; nick_name?: string }).nickname ?? (partner as { nick_name?: string }).nick_name ?? "").trim() : "";
-  const partnerName = partner ? (partnerNick || `user_${partner.userId}`) : "대화 상대";
+  const partnerNick = partner
+    ? (
+        (partner as { nickname?: string; nick_name?: string }).nickname ??
+        (partner as { nick_name?: string }).nick_name ??
+        ""
+      ).trim()
+    : "";
+  const partnerLeft = !!partner?.leftAt;
+  const partnerName = partner
+    ? partnerLeft
+      ? "알 수 없음"
+      : partnerNick || `user_${partner.userId}`
+    : "대화 상대";
   const partnerUserId = partner?.userId ?? 0;
 
   useEffect(() => {
@@ -72,7 +99,9 @@ export default function ChatRoomScreen() {
       const [roomData, msgData, notifStatus] = await Promise.all([
         chatService.getRoom(roomId),
         chatService.getMessages(roomId),
-        chatService.getNotificationStatus(roomId).catch(() => ({ notificationOn: true })),
+        chatService
+          .getNotificationStatus(roomId)
+          .catch(() => ({ notificationOn: true })),
       ]);
       setRoom(roomData);
       setNotificationsOn(notifStatus.notificationOn);
@@ -83,6 +112,7 @@ export default function ChatRoomScreen() {
         isMe: m.senderId === myId,
         text: m.content ?? "",
         time: formatMessageTime(m.createdAt),
+        createdAt: m.createdAt,
       }));
       setMessages([...raw].reverse());
       await chatService.markRoomAsRead(roomId);
@@ -101,7 +131,7 @@ export default function ChatRoomScreen() {
   useFocusEffect(
     useCallback(() => {
       if (roomId && Number.isFinite(roomId)) fetchRoomAndMessages();
-    }, [roomId, fetchRoomAndMessages])
+    }, [roomId, fetchRoomAndMessages]),
   );
 
   const handleSend = async () => {
@@ -109,9 +139,16 @@ export default function ChatRoomScreen() {
     if (!text || !roomId) return;
     setInput("");
     const optimisticId = `m${Date.now()}`;
+    const now = new Date().toISOString();
     setMessages((prev) => [
       ...prev,
-      { id: optimisticId, isMe: true, text, time: formatMessageTime() },
+      {
+        id: optimisticId,
+        isMe: true,
+        text,
+        time: formatMessageTime(now),
+        createdAt: now,
+      },
     ]);
     try {
       const sent = await chatService.sendMessage(roomId, text);
@@ -123,9 +160,10 @@ export default function ChatRoomScreen() {
                 isMe: true,
                 text: sent.content ?? text,
                 time: formatMessageTime(sent.createdAt),
+                createdAt: sent.createdAt,
               }
-            : m
-        )
+            : m,
+        ),
       );
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
@@ -216,9 +254,15 @@ export default function ChatRoomScreen() {
           animationType="fade"
           onRequestClose={() => setMenuVisible(false)}
         >
-          <Pressable style={styles.menuBackdrop} onPress={() => setMenuVisible(false)}>
+          <Pressable
+            style={styles.menuBackdrop}
+            onPress={() => setMenuVisible(false)}
+          >
             <View style={styles.menuCard}>
-              <Pressable style={styles.menuItem} onPress={handleToggleNotification}>
+              <Pressable
+                style={styles.menuItem}
+                onPress={handleToggleNotification}
+              >
                 <Ionicons
                   name={notificationsOn ? "notifications" : "notifications-off"}
                   size={20}
@@ -232,7 +276,10 @@ export default function ChatRoomScreen() {
                 <Ionicons name="ban" size={20} color="#374151" />
                 <Text style={styles.menuItemText}>차단하기</Text>
               </Pressable>
-              <Pressable style={[styles.menuItem, styles.menuItemDanger]} onPress={handleLeaveChat}>
+              <Pressable
+                style={[styles.menuItem, styles.menuItemDanger]}
+                onPress={handleLeaveChat}
+              >
                 <Ionicons name="exit-outline" size={20} color="#DC2626" />
                 <Text style={styles.menuItemTextDanger}>채팅방 나가기</Text>
               </Pressable>
@@ -240,83 +287,111 @@ export default function ChatRoomScreen() {
           </Pressable>
         </Modal>
 
-        <View style={styles.dateWrap}>
-          <Text style={styles.dateText}>오늘</Text>
-        </View>
-
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color="#6366F1" />
           </View>
         ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {messages.map((msg, index) => {
-            const isLastOtherInRow =
-              !msg.isMe &&
-              (index === messages.length - 1 || messages[index + 1].isMe);
-            const hasNextOther =
-              !msg.isMe && index < messages.length - 1 && !messages[index + 1].isMe;
-            return msg.isMe ? (
-              <View key={msg.id} style={styles.myRow}>
-                {msg.time ? <Text style={styles.messageTime}>{msg.time}</Text> : null}
-                <View style={styles.myBubble}>
-                  <Text style={styles.myText}>{msg.text}</Text>
-                </View>
-              </View>
-            ) : (
-              <View
-                key={msg.id}
-                style={[styles.otherRow, hasNextOther && styles.otherRowTight]}
-              >
-                {isLastOtherInRow ? (
-                  <View style={styles.otherAvatar} />
-                ) : (
-                  <View style={styles.otherAvatarPlaceholder} />
-                )}
-                <View style={styles.otherBubble}>
-                  <Text style={styles.otherText}>{msg.text}</Text>
-                </View>
-                {msg.time ? <Text style={styles.messageTime}>{msg.time}</Text> : null}
-              </View>
-            );
-          })}
-        </ScrollView>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {messages.map((msg, index) => {
+              const isLastOtherInRow =
+                !msg.isMe &&
+                (index === messages.length - 1 || messages[index + 1].isMe);
+              const hasNextOther =
+                !msg.isMe &&
+                index < messages.length - 1 &&
+                !messages[index + 1].isMe;
+              const prevMsg = index > 0 ? messages[index - 1] : null;
+              const showDateSeparator =
+                !prevMsg ||
+                formatDateLabel(msg.createdAt) !==
+                  formatDateLabel(prevMsg.createdAt);
+              return (
+                <React.Fragment key={msg.id}>
+                  {showDateSeparator && (
+                    <View style={styles.dateWrap}>
+                      <Text style={styles.dateText}>
+                        {formatDateLabel(msg.createdAt)}
+                      </Text>
+                    </View>
+                  )}
+                  {msg.isMe ? (
+                    <View style={styles.myRow}>
+                      {msg.time ? (
+                        <Text style={styles.messageTime}>{msg.time}</Text>
+                      ) : null}
+                      <View style={styles.myBubble}>
+                        <Text style={styles.myText}>{msg.text}</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View
+                      style={[
+                        styles.otherRow,
+                        hasNextOther && styles.otherRowTight,
+                      ]}
+                    >
+                      {isLastOtherInRow ? (
+                        <View style={styles.otherAvatar} />
+                      ) : (
+                        <View style={styles.otherAvatarPlaceholder} />
+                      )}
+                      <View style={styles.otherBubble}>
+                        <Text style={styles.otherText}>{msg.text}</Text>
+                      </View>
+                      {msg.time ? (
+                        <Text style={styles.messageTime}>{msg.time}</Text>
+                      ) : null}
+                    </View>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </ScrollView>
         )}
 
         {/* 입력 영역 */}
-        <View style={styles.inputRow}>
-          <Pressable style={styles.inputIcon}>
-            <Ionicons name="image-outline" size={24} color="#4C8BF5" />
-          </Pressable>
-          <TextInput
-            style={styles.input}
-            placeholder="메시지 보내기.."
-            placeholderTextColor="#9CA3AF"
-            value={input}
-            onChangeText={setInput}
-            multiline
-            maxLength={500}
-          />
-          <Pressable style={styles.inputIcon}>
-            <Ionicons name="mic-outline" size={22} color="#6B7280" />
-          </Pressable>
-          <Pressable
-            onPress={handleSend}
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
-            disabled={!input.trim()}
-          >
-            <Ionicons
-              name="send"
-              size={20}
-              color={input.trim() ? "#4C8BF5" : "#9CA3AF"}
+        {partnerLeft ? (
+          <View style={styles.partnerLeftBanner}>
+            <Text style={styles.partnerLeftText}>
+              상대방이 채팅방을 나갔습니다.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.inputRow}>
+            <Pressable style={styles.inputIcon}>
+              <Ionicons name="image-outline" size={24} color="#4C8BF5" />
+            </Pressable>
+            <TextInput
+              style={styles.input}
+              placeholder="메시지 보내기.."
+              placeholderTextColor="#9CA3AF"
+              value={input}
+              onChangeText={setInput}
+              multiline
+              maxLength={500}
             />
-          </Pressable>
-        </View>
+            <Pressable style={styles.inputIcon}>
+              <Ionicons name="mic-outline" size={22} color="#6B7280" />
+            </Pressable>
+            <Pressable
+              onPress={handleSend}
+              style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
+              disabled={!input.trim()}
+            >
+              <Ionicons
+                name="send"
+                size={20}
+                color={input.trim() ? "#4C8BF5" : "#9CA3AF"}
+              />
+            </Pressable>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -347,7 +422,13 @@ const styles = StyleSheet.create({
   dateText: { fontSize: 12, color: "#9CA3AF" },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 16 },
-  myRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "flex-end", marginBottom: 10, gap: 6 },
+  myRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "flex-end",
+    marginBottom: 10,
+    gap: 6,
+  },
   myBubble: {
     maxWidth: "80%",
     backgroundColor: "#4C8BF5",
@@ -357,7 +438,12 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
   },
   myText: { fontSize: 15, color: "#FFFFFF", lineHeight: 20 },
-  otherRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 10, gap: 6 },
+  otherRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginBottom: 10,
+    gap: 6,
+  },
   otherRowTight: { marginBottom: 4 },
   otherAvatar: {
     width: 32,
@@ -430,5 +516,18 @@ const styles = StyleSheet.create({
   menuItemText: { fontSize: 15, color: "#111827" },
   menuItemDanger: { borderTopWidth: 1, borderTopColor: "#F3F4F6" },
   menuItemTextDanger: { fontSize: 15, color: "#DC2626", fontWeight: "500" },
-  loadingWrap: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 48 },
+  loadingWrap: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 48,
+  },
+  partnerLeftBanner: {
+    paddingVertical: 14,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+  },
+  partnerLeftText: { fontSize: 14, color: "#6B7280" },
 });

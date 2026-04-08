@@ -14,11 +14,10 @@ import {
   ToastAndroid,
   TextInput,
 } from 'react-native';
-import { Stack, useLocalSearchParams, router } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useSafeBack } from '../../../hooks/useSafeBack';
 import * as eventReminder from '../../../services/eventReminder.service';
 import * as notificationService from '../../../services/notification.service';
 import { useAuthContext } from '../../../contexts/AuthContext';
@@ -39,8 +38,6 @@ const STORAGE_KEYS = {
 };
 
 export default function NotificationSettingsScreen() {
-  const params = useLocalSearchParams<{ from?: string }>();
-  const safeBack = useSafeBack();
   const { isLoggedIn } = useAuthContext();
 
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -60,12 +57,8 @@ export default function NotificationSettingsScreen() {
   const [regionMoreVisible, setRegionMoreVisible] = useState(false);
 
   const handleBack = useCallback(() => {
-    if (params.from === 'home') {
-      router.replace('/(tabs)/home');
-    } else {
-      safeBack();
-    }
-  }, [params.from, safeBack]);
+    router.back();
+  }, []);
 
   useEffect(() => {
     (async () => {

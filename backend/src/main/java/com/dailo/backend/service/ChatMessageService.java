@@ -94,7 +94,7 @@ public class ChatMessageService {
                 .orElseThrow(() -> new RuntimeException("Room not found: " + roomId));
 
         // 멤버 여부 확인
-        ChatMember member = chatMemberRepository.findByRoomAndUserId(room, userId)
+        chatMemberRepository.findByRoomAndUserId(room, userId)
                 .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
 
         return chatMessageRepository.findByRoomOrderByCreatedAtDesc(room, pageable)

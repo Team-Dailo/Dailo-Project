@@ -15,6 +15,10 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
     Page<ChatMessage> findByRoomOrderByCreatedAtDesc(ChatRoom room, Pageable pageable);
     Page<ChatMessage> findByRoomOrderByCreatedAtAsc(ChatRoom room, Pageable pageable);
 
-    /** lastReadAt 이후 메시지 수 (미읽음 개수) */
-    long countByRoomAndCreatedAtAfter(ChatRoom room, LocalDateTime after);
+    /** lastReadAt 이후 메시지 수 (미읽음 개수) - 내가 보낸 메시지 제외 */
+    long countByRoomAndCreatedAtAfterAndSenderIdNot(ChatRoom room, LocalDateTime after, Long senderId);
+
+    /** 방의 모든 메시지 삭제 */
+    void deleteByRoom(ChatRoom room);
+
 }

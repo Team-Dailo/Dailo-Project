@@ -50,7 +50,6 @@ public class ChatMember {
 
     public void rejoin() {
         this.leftAt = null;
-        // joinedAt은 최초 입장 시간이므로 유지
     }
 
     public boolean isActive() {
