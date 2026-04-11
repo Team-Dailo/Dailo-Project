@@ -1,5 +1,6 @@
 package com.dailo.backend.dto;
 
+import com.dailo.backend.domain.enums.InquiryStatus;
 import com.dailo.backend.entity.Inquiry;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,6 +21,10 @@ public class InquiryResponseDto {
     private String title;
     private String content;
     private LocalDateTime createdAt;
+    private InquiryStatus status;
+    private String answer;
+    private LocalDateTime answeredAt;
+    private Long answeredBy;
 
     public static InquiryResponseDto from(Inquiry entity) {
         return InquiryResponseDto.builder()
@@ -29,6 +34,10 @@ public class InquiryResponseDto {
                 .title(entity.getTitle())
                 .content(entity.getContent())
                 .createdAt(entity.getCreatedAt())
+                .status(entity.getStatus())
+                .answer(entity.getAnswer())
+                .answeredAt(entity.getAnsweredAt())
+                .answeredBy(entity.getAnsweredBy())
                 .build();
     }
 }
