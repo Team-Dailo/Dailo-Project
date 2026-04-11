@@ -583,3 +583,365 @@ export async function deleteNotice(id: number): Promise<void> {
   const res = await adminFetch(`/api/admin/notices/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(await res.text().then((t) => t || '공지 삭제 실패'));
 }
+
+// --- 대시보드 (AdminDashboardController) ---
+
+export type DashboardResponse = {
+  totalMembers: number;
+  totalPosts: number;
+  totalComments: number;
+  totalEvents: number;
+  pendingReports: number;
+  pendingInquiries: number;
+  todaySignups: number;
+  todayPosts: number;
+};
+
+export async function getDashboard(): Promise<DashboardResponse> {
+  const res = await adminFetch('/api/admin/dashboard');
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '대시보드 조회 실패'));
+  return res.json();
+}
+
+// --- FAQ 관리 (AdminFaqController) ---
+
+export type FaqItem = {
+  id: number;
+  category: string;
+  question: string;
+  answer: string;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FaqCreateRequest = {
+  category: string;
+  question: string;
+  answer: string;
+  displayOrder?: number;
+};
+
+export async function getAdminFaqList(params?: {
+  page?: number;
+  size?: number;
+}): Promise<PageResponse<FaqItem>> {
+  const q: Record<string, string> = {};
+  if (params?.page != null) q.page = String(params.page);
+  if (params?.size != null) q.size = String(params.size);
+  const query = new URLSearchParams(q).toString();
+  const res = await adminFetch(`/api/admin/faq${query ? '?' + query : ''}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || 'FAQ 목록 조회 실패'));
+  return res.json();
+}
+
+export async function getAdminFaqDetail(id: number): Promise<FaqItem> {
+  const res = await adminFetch(`/api/admin/faq/${id}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || 'FAQ 상세 조회 실패'));
+  return res.json();
+}
+
+export async function createFaq(body: FaqCreateRequest): Promise<FaqItem> {
+  const res = await adminFetch('/api/admin/faq', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  return res.json();
+}
+
+export async function updateFaq(id: number, body: FaqCreateRequest): Promise<FaqItem> {
+  const res = await adminFetch(`/api/admin/faq/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  return res.json();
+}
+
+export async function deleteFaq(id: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/faq/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || 'FAQ 삭제 실패'));
+}
+
+export async function toggleFaqActive(id: number): Promise<FaqItem> {
+  const res = await adminFetch(`/api/admin/faq/${id}/toggle`, { method: 'PATCH' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || 'FAQ 상태 변경 실패'));
+  return res.json();
+}
+
+// --- 배너 관리 (AdminBannerController) ---
+
+export type BannerItem = {
+  id: number;
+  title: string;
+  imageUrl: string;
+  linkUrl: string | null;
+  linkType: 'INTERNAL' | 'EXTERNAL' | 'NONE';
+  displayOrder: number;
+  startAt: string | null;
+  endAt: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BannerCreateRequest = {
+  title: string;
+  imageUrl: string;
+  linkUrl?: string | null;
+  linkType?: 'INTERNAL' | 'EXTERNAL' | 'NONE';
+  displayOrder?: number;
+  startAt?: string | null;
+  endAt?: string | null;
+};
+
+export async function getAdminBannerList(params?: {
+  page?: number;
+  size?: number;
+}): Promise<PageResponse<BannerItem>> {
+  const q: Record<string, string> = {};
+  if (params?.page != null) q.page = String(params.page);
+  if (params?.size != null) q.size = String(params.size);
+  const query = new URLSearchParams(q).toString();
+  const res = await adminFetch(`/api/admin/banners${query ? '?' + query : ''}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '배너 목록 조회 실패'));
+  return res.json();
+}
+
+export async function getAdminBannerDetail(id: number): Promise<BannerItem> {
+  const res = await adminFetch(`/api/admin/banners/${id}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '배너 상세 조회 실패'));
+  return res.json();
+}
+
+export async function createBanner(body: BannerCreateRequest): Promise<BannerItem> {
+  const res = await adminFetch('/api/admin/banners', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  return res.json();
+}
+
+export async function updateBanner(id: number, body: BannerCreateRequest): Promise<BannerItem> {
+  const res = await adminFetch(`/api/admin/banners/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  return res.json();
+}
+
+export async function deleteBanner(id: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/banners/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '배너 삭제 실패'));
+}
+
+export async function toggleBannerActive(id: number): Promise<BannerItem> {
+  const res = await adminFetch(`/api/admin/banners/${id}/toggle`, { method: 'PATCH' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '배너 상태 변경 실패'));
+  return res.json();
+}
+
+// --- 앱 버전 관리 (AdminAppVersionController) ---
+
+export type AppVersionItem = {
+  id: number;
+  platform: 'IOS' | 'ANDROID';
+  minimumVersion: string;
+  latestVersion: string;
+  forceUpdate: boolean;
+  storeUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AppVersionCreateRequest = {
+  platform: 'IOS' | 'ANDROID';
+  minimumVersion: string;
+  latestVersion: string;
+  forceUpdate?: boolean;
+  storeUrl?: string | null;
+};
+
+export async function getAdminAppVersionList(): Promise<AppVersionItem[]> {
+  const res = await adminFetch('/api/admin/app-version');
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '앱 버전 목록 조회 실패'));
+  return res.json();
+}
+
+export async function getAdminAppVersionDetail(id: number): Promise<AppVersionItem> {
+  const res = await adminFetch(`/api/admin/app-version/${id}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '앱 버전 상세 조회 실패'));
+  return res.json();
+}
+
+export async function createAppVersion(body: AppVersionCreateRequest): Promise<AppVersionItem> {
+  const res = await adminFetch('/api/admin/app-version', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  return res.json();
+}
+
+export async function updateAppVersion(id: number, body: AppVersionCreateRequest): Promise<AppVersionItem> {
+  const res = await adminFetch(`/api/admin/app-version/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  return res.json();
+}
+
+export async function deleteAppVersion(id: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/app-version/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '앱 버전 삭제 실패'));
+}
+
+// --- 관리자 활동 로그 (AdminLogController) ---
+
+export type AdminLogItem = {
+  id: number;
+  adminId: number;
+  adminEmail: string;
+  action: string;
+  targetType: string;
+  targetId: number | null;
+  description: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+};
+
+export async function getAdminLogs(params?: {
+  page?: number;
+  size?: number;
+}): Promise<PageResponse<AdminLogItem>> {
+  const q: Record<string, string> = {};
+  if (params?.page != null) q.page = String(params.page);
+  if (params?.size != null) q.size = String(params.size);
+  const query = new URLSearchParams(q).toString();
+  const res = await adminFetch(`/api/admin/logs${query ? '?' + query : ''}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '활동 로그 조회 실패'));
+  return res.json();
+}
+
+// --- 댓글 관리 (AdminCommentController) ---
+
+export type AdminCommentItem = {
+  id: number;
+  postId: number;
+  postTitle: string | null;
+  authorId: number;
+  authorNickname: string | null;
+  content: string;
+  status: 'VISIBLE' | 'HIDDEN' | 'DELETED';
+  createdAt: string;
+  reportCount: number;
+};
+
+export async function getAdminComments(params?: {
+  page?: number;
+  size?: number;
+}): Promise<PageResponse<AdminCommentItem>> {
+  const q: Record<string, string> = {};
+  if (params?.page != null) q.page = String(params.page);
+  if (params?.size != null) q.size = String(params.size);
+  const query = new URLSearchParams(q).toString();
+  const res = await adminFetch(`/api/admin/comments${query ? '?' + query : ''}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '댓글 목록 조회 실패'));
+  return res.json();
+}
+
+export async function getAdminReportedComments(params?: {
+  page?: number;
+  size?: number;
+}): Promise<PageResponse<AdminCommentItem>> {
+  const q: Record<string, string> = {};
+  if (params?.page != null) q.page = String(params.page);
+  if (params?.size != null) q.size = String(params.size);
+  const query = new URLSearchParams(q).toString();
+  const res = await adminFetch(`/api/admin/comments/reported${query ? '?' + query : ''}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '신고된 댓글 조회 실패'));
+  return res.json();
+}
+
+export async function hideComment(id: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/comments/${id}/hide`, { method: 'PATCH' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '댓글 숨김 실패'));
+}
+
+export async function restoreComment(id: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/comments/${id}/restore`, { method: 'PATCH' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '댓글 복원 실패'));
+}
+
+export async function deleteAdminComment(id: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/comments/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '댓글 삭제 실패'));
+}
+
+// --- 푸시 알림 발송 (AdminNotificationController) ---
+
+export type PushResponse = {
+  success: boolean;
+  message: string;
+  sentCount: number;
+  failedCount: number;
+};
+
+export async function sendPushToAll(title: string, body: string): Promise<PushResponse> {
+  const res = await adminFetch('/api/admin/notifications/send-all', {
+    method: 'POST',
+    body: JSON.stringify({ title, body }),
+  });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '전체 발송 실패'));
+  return res.json();
+}
+
+export async function sendPushToMembers(title: string, body: string, memberIds: number[]): Promise<PushResponse> {
+  const res = await adminFetch('/api/admin/notifications/send', {
+    method: 'POST',
+    body: JSON.stringify({ title, body, memberIds }),
+  });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '발송 실패'));
+  return res.json();
+}
+
+// --- 문의 답변 (AdminInquiryController) ---
+
+export type InquiryDetailItem = {
+  id: number;
+  memberId: number | null;
+  email: string;
+  title: string;
+  content: string;
+  status: 'PENDING' | 'ANSWERED' | 'CLOSED';
+  answer: string | null;
+  answeredAt: string | null;
+  answeredBy: number | null;
+  createdAt: string;
+};
+
+export async function getAdminInquiryDetail(id: number): Promise<InquiryDetailItem> {
+  const res = await adminFetch(`/api/admin/inquiries/${id}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '문의 상세 조회 실패'));
+  return res.json();
+}
+
+export async function answerInquiry(id: number, answer: string): Promise<InquiryDetailItem> {
+  const res = await adminFetch(`/api/admin/inquiries/${id}/answer`, {
+    method: 'PUT',
+    body: JSON.stringify({ answer }),
+  });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '답변 등록 실패'));
+  return res.json();
+}
+
+export async function closeInquiry(id: number): Promise<InquiryDetailItem> {
+  const res = await adminFetch(`/api/admin/inquiries/${id}/close`, { method: 'PATCH' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '문의 종료 실패'));
+  return res.json();
+}
