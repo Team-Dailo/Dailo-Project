@@ -57,4 +57,26 @@ public class InquiryService {
                 .map(InquiryResponseDto::from)
                 .orElseThrow(() -> new IllegalArgumentException("문의를 찾을 수 없습니다. id=" + id));
     }
+
+    /**
+     * 관리자 문의 답변
+     */
+    public InquiryResponseDto answer(Long id, String answer, Long adminId) {
+        Inquiry inquiry = inquiryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("문의를 찾을 수 없습니다. id=" + id));
+
+        inquiry.answer(answer, adminId);
+        return InquiryResponseDto.from(inquiry);
+    }
+
+    /**
+     * 문의 종료 처리
+     */
+    public InquiryResponseDto close(Long id) {
+        Inquiry inquiry = inquiryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("문의를 찾을 수 없습니다. id=" + id));
+
+        inquiry.close();
+        return InquiryResponseDto.from(inquiry);
+    }
 }

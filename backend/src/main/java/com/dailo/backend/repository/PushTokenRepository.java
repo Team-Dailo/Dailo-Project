@@ -19,4 +19,7 @@ public interface PushTokenRepository extends JpaRepository<PushToken, Long> {
 
     // 로그아웃, 토큰 만료 시 삭제
     void deleteByToken(String token);
+
+    // 관리자 알림 발송용: 특정 회원들의 토큰 조회
+    List<PushToken> findAllByMemberIdIn(List<Long> memberIds);
 }

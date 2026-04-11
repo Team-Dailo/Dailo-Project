@@ -1,5 +1,6 @@
 package com.dailo.backend.repository;
 
+import com.dailo.backend.domain.enums.PostStatus;
 import com.dailo.backend.entity.Post;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -9,10 +10,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 
 @Repository
 public interface PostRepository extends JpaRepository<Post, Long> {
+
+    // 대시보드 통계용
+    long countByStatus(PostStatus status);
+    long countByCreatedAtAfter(LocalDateTime dateTime);
 
     Page<Post> findByAuthorId(Long authorId, Pageable pageable);
 

@@ -90,6 +90,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/inquiries").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/notices/**").permitAll()
                         .requestMatchers("/api/logs/click", "/api/logs/click/**").permitAll()
+                        .requestMatchers("/api/app-version/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/faq/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/admin/members").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/admin/blocks/heavy-blocked").authenticated()
