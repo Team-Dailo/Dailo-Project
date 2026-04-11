@@ -1,5 +1,6 @@
 package com.dailo.backend.entity;
 
+import com.dailo.backend.domain.enums.CommentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
@@ -51,6 +52,11 @@ public class Comment {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    @Builder.Default
+    private CommentStatus status = CommentStatus.VISIBLE;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -82,5 +88,18 @@ public class Comment {
 
     public void softDelete() {
         this.deletedAt = LocalDateTime.now();
+        this.status = CommentStatus.DELETED;
+    }
+
+    public void hide() {
+        this.status = CommentStatus.HIDDEN;
+    }
+
+    public void restore() {
+        this.status = CommentStatus.VISIBLE;
+    }
+
+    public boolean isHidden() {
+        return this.status == CommentStatus.HIDDEN;
     }
 }
