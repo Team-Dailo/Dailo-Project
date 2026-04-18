@@ -8,10 +8,13 @@ import {
   type NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
 import type { Event } from '../../../../types/event';
+import type { BusStop } from '../../../../services/bus.service';
 import { MAP_UI } from '../../../../constants/colors';
 
-/** 마커 아이콘 이미지 (흰색 실루엣 → tintColor로 규모별 색 적용) */
-const MARKER_ICON = require('../../../../assets/images/marker-pin.png');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const MARKER_ICON = require('../../../../assets/images/marker-pin.png') as number;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const BUS_STOP_MARKER = require('../../../../assets/images/bus-marker.png') as number;
 const MARKER_WIDTH = 36;
 const MARKER_HEIGHT = 48;
 // 바깥 테두리/흰색 바디용 스케일 (중심 기준으로 키움)
@@ -69,6 +72,10 @@ type Props = {
   distanceFilterRadiusM?: number | null;
   /** 거리 필터 원의 중심 (내 위치) */
   distanceFilterCenter?: { latitude: number; longitude: number } | null;
+  /** 버스 정류장 마커 목록 */
+  busStops?: BusStop[];
+  /** 버스 정류장 마커 탭 콜백 */
+  onBusStopPress?: (stop: BusStop) => void;
 };
 
 // 현재 위치 점: 화면 상에서 항상 일정한 크기의 점으로 표시 (줌 레벨과 무관)
@@ -110,7 +117,7 @@ const DISTANCE_FILTER_CIRCLE_OUTLINE_WIDTH = 2;
 const DISTANCE_FILTER_CIRCLE_OUTLINE_COLOR = 'rgba(59, 130, 246, 0.5)';
 
 export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
-  { style, camera, events, onMarkerPress, onCameraIdle, currentLocation, circleCoords, showMyLocationCircle, selectedEvent, distanceFilterRadiusM, distanceFilterCenter },
+  { style, camera, events, onMarkerPress, onCameraIdle, currentLocation, circleCoords, showMyLocationCircle, selectedEvent, distanceFilterRadiusM, distanceFilterCenter, busStops, onBusStopPress },
   ref
 ) {
   const myLocationCoords = circleCoords ?? currentLocation ?? null;
@@ -263,6 +270,20 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
             />
           </NaverMapMarkerOverlay>
         )}
+      {busStops?.map((stop) => (
+        <NaverMapMarkerOverlay
+          key={`bus-stop-${stop.stopId}`}
+          latitude={stop.latitude}
+          longitude={stop.longitude}
+          width={28}
+          height={39}
+          anchor={{ x: 0.5, y: 1.0 }}
+          image={BUS_STOP_MARKER}
+          onTap={() => onBusStopPress?.(stop)}
+          globalZIndex={180000}
+          isHideCollidedMarkers
+        />
+      ))}
       {distanceFilterRadiusM != null &&
         distanceFilterRadiusM > 0 &&
         distanceFilterCenter != null &&
