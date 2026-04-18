@@ -590,6 +590,7 @@ export default function PostDetailScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onTouchStart={() => commentMenuId && setCommentMenuId(null)}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

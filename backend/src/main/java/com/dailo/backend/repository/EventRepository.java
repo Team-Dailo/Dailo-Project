@@ -16,6 +16,9 @@ import java.util.List;
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long> {
 
+    // 대시보드 통계용
+    long countByStatus(EventStatus status);
+
     // 지도 뷰
     @Query("SELECT e FROM Event e " +
             "WHERE e.latitude BETWEEN :swLat AND :neLat " +
