@@ -15,6 +15,7 @@ public class MemberResponseDto {
     private String email;
     private String nickname;
     private String profileImageUrl;
+    private String role;
 
     public static MemberResponseDto of(Member member, String resolvedProfileImageUrl) {
         return MemberResponseDto.builder()
@@ -22,6 +23,7 @@ public class MemberResponseDto {
                 .email(member.getEmail())
                 .nickname(member.getNickname())
                 .profileImageUrl(resolvedProfileImageUrl)
+                .role(member.getRole() != null ? member.getRole().name() : null)
                 .build();
     }
 }
