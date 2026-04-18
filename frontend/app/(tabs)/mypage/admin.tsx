@@ -7,15 +7,22 @@ import { useAuth } from "../../../hooks/useAuth";
 import * as authService from "../../../services/auth.service";
 
 const MENU_ITEMS: { icon: keyof typeof Ionicons.glyphMap; label: string; route: string }[] = [
+  { icon: "stats-chart-outline", label: "대시보드", route: "/(tabs)/mypage/admin-dashboard" },
   { icon: "calendar-outline", label: "행사 관리", route: "/(tabs)/mypage/admin-events" },
   { icon: "heart-outline", label: "행사별 좋아요 수", route: "/(tabs)/mypage/admin-event-likes" },
   { icon: "eye-outline", label: "행사별 조회수", route: "/(tabs)/mypage/admin-event-views" },
   { icon: "newspaper-outline", label: "게시글 관리", route: "/(tabs)/mypage/admin-posts" },
+  { icon: "chatbubble-outline", label: "댓글 관리", route: "/(tabs)/mypage/admin-comments" },
   { icon: "megaphone-outline", label: "공지사항 관리", route: "/(tabs)/mypage/admin-notices" },
+  { icon: "help-circle-outline", label: "FAQ 관리", route: "/(tabs)/mypage/admin-faq" },
+  { icon: "images-outline", label: "배너 관리", route: "/(tabs)/mypage/admin-banners" },
   { icon: "flag-outline", label: "신고 기록", route: "/(tabs)/mypage/admin-report-record" },
   { icon: "ban-outline", label: "차단 관리", route: "/(tabs)/mypage/admin-block-management" },
   { icon: "people-outline", label: "회원 목록", route: "/(tabs)/mypage/admin-members" },
   { icon: "mail-outline", label: "문의 목록", route: "/(tabs)/mypage/admin-inquiries" },
+  { icon: "notifications-outline", label: "푸시 알림 발송", route: "/(tabs)/mypage/admin-push" },
+  { icon: "phone-portrait-outline", label: "앱 버전 관리", route: "/(tabs)/mypage/admin-app-versions" },
+  { icon: "document-text-outline", label: "활동 로그", route: "/(tabs)/mypage/admin-logs" },
   { icon: "information-circle-outline", label: "이용안내 수정", route: "/(tabs)/mypage/admin-guide" },
   { icon: "shield-checkmark-outline", label: "개인정보처리방침 수정", route: "/(tabs)/mypage/admin-privacy-policy" },
   { icon: "locate-outline", label: "시범 설정", route: "/(tabs)/mypage/demo-settings" },

@@ -15,6 +15,9 @@ import java.util.List;
 @Repository
 public interface ReportRepository extends JpaRepository<Report, Long> {
 
+    // 대시보드 통계용
+    long countByStatus(ReportStatus status);
+
     /** 신고된 게시물 ID별 신고 수 (targetType=POST, PENDING만) */
     @Query("SELECT r.targetId, COUNT(r) FROM Report r WHERE r.targetType = :type AND r.status = :status GROUP BY r.targetId")
     List<Object[]> countByTargetTypeAndStatusGroupByTargetId(@Param("type") ReportType type, @Param("status") ReportStatus status);

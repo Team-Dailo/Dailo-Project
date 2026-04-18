@@ -1,5 +1,6 @@
 package com.dailo.backend.repository;
 
+import com.dailo.backend.domain.enums.CommentStatus;
 import com.dailo.backend.entity.Comment;
 import com.dailo.backend.entity.Post;
 import org.springframework.data.domain.Page;
@@ -79,4 +80,13 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     // 여러 게시글의 삭제되지 않은 댓글 수 (대댓글 포함) 배치 조회
     @Query("SELECT c.post.id, COUNT(c) FROM Comment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL GROUP BY c.post.id")
     List<Object[]> countNonDeletedCommentsByPostIds(@Param("postIds") java.util.Collection<Long> postIds);
+
+    // 관리자용: 전체 댓글 조회 (최신순)
+    Page<Comment> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    // 관리자용: 상태별 댓글 수
+    long countByStatus(CommentStatus status);
+
+    // 관리자용: 상태별 댓글 조회
+    Page<Comment> findByStatusOrderByCreatedAtDesc(CommentStatus status, Pageable pageable);
 }

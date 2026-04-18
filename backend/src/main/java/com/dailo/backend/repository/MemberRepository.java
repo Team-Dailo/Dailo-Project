@@ -7,9 +7,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
+
+    // 대시보드 통계용
+    long countByStatus(MemberStatus status);
+    long countByCreatedAtAfter(LocalDateTime dateTime);
     Optional<Member> findByEmail(String email);
     boolean existsByEmail(String email);
 

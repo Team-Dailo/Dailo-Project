@@ -2,7 +2,7 @@
   "expo": {
     "name": "다일로",
     "slug": "app",
-    "version": "1.0.0",
+    "version": "3.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "app",
@@ -12,7 +12,11 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.knut.dailo",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "축제 위치 확인 및 체류 인증을 위해 위치 정보가 필요합니다.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "체류 인증을 위해 백그라운드에서도 위치 정보가 필요합니다.",
+        "NSCameraUsageDescription": "프로필 사진 및 게시글 이미지 촬영을 위해 카메라 접근이 필요합니다.",
+        "NSPhotoLibraryUsageDescription": "프로필 사진 및 게시글 이미지 선택을 위해 사진 라이브러리 접근이 필요합니다."
       }
     },
     "android": {
@@ -78,7 +82,8 @@
           "android": { "authCodeHandlerActivity": true },
           "ios": { "handleKakaoOpenUrl": true }
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -87,7 +92,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "0e8ac339-daf5-4e24-8ea6-f2a5a6092aa3"
+        "projectId": "5c08ddfe-c57a-48de-9d52-b9eed5912771"
       }
     }
   }
