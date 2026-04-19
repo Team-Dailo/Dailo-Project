@@ -69,6 +69,12 @@ resource "aws_ssm_parameter" "jwt_secret" {
   value = var.jwt_secret
 }
 
+resource "aws_ssm_parameter" "bus_api_key" {
+  name  = "/dailo/prod/bus_api_key"
+  type  = "SecureString"
+  value = var.bus_api_key
+}
+
  
 # ------------------------------------------------------------------------------
 # 1. VPC 모듈
@@ -150,6 +156,7 @@ module "ecs" {
     { name = "MAIL_USERNAME", value = var.mail_username },
     { name = "MAIL_FROM", value = var.mail_from },
     { name = "KAKAO_CLIENT_ID", value = var.kakao_client_id },
+    { name = "BUS_API_KEY_ENCODED", value = var.bus_api_key_encoded }
   ]
     container_secrets = [
     {
@@ -167,6 +174,10 @@ module "ecs" {
     {
       name      = "JWT_SECRET"
       valueFrom = aws_ssm_parameter.jwt_secret.arn
+    },
+    {
+      name      = "BUS_API_KEY"
+      valueFrom = aws_ssm_parameter.bus_api_key.arn
     }
   ]
 

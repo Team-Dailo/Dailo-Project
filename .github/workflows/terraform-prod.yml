@@ -68,6 +68,8 @@ jobs:
           TF_VAR_jwt_secret: ${{ secrets.TF_VAR_JWT_SECRET }}
           TF_VAR_mail_from: ${{ secrets.TF_VAR_MAIL_FROM }}
           TF_VAR_mail_username: ${{ secrets.TF_VAR_MAIL_USERNAME }}
+          TF_VAR_bus_api_key: ${{ secrets.TF_VAR_BUS_API_KEY }}
+          TF_VAR_bus_api_key_encoded: ${{ secrets.TF_VAR_BUS_API_KEY_ENCODED }}
         run: terraform plan -no-color
 
       # 5) main push에서는 Apply 실행
@@ -84,4 +86,6 @@ jobs:
           TF_VAR_jwt_secret: ${{ secrets.TF_VAR_JWT_SECRET }}
           TF_VAR_mail_from: ${{ secrets.TF_VAR_MAIL_FROM }}
           TF_VAR_mail_username: ${{ secrets.TF_VAR_MAIL_USERNAME }}
+          TF_VAR_bus_api_key: ${{ secrets.TF_VAR_BUS_API_KEY }}
+          TF_VAR_bus_api_key_encoded: ${{ secrets.TF_VAR_BUS_API_KEY_ENCODED }}
         run: terraform apply -auto-approve
