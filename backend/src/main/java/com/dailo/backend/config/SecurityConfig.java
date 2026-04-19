@@ -67,6 +67,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/", "/login/**", "/oauth2/**", "/error").permitAll()
 
+                        .requestMatchers("/api/admin/web/**").permitAll()
+
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**").permitAll()
 
                         .requestMatchers("/health", "/actuator/health").permitAll()
@@ -93,6 +95,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/app-version/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/faq/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/bus/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/admin/members").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/admin/blocks/heavy-blocked").authenticated()

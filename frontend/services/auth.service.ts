@@ -8,9 +8,6 @@ const USER_EMAIL_KEY = '@dailo/userEmail';
 const USER_ID_KEY = '@dailo/userId';
 const NICKNAME_MAP_KEY = '@dailo/emailToNickname';
 
-/** 이 이메일로 로그인한 경우 마이페이지에 관리자 메뉴 표시 (백엔드 app.admin.emails와 동일하게) */
-export const ADMIN_EMAIL = 'yunajo5858@gmail.com';
-
 /** 백엔드 TokenDto */
 export type TokenDto = {
   grantType: string;

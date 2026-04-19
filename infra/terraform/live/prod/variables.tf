@@ -47,3 +47,11 @@ variable "mail_username" {
   type        = string
   sensitive   = true 
 }
+variable "bus_api_key" {
+  type        = string
+  sensitive   = true 
+}
+variable "bus_api_key_encoded" {
+  type        = string
+  sensitive   = true 
+}

@@ -65,6 +65,8 @@ import {
 import * as scrapService from '../../../services/scrap.service';
 import { useFestivalParticipation } from '../../../hooks/useFestivalParticipation';
 import { distanceKm } from '../../../utils/geo';
+import { getBusStopsInBounds, type BusStop } from '../../../services/bus.service';
+import { BusStopBottomSheet } from './_components/BusStopBottomSheet';
 
 /** 지역명 → 지도 중심 좌표 (지도 탭 검색용 + 현재 위치 지역 판별용) */
 const REGION_CENTERS: Record<string, { latitude: number; longitude: number }> = {
@@ -728,6 +730,13 @@ export default function MapScreen() {
   const [isEntryModalVisible, setIsEntryModalVisible] = useState(false);
   // 길찾기 화면 (큰 카드에서 길찾기 버튼)
   const [isDirectionOpen, setIsDirectionOpen] = useState(false);
+  // 버스 정류장
+  const [showBusStops, setShowBusStops] = useState(false);
+  const [busStops, setBusStops] = useState<BusStop[]>([]);
+  const [selectedBusStop, setSelectedBusStop] = useState<BusStop | null>(null);
+  const busStopFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastBoundsRef = useRef<{ swLat: number; swLng: number; neLat: number; neLng: number; zoom: number } | null>(null);
+
   // 현재 위치 버튼 눌렀을 때 파란 동그라미 표시 (fallback일 때도 동그라미 그리기 위해)
   const [showMyLocationCircle, setShowMyLocationCircle] = useState(false);
   const [myLocationCircleCoords, setMyLocationCircleCoords] = useState<{
@@ -1034,7 +1043,7 @@ export default function MapScreen() {
 
   const DEFAULT_CAMERA: NaverMapCamera = { latitude: 37.5665, longitude: 126.978, zoom: 14 };
   /** zoom 레벨 → latitudeDelta (naverMapCamera 공식과 맞춤) */
-  const zoomToDelta = (zoom: number) => 0.01 * Math.pow(2, 14 - Math.min(18, Math.max(10, zoom)));
+  const zoomToDelta = (zoom: number) => 0.01 * Math.pow(2, 14 - Math.min(21, Math.max(10, zoom)));
 
   const naverMapCamera = useMemo((): NaverMapCamera => {
     if (!region) return DEFAULT_CAMERA;
@@ -1047,7 +1056,7 @@ export default function MapScreen() {
     return {
       latitude: lat,
       longitude: lng,
-      zoom: Math.min(18, Math.max(10, zoom)),
+      zoom: Math.min(21, Math.max(10, zoom)),
     };
   }, [region?.latitude, region?.longitude, region?.latitudeDelta]);
 
@@ -1387,7 +1396,7 @@ export default function MapScreen() {
                   lastCameraRef.current = {
                     latitude: centerLat,
                     longitude: centerLng,
-                    zoom: Math.min(18, Math.max(10, zoom)),
+                    zoom: Math.min(21, Math.max(10, zoom)),
                   };
                   // region 상태는 건드리지 않음 → 지도가 혼자 움직이지 않음. 해당 영역 행사만 디바운스 조회
                   if (cameraIdleFetchRef.current) clearTimeout(cameraIdleFetchRef.current);
@@ -1395,12 +1404,36 @@ export default function MapScreen() {
                     cameraIdleFetchRef.current = null;
                     refetchWithBounds(centerLat, centerLng, r.latitudeDelta, r.longitudeDelta);
                   }, 600);
+
+                  // 버스 정류장: 줌 13 이상일 때만 현재 화면 bounds로 조회
+                  const currentZoom = params.zoom ?? 14;
+                  const swLat = r.latitude;
+                  const swLng = r.longitude;
+                  const neLat = r.latitude + r.latitudeDelta;
+                  const neLng = r.longitude + r.longitudeDelta;
+                  lastBoundsRef.current = { swLat, swLng, neLat, neLng, zoom: currentZoom };
+
+                  if (showBusStops) {
+                    if (busStopFetchRef.current) clearTimeout(busStopFetchRef.current);
+                    if (currentZoom < 16) {
+                      setBusStops([]);
+                    } else {
+                      busStopFetchRef.current = setTimeout(() => {
+                        busStopFetchRef.current = null;
+                        getBusStopsInBounds(swLat, swLng, neLat, neLng)
+                          .then(setBusStops)
+                          .catch(() => {});
+                      }, 300);
+                    }
+                  }
                 }}
                 currentLocation={currentLocation ?? null}
                 circleCoords={myLocationCircleCoords}
                 showMyLocationCircle={showMyLocationCircle}
                 distanceFilterRadiusM={distanceFilterRadiusM}
                 distanceFilterCenter={distanceFilterCenter}
+                busStops={showBusStops ? busStops : []}
+                onBusStopPress={setSelectedBusStop}
               />
             </MapErrorBoundary>
           )}
@@ -1518,6 +1551,37 @@ export default function MapScreen() {
               <Text style={styles.bookmarkButtonText}>북마크</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={[
+                styles.bookmarkButton,
+                {
+                  right: bookmarkRight,
+                  top: bookmarkTop + 80,
+                  backgroundColor: showBusStops ? '#3B82F6' : MAP_UI.cardBg,
+                },
+              ]}
+              activeOpacity={0.85}
+              onPress={() => {
+                const next = !showBusStops;
+                setShowBusStops(next);
+                if (!next) {
+                  setBusStops([]);
+                } else {
+                  const bounds = lastBoundsRef.current;
+                  if (bounds && bounds.zoom >= 16) {
+                    getBusStopsInBounds(bounds.swLat, bounds.swLng, bounds.neLat, bounds.neLng)
+                      .then(setBusStops)
+                      .catch(() => {});
+                  }
+                }
+              }}
+            >
+              <View style={styles.bookmarkButtonIconArea}>
+                <Ionicons name="bus" size={26} color={showBusStops ? '#fff' : '#4C8BF5'} />
+              </View>
+              <Text style={[styles.bookmarkButtonText, showBusStops && { color: '#fff' }]}>버스</Text>
+            </TouchableOpacity>
+
             {isScaleLegendVisible && (
               <>
                 <Pressable
@@ -1597,7 +1661,7 @@ export default function MapScreen() {
                       const centerLng = lastCameraRef.current?.longitude ?? (region ? region.longitude + region.longitudeDelta / 2 : DEFAULT_CAMERA.longitude);
                       const currentZoom = lastCameraRef.current?.zoom ?? naverMapCamera.zoom;
                       if (!mapRef.current) return;
-                      const newZoom = Math.min(18, currentZoom + 1);
+                      const newZoom = Math.min(21, currentZoom + 1);
                       lastCameraRef.current = { latitude: centerLat, longitude: centerLng, zoom: newZoom };
                       mapRef.current.animateCameraTo({
                         latitude: centerLat,
@@ -1765,6 +1829,12 @@ export default function MapScreen() {
         event={selectedEvent}
         startLocation={demoLocation ?? currentLocation ?? undefined}
         onClose={() => setIsDirectionOpen(false)}
+      />
+
+      {/* 버스 정류장 바텀시트 */}
+      <BusStopBottomSheet
+        stop={selectedBusStop}
+        onClose={() => setSelectedBusStop(null)}
       />
 
       {/* 사이드 메뉴 */}
@@ -2157,6 +2227,7 @@ const styles = StyleSheet.create({
   bookmarkButtonIconArea: {
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
   bookmarkButtonText: {
     fontSize: 12,

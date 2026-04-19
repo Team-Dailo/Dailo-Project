@@ -14,7 +14,6 @@ import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../hooks/useAuth";
 import { useFestivalParticipation } from "../../../hooks/useFestivalParticipation";
-import { ADMIN_EMAIL } from "../../../services/auth.service";
 import { API_BASE_URL } from "../../../constants/api";
 
 export default function MyPageScreen() {
@@ -229,8 +228,8 @@ export default function MyPageScreen() {
           />
         </Section>
 
-        {/* 섹션: 관리자 (yunajo5858@gmail.com 로그인 시에만 표시, getMe 실패 시에도 이메일로 판별) */}
-        {isLoggedIn && (user?.role === "ADMIN" || user?.email === ADMIN_EMAIL) && (
+        {/* 섹션: 관리자 (DB role=ADMIN 일 때만 표시) */}
+        {isLoggedIn && user?.role === "ADMIN" && (
           <Section title="관리자">
             <MenuItem
               icon="shield-checkmark-outline"
