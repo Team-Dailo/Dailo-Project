@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -13,6 +14,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const BUS_STOP_ICON = require("../../../../assets/images/bus-detail-marker.png") as number;
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getBusArrivals,
@@ -189,7 +193,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.busIconWrap}>
-              <Ionicons name="bus" size={16} color="#fff" />
+              <Image source={BUS_STOP_ICON} style={styles.busIconImage} resizeMode="contain" />
             </View>
             <Text style={styles.stopName} numberOfLines={1}>
               {stopName || stop.stopName}
@@ -351,13 +355,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   busIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#3B82F6",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 8,
+  },
+  busIconImage: {
+    width: 20,
+    height: 20,
   },
   stopName: {
     fontSize: 16,

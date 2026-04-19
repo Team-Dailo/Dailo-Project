@@ -15,6 +15,7 @@ import { MAP_UI } from '../../../../constants/colors';
 const MARKER_ICON = require('../../../../assets/images/marker-pin.png') as number;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const BUS_STOP_MARKER = require('../../../../assets/images/bus-marker.png') as number;
+const BUS_STOP_SIZE = 25;
 const MARKER_WIDTH = 36;
 const MARKER_HEIGHT = 48;
 // 바깥 테두리/흰색 바디용 스케일 (중심 기준으로 키움)
@@ -275,14 +276,19 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
           key={`bus-stop-${stop.stopId}`}
           latitude={stop.latitude}
           longitude={stop.longitude}
-          width={28}
-          height={39}
-          anchor={{ x: 0.5, y: 1.0 }}
-          image={BUS_STOP_MARKER}
+          width={BUS_STOP_SIZE}
+          height={BUS_STOP_SIZE}
+          anchor={{ x: 0.5, y: 0.5 }}
           onTap={() => onBusStopPress?.(stop)}
           globalZIndex={180000}
           isHideCollidedMarkers
-        />
+        >
+          <Image
+            source={BUS_STOP_MARKER}
+            style={{ width: BUS_STOP_SIZE, height: BUS_STOP_SIZE }}
+            resizeMode="contain"
+          />
+        </NaverMapMarkerOverlay>
       ))}
       {distanceFilterRadiusM != null &&
         distanceFilterRadiusM > 0 &&
