@@ -50,6 +50,8 @@ services:
       KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET}
 
       JWT_SECRET: ${JWT_SECRET}
+
+      BUS_API_KEY_ENCODED: ${BUS_API_KEY_ENCODED}
     ports:
       - "8080:8080"
     volumes:

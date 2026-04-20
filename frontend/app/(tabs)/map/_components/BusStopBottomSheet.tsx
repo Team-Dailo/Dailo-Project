@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -13,6 +14,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const BUS_STOP_ICON = require("../../../../assets/images/bus-detail-marker.png") as number;
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getBusArrivals,
@@ -47,13 +51,16 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [tick, setTick] = useState(0);
   const [cooldown, setCooldown] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const spinAnim = useRef(new Animated.Value(0)).current;
   const spinLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => {
+      clearInterval(id);
       if (cooldownRef.current) clearInterval(cooldownRef.current);
     };
   }, []);
@@ -176,6 +183,17 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
     fetchData(stop.stopId);
   }, [stop?.stopId]);
 
+  const getCountdown = (arrivalMin: number | null, arrivalMessage: string | null) => {
+    if (arrivalMin == null || !lastUpdated) return arrivalMessage;
+    const elapsedSec = Math.floor((Date.now() - lastUpdated.getTime()) / 1000);
+    const remainingSec = arrivalMin * 60 - elapsedSec;
+    if (remainingSec <= 0) return "곧 도착";
+    const min = Math.floor(remainingSec / 60);
+    const sec = remainingSec % 60;
+    if (min === 0) return `${sec}초 후 도착`;
+    return `${min}분 ${sec < 10 ? `0${sec}` : sec}초 후 도착`;
+  };
+
   if (!stop) return null;
 
   return (
@@ -189,7 +207,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.busIconWrap}>
-              <Ionicons name="bus" size={16} color="#fff" />
+              <Image source={BUS_STOP_ICON} style={styles.busIconImage} resizeMode="contain" />
             </View>
             <Text style={styles.stopName} numberOfLines={1}>
               {stopName || stop.stopName}
@@ -291,7 +309,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
                           styles.arrivalTimeSoon,
                       ]}
                     >
-                      {item.arrivalMessage}
+                      {getCountdown(item.arrivalMin, item.arrivalMessage)}
                     </Text>
                   ) : (
                     <Text style={styles.noArrival}>운행 정보 없음</Text>
@@ -351,13 +369,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   busIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#3B82F6",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 8,
+  },
+  busIconImage: {
+    width: 20,
+    height: 20,
   },
   stopName: {
     fontSize: 16,
