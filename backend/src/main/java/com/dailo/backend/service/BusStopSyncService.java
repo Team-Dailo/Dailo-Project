@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -62,9 +64,10 @@ public class BusStopSyncService {
     }
 
     /**
-     * 특정 도시의 전체 버스 정류장 동기화
+     * 특정 도시의 전체 버스 정류장 동기화 (비동기)
      */
-    public int syncByCity(String cityCode, String cityName) {
+    @Async
+    public void syncByCity(String cityCode, String cityName) {
         int page = 1;
         int totalSaved = 0;
 
@@ -120,6 +123,12 @@ public class BusStopSyncService {
         }
 
         log.info("정류장 동기화 완료 - {} ({}): {}건", cityName, cityCode, totalSaved);
-        return totalSaved;
+    }
+
+    /** 매일 새벽 3시 충주시 정류장 자동 동기화 */
+    @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Seoul")
+    public void scheduledSync() {
+        log.info("정류장 자동 동기화 시작 - 충주시");
+        syncByCity("33020", "충주시");
     }
 }
