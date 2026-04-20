@@ -4,6 +4,7 @@ import com.dailo.backend.service.BusStopSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,14 +18,15 @@ public class AdminBusController {
 
     private final BusStopSyncService busStopSyncService;
 
-    @Operation(summary = "특정 도시 정류장 동기화", description = "cityCode를 지정해 해당 도시 정류장을 DB에 저장합니다.")
+    @Operation(summary = "특정 도시 정류장 동기화", description = "백그라운드에서 동기화를 시작하고 즉시 202를 반환합니다.")
     @PostMapping("/stops/sync")
     public ResponseEntity<Map<String, Object>> syncStops(
             @RequestParam String cityCode,
             @RequestParam String cityName
     ) {
-        int syncedCount = busStopSyncService.syncByCity(cityCode, cityName);
-        return ResponseEntity.ok(Map.of("syncedCount", syncedCount, "cityCode", cityCode, "cityName", cityName));
+        busStopSyncService.syncByCity(cityCode, cityName);
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(Map.of("message", "동기화 시작됨", "cityCode", cityCode, "cityName", cityName));
     }
 
     @Operation(summary = "도시코드 목록 조회")
