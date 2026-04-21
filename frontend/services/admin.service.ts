@@ -603,6 +603,27 @@ export async function getDashboard(): Promise<DashboardResponse> {
   return res.json();
 }
 
+// --- 일일 활동 통계 ---
+
+export type HourlyCount = {
+  hour: number;
+  count: number;
+};
+
+export type DailyActivityResponse = {
+  date: string;
+  totalClicks: number;
+  hourlyCounts: HourlyCount[];
+};
+
+export async function getDailyActivity(date?: string): Promise<DailyActivityResponse> {
+  const params: Record<string, string> = {};
+  if (date) params.date = date;
+  const res = await adminFetch('/api/admin/dashboard/daily-activity', { params });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '일일 활동 조회 실패'));
+  return res.json();
+}
+
 // --- FAQ 관리 (AdminFaqController) ---
 
 export type FaqItem = {

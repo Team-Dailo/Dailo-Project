@@ -21,7 +21,7 @@ public class AdminIngestLogService {
     private final IngestLogRepository ingestLogRepository;
 
     // MVP: 하드코딩 관리자 ID (AdminReportService와 동일 패턴)
-    private static final Set<Long> ADMIN_IDS = Set.of(1L, 2L);
+    private static final Set<Long> ADMIN_IDS = Set.of(1L, 2L, 14L);
 
     private void validateAdminRole(Long userId) {
         if (!ADMIN_IDS.contains(userId)) {

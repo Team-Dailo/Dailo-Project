@@ -25,7 +25,7 @@ public class SyncLogService {
     private final SyncLogRepository syncLogRepository;
 
     // TODO: User Entity 구현 후 DB 조회로 변경
-    private static final Set<Long> ADMIN_IDS = Set.of(1L, 2L);
+    private static final Set<Long> ADMIN_IDS = Set.of(1L, 2L, 14L);
 
     private void validateAdminRole(Long userId) {
         if (!ADMIN_IDS.contains(userId)) {

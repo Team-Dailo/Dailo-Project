@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.knut.dailo",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "축제 위치 확인 및 체류 인증을 위해 위치 정보가 필요합니다.",
@@ -83,7 +84,8 @@
           "ios": { "handleKakaoOpenUrl": true }
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,
