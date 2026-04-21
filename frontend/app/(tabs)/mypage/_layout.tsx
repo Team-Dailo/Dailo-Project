@@ -58,6 +58,18 @@ export default function MyPageLayout() {
         options={{ title: "관리자 메뉴", headerShown: true, headerTitleAlign: "center" }}
       />
       <Stack.Screen
+        name="festival-admin"
+        options={{ title: "축제 관리 메뉴", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="festival-admin-events"
+        options={{ title: "내 축제 관리", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="festival-admin-activity"
+        options={{ title: "사용자 활동 현황", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
         name="admin-events"
         options={{ title: "행사 관리", headerShown: true, headerTitleAlign: "center" }}
       />

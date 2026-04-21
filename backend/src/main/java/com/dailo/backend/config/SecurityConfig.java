@@ -102,6 +102,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/admin/members/*/suspend").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/admin/members/*/withdraw").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/admin/crawler/**").permitAll()
+                        .requestMatchers("/api/festival-admin/**").hasAnyRole("ADMIN", "FESTIVAL_ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
                         .requestMatchers("/api/scraps/**").authenticated()
