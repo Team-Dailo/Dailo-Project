@@ -228,13 +228,19 @@ export default function MyPageScreen() {
           />
         </Section>
 
-        {/* 섹션: 관리자 (DB role=ADMIN 일 때만 표시) */}
-        {isLoggedIn && user?.role === "ADMIN" && (
-          <Section title="관리자">
+        {/* 섹션: 관리자 (ADMIN 또는 FESTIVAL_ADMIN) */}
+        {isLoggedIn && (user?.role === "ADMIN" || user?.role === "FESTIVAL_ADMIN") && (
+          <Section title={user?.role === "ADMIN" ? "관리자" : "축제 관리자"}>
             <MenuItem
               icon="shield-checkmark-outline"
-              label="관리자 메뉴"
-              onPress={() => router.push("/(tabs)/mypage/admin")}
+              label={user?.role === "ADMIN" ? "관리자 메뉴" : "축제 관리 메뉴"}
+              onPress={() =>
+                router.push(
+                  user?.role === "ADMIN"
+                    ? "/(tabs)/mypage/admin"
+                    : "/(tabs)/mypage/festival-admin"
+                )
+              }
             />
           </Section>
         )}
