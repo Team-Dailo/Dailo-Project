@@ -42,8 +42,8 @@ public class AdminReportService {
     private final PostRepository postRepository;
     private final MemberRepository memberRepository;
 
-    /** Admin 권한 검증: DB role이 ADMIN이거나, 기존 관리자 ID(1,2)인 경우 허용 */
-    private static final java.util.Set<Long> ADMIN_IDS_FALLBACK = java.util.Set.of(1L, 2L);
+    /** Admin 권한 검증: DB role이 ADMIN이거나, 기존 관리자 ID인 경우 허용 */
+    private static final java.util.Set<Long> ADMIN_IDS_FALLBACK = java.util.Set.of(1L, 2L, 14L);
 
     private void validateAdminRole(Long userId) {
         if (userId == null) {

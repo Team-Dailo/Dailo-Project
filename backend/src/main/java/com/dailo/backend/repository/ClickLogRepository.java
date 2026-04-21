@@ -44,4 +44,31 @@ public interface ClickLogRepository extends JpaRepository<ClickLog, Long> {
 
     // 요청 ID로 조회 (검색-클릭 전환 분석용)
     List<ClickLog> findByRequestId(String requestId);
+
+    /** 시간대별 클릭 수 (축제 관리자 활동 대시보드용) */
+    @Query("SELECT FUNCTION('HOUR', c.createdAt) as hour, COUNT(c) as cnt " +
+           "FROM ClickLog c " +
+           "WHERE c.eventId = :eventId " +
+           "AND c.createdAt >= :start AND c.createdAt < :end " +
+           "GROUP BY FUNCTION('HOUR', c.createdAt) " +
+           "ORDER BY hour")
+    List<Object[]> findHourlyClickCountsByEventId(
+            @Param("eventId") Long eventId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    /** 전체 시간대별 클릭 수 (관리자 대시보드용 - 모든 이벤트 합산) */
+    @Query("SELECT FUNCTION('HOUR', c.createdAt) as hour, COUNT(c) as cnt " +
+           "FROM ClickLog c " +
+           "WHERE c.createdAt >= :start AND c.createdAt < :end " +
+           "GROUP BY FUNCTION('HOUR', c.createdAt) " +
+           "ORDER BY hour")
+    List<Object[]> findHourlyClickCounts(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    /** 특정 날짜의 총 클릭 수 */
+    long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 }
