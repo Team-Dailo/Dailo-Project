@@ -5,6 +5,7 @@ import com.dailo.backend.entity.Comment;
 import com.dailo.backend.entity.Post;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -81,12 +82,14 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     @Query("SELECT c.post.id, COUNT(c) FROM Comment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL GROUP BY c.post.id")
     List<Object[]> countNonDeletedCommentsByPostIds(@Param("postIds") java.util.Collection<Long> postIds);
 
-    // 관리자용: 전체 댓글 조회 (최신순)
+    // 관리자용: 전체 댓글 조회 (최신순) - Post 함께 로딩
+    @EntityGraph(attributePaths = {"post"})
     Page<Comment> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     // 관리자용: 상태별 댓글 수
     long countByStatus(CommentStatus status);
 
-    // 관리자용: 상태별 댓글 조회
+    // 관리자용: 상태별 댓글 조회 - Post 함께 로딩
+    @EntityGraph(attributePaths = {"post"})
     Page<Comment> findByStatusOrderByCreatedAtDesc(CommentStatus status, Pageable pageable);
 }
