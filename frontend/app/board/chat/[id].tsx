@@ -44,15 +44,30 @@ function formatDateLabel(iso?: string): string {
 
 function formatMessageTime(iso?: string): string {
   try {
-    const d = iso ? new Date(iso) : new Date();
-    const h = d.getHours();
-    const m = d.getMinutes();
+    if (!iso) return "";
+    let parsedDate: Date;
+    // 🔥 타임존 정보 있는 경우 (Z 또는 +09:00 등)
+    if (iso.includes("Z") || iso.includes("+")) {
+
+      parsedDate = new Date(iso);
+
+    } 
+    // 🔥 타임존 없는 경우 → 서버 시간을 UTC로 간주
+    else {
+
+      parsedDate = new Date(iso + "Z");
+
+    }
+    const h = parsedDate.getHours();
+    const m = parsedDate.getMinutes();
     const ampm = h < 12 ? "오전" : "오후";
     const h12 = h % 12 || 12;
     return `${ampm} ${h12}:${m.toString().padStart(2, "0")}`;
   } catch {
     return "";
+
   }
+
 }
 
 export default function ChatRoomScreen() {
@@ -380,9 +395,9 @@ export default function ChatRoomScreen() {
               multiline
               maxLength={500}
             />
-            <Pressable style={styles.inputIcon}>
+            {/* <Pressable style={styles.inputIcon}> 녹음 아이콘 주석 처리
               <Ionicons name="mic-outline" size={22} color="#6B7280" />
-            </Pressable>
+            </Pressable> */}
             <Pressable
               onPress={handleSend}
               style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
