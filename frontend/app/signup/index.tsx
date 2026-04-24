@@ -182,8 +182,11 @@ export default function SignupScreen() {
               onChangeText={setPassword}
               placeholder="비밀번호를 입력하세요"
               placeholderTextColor="#9CA3AF"
-              secureTextEntry
+              secureTextEntry={true}
               autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              textContentType="oneTimeCode"
             />
           </View>
           <View style={styles.inputWrap}>
@@ -198,8 +201,11 @@ export default function SignupScreen() {
                 }}
                 placeholder="비밀번호를 한 번 더 입력하세요"
                 placeholderTextColor="#9CA3AF"
-                secureTextEntry
+                secureTextEntry={true}
                 autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="off"
+                textContentType="oneTimeCode"
               />
               <Pressable
                 style={({ pressed }) => [
