@@ -38,6 +38,9 @@ public class BusStop {
     @Column(name = "city_code", length = 10)
     private String cityCode;
 
+    @Column(name = "has_routes")
+    private Boolean hasRoutes;
+
     @UpdateTimestamp
     @Column(name = "synced_at")
     private LocalDateTime syncedAt;

@@ -92,6 +92,7 @@ public class BusApiService {
                 .routeId(item.path("routeid").asText(""))
                 .routeNo(item.path("routeno").asText(""))
                 .destination(item.path("nodenm").asText("")) // 현재 버스 위치 정류장명 (행선지 방면 표시용)
+                .arrivalSec(arrivalSec >= 0 ? arrivalSec : null)
                 .arrivalMin(arrivalMin)
                 .arrivalMessage(arrivalMessage)
                 .remainingStops(remainingStops >= 0 ? remainingStops : null)
@@ -99,41 +100,52 @@ public class BusApiService {
     }
 
     /**
-     * 정류장 경유 노선 목록 조회
-     * BusRouteInfoInqireService/getRouteBySttn
+     * 도시 전체 노선 목록 조회 (routeId + routeNo)
+     * BusRouteInfoInqireService/getRouteNoList
      */
-    public List<BusRouteInfoResponse> getRoutesByStop(String cityCode, String stopId) {
-        URI uri = UriComponentsBuilder
-                .fromHttpUrl(baseUrl + "/BusRouteInfoInqireService/getRouteBySttn")
-                .queryParam("serviceKey", apiKey)
-                .queryParam("cityCode", cityCode)
-                .queryParam("nodeId", stopId)
-                .queryParam("numOfRows", 30)
-                .queryParam("pageNo", 1)
-                .queryParam("_type", "json")
-                .build(true)
-                .toUri();
-
+    public List<BusRouteInfoResponse> getRoutes(String cityCode) {
         List<BusRouteInfoResponse> result = new ArrayList<>();
-        try {
-            String response = restTemplate.getForObject(uri, String.class);
-            JsonNode items = objectMapper.readTree(response)
-                    .path("response").path("body").path("items").path("item");
+        int page = 1;
+        final int perPage = 100;
 
-            if (items.isMissingNode() || items.isNull()) return result;
+        while (true) {
+            URI uri = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl + "/BusRouteInfoInqireService/getRouteNoList")
+                    .queryParam("serviceKey", apiKey)
+                    .queryParam("cityCode", cityCode)
+                    .queryParam("numOfRows", perPage)
+                    .queryParam("pageNo", page)
+                    .queryParam("_type", "json")
+                    .build(true).toUri();
 
-            Iterable<JsonNode> rows = items.isArray() ? items : List.of(items);
-            for (JsonNode item : rows) {
-                result.add(BusRouteInfoResponse.builder()
-                        .routeId(item.path("routeid").asText(""))
-                        .routeNo(item.path("routeno").asText(""))
+            try {
+                String response = restTemplate.getForObject(uri, String.class);
+                JsonNode body = objectMapper.readTree(response).path("response").path("body");
+                JsonNode items = body.path("items").path("item");
 
-                        .endNodeName(item.path("endnodenm").asText(""))
-                        .build());
+                if (items.isMissingNode() || items.isNull()) break;
+
+                Iterable<JsonNode> rows = items.isArray() ? items : List.of(items);
+                for (JsonNode item : rows) {
+                    String routeId = item.path("routeid").asText("");
+                    if (!routeId.isEmpty()) {
+                        result.add(BusRouteInfoResponse.builder()
+                                .routeId(routeId)
+                                .routeNo(item.path("routeno").asText(""))
+                                .endNodeName(item.path("endnodenm").asText(""))
+                                .build());
+                    }
+                }
+
+                int totalCount = body.path("totalCount").asInt(0);
+                if ((long) page * perPage >= totalCount) break;
+                page++;
+            } catch (Exception e) {
+                log.error("노선 목록 조회 실패 - cityCode: {}, error: {}", cityCode, e.getMessage());
+                break;
             }
-        } catch (Exception e) {
-            log.error("정류장 경유 노선 조회 실패 - stopId: {}, error: {}", stopId, e.getMessage());
         }
+
         return result;
     }
 
