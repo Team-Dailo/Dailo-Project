@@ -5,12 +5,14 @@ export type BusStop = {
   stopName: string;
   latitude: number;
   longitude: number;
+  cityCode?: string;
 };
 
 export type BusArrivalItem = {
   routeId: string;
   routeNo: string;
   destination: string;
+  arrivalSec: number | null;
   arrivalMin: number | null;
   arrivalMessage: string;
   remainingStops: number | null;
@@ -19,6 +21,7 @@ export type BusArrivalItem = {
 export type BusArrivalResponse = {
   stopName: string;
   cityCode: string;
+  cachedAt: number;
   arrivals: BusArrivalItem[];
 };
 
