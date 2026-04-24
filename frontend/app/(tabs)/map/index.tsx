@@ -734,6 +734,7 @@ export default function MapScreen() {
   const [showBusStops, setShowBusStops] = useState(false);
   const [busStops, setBusStops] = useState<BusStop[]>([]);
   const [selectedBusStop, setSelectedBusStop] = useState<BusStop | null>(null);
+  const [busQueryCenter, setBusQueryCenter] = useState<{ latitude: number; longitude: number } | null>(null);
   const busStopFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastBoundsRef = useRef<{ swLat: number; swLng: number; neLat: number; neLng: number; zoom: number } | null>(null);
 
@@ -1388,8 +1389,11 @@ export default function MapScreen() {
                 onCameraIdle={(params) => {
                   const r = params.region;
                   if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return;
-                  const centerLat = r.latitude + r.latitudeDelta / 2;
-                  const centerLng = r.longitude + r.longitudeDelta / 2;
+                  // params.latitude/longitude = 카메라 중심 (탭바 뒤 포함 전체 뷰 기준)
+                  // r.latitude = SW 모서리이나 탭바 영역만큼 남쪽으로 밀려 있어,
+                  // 중심 기준으로 delta 절반씩 잡아 정확한 가시 범위를 계산
+                  const centerLat = Number.isFinite(params.latitude) ? (params.latitude as number) : r.latitude + r.latitudeDelta / 2;
+                  const centerLng = Number.isFinite(params.longitude) ? (params.longitude as number) : r.longitude + r.longitudeDelta / 2;
                   const zoom = params.zoom != null
                     ? Math.round(params.zoom)
                     : 14 - Math.round(Math.log2(r.latitudeDelta / 0.01));
@@ -1406,16 +1410,19 @@ export default function MapScreen() {
                   }, 600);
 
                   // 버스 정류장: 줌 13 이상일 때만 현재 화면 bounds로 조회
+                  // 카메라 중심 기준으로 delta 절반씩 잡아 가시 영역에 정확히 맞춤
                   const currentZoom = params.zoom ?? 14;
-                  const swLat = r.latitude;
-                  const swLng = r.longitude;
-                  const neLat = r.latitude + r.latitudeDelta;
-                  const neLng = r.longitude + r.longitudeDelta;
+                  const busCenter = centerLat + r.latitudeDelta * 0.30;
+                  const swLat = busCenter - r.latitudeDelta / 2;
+                  const swLng = centerLng - r.longitudeDelta / 2;
+                  const neLat = busCenter + r.latitudeDelta / 2;
+                  const neLng = centerLng + r.longitudeDelta / 2;
                   lastBoundsRef.current = { swLat, swLng, neLat, neLng, zoom: currentZoom };
+                  setBusQueryCenter({ latitude: busCenter, longitude: centerLng });
 
                   if (showBusStops) {
                     if (busStopFetchRef.current) clearTimeout(busStopFetchRef.current);
-                    if (currentZoom < 16) {
+                    if (currentZoom < 13) {
                       setBusStops([]);
                     } else {
                       busStopFetchRef.current = setTimeout(() => {
@@ -1434,6 +1441,7 @@ export default function MapScreen() {
                 distanceFilterCenter={distanceFilterCenter}
                 busStops={showBusStops ? busStops : []}
                 onBusStopPress={setSelectedBusStop}
+                busQueryCenter={busQueryCenter}
               />
             </MapErrorBoundary>
           )}
@@ -1568,7 +1576,7 @@ export default function MapScreen() {
                   setBusStops([]);
                 } else {
                   const bounds = lastBoundsRef.current;
-                  if (bounds && bounds.zoom >= 16) {
+                  if (bounds && bounds.zoom >= 13) {
                     getBusStopsInBounds(bounds.swLat, bounds.swLng, bounds.neLat, bounds.neLng)
                       .then(setBusStops)
                       .catch(() => {});
