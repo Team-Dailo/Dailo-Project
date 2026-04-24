@@ -229,8 +229,11 @@ export default function LoginScreen() {
               }}
               placeholder="비밀번호"
               placeholderTextColor="#9CA3AF"
-              secureTextEntry
+              secureTextEntry={true}
               autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              textContentType="oneTimeCode"
             />
             {errorMessage ? (
               <Text style={styles.errorText}>{errorMessage}</Text>
