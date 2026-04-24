@@ -7,6 +7,7 @@ import com.dailo.backend.dto.BusRouteStopResponse;
 import com.dailo.backend.dto.BusStopResponse;
 import com.dailo.backend.entity.BusStop;
 import com.dailo.backend.repository.BusStopRepository;
+import com.dailo.backend.repository.BusStopRouteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
@@ -15,7 +16,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,6 +27,7 @@ public class BusService {
     private static final String DEFAULT_CITY_CODE = "33020";
 
     private final BusStopRepository busStopRepository;
+    private final BusStopRouteRepository busStopRouteRepository;
     private final BusApiService busApiService;
 
     // @Cacheable 메서드 간 호출 시 프록시를 통해야 캐시가 동작하므로 자기주입 사용
@@ -52,7 +53,7 @@ public class BusService {
      * 지도 bounds 내 정류장 조회
      */
     public List<BusStopResponse> getStopsInBounds(double swLat, double swLng, double neLat, double neLng) {
-        return busStopRepository.findByBounds(swLat, neLat, swLng, neLng, PageRequest.of(0, 15))
+        return busStopRepository.findByBounds(swLat, neLat, swLng, neLng, PageRequest.of(0, 200))
                 .stream().map(BusStopResponse::from).collect(Collectors.toList());
     }
 
@@ -74,6 +75,7 @@ public class BusService {
         return BusArrivalResponse.builder()
                 .stopName(stop.getStopName())
                 .cityCode(cityCode)
+                .cachedAt(System.currentTimeMillis())
                 .arrivals(corrected)
                 .build();
     }
@@ -108,6 +110,7 @@ public class BusService {
                     .routeId(item.getRouteId())
                     .routeNo(item.getRouteNo())
                     .destination(item.getDestination())
+                    .arrivalSec(item.getArrivalSec())
                     .arrivalMin(item.getArrivalMin())
                     .arrivalMessage(item.getArrivalMessage())
                     .remainingStops(currentNodeOrder - closestNodeOrder)
@@ -118,13 +121,16 @@ public class BusService {
     }
 
     /**
-     * 정류장 경유 노선 목록 조회
+     * 정류장 경유 노선 목록 조회 (DB)
      */
     public List<BusRouteInfoResponse> getRoutesByStop(String stopId) {
-        BusStop stop = busStopRepository.findByStopId(stopId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "STOP_NOT_FOUND"));
-        String cityCode = stop.getCityCode() != null ? stop.getCityCode() : DEFAULT_CITY_CODE;
-        return busApiService.getRoutesByStop(cityCode, stopId);
+        return busStopRouteRepository.findByStopId(stopId).stream()
+                .map(r -> BusRouteInfoResponse.builder()
+                        .routeId(r.getRouteId())
+                        .routeNo(r.getRouteNo())
+                        .endNodeName(r.getEndNodeName() != null ? r.getEndNodeName() : "")
+                        .build())
+                .collect(Collectors.toList());
     }
 
     /**
