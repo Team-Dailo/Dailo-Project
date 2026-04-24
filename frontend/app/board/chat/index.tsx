@@ -25,9 +25,22 @@ const AVATAR_COLORS = ["#E0E7FF", "#FCE7F3", "#D1FAE5", "#FEF3C7", "#E5E7EB", "#
 
 function formatRoomTime(iso: string): string {
   try {
-    const d = new Date(iso);
+    if (!iso) return "";
+
+    let parsedDate: Date;
+
+    // 🔥 타임존 있는 경우 그대로 사용
+    if (iso.includes("Z") || iso.includes("+")) {
+      parsedDate = new Date(iso);
+    } 
+    // 🔥 타임존 없는 경우 → UTC로 강제
+    else {
+      parsedDate = new Date(iso + "Z");
+    }
+
     const now = new Date();
-    const diff = now.getTime() - d.getTime();
+    const diff = now.getTime() - parsedDate.getTime();
+
     if (diff < 60000) return "방금 전";
     if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
