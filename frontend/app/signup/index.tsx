@@ -21,6 +21,7 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const [agreePrivacy, setAgreePrivacy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [authCode, setAuthCode] = useState('');
@@ -81,6 +82,10 @@ export default function SignupScreen() {
     }
     if (!authCode.trim()) {
       Alert.alert('입력 오류', '이메일로 받은 6자리 인증번호를 입력해 주세요.');
+      return;
+    }
+    if (!agreeTerms) {
+      Alert.alert('동의 필요', '이용약관에 동의해 주세요.');
       return;
     }
     if (!agreePrivacy) {
@@ -177,8 +182,11 @@ export default function SignupScreen() {
               onChangeText={setPassword}
               placeholder="비밀번호를 입력하세요"
               placeholderTextColor="#9CA3AF"
-              secureTextEntry
+              secureTextEntry={true}
               autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              textContentType="oneTimeCode"
             />
           </View>
           <View style={styles.inputWrap}>
@@ -193,8 +201,11 @@ export default function SignupScreen() {
                 }}
                 placeholder="비밀번호를 한 번 더 입력하세요"
                 placeholderTextColor="#9CA3AF"
-                secureTextEntry
+                secureTextEntry={true}
                 autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="off"
+                textContentType="oneTimeCode"
               />
               <Pressable
                 style={({ pressed }) => [
@@ -225,6 +236,29 @@ export default function SignupScreen() {
             />
           </View>
 
+          {/* 이용약관 동의 */}
+          <Pressable
+            style={styles.agreeRow}
+            onPress={() => setAgreeTerms((v) => !v)}
+          >
+            <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
+              {agreeTerms ? (
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              ) : null}
+            </View>
+            <Text style={styles.agreeLabel}>
+              <Text style={styles.agreeLabelPlain}>이용약관에 동의합니다 </Text>
+              <Text style={styles.agreeLabelRequired}>(필수)</Text>
+            </Text>
+            <Pressable
+              hitSlop={8}
+              onPress={() => router.push('/terms-of-service')}
+            >
+              <Text style={styles.agreeLabelLink}>(보기)</Text>
+            </Pressable>
+          </Pressable>
+
+          {/* 개인정보처리방침 동의 */}
           <Pressable
             style={styles.agreeRow}
             onPress={() => setAgreePrivacy((v) => !v)}
@@ -236,6 +270,7 @@ export default function SignupScreen() {
             </View>
             <Text style={styles.agreeLabel}>
               <Text style={styles.agreeLabelPlain}>개인정보처리방침에 동의합니다 </Text>
+              <Text style={styles.agreeLabelRequired}>(필수)</Text>
             </Text>
             <Pressable
               hitSlop={8}
@@ -377,6 +412,10 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   agreeLabelPlain: {},
+  agreeLabelRequired: {
+    color: '#EF4444',
+    fontSize: 12,
+  },
   agreeLabelLink: {
     color: '#4C8BF5',
     fontWeight: '500',

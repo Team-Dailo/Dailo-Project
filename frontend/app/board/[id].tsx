@@ -316,6 +316,96 @@ export default function PostDetailScreen() {
     sendChatToUser(authorId);
   };
 
+  // 댓글 신고
+  const handleCommentReport = async (commentId: string) => {
+    console.log("[CommentReport] called with commentId:", commentId);
+    setCommentMenuId(null);
+
+    // 로그인 체크
+    const token = await authService.getAccessToken();
+    console.log("[CommentReport] token exists:", !!token?.trim());
+    if (!token?.trim()) {
+      Alert.alert("로그인 필요", "신고 기능은 로그인 후 사용할 수 있습니다.", [
+        { text: "취소", style: "cancel" },
+        { text: "로그인", onPress: () => router.push("/login") },
+      ]);
+      return;
+    }
+
+    const reasons: { title: string; reason: reportService.ReportReason }[] = [
+      { title: "스팸", reason: "SPAM" },
+      { title: "욕설/혐오", reason: "ABUSE" },
+      { title: "부적절한 내용", reason: "INAPPROPRIATE" },
+      { title: "기타", reason: "OTHER" },
+    ];
+    Alert.alert(
+      "댓글 신고",
+      "신고 사유를 선택해 주세요.",
+      [
+        { text: "취소", style: "cancel" },
+        ...reasons.map((r) => ({
+          text: r.title,
+          onPress: async () => {
+            console.log("[CommentReport] submitting:", { commentId, reason: r.reason });
+            try {
+              await reportService.createReport({
+                targetType: "COMMENT",
+                targetId: Number(commentId),
+                reason: r.reason,
+              });
+              console.log("[CommentReport] success");
+              Alert.alert("완료", "신고가 접수되었습니다.");
+            } catch (e) {
+              console.error("[CommentReport] error:", e);
+              Alert.alert("오류", "신고 접수에 실패했습니다.");
+            }
+          },
+        })),
+      ]
+    );
+  };
+
+  // 댓글 작성자 차단
+  const handleCommentBlock = async (authorId: number, authorName: string) => {
+    console.log("[CommentBlock] called with authorId:", authorId, "authorName:", authorName);
+    setCommentMenuId(null);
+
+    // 로그인 체크
+    const token = await authService.getAccessToken();
+    console.log("[CommentBlock] token exists:", !!token?.trim());
+    if (!token?.trim()) {
+      Alert.alert("로그인 필요", "차단 기능은 로그인 후 사용할 수 있습니다.", [
+        { text: "취소", style: "cancel" },
+        { text: "로그인", onPress: () => router.push("/login") },
+      ]);
+      return;
+    }
+
+    Alert.alert(
+      "사용자 차단",
+      `${authorName}님을 차단하시겠습니까?\n차단하면 이 사용자의 게시물과 댓글이 표시되지 않습니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "차단",
+          style: "destructive",
+          onPress: async () => {
+            console.log("[CommentBlock] submitting:", authorId);
+            try {
+              await blockService.blockUser(authorId);
+              console.log("[CommentBlock] success");
+              Alert.alert("완료", "사용자를 차단했습니다.");
+              refetchComments();
+            } catch (e) {
+              console.error("[CommentBlock] error:", e);
+              Alert.alert("오류", "차단에 실패했습니다.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const sendChatToUser = (targetId: number) => {
     if (!targetId || targetId <= 0) return;
     const myId = user?.id != null ? Number(user.id) : null;
@@ -798,7 +888,10 @@ export default function PostDetailScreen() {
                     {!c.deleted && (
                       <View style={styles.commentRight}>
                         {commentMenuId === c.id && (
-                          <View style={styles.commentDropdown}>
+                          <Pressable
+                            style={styles.commentDropdown}
+                            onTouchStart={(e) => e.stopPropagation()}
+                          >
                             {isMine ? (
                               <>
                                 {/* 댓글 수정 기능 비활성화
@@ -811,11 +904,28 @@ export default function PostDetailScreen() {
                                 </Pressable>
                               </>
                             ) : (
-                              <Pressable style={styles.commentDropdownItem} onPress={() => c.authorId && handleSendCommentChat(c.authorId)}>
-                                <Text style={styles.commentDropdownText}>채팅하기</Text>
-                              </Pressable>
+                              <>
+                                <Pressable
+                                  style={styles.commentDropdownItem}
+                                  onPress={() => { console.log("[Chat] pressed"); c.authorId && handleSendCommentChat(c.authorId); }}
+                                >
+                                  <Text style={styles.commentDropdownText}>채팅하기</Text>
+                                </Pressable>
+                                <Pressable
+                                  style={styles.commentDropdownItem}
+                                  onPress={() => { console.log("[Report] pressed"); handleCommentReport(c.id); }}
+                                >
+                                  <Text style={styles.commentDropdownText}>신고</Text>
+                                </Pressable>
+                                <Pressable
+                                  style={styles.commentDropdownItem}
+                                  onPress={() => { console.log("[Block] pressed"); c.authorId && handleCommentBlock(c.authorId, c.author); }}
+                                >
+                                  <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>차단</Text>
+                                </Pressable>
+                              </>
                             )}
-                          </View>
+                          </Pressable>
                         )}
                         <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(c.id)}>
                           <Animated.View style={{ transform: [{ scale: getCommentLikeAnim(c.id) }] }}>
@@ -904,7 +1014,10 @@ export default function PostDetailScreen() {
                         {!reply.deleted && (
                           <View style={styles.commentRight}>
                             {commentMenuId === reply.id && (
-                              <View style={styles.commentDropdown}>
+                              <Pressable
+                                style={styles.commentDropdown}
+                                onTouchStart={(e) => e.stopPropagation()}
+                              >
                                 {isMyReply ? (
                                   <>
                                     <Pressable
@@ -921,14 +1034,22 @@ export default function PostDetailScreen() {
                                     </Pressable>
                                   </>
                                 ) : (
-                                  <Pressable
-                                    style={styles.commentDropdownItem}
-                                    onPress={() => reply.authorId && handleSendCommentChat(reply.authorId)}
-                                  >
-                                    <Text style={styles.commentDropdownText}>채팅하기</Text>
-                                  </Pressable>
+                                  <>
+                                    <Pressable
+                                      style={styles.commentDropdownItem}
+                                      onPress={() => reply.authorId && handleSendCommentChat(reply.authorId)}
+                                    >
+                                      <Text style={styles.commentDropdownText}>채팅하기</Text>
+                                    </Pressable>
+                                    <Pressable style={styles.commentDropdownItem} onPress={() => handleCommentReport(reply.id)}>
+                                      <Text style={styles.commentDropdownText}>신고</Text>
+                                    </Pressable>
+                                    <Pressable style={styles.commentDropdownItem} onPress={() => reply.authorId && handleCommentBlock(reply.authorId, reply.author)}>
+                                      <Text style={[styles.commentDropdownText, styles.commentDropdownTextDanger]}>차단</Text>
+                                    </Pressable>
+                                  </>
                                 )}
-                              </View>
+                              </Pressable>
                             )}
                             <Pressable style={styles.commentLikeWrap} onPress={() => toggleCommentLike(reply.id)}>
                               <Animated.View style={{ transform: [{ scale: getCommentLikeAnim(reply.id) }] }}>
