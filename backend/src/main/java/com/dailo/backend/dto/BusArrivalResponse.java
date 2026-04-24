@@ -11,6 +11,7 @@ public class BusArrivalResponse {
 
     private String stopName;
     private String cityCode;
+    private Long cachedAt;
     private List<ArrivalItem> arrivals;
 
     @Getter
@@ -19,6 +20,7 @@ public class BusArrivalResponse {
         private String routeId;
         private String routeNo;
         private String destination;
+        private Integer arrivalSec;
         private Integer arrivalMin;
         private String arrivalMessage;
         private Integer remainingStops;
