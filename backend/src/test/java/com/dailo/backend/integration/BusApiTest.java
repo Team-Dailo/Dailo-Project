@@ -2,10 +2,11 @@ package com.dailo.backend.integration;
 
 import com.dailo.backend.dto.BusArrivalResponse;
 import com.dailo.backend.dto.BusLocationResponse;
-import com.dailo.backend.dto.BusRouteInfoResponse;
 import com.dailo.backend.dto.BusRouteStopResponse;
 import com.dailo.backend.entity.BusStop;
+import com.dailo.backend.entity.BusStopRoute;
 import com.dailo.backend.repository.BusStopRepository;
+import com.dailo.backend.repository.BusStopRouteRepository;
 import com.dailo.backend.service.BusApiService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +39,9 @@ class BusApiTest {
 
     @Autowired
     private BusStopRepository busStopRepository;
+
+    @Autowired
+    private BusStopRouteRepository busStopRouteRepository;
 
     @MockBean
     private BusApiService busApiService;
@@ -185,12 +189,9 @@ class BusApiTest {
     @Test
     @DisplayName("GET /stops/{stopId}/routes - 경유 노선 목록 반환")
     void getRoutesByStop_returnsRoutes() throws Exception {
-        given(busApiService.getRoutesByStop(anyString(), anyString()))
-                .willReturn(List.of(
-                        BusRouteInfoResponse.builder()
-                                .routeId(ROUTE_ID).routeNo("100").endNodeName("종점")
-                                .build()
-                ));
+        busStopRouteRepository.save(BusStopRoute.builder()
+                .stopId(STOP_ID).routeId(ROUTE_ID).routeNo("100").endNodeName("종점")
+                .build());
 
         mockMvc.perform(get("/api/bus/stops/{stopId}/routes", STOP_ID))
                 .andExpect(status().isOk())
@@ -201,10 +202,11 @@ class BusApiTest {
     }
 
     @Test
-    @DisplayName("GET /stops/{stopId}/routes - 존재하지 않는 정류장이면 404")
-    void getRoutesByStop_unknownStop_returns404() throws Exception {
+    @DisplayName("GET /stops/{stopId}/routes - 노선 없는 정류장이면 빈 배열")
+    void getRoutesByStop_unknownStop_returnsEmpty() throws Exception {
         mockMvc.perform(get("/api/bus/stops/{stopId}/routes", "INVALID"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test
