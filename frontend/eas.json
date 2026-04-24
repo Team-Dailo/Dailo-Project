@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.0.7:8080"
+        "EXPO_PUBLIC_API_URL": "http://192.168.229.36:8080"
       }
     },
     "preview": {
