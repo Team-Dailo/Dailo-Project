@@ -31,6 +31,7 @@ type MergedItem = {
   routeNo: string;
   endNodeName: string; // 종점 (노선 기본 정보)
   destination: string | null; // 도착 정보의 행선지
+  arrivalSec: number | null;
   arrivalMin: number | null;
   arrivalMessage: string | null;
   remainingStops: number | null;
@@ -50,6 +51,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [tick, setTick] = useState(0);
   const [cooldown, setCooldown] = useState(0);
@@ -118,7 +120,11 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
 
         if (arrivalsRes) {
           setStopName(arrivalsRes.stopName);
-          setCityCode(arrivalsRes.cityCode);
+          setCityCode(arrivalsRes.cityCode || stop?.cityCode || '');
+          setCachedAt(arrivalsRes.cachedAt ?? Date.now());
+        } else {
+          setCityCode(stop?.cityCode || '');
+          setCachedAt(Date.now());
         }
 
         const arrivals = arrivalsRes?.arrivals ?? [];
@@ -138,6 +144,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
             routeNo: route.routeNo,
             endNodeName: route.endNodeName,
             destination: arrival?.destination ?? null,
+            arrivalSec: arrival?.arrivalSec ?? null,
             arrivalMin: arrival?.arrivalMin ?? null,
             arrivalMessage: arrival?.arrivalMessage ?? null,
             remainingStops: arrival?.remainingStops ?? null,
@@ -151,6 +158,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
             routeNo: a.routeNo,
             endNodeName: a.destination ?? "",
             destination: a.destination,
+            arrivalSec: a.arrivalSec,
             arrivalMin: a.arrivalMin,
             arrivalMessage: a.arrivalMessage,
             remainingStops: a.remainingStops,
@@ -175,7 +183,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
         stopSpin();
       }
     },
-    [startSpin, stopSpin, startCooldown, cooldown],
+    [startSpin, stopSpin, startCooldown, cooldown, stop],
   );
 
   useEffect(() => {
@@ -183,14 +191,19 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
     fetchData(stop.stopId);
   }, [stop?.stopId]);
 
-  const getCountdown = (arrivalMin: number | null, arrivalMessage: string | null) => {
-    if (arrivalMin == null || !lastUpdated) return arrivalMessage;
-    const elapsedSec = Math.floor((Date.now() - lastUpdated.getTime()) / 1000);
-    const remainingSec = arrivalMin * 60 - elapsedSec;
+  const getCountdown = (arrivalSec: number | null, arrivalMessage: string | null) => {
+    if (arrivalSec == null || !cachedAt) return arrivalMessage;
+    const elapsedSec = Math.floor((Date.now() - cachedAt) / 1000);
+    const remainingSec = arrivalSec - elapsedSec;
     if (remainingSec <= 0) return "곧 도착";
     const min = Math.floor(remainingSec / 60);
     const sec = remainingSec % 60;
     if (min === 0) return `${sec}초 후 도착`;
+    if (min >= 60) {
+      const hour = Math.floor(min / 60);
+      const remMin = min % 60;
+      return remMin > 0 ? `${hour}시간 ${remMin}분 후 도착` : `${hour}시간 후 도착`;
+    }
     return `${min}분 ${sec < 10 ? `0${sec}` : sec}초 후 도착`;
   };
 
@@ -266,7 +279,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
           </View>
         ) : items.length === 0 ? (
           <View style={styles.center}>
-            <Text style={styles.emptyText}>운행중인 버스가 없습니다.</Text>
+            <Text style={styles.emptyText}>이 정류장의 노선 정보가 없습니다.</Text>
           </View>
         ) : (
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
@@ -309,7 +322,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
                           styles.arrivalTimeSoon,
                       ]}
                     >
-                      {getCountdown(item.arrivalMin, item.arrivalMessage)}
+                      {getCountdown(item.arrivalSec, item.arrivalMessage)}
                     </Text>
                   ) : (
                     <Text style={styles.noArrival}>운행 정보 없음</Text>
