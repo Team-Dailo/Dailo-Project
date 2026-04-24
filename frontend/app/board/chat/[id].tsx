@@ -240,7 +240,6 @@ export default function ChatRoomScreen() {
           <View style={styles.profileCircle} />
           <View style={styles.headerCenter}>
             <Text style={styles.partnerName}>{partnerName}님</Text>
-            <Text style={styles.partnerId}>@{partnerUserId || "—"}</Text>
           </View>
           <Pressable hitSlop={12} onPress={() => setMenuVisible(true)}>
             <Ionicons name="ellipsis-horizontal" size={22} color="#111827" />
@@ -322,9 +321,14 @@ export default function ChatRoomScreen() {
                   )}
                   {msg.isMe ? (
                     <View style={styles.myRow}>
-                      {msg.time ? (
-                        <Text style={styles.messageTime}>{msg.time}</Text>
-                      ) : null}
+                      <View style={styles.myMeta}>
+                        {(!partner?.lastReadAt || (msg.createdAt && msg.createdAt > partner.lastReadAt)) && (
+                          <Text style={styles.unreadDot}>1</Text>
+                        )}
+                        {msg.time ? (
+                          <Text style={styles.messageTime}>{msg.time}</Text>
+                        ) : null}
+                      </View>
                       <View style={styles.myBubble}>
                         <Text style={styles.myText}>{msg.text}</Text>
                       </View>
@@ -417,7 +421,6 @@ const styles = StyleSheet.create({
   },
   headerCenter: { flex: 1 },
   partnerName: { fontSize: 16, fontWeight: "600", color: "#111827" },
-  partnerId: { fontSize: 12, color: "#6B7280", marginTop: 2 },
   dateWrap: { alignItems: "center", paddingVertical: 12 },
   dateText: { fontSize: 12, color: "#9CA3AF" },
   scroll: { flex: 1 },
@@ -428,6 +431,17 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     marginBottom: 10,
     gap: 6,
+  },
+  myMeta: {
+    alignItems: "flex-end",
+    justifyContent: "flex-end",
+    gap: 2,
+  },
+  unreadDot: {
+    fontSize: 11,
+    color: "#FBBF24",
+    fontWeight: "700",
+    lineHeight: 14,
   },
   myBubble: {
     maxWidth: "80%",
