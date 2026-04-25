@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -18,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as authService from "../../../services/auth.service";
 import * as blockService from "../../../services/block.service";
 import * as chatService from "../../../services/chat.service";
+import { API_BASE_URL } from "../../../constants/api";
 
 type Message = {
   id: string;
@@ -44,15 +46,30 @@ function formatDateLabel(iso?: string): string {
 
 function formatMessageTime(iso?: string): string {
   try {
-    const d = iso ? new Date(iso) : new Date();
-    const h = d.getHours();
-    const m = d.getMinutes();
+    if (!iso) return "";
+    let parsedDate: Date;
+    // 🔥 타임존 정보 있는 경우 (Z 또는 +09:00 등)
+    if (iso.includes("Z") || iso.includes("+")) {
+
+      parsedDate = new Date(iso);
+
+    } 
+    // 🔥 타임존 없는 경우 → 서버 시간을 UTC로 간주
+    else {
+
+      parsedDate = new Date(iso + "Z");
+
+    }
+    const h = parsedDate.getHours();
+    const m = parsedDate.getMinutes();
     const ampm = h < 12 ? "오전" : "오후";
     const h12 = h % 12 || 12;
     return `${ampm} ${h12}:${m.toString().padStart(2, "0")}`;
   } catch {
     return "";
+
   }
+
 }
 
 export default function ChatRoomScreen() {
@@ -68,6 +85,10 @@ export default function ChatRoomScreen() {
   const [notificationsOn, setNotificationsOn] = useState(true);
 
   const partner = room?.members?.find((m) => m.userId !== myUserId);
+  const rawPartnerImageUrl = partner?.profileImageUrl?.trim();
+  const partnerImageUri = rawPartnerImageUrl
+    ? (rawPartnerImageUrl.startsWith("/") ? `${API_BASE_URL}${rawPartnerImageUrl}` : rawPartnerImageUrl)
+    : null;
   const partnerNick = partner
     ? (
         (partner as { nickname?: string; nick_name?: string }).nickname ??
@@ -237,10 +258,13 @@ export default function ChatRoomScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </Pressable>
-          <View style={styles.profileCircle} />
+          {partnerImageUri ? (
+            <Image source={{ uri: partnerImageUri }} style={styles.profileCircle} />
+          ) : (
+            <View style={styles.profileCircle} />
+          )}
           <View style={styles.headerCenter}>
             <Text style={styles.partnerName}>{partnerName}님</Text>
-            <Text style={styles.partnerId}>@{partnerUserId || "—"}</Text>
           </View>
           <Pressable hitSlop={12} onPress={() => setMenuVisible(true)}>
             <Ionicons name="ellipsis-horizontal" size={22} color="#111827" />
@@ -322,9 +346,14 @@ export default function ChatRoomScreen() {
                   )}
                   {msg.isMe ? (
                     <View style={styles.myRow}>
-                      {msg.time ? (
-                        <Text style={styles.messageTime}>{msg.time}</Text>
-                      ) : null}
+                      <View style={styles.myMeta}>
+                        {(!partner?.lastReadAt || (msg.createdAt && msg.createdAt > partner.lastReadAt)) && (
+                          <Text style={styles.unreadDot}>1</Text>
+                        )}
+                        {msg.time ? (
+                          <Text style={styles.messageTime}>{msg.time}</Text>
+                        ) : null}
+                      </View>
                       <View style={styles.myBubble}>
                         <Text style={styles.myText}>{msg.text}</Text>
                       </View>
@@ -376,9 +405,9 @@ export default function ChatRoomScreen() {
               multiline
               maxLength={500}
             />
-            <Pressable style={styles.inputIcon}>
+            {/* <Pressable style={styles.inputIcon}> 녹음 아이콘 주석 처리
               <Ionicons name="mic-outline" size={22} color="#6B7280" />
-            </Pressable>
+            </Pressable> */}
             <Pressable
               onPress={handleSend}
               style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
@@ -417,7 +446,6 @@ const styles = StyleSheet.create({
   },
   headerCenter: { flex: 1 },
   partnerName: { fontSize: 16, fontWeight: "600", color: "#111827" },
-  partnerId: { fontSize: 12, color: "#6B7280", marginTop: 2 },
   dateWrap: { alignItems: "center", paddingVertical: 12 },
   dateText: { fontSize: 12, color: "#9CA3AF" },
   scroll: { flex: 1 },
@@ -428,6 +456,17 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     marginBottom: 10,
     gap: 6,
+  },
+  myMeta: {
+    alignItems: "flex-end",
+    justifyContent: "flex-end",
+    gap: 2,
+  },
+  unreadDot: {
+    fontSize: 11,
+    color: "#FBBF24",
+    fontWeight: "700",
+    lineHeight: 14,
   },
   myBubble: {
     maxWidth: "80%",
