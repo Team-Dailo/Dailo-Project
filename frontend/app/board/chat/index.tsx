@@ -11,7 +11,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
+  Image,
 } from "react-native";
+import { API_BASE_URL } from "../../../constants/api";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,9 +27,22 @@ const AVATAR_COLORS = ["#E0E7FF", "#FCE7F3", "#D1FAE5", "#FEF3C7", "#E5E7EB", "#
 
 function formatRoomTime(iso: string): string {
   try {
-    const d = new Date(iso);
+    if (!iso) return "";
+
+    let parsedDate: Date;
+
+    // 🔥 타임존 있는 경우 그대로 사용
+    if (iso.includes("Z") || iso.includes("+")) {
+      parsedDate = new Date(iso);
+    } 
+    // 🔥 타임존 없는 경우 → UTC로 강제
+    else {
+      parsedDate = new Date(iso + "Z");
+    }
+
     const now = new Date();
-    const diff = now.getTime() - d.getTime();
+    const diff = now.getTime() - parsedDate.getTime();
+
     if (diff < 60000) return "방금 전";
     if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
@@ -172,6 +187,11 @@ export default function ChatListScreen() {
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => {
             const partnerName = getPartner(item);
+            const partner = item.members?.find((m) => m.userId !== myUserId);
+            const rawImageUrl = partner?.profileImageUrl?.trim();
+            const partnerImageUri = rawImageUrl
+              ? (rawImageUrl.startsWith("/") ? `${API_BASE_URL}${rawImageUrl}` : rawImageUrl)
+              : null;
             const timeStr = (item.lastMessageAt ?? item.updatedAt) ? formatRoomTime((item.lastMessageAt ?? item.updatedAt)!) : "";
             const colorIndex = (item.id ?? 0) % AVATAR_COLORS.length;
             const unread = Math.max(0, (item as { unreadCount?: number }).unreadCount ?? 0);
@@ -186,7 +206,11 @@ export default function ChatListScreen() {
                 }}
                 hitSlop={{ top: 8, bottom: 8, left: 0, right: 0 }}
               >
-                <View style={[styles.avatar, { backgroundColor: AVATAR_COLORS[colorIndex] }]} />
+                {partnerImageUri ? (
+                  <Image source={{ uri: partnerImageUri }} style={styles.avatar} />
+                ) : (
+                  <View style={[styles.avatar, { backgroundColor: AVATAR_COLORS[colorIndex] }]} />
+                )}
                 <View style={styles.chatBody}>
                   <View style={styles.chatRowTop}>
                     <Text style={styles.chatName} numberOfLines={1}>{partnerName}</Text>
