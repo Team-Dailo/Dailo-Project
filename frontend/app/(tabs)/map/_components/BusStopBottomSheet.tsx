@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -53,16 +53,13 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
   const [error, setError] = useState(false);
   const [cachedAt, setCachedAt] = useState<number | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [tick, setTick] = useState(0);
   const [cooldown, setCooldown] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const spinAnim = useRef(new Animated.Value(0)).current;
   const spinLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => {
-      clearInterval(id);
       if (cooldownRef.current) clearInterval(cooldownRef.current);
     };
   }, []);
@@ -191,22 +188,6 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
     fetchData(stop.stopId);
   }, [stop?.stopId]);
 
-  const getCountdown = (arrivalSec: number | null, arrivalMessage: string | null) => {
-    if (arrivalSec == null || !cachedAt) return arrivalMessage;
-    const elapsedSec = Math.floor((Date.now() - cachedAt) / 1000);
-    const remainingSec = arrivalSec - elapsedSec;
-    if (remainingSec <= 0) return "곧 도착";
-    const min = Math.floor(remainingSec / 60);
-    const sec = remainingSec % 60;
-    if (min === 0) return `${sec}초 후 도착`;
-    if (min >= 60) {
-      const hour = Math.floor(min / 60);
-      const remMin = min % 60;
-      return remMin > 0 ? `${hour}시간 ${remMin}분 후 도착` : `${hour}시간 후 도착`;
-    }
-    return `${min}분 ${sec < 10 ? `0${sec}` : sec}초 후 도착`;
-  };
-
   if (!stop) return null;
 
   return (
@@ -314,16 +295,12 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
                 </View>
                 <View style={styles.rowRight}>
                   {item.arrivalMessage ? (
-                    <Text
-                      style={[
-                        styles.arrivalTime,
-                        item.arrivalMin != null &&
-                          item.arrivalMin <= 5 &&
-                          styles.arrivalTimeSoon,
-                      ]}
-                    >
-                      {getCountdown(item.arrivalSec, item.arrivalMessage)}
-                    </Text>
+                    <CountdownText
+                      arrivalSec={item.arrivalSec}
+                      cachedAt={cachedAt}
+                      arrivalMessage={item.arrivalMessage}
+                      arrivalMin={item.arrivalMin}
+                    />
                   ) : (
                     <Text style={styles.noArrival}>운행 정보 없음</Text>
                   )}
@@ -340,6 +317,56 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
         )}
       </View>
     </Modal>
+  );
+}
+
+type CountdownTextProps = {
+  arrivalSec: number | null;
+  cachedAt: number | null;
+  arrivalMessage: string | null;
+  arrivalMin: number | null;
+};
+
+function CountdownText({ arrivalSec, cachedAt, arrivalMessage, arrivalMin }: CountdownTextProps) {
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
+
+  useEffect(() => {
+    if (arrivalSec == null || !cachedAt) return;
+    const id = setInterval(forceUpdate, 1000);
+    return () => clearInterval(id);
+  }, [arrivalSec, cachedAt]);
+
+  let text: string | null;
+  if (arrivalSec == null || !cachedAt) {
+    text = arrivalMessage;
+  } else {
+    const remainingSec = arrivalSec - Math.floor((Date.now() - cachedAt) / 1000);
+    if (remainingSec <= 0) {
+      text = "곧 도착";
+    } else {
+      const min = Math.floor(remainingSec / 60);
+      const sec = remainingSec % 60;
+      if (min === 0) {
+        text = `${sec}초 후 도착`;
+      } else if (min >= 60) {
+        const hour = Math.floor(min / 60);
+        const remMin = min % 60;
+        text = remMin > 0 ? `${hour}시간 ${remMin}분 후 도착` : `${hour}시간 후 도착`;
+      } else {
+        text = `${min}분 ${sec < 10 ? `0${sec}` : sec}초 후 도착`;
+      }
+    }
+  }
+
+  return (
+    <Text
+      style={[
+        styles.arrivalTime,
+        arrivalMin != null && arrivalMin <= 5 && styles.arrivalTimeSoon,
+      ]}
+    >
+      {text}
+    </Text>
   );
 }
 

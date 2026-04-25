@@ -385,24 +385,16 @@ export default function MapScreen() {
     []
   );
 
-  // 지도 탭에 들어올 때마다 충주로 이동 + 주변 행사 캐시 비움
+  // 최초 마운트 시에만 충주로 초기 카메라 설정
+  useEffect(() => {
+    setRegion(chungjuRegion);
+  }, []);
+
+  // 지도 탭 포커스 시 주변 행사 캐시 비움 (카메라는 보던 위치 유지)
   useFocusEffect(
     useCallback(() => {
       setEventsNearMe(null);
-      setRegion(chungjuRegion);
-      const tid = setTimeout(() => {
-        if (mapRef.current) {
-          mapRef.current.animateCameraTo({
-            latitude: chungjuRegion.latitude,
-            longitude: chungjuRegion.longitude,
-            zoom: 14,
-            duration: 400,
-            easing: 'EaseOut',
-          });
-        }
-      }, 80);
-      return () => clearTimeout(tid);
-    }, [chungjuRegion])
+    }, [])
   );
 
   // 행사 마커로부터 ZONE_RADIUS_KM(200m) 이내에 내 위치가 있으면 축제 구역 진입 → 진입 모달 + 참여 중 + 타이머 저장
@@ -884,6 +876,7 @@ export default function MapScreen() {
   const cameraIdleFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (cameraIdleFetchRef.current) clearTimeout(cameraIdleFetchRef.current);
+    if (busStopFetchRef.current) clearTimeout(busStopFetchRef.current);
   }, []);
 
   // 지도 탭에 들어올 때마다 현재 영역으로 행사 다시 조회 + 시범용 현재위치 로드
@@ -1388,7 +1381,11 @@ export default function MapScreen() {
                       busStopFetchRef.current = setTimeout(() => {
                         busStopFetchRef.current = null;
                         getBusStopsInBounds(swLat, swLng, neLat, neLng)
-                          .then(setBusStops)
+                          .then((next) => setBusStops((prev) =>
+                            prev.length === next.length && prev.every((s, i) => s.stopId === next[i].stopId)
+                              ? prev
+                              : next
+                          ))
                           .catch(() => {});
                       }, 300);
                     }
@@ -1538,7 +1535,11 @@ export default function MapScreen() {
                   const bounds = lastBoundsRef.current;
                   if (bounds && bounds.zoom >= 13) {
                     getBusStopsInBounds(bounds.swLat, bounds.swLng, bounds.neLat, bounds.neLng)
-                      .then(setBusStops)
+                      .then((next) => setBusStops((prev) =>
+                        prev.length === next.length && prev.every((s, i) => s.stopId === next[i].stopId)
+                          ? prev
+                          : next
+                      ))
                       .catch(() => {});
                   }
                 }
