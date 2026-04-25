@@ -251,8 +251,8 @@ const styles = StyleSheet.create({
   customTabItem: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "flex-start",
-    paddingTop: 10,
+    justifyContent: "center",
+    gap: 3,
   },
   customTabLabel: {
     fontSize: 10,
