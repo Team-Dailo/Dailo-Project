@@ -47,17 +47,24 @@ export function formatDateTimeAdmin(iso: string): string {
 }
 
 /** 상대 시간 (24시간 미만: 방금 전, N분/시간 전 / 24시간 이상: 작성 날짜·시간) */
-export function formatRelativeTime(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHour = Math.floor(diffMin / 60);
+export function formatRelativeTime(iso?: string): string {
+  try {
+    if (!iso) return '';
 
-  if (diffMin < 1) return "방금 전";
-  if (diffMin < 60) return `${diffMin}분 전`;
-  if (diffHour < 24) return `${diffHour}시간 전`;
-  return formatDateTime(iso);
+    // 🔥 UTC → KST 변환
+    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+
+    if (diff < 60000) return '방금 전';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
+    if (diff < 172800000) return '어제';
+    return `${Math.floor(diff / 86400000)}일 전`;
+  } catch {
+    return '';
+  }
 }
 
 export function formatDateTimeRange(startIso: string, endIso: string) {

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.HashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +32,7 @@ public class ChatRoomService {
     private final ChatMessageRepository chatMessageRepository;
     private final MemberRepository memberRepository;
     private final BlockService blockService;
+    private final S3UploadService s3UploadService;
 
     // principal(email 또는 memberId)로 내 ID를 찾아주는 헬퍼 메서드
     private Long getMyIdByPrincipal(String principal) {
@@ -112,7 +114,7 @@ public class ChatRoomService {
         }
     }
 
-    /** 닉네임 + 미읽음 수 + 마지막 메시지 채워서 DTO 반환 */
+    /** 닉네임 + 프로필 이미지 + 미읽음 수 + 마지막 메시지 채워서 DTO 반환 */
     private ChatRoomResponseDto enrichRoom(ChatRoom room, Long myUserId) {
         List<Long> userIds = room.getMembers().stream()
                 .filter(m -> m.getLeftAt() == null)
@@ -120,8 +122,10 @@ public class ChatRoomService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        Map<Long, String> nicknameMap = userIds.isEmpty() ? Map.of() : memberRepository.findAllById(userIds).stream()
+        List<Member> members = userIds.isEmpty() ? List.of() : memberRepository.findAllById(userIds);
+        Map<Long, String> nicknameMap = members.stream()
                 .collect(Collectors.toMap(Member::getId, m -> m.getNickname() != null ? m.getNickname() : ""));
+        Map<Long, String> profileImageUrlMap = buildProfileImageUrlMap(members);
 
         LocalDateTime lastRead = chatMemberRepository.findByRoomAndUserId(room, myUserId)
                 .map(ChatMember::getLastReadAt)
@@ -136,7 +140,29 @@ public class ChatRoomService {
         String lastContent = lastMsg.map(ChatMessage::getContent).orElse(null);
         LocalDateTime lastAt = lastMsg.map(ChatMessage::getCreatedAt).orElse(null);
 
-        return ChatRoomResponseDto.from(room, nicknameMap, unread, lastContent, lastAt);
+        return ChatRoomResponseDto.from(room, nicknameMap, profileImageUrlMap, unread, lastContent, lastAt);
+    }
+
+    private Map<Long, String> buildProfileImageUrlMap(List<Member> members) {
+        Map<Long, String> map = new HashMap<>();
+        for (Member m : members) {
+            String key = m.getProfileImageKey();
+            String ext = m.getProfileImageExternalUrl();
+            String url = null;
+            if (key != null && !key.isBlank()) {
+                if (key.startsWith("/")) {
+                    url = key;
+                } else {
+                    try {
+                        url = s3UploadService.getPresignedUrl(key);
+                    } catch (Exception ignored) {}
+                }
+            } else if (ext != null && !ext.isBlank()) {
+                url = ext;
+            }
+            map.put(m.getId(), url);
+        }
+        return map;
     }
 
     private String generateDirectRoomKey(Long userId1, Long userId2) {
@@ -166,8 +192,10 @@ public class ChatRoomService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        Map<Long, String> nicknameMap = allUserIds.isEmpty() ? Map.of() : memberRepository.findAllById(allUserIds).stream()
+        List<Member> allMembers = allUserIds.isEmpty() ? List.of() : memberRepository.findAllById(allUserIds);
+        Map<Long, String> nicknameMap = allMembers.stream()
                 .collect(Collectors.toMap(Member::getId, m -> m.getNickname() != null ? m.getNickname() : ""));
+        Map<Long, String> profileImageUrlMap = buildProfileImageUrlMap(allMembers);
 
         return rooms.stream().map(room -> {
             LocalDateTime lastRead = chatMemberRepository.findByRoomAndUserId(room, userId)
@@ -179,7 +207,7 @@ public class ChatRoomService {
                     .stream().findFirst();
             String lastContent = lastMsg.map(ChatMessage::getContent).orElse(null);
             LocalDateTime lastAt = lastMsg.map(ChatMessage::getCreatedAt).orElse(null);
-            return ChatRoomResponseDto.from(room, nicknameMap, unread, lastContent, lastAt);
+            return ChatRoomResponseDto.from(room, nicknameMap, profileImageUrlMap, unread, lastContent, lastAt);
         }).collect(Collectors.toList());
     }
 

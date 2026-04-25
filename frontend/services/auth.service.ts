@@ -328,38 +328,27 @@ export async function getEffectiveUserId(): Promise<number> {
 
 export async function getMe(): Promise<MemberResponseDto | null> {
   const token = await getAccessToken();
-  console.log('[getMe] token exists:', !!token);
 
   if (!token) return null;
 
   try {
     const url = `${API_BASE_URL}/api/members/me?_t=${Date.now()}`;
-    console.log('[getMe] request url:', url);
 
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    console.log('[getMe] response status:', res.status);
-    console.log('[getMe] content-type:', res.headers.get('content-type'));
-
     const text = await res.text();
-    console.log('[getMe] response text:', text);
 
     if (!res.ok) return null;
 
     const contentType = res.headers.get('content-type') ?? '';
     if (!contentType.includes('application/json')) {
-      // 카카오 로그인 HTML 등 JSON 이외 응답이 오는 경우가 있어도 앱이 크래시 나지 않도록 경고만 남기고 조용히 무시
-      console.log('[getMe] non-JSON response, skipping me update');
       return null;
     }
 
-    const json = JSON.parse(text) as MemberResponseDto;
-    console.log('[getMe] response json:', json);
-    return json;
-  } catch (e) {
-    console.error('[getMe] fetch error:', e);
+    return JSON.parse(text) as MemberResponseDto;
+  } catch {
     return null;
   }
 }
