@@ -14,28 +14,18 @@ public class ChatMemberDto {
     private Long userId;
     /** 채팅 목록/채팅방에서 표시할 닉네임 (Member 테이블 조회) */
     private String nickname;
+    private String profileImageUrl;
     private LocalDateTime joinedAt;
     private LocalDateTime lastReadAt;
     /** 채팅방 나가기 시각 (null이면 아직 참여 중) */
     private LocalDateTime leftAt;
 
-    public static ChatMemberDto from(ChatMember member) {
-        return ChatMemberDto.builder()
-                .id(member.getId())
-                .userId(member.getUserId())
-                .nickname(null)
-                .joinedAt(member.getJoinedAt())
-                .lastReadAt(member.getLastReadAt())
-                .leftAt(member.getLeftAt())
-                .build();
-    }
-
-    /** 닉네임을 넣어서 빌드 (서비스 레이어에서 Member 조회 후 사용) */
-    public static ChatMemberDto from(ChatMember member, String nickname) {
+    public static ChatMemberDto from(ChatMember member, String nickname, String profileImageUrl) {
         return ChatMemberDto.builder()
                 .id(member.getId())
                 .userId(member.getUserId())
                 .nickname(nickname)
+                .profileImageUrl(profileImageUrl)
                 .joinedAt(member.getJoinedAt())
                 .lastReadAt(member.getLastReadAt())
                 .leftAt(member.getLeftAt())
