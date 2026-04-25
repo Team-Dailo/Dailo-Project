@@ -152,11 +152,15 @@ public class MemberService {
         String externalUrl = member.getProfileImageExternalUrl();
 
         if (imageKey != null && !imageKey.isBlank()) {
-            try {
-                resolvedProfileImageUrl = s3UploadService.getPresignedUrl(imageKey);
-            } catch (Exception e) {
-                log.warn("프로필 이미지 Presigned URL 생성 실패. key={}", imageKey, e);
-                resolvedProfileImageUrl = null;
+            if (imageKey.startsWith("/")) {
+                resolvedProfileImageUrl = imageKey;
+            } else {
+                try {
+                    resolvedProfileImageUrl = s3UploadService.getPresignedUrl(imageKey);
+                } catch (Exception e) {
+                    log.warn("프로필 이미지 Presigned URL 생성 실패. key={}", imageKey, e);
+                    resolvedProfileImageUrl = null;
+                }
             }
         } else if (externalUrl != null && !externalUrl.isBlank()) {
             resolvedProfileImageUrl = externalUrl;
