@@ -884,6 +884,7 @@ export default function MapScreen() {
   const cameraIdleFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (cameraIdleFetchRef.current) clearTimeout(cameraIdleFetchRef.current);
+    if (busStopFetchRef.current) clearTimeout(busStopFetchRef.current);
   }, []);
 
   // 지도 탭에 들어올 때마다 현재 영역으로 행사 다시 조회 + 시범용 현재위치 로드
@@ -1388,7 +1389,11 @@ export default function MapScreen() {
                       busStopFetchRef.current = setTimeout(() => {
                         busStopFetchRef.current = null;
                         getBusStopsInBounds(swLat, swLng, neLat, neLng)
-                          .then(setBusStops)
+                          .then((next) => setBusStops((prev) =>
+                            prev.length === next.length && prev.every((s, i) => s.stopId === next[i].stopId)
+                              ? prev
+                              : next
+                          ))
                           .catch(() => {});
                       }, 300);
                     }
@@ -1538,7 +1543,11 @@ export default function MapScreen() {
                   const bounds = lastBoundsRef.current;
                   if (bounds && bounds.zoom >= 13) {
                     getBusStopsInBounds(bounds.swLat, bounds.swLng, bounds.neLat, bounds.neLng)
-                      .then(setBusStops)
+                      .then((next) => setBusStops((prev) =>
+                        prev.length === next.length && prev.every((s, i) => s.stopId === next[i].stopId)
+                          ? prev
+                          : next
+                      ))
                       .catch(() => {});
                   }
                 }
