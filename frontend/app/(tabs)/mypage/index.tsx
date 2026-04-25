@@ -58,7 +58,9 @@ export default function MyPageScreen() {
               }
               const baseUri = profileUrl.startsWith("http") ? profileUrl : profileUrl.startsWith("/") ? `${API_BASE_URL}${profileUrl}` : profileUrl;
               const version = user?.profileImageVersion ?? 0;
-              const finalUri = `${baseUri}${baseUri.includes("?") ? "&" : "?"}v=${version}`;
+              const finalUri = baseUri.startsWith("http")
+                ? baseUri
+                : `${baseUri}${baseUri.includes("?") ? "&" : "?"}v=${version}`;
               return (
                 <Image
                   key={finalUri}

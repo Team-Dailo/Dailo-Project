@@ -29,6 +29,7 @@ import * as blockService from "../../../services/block.service";
 import * as savedPostService from "../../../services/savedPost.service";
 import * as boardService from "../../../services/board.service";
 import * as noticeService from "../../../services/notice.service";
+import * as chatService from "../../../services/chat.service";
 
 const DEFAULT_PROFILE_IMAGE = require("../../../assets/images/default-profile.png");
 
@@ -115,6 +116,7 @@ export default function BoardScreen() {
   const [eventPickerLoading, setEventPickerLoading] = useState(false);
   /** 공지 미리보기: 최신 공지 1건 (실제 API 연동) */
   const [latestNotice, setLatestNotice] = useState<noticeService.NoticeItem | null>(null);
+  const [totalUnread, setTotalUnread] = useState(0);
 
   const reviewEventId =
     selectedCategory === "후기" && selectedEventFilter != null ? selectedEventFilter.eventId : undefined;
@@ -213,6 +215,17 @@ export default function BoardScreen() {
         setLatestNotice(first);
       }).catch(() => setLatestNotice(null));
     }, [])
+  );
+
+  // 채팅 미읽음 배지
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!isLoggedIn) { setTotalUnread(0); return; }
+      chatService.getMyRooms().then((rooms) => {
+        const total = rooms.reduce((sum, r) => sum + (r.unreadCount ?? 0), 0);
+        setTotalUnread(total);
+      }).catch(() => setTotalUnread(0));
+    }, [isLoggedIn])
   );
 
   const handleCopyLink = async (postId: string) => {
@@ -424,6 +437,11 @@ export default function BoardScreen() {
           <View style={styles.headerRight}>
             <Pressable onPress={() => router.push("/board/chat")} style={styles.headerIconBtn}>
               <Ionicons name="chatbubble-outline" size={22} color="#111827" />
+              {totalUnread > 0 && (
+                <View style={styles.chatBadge}>
+                  <Text style={styles.chatBadgeText}>{totalUnread > 99 ? "99+" : totalUnread}</Text>
+                </View>
+              )}
             </Pressable>
           </View>
         </View>
@@ -740,6 +758,24 @@ const styles = StyleSheet.create({
   },
   headerIconBtn: {
     padding: 6,
+  },
+  chatBadge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#EF4444",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 3,
+  },
+  chatBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+    lineHeight: 12,
   },
   noticeCard: {
     backgroundColor: "#FFFFFF",
