@@ -258,6 +258,7 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
+          {/* 소셜 로그인 임시 비활성화 (App Store 심사용)
           <Pressable
             style={({ pressed }) => [
               styles.kakaoLoginButton,
@@ -276,7 +277,6 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
-          {/* Apple 로그인 버튼 (iOS만 표시) */}
           {Platform.OS === 'ios' && isAppleAvailable && (
             <Pressable
               style={({ pressed }) => [
@@ -296,6 +296,7 @@ export default function LoginScreen() {
               )}
             </Pressable>
           )}
+          */}
 
           <Pressable
             style={styles.signupLink}
