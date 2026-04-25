@@ -5,11 +5,12 @@ import { View, Text, StyleSheet, Pressable, Platform, ToastAndroid, Alert } from
 import { Ionicons } from "@expo/vector-icons";
 import BoothMap from "./BoothMap";
 import BoothDetailModal from "./BoothDetailModal";
+import BoothLayoutMap from "./BoothLayoutMap";
 import type { EventBoothItem } from "../../types/event";
 import * as boothFavoriteService from "../../services/boothFavorite.service";
 
 export type BoothType = "food" | "experience";
-type Mode = "list" | "map";
+type Mode = "list" | "map" | "layout";
 
 export type Booth = EventBoothItem & { locationLabel?: string };
 
@@ -101,116 +102,131 @@ export default function EventBoothTab({
   );
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* 상단 토글 (리스트/지도 모드 모두 표시) */}
-      <View style={styles.segmentContainer}>
+    <View>
+      {/* 모드 토글 (배치도 / 목록) — 배치도 모드에서는 푸드트럭/체험부스 세그먼트 숨김 */}
+      <View style={styles.modeToggleRow}>
         <Pressable
-          style={[
-            styles.segmentItem,
-            boothType === "food" && styles.segmentItemActive,
-          ]}
-          onPress={() => setBoothType("food")}
+          style={[styles.modeToggleBtn, mode === "layout" && styles.modeToggleBtnActive]}
+          onPress={() => setMode("layout")}
         >
-          <Text
-            style={[
-              styles.segmentText,
-              boothType === "food" && styles.segmentTextActive,
-            ]}
-          >
-            푸드트럭
-          </Text>
+          <Text style={[styles.modeToggleText, mode === "layout" && styles.modeToggleTextActive]}>배치도</Text>
         </Pressable>
         <Pressable
-          style={[
-            styles.segmentItem,
-            boothType === "experience" && styles.segmentItemActive,
-          ]}
-          onPress={() => setBoothType("experience")}
+          style={[styles.modeToggleBtn, mode === "list" && styles.modeToggleBtnActive]}
+          onPress={() => setMode("list")}
         >
-          <Text
-            style={[
-              styles.segmentText,
-              boothType === "experience" && styles.segmentTextActive,
-            ]}
-          >
-            체험부스
-          </Text>
+          <Text style={[styles.modeToggleText, mode === "list" && styles.modeToggleTextActive]}>목록</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.modeToggleBtn, mode === "map" && styles.modeToggleBtnActive]}
+          onPress={() => setMode("map")}
+        >
+          <Text style={[styles.modeToggleText, mode === "map" && styles.modeToggleTextActive]}>위치</Text>
         </Pressable>
       </View>
 
-      {mode === "map" ? (
+      {/* 배치도 모드 */}
+      {mode === "layout" && (
+        <BoothLayoutMap
+          foodBooths={foodBooths}
+          experienceBooths={experienceBooths}
+          eventId={eventId}
+          eventTitle={eventTitle}
+        />
+      )}
+
+      {/* 위치 모드 */}
+      {mode === "map" && (
         <>
+          {/* 푸드트럭/체험부스 세그먼트 */}
+          <View style={styles.segmentContainer}>
+            <Pressable
+              style={[styles.segmentItem, boothType === "food" && styles.segmentItemActive]}
+              onPress={() => setBoothType("food")}
+            >
+              <Text style={[styles.segmentText, boothType === "food" && styles.segmentTextActive]}>푸드트럭</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.segmentItem, boothType === "experience" && styles.segmentItemActive]}
+              onPress={() => setBoothType("experience")}
+            >
+              <Text style={[styles.segmentText, boothType === "experience" && styles.segmentTextActive]}>체험부스</Text>
+            </Pressable>
+          </View>
           <BoothMap
             centerLatitude={mapCenter?.latitude}
             centerLongitude={mapCenter?.longitude}
           />
-          <Pressable
-            style={[styles.bottomButton, { alignSelf: "center", marginTop: 16 }]}
-            onPress={() => setMode("list")}
-          >
-            <Text style={styles.bottomButtonText}>부스 목록 보기</Text>
-          </Pressable>
-        </>
-      ) : (
-        <>
-          {/* 부스 리스트 */}
-          <View style={styles.listWrapper}>
-        {booths.length === 0 ? (
-          <Text style={styles.emptyText}>등록된 부스가 없습니다.</Text>
-        ) : (
-          booths.map((booth) => (
-            <Pressable
-              key={booth.id}
-              style={styles.boothCard}
-              onPress={() => setSelectedBooth(booth)}
-            >
-              <View style={styles.iconPlaceholder} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.boothName}>{booth.name}</Text>
-                <Text style={styles.boothLocation}>{booth.locationLabel ?? ""}</Text>
-              </View>
-              {eventId != null ? (
-                <Pressable
-                  hitSlop={8}
-                  onPress={(e) => {
-                    e.stopPropagation?.();
-                    handleToggleFavorite(booth);
-                  }}
-                  style={styles.starButton}
-                >
-                  <Ionicons
-                    name={isFavorite(booth) ? "star" : "star-outline"}
-                    size={24}
-                    color={isFavorite(booth) ? "#EAB308" : "#D1D5DB"}
-                  />
-                </Pressable>
-              ) : (
-                <Ionicons name="star-outline" size={24} color="#D1D5DB" />
-              )}
-            </Pressable>
-          ))
-        )}
-          </View>
-          <Pressable
-            style={[styles.bottomButton, { alignSelf: "center", marginTop: 16 }]}
-            onPress={() => setMode("map")}
-          >
-            <Text style={styles.bottomButtonText}>위치 보기</Text>
-          </Pressable>
         </>
       )}
 
-      {/* 상세 모달 */}
+      {/* 목록 모드 */}
+      {mode === "list" && (
+        <>
+          {/* 푸드트럭/체험부스 세그먼트 */}
+          <View style={styles.segmentContainer}>
+            <Pressable
+              style={[styles.segmentItem, boothType === "food" && styles.segmentItemActive]}
+              onPress={() => setBoothType("food")}
+            >
+              <Text style={[styles.segmentText, boothType === "food" && styles.segmentTextActive]}>푸드트럭</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.segmentItem, boothType === "experience" && styles.segmentItemActive]}
+              onPress={() => setBoothType("experience")}
+            >
+              <Text style={[styles.segmentText, boothType === "experience" && styles.segmentTextActive]}>체험부스</Text>
+            </Pressable>
+          </View>
+          <View style={styles.listWrapper}>
+            {booths.length === 0 ? (
+              <Text style={styles.emptyText}>등록된 부스가 없습니다.</Text>
+            ) : (
+              booths.map((booth) => (
+                <Pressable
+                  key={booth.id}
+                  style={styles.boothCard}
+                  onPress={() => setSelectedBooth(booth)}
+                >
+                  <View style={[
+                    styles.iconPlaceholder,
+                    boothType === "food"
+                      ? { backgroundColor: "#FEF0E6" }
+                      : { backgroundColor: "#EBF3FB" },
+                  ]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.boothName}>{booth.name}</Text>
+                    <Text style={styles.boothLocation}>{booth.locationLabel ?? ""}</Text>
+                  </View>
+                  {eventId != null ? (
+                    <Pressable
+                      hitSlop={8}
+                      onPress={(e) => { e.stopPropagation?.(); handleToggleFavorite(booth); }}
+                      style={styles.starButton}
+                    >
+                      <Ionicons
+                        name={isFavorite(booth) ? "star" : "star-outline"}
+                        size={24}
+                        color={isFavorite(booth) ? "#EAB308" : "#D1D5DB"}
+                      />
+                    </Pressable>
+                  ) : (
+                    <Ionicons name="star-outline" size={24} color="#D1D5DB" />
+                  )}
+                </Pressable>
+              ))
+            )}
+          </View>
+        </>
+      )}
+
+      {/* 상세 모달 (목록 모드용) */}
       <BoothDetailModal
         visible={!!selectedBooth}
         booth={selectedBooth}
         eventId={eventId}
         isFavorite={selectedBooth ? isFavorite(selectedBooth) : false}
-        onToggleFavorite={
-          selectedBooth
-            ? () => handleToggleFavorite(selectedBooth)
-            : undefined
-        }
+        onToggleFavorite={selectedBooth ? () => handleToggleFavorite(selectedBooth) : undefined}
         onClose={() => setSelectedBooth(null)}
       />
     </View>
@@ -218,6 +234,33 @@ export default function EventBoothTab({
 }
 
 const styles = StyleSheet.create({
+  modeToggleRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modeToggleBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 8,
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  modeToggleBtnActive: {
+    backgroundColor: "#111827",
+    borderColor: "#111827",
+  },
+  modeToggleText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  modeToggleTextActive: {
+    color: "#FFFFFF",
+  },
   segmentContainer: {
     flexDirection: "row",
     backgroundColor: "#f3f3f3",
@@ -266,7 +309,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#ffe9c7",
     marginRight: 12,
   },
   boothName: {
