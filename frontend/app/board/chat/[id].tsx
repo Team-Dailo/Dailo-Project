@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -18,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as authService from "../../../services/auth.service";
 import * as blockService from "../../../services/block.service";
 import * as chatService from "../../../services/chat.service";
+import { API_BASE_URL } from "../../../constants/api";
 
 type Message = {
   id: string;
@@ -83,6 +85,10 @@ export default function ChatRoomScreen() {
   const [notificationsOn, setNotificationsOn] = useState(true);
 
   const partner = room?.members?.find((m) => m.userId !== myUserId);
+  const rawPartnerImageUrl = partner?.profileImageUrl?.trim();
+  const partnerImageUri = rawPartnerImageUrl
+    ? (rawPartnerImageUrl.startsWith("/") ? `${API_BASE_URL}${rawPartnerImageUrl}` : rawPartnerImageUrl)
+    : null;
   const partnerNick = partner
     ? (
         (partner as { nickname?: string; nick_name?: string }).nickname ??
@@ -252,7 +258,11 @@ export default function ChatRoomScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </Pressable>
-          <View style={styles.profileCircle} />
+          {partnerImageUri ? (
+            <Image source={{ uri: partnerImageUri }} style={styles.profileCircle} />
+          ) : (
+            <View style={styles.profileCircle} />
+          )}
           <View style={styles.headerCenter}>
             <Text style={styles.partnerName}>{partnerName}님</Text>
           </View>

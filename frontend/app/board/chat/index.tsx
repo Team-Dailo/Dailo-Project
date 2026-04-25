@@ -11,7 +11,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
+  Image,
 } from "react-native";
+import { API_BASE_URL } from "../../../constants/api";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -185,6 +187,11 @@ export default function ChatListScreen() {
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => {
             const partnerName = getPartner(item);
+            const partner = item.members?.find((m) => m.userId !== myUserId);
+            const rawImageUrl = partner?.profileImageUrl?.trim();
+            const partnerImageUri = rawImageUrl
+              ? (rawImageUrl.startsWith("/") ? `${API_BASE_URL}${rawImageUrl}` : rawImageUrl)
+              : null;
             const timeStr = (item.lastMessageAt ?? item.updatedAt) ? formatRoomTime((item.lastMessageAt ?? item.updatedAt)!) : "";
             const colorIndex = (item.id ?? 0) % AVATAR_COLORS.length;
             const unread = Math.max(0, (item as { unreadCount?: number }).unreadCount ?? 0);
@@ -199,7 +206,11 @@ export default function ChatListScreen() {
                 }}
                 hitSlop={{ top: 8, bottom: 8, left: 0, right: 0 }}
               >
-                <View style={[styles.avatar, { backgroundColor: AVATAR_COLORS[colorIndex] }]} />
+                {partnerImageUri ? (
+                  <Image source={{ uri: partnerImageUri }} style={styles.avatar} />
+                ) : (
+                  <View style={[styles.avatar, { backgroundColor: AVATAR_COLORS[colorIndex] }]} />
+                )}
                 <View style={styles.chatBody}>
                   <View style={styles.chatRowTop}>
                     <Text style={styles.chatName} numberOfLines={1}>{partnerName}</Text>
