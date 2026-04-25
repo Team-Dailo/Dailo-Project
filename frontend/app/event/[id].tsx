@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
   bodyInner: {
     paddingTop: 10,
   },
-  timelineWrap: { flex: 1 },
+  timelineWrap: {},
   timelineDateNavRow: {
     flexDirection: "row",
     alignItems: "center",
