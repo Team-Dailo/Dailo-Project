@@ -106,14 +106,28 @@ public class BusService {
                     .orElse(-1);
             if (closestNodeOrder < 0) return item;
 
+            int correctedRemaining = currentNodeOrder - closestNodeOrder;
+
+            // GPS 보정된 정거장 수 비율로 도착 시간도 재계산
+            Integer correctedArrivalSec = item.getArrivalSec();
+            Integer correctedArrivalMin = item.getArrivalMin();
+            String correctedArrivalMessage = item.getArrivalMessage();
+
+            int originalRemaining = item.getRemainingStops() != null ? item.getRemainingStops() : 0;
+            if (originalRemaining > 0 && correctedArrivalSec != null) {
+                correctedArrivalSec = (int) Math.round((double) correctedRemaining / originalRemaining * correctedArrivalSec);
+                correctedArrivalMin = correctedArrivalSec / 60;
+                correctedArrivalMessage = correctedArrivalMin <= 0 ? "곧 도착" : correctedArrivalMin + "분 후 도착";
+            }
+
             return BusArrivalResponse.ArrivalItem.builder()
                     .routeId(item.getRouteId())
                     .routeNo(item.getRouteNo())
                     .destination(item.getDestination())
-                    .arrivalSec(item.getArrivalSec())
-                    .arrivalMin(item.getArrivalMin())
-                    .arrivalMessage(item.getArrivalMessage())
-                    .remainingStops(currentNodeOrder - closestNodeOrder)
+                    .arrivalSec(correctedArrivalSec)
+                    .arrivalMin(correctedArrivalMin)
+                    .arrivalMessage(correctedArrivalMessage)
+                    .remainingStops(correctedRemaining)
                     .build();
         } catch (Exception e) {
             return item;
