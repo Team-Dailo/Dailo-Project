@@ -1037,3 +1037,29 @@ export async function togglePopupActive(id: number): Promise<PopupAdminItem> {
   if (!res.ok) throw new Error(await res.text().then((t) => t || '팝업 상태 변경 실패'));
   return res.json();
 }
+
+// --- 설문 응답 관리 (AdminSurveyController) ---
+
+export type SurveyAdminItem = {
+  id: number;
+  memberId: number;
+  eventId: number;
+  eventTitle: string | null;
+  name: string;
+  phone: string;
+  feedback: string | null;
+  createdAt: string;
+};
+
+export async function getAdminSurveyList(params?: {
+  page?: number;
+  size?: number;
+}): Promise<PageResponse<SurveyAdminItem>> {
+  const q: Record<string, string> = {};
+  if (params?.page != null) q.page = String(params.page);
+  if (params?.size != null) q.size = String(params.size);
+  const query = new URLSearchParams(q).toString();
+  const res = await adminFetch(`/api/admin/surveys${query ? '?' + query : ''}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '설문 목록 조회 실패'));
+  return res.json();
+}
