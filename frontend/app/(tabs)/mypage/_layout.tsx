@@ -182,6 +182,10 @@ export default function MyPageLayout() {
         name="admin-popup-edit"
         options={{ title: "팝업 등록/수정", headerShown: true, headerTitleAlign: "center" }}
       />
+      <Stack.Screen
+        name="admin-surveys"
+        options={{ title: "설문 응답 목록", headerShown: true, headerTitleAlign: "center" }}
+      />
     </Stack>
   );
 }

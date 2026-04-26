@@ -69,6 +69,8 @@ import { useFestivalParticipation } from '../../../hooks/useFestivalParticipatio
 import { distanceKm } from '../../../utils/geo';
 import { getBusStopsInBounds, type BusStop } from '../../../services/bus.service';
 import { BusStopBottomSheet } from './_components/BusStopBottomSheet';
+import FestivalSurveyModal from '../../../components/FestivalSurveyModal';
+import { checkSurveySubmitted } from '../../../services/survey.service';
 
 /** 지역명 → 지도 중심 좌표 (지도 탭 검색용 + 현재 위치 지역 판별용) */
 const REGION_CENTERS: Record<string, { latitude: number; longitude: number }> = {
@@ -246,6 +248,20 @@ export default function MapScreen() {
   const { entry: festivalEntry, elapsedFormatted: festivalElapsed, isCompleted: festivalIsCompleted, refresh: refreshFestivalParticipation } = useFestivalParticipation();
   /** 구역 이탈 직후 잠시 표시하는 완료 칩(타이머는 이미 끔) */
   const [participationExitBanner, setParticipationExitBanner] = useState<{ eventTitle: string } | null>(null);
+  const [surveyModalVisible, setSurveyModalVisible] = useState(false);
+  const surveyShownForEventRef = useRef<string | null>(null);
+
+  // 참여 완료 시 설문 모달 자동 팝업
+  useEffect(() => {
+    if (!festivalIsCompleted || !festivalEntry || !isLoggedIn) return;
+    const eventKey = String(festivalEntry.eventId);
+    if (surveyShownForEventRef.current === eventKey) return;
+    surveyShownForEventRef.current = eventKey;
+    checkSurveySubmitted(festivalEntry.eventId).then((submitted) => {
+      if (!submitted) setSurveyModalVisible(true);
+    });
+  }, [festivalIsCompleted, festivalEntry, isLoggedIn]);
+
   const participationBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** 축제 구역 진입/이탈 판정 반경 (km). 이 거리 이내면 "참여 중" */
@@ -1370,6 +1386,15 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
+      {festivalEntry && (
+        <FestivalSurveyModal
+          visible={surveyModalVisible}
+          eventId={festivalEntry.eventId}
+          eventTitle={festivalEntry.eventTitle ?? ''}
+          onClose={() => setSurveyModalVisible(false)}
+          onSubmitted={() => setSurveyModalVisible(false)}
+        />
+      )}
       {/* 지도 영역: 전체를 채우고, 그 위에 헤더·필터칩·버튼이 오버레이 */}
       <View style={styles.mapArea}>
         <View style={[styles.mapContainer, StyleSheet.absoluteFill]}>
