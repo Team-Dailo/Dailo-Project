@@ -2,6 +2,7 @@ package com.dailo.backend.controller;
 
 import com.dailo.backend.service.S3UploadService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +21,9 @@ public class AdminUploadController {
 
     private final S3UploadService s3UploadService;
 
+    @Value("${app.upload.static-base-path:/static}")
+    private String staticBasePath;
+
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> upload(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -32,7 +36,7 @@ public class AdminUploadController {
 
         try {
             String key = s3UploadService.upload(file, "admin");
-            String url = s3UploadService.getPresignedUrl(key);
+            String url = staticBasePath + "/" + key;
             return ResponseEntity.ok(Map.of("key", key, "url", url));
         } catch (IOException e) {
             return ResponseEntity.internalServerError().build();
