@@ -29,6 +29,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     localStorage.setItem('admin_token', token);
     localStorage.setItem('admin_role', u.role);
     localStorage.setItem('admin_email', u.email);
+    localStorage.setItem('admin_id', u.id);
     showApp();
   } catch (ex) {
     err.textContent = ex.message; err.style.display = 'block';
@@ -109,7 +110,7 @@ async function loadDashboard() {
       <div class="stat"><div class="l">미처리 문의</div><div class="v">${is.pendingInquiries ?? '-'}</div></div>
     `;
   } catch (e) {
-    document.getElementById('dashStats').innerHTML = '<div class="stat"><div class="l">로드 실패</div></div>';
+    document.getElementById('dashStats').innerHTML = `<div class="stat"><div class="l">로드 실패: ${esc(e.message)}</div></div>`;
   }
 }
 
@@ -144,11 +145,65 @@ async function loadEvents(page) {
       <td>${e.id}</td><td>${esc(e.title)}</td><td>${esc(e.placeName)}</td>
       <td>${fmtDate(e.startAt)}</td><td>${fmtDate(e.endAt)}</td>
       <td>${statusBadge(e.status)}</td>
-      <td><button class="btn btn-d btn-sm" onclick="deleteEvent(${e.id})">삭제</button></td>
+      <td class="flex-gap">
+        <button class="btn btn-g btn-sm" onclick="editEvent(${e.id})">수정</button>
+        <button class="btn btn-d btn-sm" onclick="deleteEvent(${e.id})">삭제</button>
+      </td>
     </tr>`).join('');
     document.getElementById('tEvents').innerHTML = rows || '<tr><td colspan="7" class="loading">없음</td></tr>';
     pagingHtml('pgEvents', d.number || 0, d.totalPages || 1, 'loadEvents');
-  } catch (e) { document.getElementById('tEvents').innerHTML = '<tr><td colspan="7" class="loading">로드 실패</td></tr>'; }
+  } catch (e) { document.getElementById('tEvents').innerHTML = `<tr><td colspan="7" class="loading">로드 실패: ${esc(e.message)}</td></tr>`; }
+}
+function fmtDtLocal(s) { return s ? s.substring(0, 16) : ''; }
+function openEventModal(id, data) {
+  document.getElementById('eventEditId').value = id || '';
+  document.getElementById('eventTitle').value = data?.title || '';
+  document.getElementById('eventPlaceName').value = data?.placeName || '';
+  document.getElementById('eventRegion').value = data?.regionName || '';
+  document.getElementById('eventAddress').value = data?.placeAddress || '';
+  document.getElementById('eventLat').value = data?.latitude || '';
+  document.getElementById('eventLng').value = data?.longitude || '';
+  document.getElementById('eventStart').value = fmtDtLocal(data?.startAt) || '';
+  document.getElementById('eventEnd').value = fmtDtLocal(data?.endAt) || '';
+  document.getElementById('eventStatus').value = data?.status || 'DRAFT';
+  document.getElementById('eventFilter').value = data?.filterGroup || '';
+  document.getElementById('eventThumb').value = data?.thumbnailUrl || '';
+  document.getElementById('eventDesc').value = data?.description || '';
+  document.getElementById('eventContact').value = data?.hostContact || '';
+  document.querySelectorAll('#eventCategories input[type=checkbox]').forEach(cb => {
+    cb.checked = (data?.categories || []).includes(cb.value);
+  });
+  document.getElementById('eventModalTitle').textContent = id ? '행사 수정' : '행사 추가';
+  openModal('eventModal');
+}
+async function editEvent(id) {
+  try { const d = await apiJson(`/api/admin/events/${id}`); openEventModal(d.id, d); } catch (e) { alert(e.message); }
+}
+async function saveEvent() {
+  const id = document.getElementById('eventEditId').value;
+  const cats = []; document.querySelectorAll('#eventCategories input:checked').forEach(cb => cats.push(cb.value));
+  if (cats.length === 0) { alert('카테고리를 1개 이상 선택하세요.'); return; }
+  const body = {
+    title: document.getElementById('eventTitle').value,
+    placeName: document.getElementById('eventPlaceName').value || null,
+    placeAddress: document.getElementById('eventAddress').value || null,
+    regionName: document.getElementById('eventRegion').value || null,
+    latitude: Number(document.getElementById('eventLat').value),
+    longitude: Number(document.getElementById('eventLng').value),
+    startAt: document.getElementById('eventStart').value + ':00',
+    endAt: document.getElementById('eventEnd').value + ':00',
+    status: document.getElementById('eventStatus').value,
+    filterGroup: document.getElementById('eventFilter').value || null,
+    categories: cats,
+    thumbnailUrl: document.getElementById('eventThumb').value || null,
+    description: document.getElementById('eventDesc').value || null,
+    hostContact: document.getElementById('eventContact').value || null,
+  };
+  try {
+    if (id) await api(`/api/admin/events/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    else await api('/api/admin/events', { method: 'POST', body: JSON.stringify(body) });
+    closeModal('eventModal'); loadEvents(0);
+  } catch (e) { alert('저장 실패: ' + e.message); }
 }
 async function deleteEvent(id) {
   if (!confirm('정말 삭제하시겠습니까?')) return;
@@ -198,7 +253,7 @@ async function delComment(id) { if (!confirm('삭제?')) return; try { await api
 // ===== Notices =====
 async function loadNotices() {
   try {
-    const d = await apiJson('/api/admin/notices?page=0&size=100');
+    const d = await apiJson('/api/notices?page=0&size=100');
     const list = d.content || d || [];
     const rows = list.map(n => `<tr>
       <td>${n.id}</td><td>${esc(n.title)}</td><td>${fmtDate(n.createdAt)}</td>
@@ -208,7 +263,7 @@ async function loadNotices() {
       </td>
     </tr>`).join('');
     document.getElementById('tNotices').innerHTML = rows || '<tr><td colspan="4" class="loading">없음</td></tr>';
-  } catch (e) { document.getElementById('tNotices').innerHTML = '<tr><td colspan="4" class="loading">로드 실패</td></tr>'; }
+  } catch (e) { document.getElementById('tNotices').innerHTML = `<tr><td colspan="4" class="loading">로드 실패: ${esc(e.message)}</td></tr>`; }
 }
 function openNoticeModal(id, title, content) {
   document.getElementById('noticeEditId').value = id || '';
@@ -219,8 +274,7 @@ function openNoticeModal(id, title, content) {
 }
 async function editNotice(id) {
   try {
-    const list = await apiJson('/api/admin/notices?page=0&size=100');
-    const n = (list.content || list || []).find(x => x.id === id);
+    const n = await apiJson(`/api/notices/${id}`);
     if (n) openNoticeModal(n.id, n.title, n.content);
   } catch (e) { alert(e.message); }
 }
@@ -396,14 +450,13 @@ async function sendPush() {
 // ===== App Versions =====
 async function loadVersions() {
   try {
-    const d = await apiJson('/api/admin/app-version');
+    const d = await apiJson('/api/admin/app-versions');
     const list = Array.isArray(d) ? d : (d.content || []);
     const rows = list.map(v => `<tr>
-      <td>${v.id}</td><td>${v.platform}</td><td>${v.minimumVersion}</td><td>${v.latestVersion}</td>
+      <td>${v.id || '-'}</td><td>${v.platform}</td><td>${v.minimumVersion}</td><td>${v.latestVersion}</td>
       <td>${v.forceUpdate ? badge('YES', 'b-del') : badge('NO', 'b-active')}</td>
       <td class="flex-gap">
-        <button class="btn btn-g btn-sm" onclick="editVersion(${v.id})">수정</button>
-        <button class="btn btn-d btn-sm" onclick="delVersion(${v.id})">삭제</button>
+        <button class="btn btn-g btn-sm" onclick="editVersion('${v.platform}')">수정</button>
       </td>
     </tr>`).join('');
     document.getElementById('tVersions').innerHTML = rows || '<tr><td colspan="6" class="loading">없음</td></tr>';
@@ -419,19 +472,16 @@ function openVersionModal(id, platform, min, latest, force, storeUrl) {
   document.getElementById('versionModalTitle').textContent = id ? '앱 버전 수정' : '앱 버전 추가';
   openModal('versionModal');
 }
-async function editVersion(id) {
-  try { const v = await apiJson(`/api/admin/app-version/${id}`); openVersionModal(v.id, v.platform, v.minimumVersion, v.latestVersion, v.forceUpdate, v.storeUrl); } catch (e) { alert(e.message); }
+async function editVersion(platform) {
+  try { const v = await apiJson(`/api/admin/app-versions/${platform}`); openVersionModal(v.id, v.platform, v.minimumVersion, v.latestVersion, v.forceUpdate, v.storeUrl); } catch (e) { alert(e.message); }
 }
 async function saveVersion() {
-  const id = document.getElementById('versionEditId').value;
   const body = { platform: document.getElementById('versionPlatform').value, minimumVersion: document.getElementById('versionMin').value, latestVersion: document.getElementById('versionLatest').value, forceUpdate: document.getElementById('versionForce').checked, storeUrl: document.getElementById('versionStoreUrl').value || null };
   try {
-    if (id) await api(`/api/admin/app-version/${id}`, { method: 'PUT', body: JSON.stringify(body) });
-    else await api('/api/admin/app-version', { method: 'POST', body: JSON.stringify(body) });
+    await api('/api/admin/app-versions', { method: 'PUT', body: JSON.stringify(body) });
     closeModal('versionModal'); loadVersions();
   } catch (e) { alert(e.message); }
 }
-async function delVersion(id) { if (!confirm('삭제?')) return; try { await api(`/api/admin/app-version/${id}`, { method: 'DELETE' }); loadVersions(); } catch (e) { alert(e.message); } }
 
 // ===== Logs =====
 async function loadLogs(page) {
