@@ -82,3 +82,10 @@ backend/docs/
 
 *.jks
 *.jks
+
+# Node
+node_modules/
+admin-web/package-lock.json
+
+# Frontend
+frontend/.env

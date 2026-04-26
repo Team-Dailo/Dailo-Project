@@ -44,6 +44,12 @@ export interface EventNewsItem {
 }
 
 /** 타임테이블 한 건 (extraJson 내 timeline[]) */
+export interface PerformerItem {
+  name: string;
+  genre: string;
+  setlist: string[];
+}
+
 export interface EventTimelineItem {
   id: string;
   dateLabel?: string;
@@ -52,6 +58,7 @@ export interface EventTimelineItem {
   title: string;
   location?: string;
   details?: string[];
+  performers?: PerformerItem[];
 }
 
 /** 부스 한 건 (extraJson 내 foodBooths / experienceBooths) */

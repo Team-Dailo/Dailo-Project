@@ -18,6 +18,7 @@ import {
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import type { EventDetail } from "../../types/event";
@@ -96,6 +97,7 @@ interface Props {
 
 export default function EventDetailHeader({ id, event, loading, error, onShare, onSave, isLiked = false, likeCount, onLike, isLoggedIn = false, isScraped = false }: Props) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   // 등록 시 선택한 대표 썸네일(thumbnailUrl)을 우선 사용하고,
   // 없으면 상세 포스터 배열의 첫 번째 이미지를 사용
   const posterUri =
@@ -177,7 +179,7 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
         <View style={[styles.poster, styles.posterPlaceholder]}>
           <ActivityIndicator size="large" color="#6366F1" />
         </View>
-        <View style={styles.iconRow}>
+        <View style={[styles.iconRow, { top: insets.top + 4 }]}>
           <Pressable onPress={() => router.back()} style={styles.iconButton} hitSlop={10}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
@@ -346,7 +348,7 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     <View style={styles.container}>
       <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" />
 
-      <View style={styles.iconRow}>
+      <View style={[styles.iconRow, { top: insets.top + 4 }]}>
         <Pressable onPress={() => router.back()} style={styles.iconButton} hitSlop={10}>
           <Ionicons name="arrow-back" size={22} color="#111827" />
         </Pressable>
@@ -441,7 +443,6 @@ const styles = StyleSheet.create({
   /* 🔹 상단 버튼 레이아웃 */
   iconRow: {
     position: "absolute",
-    top: 40,
     left: 16,
     right: 16,
     flexDirection: "row",
