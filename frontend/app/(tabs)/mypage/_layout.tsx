@@ -162,6 +162,14 @@ export default function MyPageLayout() {
         name="admin-privacy-policy"
         options={{ title: "개인정보처리방침 수정", headerShown: true, headerTitleAlign: "center" }}
       />
+      <Stack.Screen
+        name="admin-popups"
+        options={{ title: "팝업 관리", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-popup-edit"
+        options={{ title: "팝업 등록/수정", headerShown: true, headerTitleAlign: "center" }}
+      />
     </Stack>
   );
 }

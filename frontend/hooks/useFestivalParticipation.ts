@@ -47,7 +47,7 @@ export function useFestivalParticipation() {
         setElapsedFormatted(formatElapsed(PARTICIPATION_COMPLETE_SECONDS));
         return;
       }
-      const sessionSec = Math.floor((Date.now() - entry.enteredAt) / 1000);
+      const sessionSec = (entry.accumulatedSeconds ?? 0) + Math.floor((Date.now() - entry.enteredAt) / 1000);
       if (sessionSec >= PARTICIPATION_COMPLETE_SECONDS) {
         if (!markedCompleteForSessionRef.current) {
           markedCompleteForSessionRef.current = true;

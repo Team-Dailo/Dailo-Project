@@ -52,6 +52,8 @@ import {
   setFestivalParticipation,
   clearFestivalParticipation,
   getFestivalParticipation,
+  saveAccumulatedSeconds,
+  getAccumulatedSeconds,
   type FestivalParticipation,
 } from '../../../services/festivalParticipationStorage';
 import { startStay } from '../../../services/location.service';
@@ -300,6 +302,8 @@ export default function MapScreen() {
       const title = entry.eventTitle ?? '';
 
       if (!isLoggedIn) {
+        const elapsed = Math.floor((Date.now() - entry.enteredAt) / 1000);
+        await saveAccumulatedSeconds(String(entry.eventId), (entry.accumulatedSeconds ?? 0) + elapsed);
         await clearFestivalParticipation();
         await refreshFestivalParticipation();
         setParticipationExitBanner({ eventTitle: title });
@@ -323,6 +327,8 @@ export default function MapScreen() {
             return;
           }
         }
+        const elapsed = Math.floor((Date.now() - entry.enteredAt) / 1000);
+        await saveAccumulatedSeconds(String(entry.eventId), (entry.accumulatedSeconds ?? 0) + elapsed);
         await clearFestivalParticipation();
         await refreshFestivalParticipation();
         setParticipationExitBanner({ eventTitle: title });
@@ -456,7 +462,9 @@ export default function MapScreen() {
           wasInFestivalZoneRef.current = true;
           const lat = firstInRange.latitude != null && Number.isFinite(firstInRange.latitude) ? firstInRange.latitude : undefined;
           const lng = firstInRange.longitude != null && Number.isFinite(firstInRange.longitude) ? firstInRange.longitude : undefined;
-          setFestivalParticipation(Date.now(), firstInRange.id, firstInRange.title, lat, lng).then(() => refreshFestivalParticipation());
+          getAccumulatedSeconds(String(firstInRange.id)).then((accumulated) => {
+            setFestivalParticipation(Date.now(), firstInRange.id, firstInRange.title, lat, lng, accumulated).then(() => refreshFestivalParticipation());
+          });
           setIsEntryModalVisible(true);
           if (isLoggedIn) {
             const eventId = Number(firstInRange.id);
@@ -544,9 +552,11 @@ export default function MapScreen() {
               firstInRange.longitude != null && Number.isFinite(firstInRange.longitude)
                 ? firstInRange.longitude
                 : undefined;
-            setFestivalParticipation(Date.now(), firstInRange.id, firstInRange.title, lat, lng).then(
-              () => refreshFestivalParticipation()
-            );
+            getAccumulatedSeconds(String(firstInRange.id)).then((accumulated) => {
+              setFestivalParticipation(Date.now(), firstInRange.id, firstInRange.title, lat, lng, accumulated).then(
+                () => refreshFestivalParticipation()
+              );
+            });
             setIsEntryModalVisible(true);
             const eventId = Number(firstInRange.id);
             const tryStart = (lat: number, lng: number) => {
@@ -641,8 +651,10 @@ export default function MapScreen() {
         if (isLoggedIn) {
           const lat = firstInRange.latitude != null && Number.isFinite(firstInRange.latitude) ? firstInRange.latitude : undefined;
           const lng = firstInRange.longitude != null && Number.isFinite(firstInRange.longitude) ? firstInRange.longitude : undefined;
-          setFestivalParticipation(Date.now(), firstInRange.id, firstInRange.title, lat, lng).then(() => {
-            refreshFestivalParticipation();
+          getAccumulatedSeconds(String(firstInRange.id)).then((accumulated) => {
+            setFestivalParticipation(Date.now(), firstInRange.id, firstInRange.title, lat, lng, accumulated).then(() => {
+              refreshFestivalParticipation();
+            });
           });
           setIsEntryModalVisible(true);
           const eventId = Number(firstInRange.id);

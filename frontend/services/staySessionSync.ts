@@ -10,6 +10,7 @@ import {
 import {
   getFestivalParticipation,
   clearFestivalParticipation,
+  saveAccumulatedSeconds,
 } from './festivalParticipationStorage';
 
 const PENDING_QUEUE_KEY = '@dailo/pending_stay_sync_queue';
@@ -117,6 +118,8 @@ export async function flushPendingStaySyncQueue(): Promise<void> {
       }
       const entry = await getFestivalParticipation();
       if (entry && String(entry.eventId) === String(item.eventId)) {
+        const elapsed = Math.floor((Date.now() - entry.enteredAt) / 1000);
+        await saveAccumulatedSeconds(String(entry.eventId), (entry.accumulatedSeconds ?? 0) + elapsed);
         await clearFestivalParticipation();
       }
     } catch {

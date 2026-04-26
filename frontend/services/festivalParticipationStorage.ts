@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const FESTIVAL_PARTICIPATION_KEY = '@dailo/festival_participation';
 /** 행사별로 "오늘 로컬일 기준 30분 참여 완료" 표시용 (구역 이탈 후 재진입 시 칩·메뉴 유지) */
 const FESTIVAL_PARTICIPATION_COMPLETED_DAY_KEY = '@dailo/festival_participation_completed_day';
+/** 행사별로 당일 누적 체류 초 저장 (구역 이탈 후 재진입 시 이어서 카운트) */
+const FESTIVAL_ACCUMULATED_SECONDS_KEY = '@dailo/festival_accumulated_seconds';
 
 export type FestivalParticipation = {
   enteredAt: number;
@@ -11,6 +13,8 @@ export type FestivalParticipation = {
   /** 참여 중인 행사 좌표 (이탈 판정용, 없으면 구버전 데이터) */
   eventLat?: number | null;
   eventLng?: number | null;
+  /** 이전 세션에서 누적된 초 (구역 이탈 후 재진입 시 이어서 카운트) */
+  accumulatedSeconds?: number;
   /**
    * AsyncStorage에는 저장하지 않음. 훅에서만 병합:
    * 오늘 해당 행사에서 이미 30분 참여 완료(또는 완료 플래그 조회) 시 true.
@@ -50,6 +54,39 @@ export async function markParticipationCompletedToday(eventId: string): Promise<
   }
 }
 
+/** 당일 누적 체류 초를 저장 (이탈 시점에 호출) */
+export async function saveAccumulatedSeconds(eventId: string, seconds: number): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(FESTIVAL_ACCUMULATED_SECONDS_KEY);
+    const map: Record<string, { seconds: number; day: string }> = raw ? JSON.parse(raw) : {};
+    const key = String(eventId);
+    const existing = map[key];
+    // 이미 오늘 저장된 값이 있으면 누적, 다른 날이면 오늘 값으로 교체
+    if (existing && existing.day === localDayKey()) {
+      map[key] = { seconds: existing.seconds + seconds, day: localDayKey() };
+    } else {
+      map[key] = { seconds, day: localDayKey() };
+    }
+    await AsyncStorage.setItem(FESTIVAL_ACCUMULATED_SECONDS_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
+
+/** 당일 누적 체류 초를 조회 (재진입 시 호출). 당일 데이터 없으면 0 반환 */
+export async function getAccumulatedSeconds(eventId: string): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(FESTIVAL_ACCUMULATED_SECONDS_KEY);
+    if (!raw) return 0;
+    const map = JSON.parse(raw) as Record<string, { seconds: number; day: string }>;
+    const entry = map[String(eventId)];
+    if (!entry || entry.day !== localDayKey()) return 0;
+    return entry.seconds;
+  } catch {
+    return 0;
+  }
+}
+
 export async function getFestivalParticipation(): Promise<FestivalParticipation | null> {
   try {
     const raw = await AsyncStorage.getItem(FESTIVAL_PARTICIPATION_KEY);
@@ -78,7 +115,8 @@ export async function setFestivalParticipation(
   eventId: string,
   eventTitle: string,
   eventLat?: number | null,
-  eventLng?: number | null
+  eventLng?: number | null,
+  accumulatedSeconds?: number
 ): Promise<void> {
   await AsyncStorage.setItem(
     FESTIVAL_PARTICIPATION_KEY,
@@ -88,6 +126,7 @@ export async function setFestivalParticipation(
       eventTitle,
       eventLat: eventLat ?? null,
       eventLng: eventLng ?? null,
+      accumulatedSeconds: accumulatedSeconds ?? 0,
     })
   );
 }

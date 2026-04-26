@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '../contexts/AuthContext';
 import { AuthDeepLinkHandler } from '../components/AuthDeepLinkHandler';
+import AppStartupPopupModal from '../components/AppStartupPopupModal';
 import { reconcileFestivalParticipationIfOutsideZone } from '../services/festivalParticipationReconcile';
 import { flushPendingStaySyncQueue } from '../services/staySessionSync';
 
@@ -102,6 +103,7 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <AuthDeepLinkHandler />
+      <AppStartupPopupModal />
       <Stack screenOptions={{ headerShown: false }}>
         {/* 하단 탭 그룹 */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
