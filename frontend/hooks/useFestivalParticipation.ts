@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getFestivalParticipation,
   formatElapsed,
+  hasParticipationCompletedToday,
+  markParticipationCompletedToday,
   type FestivalParticipation,
 } from '../services/festivalParticipationStorage';
 
@@ -13,15 +15,25 @@ export function useFestivalParticipation() {
   const [entry, setEntry] = useState<FestivalParticipation | null>(null);
   const [elapsedFormatted, setElapsedFormatted] = useState('00:00:00');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const markedCompleteForSessionRef = useRef(false);
 
   const refresh = useCallback(async () => {
     const value = await getFestivalParticipation();
-    setEntry(value);
+    if (!value) {
+      setEntry(null);
+      return;
+    }
+    const completedToday = await hasParticipationCompletedToday(value.eventId);
+    setEntry({ ...value, participationCompletedToday: completedToday });
   }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    markedCompleteForSessionRef.current = false;
+  }, [entry?.eventId, entry?.enteredAt]);
 
   useEffect(() => {
     if (!entry) {
@@ -30,9 +42,29 @@ export function useFestivalParticipation() {
       return;
     }
     const update = () => {
-      const sec = Math.floor((Date.now() - entry.enteredAt) / 1000);
-      setElapsedSeconds(sec);
-      setElapsedFormatted(formatElapsed(sec));
+      if (entry.participationCompletedToday) {
+        setElapsedSeconds(PARTICIPATION_COMPLETE_SECONDS);
+        setElapsedFormatted(formatElapsed(PARTICIPATION_COMPLETE_SECONDS));
+        return;
+      }
+      const sessionSec = (entry.accumulatedSeconds ?? 0) + Math.floor((Date.now() - entry.enteredAt) / 1000);
+      if (sessionSec >= PARTICIPATION_COMPLETE_SECONDS) {
+        if (!markedCompleteForSessionRef.current) {
+          markedCompleteForSessionRef.current = true;
+          void markParticipationCompletedToday(entry.eventId).then(() => {
+            setEntry((prev) =>
+              prev && String(prev.eventId) === String(entry.eventId)
+                ? { ...prev, participationCompletedToday: true }
+                : prev
+            );
+          });
+        }
+        setElapsedSeconds(PARTICIPATION_COMPLETE_SECONDS);
+        setElapsedFormatted(formatElapsed(PARTICIPATION_COMPLETE_SECONDS));
+        return;
+      }
+      setElapsedSeconds(sessionSec);
+      setElapsedFormatted(formatElapsed(sessionSec));
     };
     update();
     const interval = setInterval(update, 1000);
@@ -43,7 +75,8 @@ export function useFestivalParticipation() {
     };
   }, [entry, refresh]);
 
-  const isCompleted = elapsedSeconds >= PARTICIPATION_COMPLETE_SECONDS;
+  const isCompleted =
+    !!entry?.participationCompletedToday || elapsedSeconds >= PARTICIPATION_COMPLETE_SECONDS;
 
   return { entry, elapsedFormatted, elapsedSeconds, isCompleted, refresh };
 }

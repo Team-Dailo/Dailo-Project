@@ -966,3 +966,100 @@ export async function closeInquiry(id: number): Promise<InquiryDetailItem> {
   if (!res.ok) throw new Error(await res.text().then((t) => t || '문의 종료 실패'));
   return res.json();
 }
+
+// --- 팝업 관리 (AdminAppPopupController) ---
+
+export type PopupAdminItem = {
+  id: number;
+  title: string;
+  imageUrl: string;
+  linkUrl: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  startAt: string | null;
+  endAt: string | null;
+  createdAt: string;
+};
+
+export type PopupCreateRequest = {
+  title: string;
+  imageUrl: string;
+  linkUrl?: string | null;
+  displayOrder?: number;
+  startAt?: string | null;
+  endAt?: string | null;
+};
+
+export async function getAdminPopupList(params?: {
+  page?: number;
+  size?: number;
+}): Promise<PageResponse<PopupAdminItem>> {
+  const q: Record<string, string> = {};
+  if (params?.page != null) q.page = String(params.page);
+  if (params?.size != null) q.size = String(params.size);
+  const query = new URLSearchParams(q).toString();
+  const res = await adminFetch(`/api/admin/popups${query ? '?' + query : ''}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '팝업 목록 조회 실패'));
+  return res.json();
+}
+
+export async function getAdminPopupDetail(id: number): Promise<PopupAdminItem> {
+  const res = await adminFetch(`/api/admin/popups/${id}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '팝업 상세 조회 실패'));
+  return res.json();
+}
+
+export async function createPopup(body: PopupCreateRequest): Promise<PopupAdminItem> {
+  const res = await adminFetch('/api/admin/popups', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  return res.json();
+}
+
+export async function updatePopup(id: number, body: PopupCreateRequest): Promise<PopupAdminItem> {
+  const res = await adminFetch(`/api/admin/popups/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  return res.json();
+}
+
+export async function deletePopup(id: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/popups/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '팝업 삭제 실패'));
+}
+
+export async function togglePopupActive(id: number): Promise<PopupAdminItem> {
+  const res = await adminFetch(`/api/admin/popups/${id}/toggle`, { method: 'PATCH' });
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '팝업 상태 변경 실패'));
+  return res.json();
+}
+
+// --- 설문 응답 관리 (AdminSurveyController) ---
+
+export type SurveyAdminItem = {
+  id: number;
+  memberId: number;
+  eventId: number;
+  eventTitle: string | null;
+  name: string;
+  phone: string;
+  feedback: string | null;
+  createdAt: string;
+};
+
+export async function getAdminSurveyList(params?: {
+  page?: number;
+  size?: number;
+}): Promise<PageResponse<SurveyAdminItem>> {
+  const q: Record<string, string> = {};
+  if (params?.page != null) q.page = String(params.page);
+  if (params?.size != null) q.size = String(params.size);
+  const query = new URLSearchParams(q).toString();
+  const res = await adminFetch(`/api/admin/surveys${query ? '?' + query : ''}`);
+  if (!res.ok) throw new Error(await res.text().then((t) => t || '설문 목록 조회 실패'));
+  return res.json();
+}

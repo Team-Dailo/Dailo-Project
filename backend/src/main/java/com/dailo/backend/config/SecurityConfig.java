@@ -95,6 +95,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/app-version/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/faq/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/popups/**").permitAll()
+                        .requestMatchers("/api/surveys/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/bus/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/admin/members").authenticated()
