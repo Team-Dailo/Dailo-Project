@@ -25,7 +25,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        registry.addRedirect("/api/admin/web", "/api/admin/web/index.html");
-        registry.addRedirect("/api/admin/web/", "/api/admin/web/index.html");
+        registry.addViewController("/api/admin/web").setViewName("redirect:/api/admin/web/index.html");
+        registry.addViewController("/api/admin/web/").setViewName("redirect:/api/admin/web/index.html");
     }
 }
