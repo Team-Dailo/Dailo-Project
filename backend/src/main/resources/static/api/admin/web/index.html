@@ -227,7 +227,14 @@
       <label><input type="checkbox" value="ETC"> 기타</label>
     </div>
   </div>
-  <div class="fg"><label>썸네일 URL</label><input type="text" id="eventThumb"></div>
+  <div class="fg"><label>썸네일</label>
+    <div class="dropzone" id="eventDropzone">
+      <input type="hidden" id="eventThumbKey">
+      <div class="dropzone-placeholder" id="eventDropPlaceholder">이미지를 드래그하거나 클릭하여 업로드</div>
+      <img id="eventThumbPreview" class="dropzone-preview" style="display:none">
+      <input type="file" id="eventThumbFile" accept="image/*" style="display:none">
+    </div>
+  </div>
   <div class="fg"><label>설명</label><textarea id="eventDesc"></textarea></div>
   <div class="fg"><label>주최자 연락처</label><input type="text" id="eventContact"></div>
   <div class="modal-actions"><button class="btn btn-g btn-sm" onclick="closeModal('eventModal')">취소</button><button class="btn btn-p btn-sm" onclick="saveEvent()">저장</button></div>
