@@ -3,14 +3,12 @@ package com.dailo.backend.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-/**
- * 업로드된 파일을 /uploads/** URL로 서빙
- */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
@@ -23,5 +21,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
         String location = "file:" + dir + "/";
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations(location);
+    }
+
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        registry.addViewController("/api/admin/web").setViewName("redirect:/api/admin/web/index.html");
+        registry.addViewController("/api/admin/web/").setViewName("redirect:/api/admin/web/index.html");
     }
 }

@@ -75,12 +75,18 @@ resource "aws_ssm_parameter" "bus_api_key" {
   value = var.bus_api_key
 }
 
+resource "aws_ssm_parameter" "bus_api_key_encoded" {
+  name  = "/dailo/prod/bus_api_key_encoded"
+  type  = "SecureString"
+  value = var.bus_api_key_encoded
+}
+
  
 # ------------------------------------------------------------------------------
 # 1. VPC 모듈
 # ------------------------------------------------------------------------------
 module "vpc" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/vpc?ref=v0.1.4"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/vpc?ref=v0.1.5"
 
   name     = local.name
   region   = "ap-northeast-2"
@@ -100,7 +106,7 @@ module "vpc" {
 # 2. ecs 모듈
 # ------------------------------------------------------------------------------
 module "ecs" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/ecs?ref=v0.1.4"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/ecs?ref=v0.1.5"
 
   name   = local.name
   region = "ap-northeast-2" # CloudWatch 로그 등을 위해 사용
@@ -156,7 +162,6 @@ module "ecs" {
     { name = "MAIL_USERNAME", value = var.mail_username },
     { name = "MAIL_FROM", value = var.mail_from },
     { name = "KAKAO_CLIENT_ID", value = var.kakao_client_id },
-    { name = "BUS_API_KEY_ENCODED", value = var.bus_api_key_encoded }
   ]
     container_secrets = [
     {
@@ -178,6 +183,10 @@ module "ecs" {
     {
       name      = "BUS_API_KEY"
       valueFrom = aws_ssm_parameter.bus_api_key.arn
+    },
+    {
+      name      = "BUS_API_KEY_ENCODED", # <-- 여기로 이동!
+      valueFrom = aws_ssm_parameter.bus_api_key_encoded.arn
     }
   ]
 
@@ -189,7 +198,7 @@ module "ecs" {
 # 3. RDS 모듈
 # ------------------------------------------------------------------------------
 module "rds" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/rds?ref=v0.1.4"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/rds?ref=v0.1.5"
 
   name   = local.name
   vpc_id = module.vpc.vpc_id
@@ -214,7 +223,7 @@ module "rds" {
 # 4. cdn 모듈
 # ------------------------------------------------------------------------------
 module "cdn" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=v0.1.4"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=v0.1.5"
   
   name        = local.name
   bucket_name = local.static_bucket_name
@@ -233,7 +242,7 @@ module "cdn" {
 # 5. Monitoring (Grafana) 모듈 테스트
 # ------------------------------------------------------------------------------
 module "monitoring" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/monitoring?ref=v0.1.4" 
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/monitoring?ref=v0.1.5" 
 
   name   = local.name   
   region = "ap-northeast-2"
