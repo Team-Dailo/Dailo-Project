@@ -34,7 +34,8 @@ public class EventService {
     private final EventRepository eventRepository;
     private final EventLikeRepository eventLikeRepository;
     private final ScrapRepository scrapRepository;
-    private final MemberRepository memberRepository; //
+    private final MemberRepository memberRepository;
+    private final S3UploadService s3UploadService;
 
     // 상세 조회 (memberId 있으면 스크랩 여부 포함)
     public EventDetailResponse getEventDetail(Long eventId, String email) {
@@ -48,7 +49,14 @@ public class EventService {
                 isBookmarked = scrapRepository.findByMemberIdAndEventId(member.getId(), eventId).isPresent();
             }
         }
-        return EventDetailResponse.from(event, isBookmarked);
+        EventDetailResponse response = EventDetailResponse.from(event, isBookmarked);
+        response.setThumbnailUrl(s3UploadService.resolveUrl(response.getThumbnailUrl()));
+        if (response.getPosterUrls() != null) {
+            response.setPosterUrls(response.getPosterUrls().stream()
+                    .map(s3UploadService::resolveUrl)
+                    .collect(Collectors.toList()));
+        }
+        return response;
     }
 
     // 지도 마커 조회 (실제 event_like 집계로 좋아요 수 반환)
@@ -58,7 +66,8 @@ public class EventService {
         List<Long> ids = events.stream().map(Event::getId).collect(Collectors.toList());
         Map<Long, Long> likeCounts = toLikeCountMap(eventLikeRepository.countByEventIds(ids));
         return events.stream()
-                .map(e -> EventMapResponse.from(e, likeCounts.getOrDefault(e.getId(), 0L)))
+                .map(e -> EventMapResponse.from(e, likeCounts.getOrDefault(e.getId(), 0L),
+                        s3UploadService.resolveUrl(e.getThumbnailUrl())))
                 .collect(Collectors.toList());
     }
 
@@ -84,7 +93,8 @@ public class EventService {
         List<Long> ids = events.stream().map(Event::getId).collect(Collectors.toList());
         Map<Long, Long> likeCounts = toLikeCountMap(eventLikeRepository.countByEventIds(ids));
         return events.stream()
-                .map(e -> EventMapResponse.from(e, likeCounts.getOrDefault(e.getId(), 0L)))
+                .map(e -> EventMapResponse.from(e, likeCounts.getOrDefault(e.getId(), 0L),
+                        s3UploadService.resolveUrl(e.getThumbnailUrl())))
                 .collect(Collectors.toList());
     }
 
@@ -140,7 +150,7 @@ public class EventService {
         return new EventListResponse(
                 event.getId(),
                 event.getTitle(),
-                event.getThumbnailUrl(),
+                s3UploadService.resolveUrl(event.getThumbnailUrl()),
                 event.getStartAt(),
                 event.getEndAt(),
                 event.getPlaceName(),

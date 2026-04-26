@@ -1,5 +1,7 @@
 package com.dailo.backend.controller;
 
+import com.dailo.backend.service.S3UploadService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -10,23 +12,17 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
-/**
- * 관리자 전용 이미지 업로드 (행사 포스터/썸네일 등)
- * POST /api/admin/upload → multipart file → 저장 후 URL 경로 반환
- */
 @RestController
 @RequestMapping("/api/admin")
+@RequiredArgsConstructor
 public class AdminUploadController {
 
-    @Value("${app.upload.dir:./uploads}")
-    private String uploadDir;
+    private final S3UploadService s3UploadService;
+
+    @Value("${app.upload.static-base-path:/static}")
+    private String staticBasePath;
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> upload(@RequestParam("file") MultipartFile file) {
@@ -39,28 +35,11 @@ public class AdminUploadController {
         }
 
         try {
-            Path dir = Paths.get(uploadDir).toAbsolutePath().normalize();
-            Files.createDirectories(dir);
-
-            String ext = getExtension(file.getOriginalFilename());
-            String filename = UUID.randomUUID().toString() + (ext != null ? "." + ext : "");
-            Path target = dir.resolve(filename);
-            Files.copy(file.getInputStream(), target);
-
-            // 클라이언트에서 사용할 URL 경로 (호스트는 프론트에서 API_BASE_URL로 붙임)
-            String path = "/uploads/" + filename;
-            Map<String, String> body = new HashMap<>();
-            body.put("path", path);
-            return ResponseEntity.ok(body);
+            String key = s3UploadService.upload(file, "admin");
+            String url = staticBasePath + "/" + key;
+            return ResponseEntity.ok(Map.of("key", key, "url", url));
         } catch (IOException e) {
             return ResponseEntity.internalServerError().build();
         }
-    }
-
-    private static String getExtension(String filename) {
-        if (filename == null || filename.isEmpty()) return null;
-        int i = filename.lastIndexOf('.');
-        if (i <= 0 || i >= filename.length() - 1) return null;
-        return filename.substring(i + 1).toLowerCase();
     }
 }

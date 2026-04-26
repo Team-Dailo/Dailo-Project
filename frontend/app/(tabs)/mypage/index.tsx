@@ -15,17 +15,26 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../hooks/useAuth";
 import { useFestivalParticipation } from "../../../hooks/useFestivalParticipation";
 import { API_BASE_URL } from "../../../constants/api";
+import FestivalSurveyModal from "../../../components/FestivalSurveyModal";
+import { checkSurveySubmitted } from "../../../services/survey.service";
 
 export default function MyPageScreen() {
   const { user, isLoggedIn, logout, refreshUser } = useAuth();
   const { entry: festivalEntry, elapsedFormatted: festivalElapsed, isCompleted: festivalIsCompleted } = useFestivalParticipation();
   const [profileImageError, setProfileImageError] = useState(false);
+  const [surveyModalVisible, setSurveyModalVisible] = useState(false);
+  const [surveySubmitted, setSurveySubmitted] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
-      setProfileImageError(false); // 이미지 에러 상태 리셋
+      setProfileImageError(false);
       refreshUser();
-    }, [refreshUser])
+      if (isLoggedIn && festivalIsCompleted && festivalEntry) {
+        checkSurveySubmitted(festivalEntry.eventId).then((submitted) => {
+          setSurveySubmitted(submitted);
+        });
+      }
+    }, [refreshUser, isLoggedIn, festivalIsCompleted, festivalEntry])
   );
 
   return (
@@ -105,7 +114,7 @@ export default function MyPageScreen() {
         {isLoggedIn && festivalEntry != null && (
           <View style={styles.activeFestivalCard}>
             <View style={styles.badgeRow}>
-              <View style={styles.badge}>
+              <View style={[styles.badge, festivalIsCompleted && styles.badgeCompleted]}>
                 <Text style={styles.badgeText}>
                   {festivalIsCompleted ? '축제 참여 완료' : '축제 참여중'}
                 </Text>
@@ -114,7 +123,28 @@ export default function MyPageScreen() {
             </View>
             <Text style={styles.activeFestivalTitle}>{festivalEntry.eventTitle}</Text>
             <Text style={styles.activeFestivalHint}>지도에서 해당 축제 구역에 있을 때만 표시됩니다.</Text>
+            {festivalIsCompleted && !surveySubmitted && (
+              <Pressable style={styles.surveyBtn} onPress={() => setSurveyModalVisible(true)}>
+                <Ionicons name="gift-outline" size={15} color="#7C3AED" />
+                <Text style={styles.surveyBtnText}>설문 참여하고 선물 받기</Text>
+              </Pressable>
+            )}
+            {festivalIsCompleted && surveySubmitted && (
+              <View style={styles.surveyDone}>
+                <Ionicons name="checkmark-circle" size={15} color="#10B981" />
+                <Text style={styles.surveyDoneText}>설문 완료</Text>
+              </View>
+            )}
           </View>
+        )}
+        {festivalEntry && (
+          <FestivalSurveyModal
+            visible={surveyModalVisible}
+            eventId={festivalEntry.eventId}
+            eventTitle={festivalEntry.eventTitle ?? ''}
+            onClose={() => setSurveyModalVisible(false)}
+            onSubmitted={() => { setSurveyModalVisible(false); setSurveySubmitted(true); }}
+          />
         )}
 
         {/* 섹션: 축제 기록 */}
@@ -435,6 +465,36 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#9CA3AF",
     marginTop: 4,
+  },
+  badgeCompleted: {
+    backgroundColor: "#D1FAE5",
+  },
+  surveyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+    backgroundColor: "#EDE9FE",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignSelf: "flex-start",
+  },
+  surveyBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#7C3AED",
+  },
+  surveyDone: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 10,
+  },
+  surveyDoneText: {
+    fontSize: 13,
+    color: "#10B981",
+    fontWeight: "500",
   },
 
   section: {
