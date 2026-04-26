@@ -10,12 +10,14 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { getActivePopups, PopupItem } from '../services/popup.service';
 
 const DISMISS_KEY = 'popup_dismissed_date';
 const { width: SCREEN_W } = Dimensions.get('window');
 
 export default function AppStartupPopupModal() {
+  const router = useRouter();
   const [popups, setPopups] = useState<PopupItem[]>([]);
   const [visible, setVisible] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -44,7 +46,6 @@ export default function AppStartupPopupModal() {
       const dismissedDate = await AsyncStorage.getItem(DISMISS_KEY);
       const today = new Date().toDateString();
       if (dismissedDate === today) return;
-
       const items = await getActivePopups();
       if (items.length > 0) {
         setPopups(items);
@@ -67,7 +68,12 @@ export default function AppStartupPopupModal() {
 
   function handleImagePress() {
     const url = popups[currentIndex]?.linkUrl;
-    if (url) {
+    if (!url) return;
+    setVisible(false);
+    if (url.startsWith('/') || url.startsWith('/(')) {
+      // 앱 내부 경로 (/event/123 등)
+      router.push(url as any);
+    } else {
       Linking.openURL(url).catch(() => {});
     }
   }

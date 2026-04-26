@@ -1,5 +1,5 @@
 // 관리자 - 팝업 등록/수정
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  FlatList,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as adminService from '../../../services/admin.service';
+import { getEventList } from '../../../services/event.service';
+import type { Event } from '../../../types/event';
 
 export default function AdminPopupEditScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -32,6 +35,13 @@ export default function AdminPopupEditScreen() {
   const [startAt, setStartAt] = useState('');
   const [endAt, setEndAt] = useState('');
 
+  // 행사 검색
+  const [eventKeyword, setEventKeyword] = useState('');
+  const [eventResults, setEventResults] = useState<Event[]>([]);
+  const [selectedEventTitle, setSelectedEventTitle] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const loadDetail = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -43,6 +53,10 @@ export default function AdminPopupEditScreen() {
       setDisplayOrder(String(data.displayOrder));
       setStartAt(data.startAt?.slice(0, 10) ?? '');
       setEndAt(data.endAt?.slice(0, 10) ?? '');
+      // 기존 링크가 /event/숫자 형태면 행사 연결로 표시
+      if (data.linkUrl?.match(/^\/event\/\d+/)) {
+        setSelectedEventTitle('(기존 행사 연결됨)');
+      }
     } catch (e) {
       Alert.alert('오류', e instanceof Error ? e.message : '팝업 조회 실패');
       router.back();
@@ -54,6 +68,43 @@ export default function AdminPopupEditScreen() {
   useEffect(() => {
     if (isEdit) loadDetail();
   }, [isEdit, loadDetail]);
+
+  // 행사 검색 (디바운스 300ms)
+  useEffect(() => {
+    if (!eventKeyword.trim()) {
+      setEventResults([]);
+      return;
+    }
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const results = await getEventList({ keyword: eventKeyword.trim(), size: 10 });
+        setEventResults(results);
+      } catch {
+        setEventResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [eventKeyword]);
+
+  const handleSelectEvent = (event: Event) => {
+    setLinkUrl(`/event/${event.id}`);
+    setSelectedEventTitle(event.title);
+    setEventKeyword('');
+    setEventResults([]);
+  };
+
+  const handleClearEvent = () => {
+    setLinkUrl('');
+    setSelectedEventTitle('');
+    setEventKeyword('');
+    setEventResults([]);
+  };
 
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -118,7 +169,7 @@ export default function AdminPopupEditScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>팝업 이미지</Text>
         <Pressable style={styles.imagePicker} onPress={handlePickImage}>
           {imageUrl ? (
@@ -146,16 +197,59 @@ export default function AdminPopupEditScreen() {
           placeholderTextColor="#9CA3AF"
         />
 
-        <Text style={styles.label}>링크 URL (선택)</Text>
-        <TextInput
-          style={styles.input}
-          value={linkUrl}
-          onChangeText={setLinkUrl}
-          placeholder="https://..."
-          placeholderTextColor="#9CA3AF"
-          autoCapitalize="none"
-          keyboardType="url"
-        />
+        {/* 행사 연결 */}
+        <Text style={styles.label}>클릭 시 이동할 행사 (선택)</Text>
+
+        {selectedEventTitle ? (
+          <View style={styles.selectedEvent}>
+            <Ionicons name="calendar-outline" size={16} color="#6366F1" />
+            <Text style={styles.selectedEventTitle} numberOfLines={1}>{selectedEventTitle}</Text>
+            <Text style={styles.selectedEventPath} numberOfLines={1}>{linkUrl}</Text>
+            <Pressable onPress={handleClearEvent} hitSlop={8}>
+              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.searchWrapper}>
+            <View style={styles.searchInputRow}>
+              <Ionicons name="search-outline" size={16} color="#9CA3AF" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                value={eventKeyword}
+                onChangeText={setEventKeyword}
+                placeholder="행사명 검색..."
+                placeholderTextColor="#9CA3AF"
+                returnKeyType="search"
+              />
+              {searchLoading && <ActivityIndicator size="small" color="#6366F1" style={{ marginRight: 10 }} />}
+            </View>
+
+            {eventResults.length > 0 && (
+              <FlatList
+                data={eventResults}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item }) => (
+                  <Pressable style={styles.resultItem} onPress={() => handleSelectEvent(item)}>
+                    <View style={styles.resultInfo}>
+                      <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>
+                      <Text style={styles.resultSub} numberOfLines={1}>
+                        {item.placeName || item.regionName || ''}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                  </Pressable>
+                )}
+                ItemSeparatorComponent={() => <View style={styles.separator} />}
+              />
+            )}
+
+            {eventKeyword.trim().length > 0 && !searchLoading && eventResults.length === 0 && (
+              <Text style={styles.noResult}>검색 결과가 없습니다.</Text>
+            )}
+          </View>
+        )}
 
         <Text style={styles.label}>표시 순서 (낮을수록 먼저)</Text>
         <TextInput
@@ -252,6 +346,77 @@ const styles = StyleSheet.create({
   changeImageText: {
     fontSize: 13,
     color: '#6366F1',
+  },
+  // 행사 검색
+  searchWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  searchInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  searchIcon: { marginRight: 6 },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: '#111827',
+  },
+  resultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#FAFAFA',
+  },
+  resultInfo: { flex: 1 },
+  resultTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#111827',
+  },
+  resultSub: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginHorizontal: 14,
+  },
+  noResult: {
+    padding: 14,
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
+  // 선택된 행사
+  selectedEvent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  selectedEventTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3730A3',
+  },
+  selectedEventPath: {
+    fontSize: 11,
+    color: '#6366F1',
+    flexShrink: 1,
   },
   saveButton: {
     backgroundColor: '#6366F1',
