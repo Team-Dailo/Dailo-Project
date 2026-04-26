@@ -163,6 +163,18 @@ export default function MyPageLayout() {
         options={{ title: "개인정보처리방침 수정", headerShown: true, headerTitleAlign: "center" }}
       />
       <Stack.Screen
+        name="admin-banners"
+        options={{ title: "배너 관리", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-banner-edit"
+        options={{ title: "배너 등록/수정", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-faq"
+        options={{ title: "FAQ 관리", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
         name="admin-popups"
         options={{ title: "팝업 관리", headerShown: true, headerTitleAlign: "center" }}
       />
