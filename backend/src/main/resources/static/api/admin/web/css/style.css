@@ -78,3 +78,10 @@ tr:hover td{background:#f8fafc}
 .flex-gap{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .hidden{display:none!important}
 .page{display:none}.page.active{display:block}
+
+/* Dropzone */
+.dropzone{border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative;min-height:120px;display:flex;align-items:center;justify-content:center}
+.dropzone:hover,.dropzone.dragover{border-color:var(--pri);background:rgba(37,99,235,.04)}
+.dropzone-placeholder{color:var(--muted);font-size:13px;pointer-events:none}
+.dropzone-preview{max-width:100%;max-height:200px;border-radius:8px;object-fit:contain}
+.dropzone .uploading{color:var(--pri);font-size:13px}

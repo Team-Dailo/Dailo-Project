@@ -167,9 +167,20 @@ function openEventModal(id, data) {
   document.getElementById('eventEnd').value = fmtDtLocal(data?.endAt) || '';
   document.getElementById('eventStatus').value = data?.status || 'DRAFT';
   document.getElementById('eventFilter').value = data?.filterGroup || '';
-  document.getElementById('eventThumb').value = data?.thumbnailUrl || '';
   document.getElementById('eventDesc').value = data?.description || '';
   document.getElementById('eventContact').value = data?.hostContact || '';
+  document.getElementById('eventThumbKey').value = data?.thumbnailUrl || '';
+  const preview = document.getElementById('eventThumbPreview');
+  const placeholder = document.getElementById('eventDropPlaceholder');
+  if (data?.thumbnailUrl) {
+    preview.src = data.thumbnailUrl;
+    preview.style.display = 'block';
+    placeholder.style.display = 'none';
+  } else {
+    preview.src = '';
+    preview.style.display = 'none';
+    placeholder.style.display = '';
+  }
   document.querySelectorAll('#eventCategories input[type=checkbox]').forEach(cb => {
     cb.checked = (data?.categories || []).includes(cb.value);
   });
@@ -195,7 +206,7 @@ async function saveEvent() {
     status: document.getElementById('eventStatus').value,
     filterGroup: document.getElementById('eventFilter').value || null,
     categories: cats,
-    thumbnailUrl: document.getElementById('eventThumb').value || null,
+    thumbnailUrl: document.getElementById('eventThumbKey').value || null,
     description: document.getElementById('eventDesc').value || null,
     hostContact: document.getElementById('eventContact').value || null,
   };
@@ -496,3 +507,50 @@ async function loadLogs(page) {
     pagingHtml('pgLogs', d.number || 0, d.totalPages || 1, 'loadLogs');
   } catch (e) { document.getElementById('tLogs').innerHTML = '<tr><td colspan="6" class="loading">로드 실패</td></tr>'; }
 }
+
+// ===== Dropzone Upload =====
+(function initDropzone() {
+  const zone = document.getElementById('eventDropzone');
+  const fileInput = document.getElementById('eventThumbFile');
+  const preview = document.getElementById('eventThumbPreview');
+  const placeholder = document.getElementById('eventDropPlaceholder');
+  const keyInput = document.getElementById('eventThumbKey');
+  if (!zone) return;
+
+  zone.addEventListener('click', () => fileInput.click());
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) uploadThumb(file);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) uploadThumb(fileInput.files[0]);
+  });
+
+  async function uploadThumb(file) {
+    placeholder.textContent = '업로드 중...';
+    placeholder.style.display = '';
+    preview.style.display = 'none';
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken(), 'X-User-Id': localStorage.getItem('admin_id') || '' },
+        body: fd,
+      });
+      if (!res.ok) throw new Error('업로드 실패 (' + res.status + ')');
+      const data = await res.json();
+      keyInput.value = data.key;
+      preview.src = data.url;
+      preview.style.display = 'block';
+      placeholder.style.display = 'none';
+    } catch (e) {
+      placeholder.textContent = '업로드 실패: ' + e.message;
+      preview.style.display = 'none';
+    }
+  }
+})();
