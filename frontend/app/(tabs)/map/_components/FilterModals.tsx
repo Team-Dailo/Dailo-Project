@@ -367,6 +367,29 @@ export function ScaleFilterModal({ selectedValue, onSelect, ...rest }: ScaleModa
   );
 }
 
+/** 홈 축제 목록: 전체 / 진행중 / 예정 / 종료 */
+type StatusModalProps = CommonProps & {
+  selectedValue: string;
+  onSelect: (value: string) => void;
+};
+
+export function StatusFilterModal({ selectedValue, onSelect, ...rest }: StatusModalProps) {
+  return (
+    <ListFilterModal
+      {...rest}
+      title="행사 상태"
+      selectedValue={selectedValue}
+      onSelect={onSelect}
+      options={[
+        { label: '전체', value: 'all' },
+        { label: '진행중', value: 'ongoing' },
+        { label: '예정', value: 'upcoming' },
+        { label: '종료', value: 'ended' },
+      ]}
+    />
+  );
+}
+
 /* ===========================
    스타일
    =========================== */

@@ -284,7 +284,7 @@ export default function AdminEventEditScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Field label="제목 *" value={title} onChangeText={setTitle} placeholder="행사 제목" />
+        <Field label="제목 *" value={title} onChangeText={setTitle} placeholder="행사 제목" maxLines={2} />
         <Field label="장소명" value={placeName} onChangeText={setPlaceName} placeholder="장소 이름" />
         <Field
           label="위치 주소 (지도 표시용) *"
@@ -427,6 +427,7 @@ function Field({
   placeholder,
   keyboardType,
   multiline,
+  maxLines,
 }: {
   label: string;
   value: string;
@@ -434,19 +435,29 @@ function Field({
   placeholder?: string;
   keyboardType?: "decimal-pad" | "default";
   multiline?: boolean;
+  maxLines?: number;
 }) {
+  const handleChange = (t: string) => {
+    if (maxLines) {
+      const lines = t.split('\n');
+      if (lines.length > maxLines) return;
+    }
+    onChangeText(t);
+  };
+
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
-        style={[styles.input, multiline && styles.inputMultiline]}
+        style={[styles.input, (multiline || maxLines) && styles.inputMultiline, maxLines === 2 && styles.inputTwoLine]}
         value={value}
-        onChangeText={onChangeText}
+        onChangeText={handleChange}
         placeholder={placeholder}
         placeholderTextColor="#9CA3AF"
         keyboardType={keyboardType}
-        multiline={multiline}
-        numberOfLines={multiline ? 4 : 1}
+        multiline={multiline || (maxLines != null && maxLines > 1)}
+        numberOfLines={multiline ? 4 : maxLines ?? 1}
+        textAlignVertical="top"
       />
     </View>
   );
@@ -480,6 +491,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
   },
   inputMultiline: { minHeight: 80, textAlignVertical: "top" },
+  inputTwoLine: { minHeight: 56, textAlignVertical: "top" },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   chip: {
     paddingHorizontal: 12,
