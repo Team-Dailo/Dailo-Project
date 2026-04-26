@@ -5,12 +5,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   ActivityIndicator,
   Alert,
-  Platform,
+  Image,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -20,11 +18,9 @@ import { formatTime, formatTimeRange } from '../../../../utils/formatTime';
 import { getEventDetail } from '../../../../services/event.service';
 import { toggleScrap } from '../../../../services/scrap.service';
 import { useAuth } from '../../../../hooks/useAuth';
-import { parseEventExtra } from '../../../../utils/eventExtra';
-import EventDetailTabs, { TabKey } from '../../../../components/detail/EventDetailTabs';
-import Timeline from '../../../../components/detail/Timeline';
-import EventNewsTab from '../../../../components/detail/EventNewsTab';
-import EventBoothTab from '../../../../components/detail/EventBoothTab';
+/** 상세 화면 EventDetailHeader와 동일 — 이미지 없을 때만 사용 */
+const DEFAULT_POSTER_URI =
+  'https://images.unsplash.com/photo-1485550409059-9afb054cada4?w=800';
 
 const CATEGORY_LABEL: Record<EventCategory, string> = {
   FESTIVAL: '축제',
@@ -67,20 +63,17 @@ export function MapBottomSheet({
   onPressCurrentLocation,
 }: Props) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
 
   const { isLoggedIn } = useAuth();
   const [detail, setDetail] = useState<EventDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [tab, setTab] = useState<TabKey>('news');
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
-  // expanded 모드 진입 시 상세 데이터 fetch + 탭/북마크 초기화
+  // expanded 모드 진입 시 상세 데이터 fetch + 북마크 초기화
   useEffect(() => {
     if (!visible || !event || mode !== 'expanded') return;
     setDetail(null);
-    setTab('news');
     setIsBookmarked(event.isBookmarked ?? false);
     setDetailLoading(true);
     getEventDetail(event.id)
@@ -111,7 +104,14 @@ export function MapBottomSheet({
     }
   };
 
-  const extra = useMemo(() => parseEventExtra(detail?.extraJson ?? null), [detail?.extraJson]);
+  const posterUri = useMemo(() => {
+    const fromDetail =
+      (detail?.thumbnailUrl as string | null | undefined)?.trim() ||
+      detail?.posterUrls?.[0];
+    if (fromDetail) return fromDetail;
+    const fromEvent = (event?.thumbnailUrl ?? '').trim();
+    return fromEvent.length > 0 ? fromEvent : null;
+  }, [detail?.thumbnailUrl, detail?.posterUrls, event?.thumbnailUrl]);
 
   if (!visible || !event) return null;
 
@@ -267,50 +267,18 @@ export function MapBottomSheet({
             ) : null}
           </View>
 
-          {/* 미리보기 박스 (명확히 구분된 네모 영역) */}
+          {/* 미리보기: 행사 대표 포스터(상세 화면 헤더와 동일 우선순위) */}
           <View style={styles.previewBox}>
-            {detailLoading ? (
+            {detailLoading && !posterUri ? (
               <View style={styles.loadingSection}>
                 <ActivityIndicator size="small" color="#4C8BF5" />
               </View>
             ) : (
-              <>
-                {/* 탭 바 */}
-                <EventDetailTabs value={tab} onChange={setTab} />
-
-                {/* 탭 콘텐츠 (박스 안에서만 스크롤) */}
-                <ScrollView
-                  style={styles.tabContent}
-                  contentContainerStyle={styles.tabContentInner}
-                  showsVerticalScrollIndicator={false}
-                  nestedScrollEnabled
-                >
-                  {tab === 'news' && (
-                    <EventNewsTab
-                      news={extra.news}
-                      eventId={detail?.id != null ? Number(detail.id) : undefined}
-                    />
-                  )}
-                  {tab === 'timeline' && (
-                    <Timeline
-                      dateLabel={extra.timeline?.[0]?.dateLabel ?? null}
-                      items={extra.timeline}
-                    />
-                  )}
-                  {tab === 'booths' && (
-                    <EventBoothTab
-                      eventId={detail?.id != null ? Number(detail.id) : undefined}
-                      eventTitle={event.title}
-                      foodBooths={extra.foodBooths}
-                      experienceBooths={extra.experienceBooths}
-                      eventLatitude={event.latitude}
-                      eventLongitude={event.longitude}
-                      foodArea={extra.foodArea}
-                      experienceArea={extra.experienceArea}
-                    />
-                  )}
-                </ScrollView>
-              </>
+              <Image
+                source={{ uri: posterUri ?? DEFAULT_POSTER_URI }}
+                style={styles.posterImage}
+                resizeMode="cover"
+              />
             )}
           </View>
 
@@ -548,13 +516,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     overflow: 'hidden',
   },
-  tabContent: {
+  posterImage: {
+    width: '100%',
     flex: 1,
-  },
-  tabContentInner: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
+    backgroundColor: '#E5E7EB',
   },
   largeButtonRow: {
     flexDirection: 'row',

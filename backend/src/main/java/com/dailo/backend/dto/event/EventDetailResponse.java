@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
@@ -20,9 +21,9 @@ public class EventDetailResponse {
     private Long id;
     private String title;
     /** 대표 썸네일(리스트·지도·상세 상단 공통) */
-    private String thumbnailUrl;
+    @Setter private String thumbnailUrl;
     /** 상세 포스터 이미지 리스트 (0번 = 대표 썸네일) */
-    private List<String> posterUrls;
+    @Setter private List<String> posterUrls;
     private LocalDateTime startAt;       // 시작 일시
     private LocalDateTime endAt;         // 종료 일시
     private String placeName;            // 장소명

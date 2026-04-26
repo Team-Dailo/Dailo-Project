@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dailo Admin</title>
   <link rel="stylesheet" href="/api/admin/web/css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
@@ -61,7 +63,7 @@
 
     <!-- Events -->
     <div id="pg-events" class="page">
-      <div class="ph"><div><h2>행사 관리</h2><p>행사 목록</p></div></div>
+      <div class="ph"><div><h2>행사 관리</h2><p>행사 목록</p></div><button class="btn btn-p btn-sm" onclick="openEventModal()">+ 행사 추가</button></div>
       <div class="card"><table><thead><tr><th>ID</th><th>제목</th><th>장소</th><th>시작일</th><th>종료일</th><th>상태</th><th>액션</th></tr></thead><tbody id="tEvents"></tbody></table><div class="paging" id="pgEvents"></div></div>
     </div>
 
@@ -192,6 +194,56 @@
   <div id="inquiryDetail"></div>
   <div class="fg" style="margin-top:12px"><label>답변</label><textarea id="inquiryAnswer"></textarea></div>
   <div class="modal-actions"><button class="btn btn-g btn-sm" onclick="closeModal('inquiryModal')">닫기</button><button class="btn btn-p btn-sm" onclick="saveInquiryAnswer()">답변 저장</button></div>
+</div></div>
+
+<div class="modal-bg" id="eventModal"><div class="modal" style="width:600px">
+  <h3 id="eventModalTitle">행사 추가</h3>
+  <input type="hidden" id="eventEditId">
+  <div class="fg"><label>제목 *</label><input type="text" id="eventTitle"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="fg"><label>장소명</label><input type="text" id="eventPlaceName"></div>
+    <div class="fg"><label>지역명</label><input type="text" id="eventRegion" placeholder="충주시"></div>
+  </div>
+  <div class="fg"><label>상세 주소</label><input type="text" id="eventAddress"></div>
+  <div class="fg">
+    <label>위치 * <span style="font-weight:400;color:var(--muted)">(지도를 클릭하거나 핀을 드래그하세요)</span></label>
+    <div id="eventMapWrap" style="height:260px;border-radius:10px;border:1px solid var(--border);margin-bottom:8px;z-index:0"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="fg" style="margin-bottom:0"><label>위도</label><input type="number" step="any" id="eventLat" readonly style="background:#f8fafc;cursor:default"></div>
+      <div class="fg" style="margin-bottom:0"><label>경도</label><input type="number" step="any" id="eventLng" readonly style="background:#f8fafc;cursor:default"></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="fg"><label>시작일 *</label><input type="datetime-local" id="eventStart"></div>
+    <div class="fg"><label>종료일 *</label><input type="datetime-local" id="eventEnd"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="fg"><label>상태</label><select id="eventStatus"><option value="DRAFT">DRAFT</option><option value="ACTIVE">ACTIVE</option><option value="ENDED">ENDED</option><option value="INACTIVE">INACTIVE</option></select></div>
+    <div class="fg"><label>규모(필터)</label><select id="eventFilter"><option value="">선택안함</option><option value="CHUNGJU_CITY">시 주최</option><option value="UNIVERSITY">대학</option><option value="STUDENT_COUNCIL">학생회</option><option value="COLLEGE">단과대</option><option value="CLUB">동아리</option></select></div>
+  </div>
+  <div class="fg"><label>카테고리 *</label>
+    <div class="flex-gap" id="eventCategories">
+      <label><input type="checkbox" value="FESTIVAL"> 축제</label>
+      <label><input type="checkbox" value="EXHIBITION"> 전시</label>
+      <label><input type="checkbox" value="PERFORMANCE"> 공연</label>
+      <label><input type="checkbox" value="EXPERIENCE_BOOTH"> 체험</label>
+      <label><input type="checkbox" value="FOOD_TRUCK"> 푸드트럭</label>
+      <label><input type="checkbox" value="TRAFFIC"> 교통</label>
+      <label><input type="checkbox" value="CONSTRUCTION"> 공사</label>
+      <label><input type="checkbox" value="ETC"> 기타</label>
+    </div>
+  </div>
+  <div class="fg"><label>썸네일</label>
+    <div class="dropzone" id="eventDropzone">
+      <input type="hidden" id="eventThumbKey">
+      <div class="dropzone-placeholder" id="eventDropPlaceholder">이미지를 드래그하거나 클릭하여 업로드</div>
+      <img id="eventThumbPreview" class="dropzone-preview" style="display:none">
+      <input type="file" id="eventThumbFile" accept="image/*" style="display:none">
+    </div>
+  </div>
+  <div class="fg"><label>설명</label><textarea id="eventDesc"></textarea></div>
+  <div class="fg"><label>주최자 연락처</label><input type="text" id="eventContact"></div>
+  <div class="modal-actions"><button class="btn btn-g btn-sm" onclick="closeModal('eventModal')">취소</button><button class="btn btn-p btn-sm" onclick="saveEvent()">저장</button></div>
 </div></div>
 
 <script src="/api/admin/web/js/auth.js"></script>
