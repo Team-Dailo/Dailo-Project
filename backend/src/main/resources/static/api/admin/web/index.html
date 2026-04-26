@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dailo Admin</title>
   <link rel="stylesheet" href="/api/admin/web/css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
@@ -203,9 +205,13 @@
     <div class="fg"><label>지역명</label><input type="text" id="eventRegion" placeholder="충주시"></div>
   </div>
   <div class="fg"><label>상세 주소</label><input type="text" id="eventAddress"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-    <div class="fg"><label>위도 *</label><input type="number" step="any" id="eventLat"></div>
-    <div class="fg"><label>경도 *</label><input type="number" step="any" id="eventLng"></div>
+  <div class="fg">
+    <label>위치 * <span style="font-weight:400;color:var(--muted)">(지도를 클릭하거나 핀을 드래그하세요)</span></label>
+    <div id="eventMapWrap" style="height:260px;border-radius:10px;border:1px solid var(--border);margin-bottom:8px;z-index:0"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="fg" style="margin-bottom:0"><label>위도</label><input type="number" step="any" id="eventLat" readonly style="background:#f8fafc;cursor:default"></div>
+      <div class="fg" style="margin-bottom:0"><label>경도</label><input type="number" step="any" id="eventLng" readonly style="background:#f8fafc;cursor:default"></div>
+    </div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
     <div class="fg"><label>시작일 *</label><input type="datetime-local" id="eventStart"></div>
