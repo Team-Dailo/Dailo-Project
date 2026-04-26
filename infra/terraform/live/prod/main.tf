@@ -124,15 +124,15 @@ module "ecs" {
   key_name      = "prod_key" 
   instance_type = "t3.small" 
 
-  # [Auto Scaling 설정]
+  # [Auto Scaling 설정] - EC2 2개 고정
   asg_min     = 2
-  asg_max     = 4
+  asg_max     = 2
   asg_desired = 2
 
-  # 테스크 값
+  # 테스크 값 - 4개 고정 (오토스케일링 비활성)
   desired_count = 4
   min_desired_count = 4
-  max_desired_count = 10
+  max_desired_count = 4
   cpu = 512
   memory = 700
   container_port = 8080

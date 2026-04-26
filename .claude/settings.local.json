@@ -3,7 +3,14 @@
     "allow": [
       "Bash(grep -E \"\\\\.\\(java\\)$\")",
       "Bash(xargs grep *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git -C /root/study/terraform-aws-modules diff v0.1.4..HEAD -- modules/ecs/main.tf)",
+      "Bash(git *)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")",
+      "Bash(./gradlew compileJava)"
     ]
   }
 }
