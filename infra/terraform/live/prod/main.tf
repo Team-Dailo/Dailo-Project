@@ -75,6 +75,12 @@ resource "aws_ssm_parameter" "bus_api_key" {
   value = var.bus_api_key
 }
 
+resource "aws_ssm_parameter" "bus_api_key_encoded" {
+  name  = "/dailo/prod/bus_api_key_encoded"
+  type  = "SecureString"
+  value = var.bus_api_key_encoded
+}
+
  
 # ------------------------------------------------------------------------------
 # 1. VPC 모듈
@@ -156,7 +162,6 @@ module "ecs" {
     { name = "MAIL_USERNAME", value = var.mail_username },
     { name = "MAIL_FROM", value = var.mail_from },
     { name = "KAKAO_CLIENT_ID", value = var.kakao_client_id },
-    { name = "BUS_API_KEY_ENCODED", value = var.bus_api_key_encoded }
   ]
     container_secrets = [
     {
@@ -178,6 +183,10 @@ module "ecs" {
     {
       name      = "BUS_API_KEY"
       valueFrom = aws_ssm_parameter.bus_api_key.arn
+    },
+    {
+      name      = "BUS_API_KEY_ENCODED", # <-- 여기로 이동!
+      valueFrom = aws_ssm_parameter.bus_api_key_encoded.arn
     }
   ]
 
