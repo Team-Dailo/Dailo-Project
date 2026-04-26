@@ -60,6 +60,12 @@ public class S3UploadService {
         return key;
     }
 
+    public String resolveUrl(String value) {
+        if (value == null || value.isBlank()) return null;
+        if (value.startsWith("http://") || value.startsWith("https://")) return value;
+        return getPresignedUrl(value);
+    }
+
     public String getPresignedUrl(String key) {
         if (key == null || key.isBlank()) return null; // [CHANGED]
 

@@ -186,6 +186,7 @@ function openEventModal(id, data) {
   });
   document.getElementById('eventModalTitle').textContent = id ? '행사 수정' : '행사 추가';
   openModal('eventModal');
+  initEventMap(data?.latitude || 36.97, data?.longitude || 127.93);
 }
 async function editEvent(id) {
   try { const d = await apiJson(`/api/admin/events/${id}`); openEventModal(d.id, d); } catch (e) { alert(e.message); }
@@ -506,6 +507,45 @@ async function loadLogs(page) {
     document.getElementById('tLogs').innerHTML = rows || '<tr><td colspan="6" class="loading">없음</td></tr>';
     pagingHtml('pgLogs', d.number || 0, d.totalPages || 1, 'loadLogs');
   } catch (e) { document.getElementById('tLogs').innerHTML = '<tr><td colspan="6" class="loading">로드 실패</td></tr>'; }
+}
+
+// ===== Location Map Picker =====
+let _eventMap = null;
+let _eventMarker = null;
+
+function initEventMap(lat, lng) {
+  const wrap = document.getElementById('eventMapWrap');
+  if (!wrap) return;
+
+  setTimeout(() => {
+    if (_eventMap) { _eventMap.remove(); _eventMap = null; }
+
+    _eventMap = L.map(wrap, { zoomControl: true }).setView([lat, lng], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 19,
+    }).addTo(_eventMap);
+
+    _eventMarker = L.marker([lat, lng], { draggable: true }).addTo(_eventMap);
+    updateLatLngInputs(lat, lng);
+
+    _eventMarker.on('dragend', () => {
+      const p = _eventMarker.getLatLng();
+      updateLatLngInputs(p.lat, p.lng);
+    });
+
+    _eventMap.on('click', (e) => {
+      _eventMarker.setLatLng(e.latlng);
+      updateLatLngInputs(e.latlng.lat, e.latlng.lng);
+    });
+
+    _eventMap.invalidateSize();
+  }, 100);
+}
+
+function updateLatLngInputs(lat, lng) {
+  document.getElementById('eventLat').value = Math.round(lat * 1e7) / 1e7;
+  document.getElementById('eventLng').value = Math.round(lng * 1e7) / 1e7;
 }
 
 // ===== Dropzone Upload =====

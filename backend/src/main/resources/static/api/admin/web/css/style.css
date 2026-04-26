@@ -85,3 +85,7 @@ tr:hover td{background:#f8fafc}
 .dropzone-placeholder{color:var(--muted);font-size:13px;pointer-events:none}
 .dropzone-preview{max-width:100%;max-height:200px;border-radius:8px;object-fit:contain}
 .dropzone .uploading{color:var(--pri);font-size:13px}
+
+/* Leaflet map inside modal */
+#eventMapWrap .leaflet-control-container .leaflet-top{z-index:1}
+#eventMapWrap .leaflet-pane{z-index:0}
