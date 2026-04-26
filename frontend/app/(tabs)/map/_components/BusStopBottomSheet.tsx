@@ -25,6 +25,7 @@ import {
   type BusRouteInfo,
   type BusStop,
 } from "../../../../services/bus.service";
+import { BusTimetableScreen } from "./BusTimetableScreen";
 
 type MergedItem = {
   routeId: string;
@@ -49,6 +50,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
   const [stopName, setStopName] = useState("");
   const [cityCode, setCityCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showTimetable, setShowTimetable] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [cachedAt, setCachedAt] = useState<number | null>(null);
@@ -185,12 +187,14 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
 
   useEffect(() => {
     if (!stop) return;
+    setShowTimetable(false);
     fetchData(stop.stopId);
   }, [stop?.stopId]);
 
   if (!stop) return null;
 
   return (
+    <>
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
@@ -207,6 +211,17 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
               {stopName || stop.stopName}
             </Text>
           </View>
+          <TouchableOpacity
+            style={styles.timetableBtn}
+            onPress={() => setShowTimetable(true)}
+            disabled={items.length === 0}
+            hitSlop={4}
+          >
+            <Ionicons name="time-outline" size={13} color={items.length > 0 ? "#2563eb" : "#D1D5DB"} />
+            <Text style={[styles.timetableBtnText, items.length === 0 && { color: "#D1D5DB" }]}>
+              시간표
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={onClose} hitSlop={8}>
             <Ionicons name="close" size={22} color="#6B7280" />
           </TouchableOpacity>
@@ -317,6 +332,13 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
         )}
       </View>
     </Modal>
+    <BusTimetableScreen
+      visible={showTimetable}
+      onClose={() => setShowTimetable(false)}
+      filterRouteNos={items.map((i) => i.routeNo).filter(Boolean)}
+      stopName={stopName || stop.stopName}
+    />
+    </>
   );
 }
 
@@ -422,6 +444,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
     flex: 1,
+  },
+  timetableBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    marginRight: 8,
+  },
+  timetableBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#2563eb",
   },
   center: {
     height: 100,

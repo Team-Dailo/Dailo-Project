@@ -67,6 +67,7 @@ import { useFestivalParticipation } from '../../../hooks/useFestivalParticipatio
 import { distanceKm } from '../../../utils/geo';
 import { getBusStopsInBounds, type BusStop } from '../../../services/bus.service';
 import { BusStopBottomSheet } from './_components/BusStopBottomSheet';
+import { BusTimetableScreen } from './_components/BusTimetableScreen';
 
 /** 지역명 → 지도 중심 좌표 (지도 탭 검색용 + 현재 위치 지역 판별용) */
 const REGION_CENTERS: Record<string, { latitude: number; longitude: number }> = {
@@ -695,6 +696,7 @@ export default function MapScreen() {
   const [isDirectionOpen, setIsDirectionOpen] = useState(false);
   // 버스 정류장
   const [showBusStops, setShowBusStops] = useState(false);
+  const [showBusTimetable, setShowBusTimetable] = useState(false);
   const [busStops, setBusStops] = useState<BusStop[]>([]);
   const [selectedBusStop, setSelectedBusStop] = useState<BusStop | null>(null);
   const [busQueryCenter, setBusQueryCenter] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -1613,6 +1615,18 @@ export default function MapScreen() {
               ]}
           >
             <View style={styles.listButtonCenterFull}>
+              {/* 좌측: 버스 시간표 */}
+              <View style={styles.listButtonSideLeft}>
+                <TouchableOpacity
+                  style={styles.busTimetableButton}
+                  activeOpacity={0.85}
+                  onPress={() => setShowBusTimetable(true)}
+                >
+                  <Ionicons name="bus-outline" size={15} color="#2563eb" style={{ marginRight: 4 }} />
+                  <Text style={styles.busTimetableButtonText}>버스 시간표</Text>
+                </TouchableOpacity>
+              </View>
+              {/* 가운데: 축제 목록 보기 */}
               <TouchableOpacity
                 style={styles.listButton}
                 activeOpacity={0.85}
@@ -1620,6 +1634,8 @@ export default function MapScreen() {
               >
                 <Text style={styles.listButtonText}>축제 목록 보기</Text>
               </TouchableOpacity>
+              {/* 우측 균형 맞춤 */}
+              <View style={styles.listButtonSideRight} />
             </View>
             <View style={styles.zoomAndLocationColumn}>
                 <View style={styles.zoomControlBox}>
@@ -1804,6 +1820,12 @@ export default function MapScreen() {
       <BusStopBottomSheet
         stop={selectedBusStop}
         onClose={() => setSelectedBusStop(null)}
+      />
+
+      {/* 버스 시간표 */}
+      <BusTimetableScreen
+        visible={showBusTimetable}
+        onClose={() => setShowBusTimetable(false)}
       />
 
       {/* 사이드 메뉴 */}
@@ -2270,8 +2292,17 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  listButtonSideLeft: {
+    flex: 1,
+    alignItems: 'flex-end',
+    paddingRight: 8,
+  },
+  listButtonSideRight: {
+    flex: 1,
   },
   listButton: {
     paddingHorizontal: 24,
@@ -2282,6 +2313,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listButtonText: { color: '#ffffff', fontWeight: '600' },
+  busTimetableButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    justifyContent: 'center',
+  },
+  busTimetableButtonText: { color: '#2563eb', fontWeight: '600', fontSize: 13 },
   zoomAndLocationColumn: {
     position: 'absolute',
     right: 16,
