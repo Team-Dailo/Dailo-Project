@@ -86,7 +86,7 @@ resource "aws_ssm_parameter" "bus_api_key_encoded" {
 # 1. VPC 모듈
 # ------------------------------------------------------------------------------
 module "vpc" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/vpc?ref=v0.1.5"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/vpc?ref=v0.1.6"
 
   name     = local.name
   region   = "ap-northeast-2"
@@ -106,7 +106,7 @@ module "vpc" {
 # 2. ecs 모듈
 # ------------------------------------------------------------------------------
 module "ecs" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/ecs?ref=v0.1.5"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/ecs?ref=v0.1.6"
 
   name   = local.name
   region = "ap-northeast-2" # CloudWatch 로그 등을 위해 사용
@@ -198,7 +198,7 @@ module "ecs" {
 # 3. RDS 모듈
 # ------------------------------------------------------------------------------
 module "rds" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/rds?ref=v0.1.5"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/rds?ref=v0.1.6"
 
   name   = local.name
   vpc_id = module.vpc.vpc_id
@@ -223,7 +223,7 @@ module "rds" {
 # 4. cdn 모듈
 # ------------------------------------------------------------------------------
 module "cdn" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=v0.1.5"
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/cdn?ref=v0.1.6"
   
   name        = local.name
   bucket_name = local.static_bucket_name
@@ -242,7 +242,7 @@ module "cdn" {
 # 5. Monitoring (Grafana) 모듈 테스트
 # ------------------------------------------------------------------------------
 module "monitoring" {
-  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/monitoring?ref=v0.1.5" 
+  source = "git::https://github.com/yuntyu01/terraform-aws-modules.git//modules/monitoring?ref=v0.1.6" 
 
   name   = local.name   
   region = "ap-northeast-2"
