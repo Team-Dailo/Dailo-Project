@@ -17,6 +17,7 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     long countByCreatedAtAfter(LocalDateTime dateTime);
     Optional<Member> findByEmail(String email);
     boolean existsByEmail(String email);
+    boolean existsByEmailAndStatusNot(String email, MemberStatus status);
 
     /** 개인정보처리방침 준수: 탈퇴자(DELETED)는 목록에 노출하지 않음 */
     Page<Member> findByStatusNot(MemberStatus status, Pageable pageable);

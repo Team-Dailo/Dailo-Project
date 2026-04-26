@@ -66,6 +66,18 @@ public class Member {
         this.status = MemberStatus.DELETED;
     }
 
+    public void reactivate(String encodedPassword, String nickname) {
+        this.status = MemberStatus.ACTIVE;
+        this.password = encodedPassword;
+        this.nickname = nickname;
+        this.socialType = SocialType.LOCAL;
+        this.socialId = null;
+        this.profileImageKey = null;
+        this.profileImageExternalUrl = null;
+        this.suspendedUntil = null;
+        this.emailVerifiedAt = LocalDateTime.now();
+    }
+
     public void updateProfile(String nickname, String profileImageExternalUrl) {
         if (nickname != null && !nickname.isBlank()) {
             this.nickname = nickname.trim();

@@ -46,7 +46,7 @@ public class AuthService {
     @Transactional
     public void sendSignUpEmail(String email) {
 
-        if (memberRepository.existsByEmail(email)) {
+        if (memberRepository.existsByEmailAndStatusNot(email, MemberStatus.DELETED)) {
             throw new ConflictException("이미 가입된 이메일입니다.");
         }
 
@@ -63,7 +63,7 @@ public class AuthService {
 
         String email = requestDto.getEmail();
 
-        if (memberRepository.existsByEmail(email)) {
+        if (memberRepository.existsByEmailAndStatusNot(email, MemberStatus.DELETED)) {
             throw new ConflictException("이미 가입된 이메일입니다.");
         }
 
@@ -74,6 +74,13 @@ public class AuthService {
 
         if (!token.getEmail().equals(email)) {
             throw new IllegalArgumentException("인증된 이메일과 가입 요청 이메일이 일치하지 않습니다.");
+        }
+
+        Member existing = memberRepository.findByEmail(email).orElse(null);
+        if (existing != null) {
+            // 탈퇴한 계정 재활성화
+            existing.reactivate(passwordEncoder.encode(requestDto.getPassword()), requestDto.getNickname().trim());
+            return MemberResponseDto.of(existing, null);
         }
 
         Member member = requestDto.toMember(passwordEncoder);
