@@ -7,6 +7,7 @@ import com.dailo.backend.domain.enums.MemberStatus;
 import com.dailo.backend.entity.Member;
 import com.dailo.backend.repository.MemberRepository;
 import com.dailo.backend.service.AdminBlockService;
+import com.dailo.backend.service.FestivalAdminService;
 import com.dailo.backend.service.MemberService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +33,7 @@ public class AdminMemberController {
     private final MemberRepository memberRepository;
     private final AdminBlockService adminBlockService;
     private final MemberService memberService;
+    private final FestivalAdminService festivalAdminService;
 
     @Value("${app.admin.emails:}")
     private String adminEmailsProperty;
@@ -127,5 +129,61 @@ public class AdminMemberController {
                 .filter(id -> id != null)
                 .collect(Collectors.toList());
         return ids.contains(memberId);
+    }
+
+    /** 축제 관리자 할당 */
+    @PostMapping("/{memberId}/assign-festival/{eventId}")
+    public ResponseEntity<Void> assignFestivalManager(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long memberId,
+            @PathVariable Long eventId) {
+
+        String email = userDetails.getUsername();
+        Member current = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+
+        if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(current.getId())) {
+            return ResponseEntity.status(403).build();
+        }
+
+        festivalAdminService.assignFestivalManager(eventId, memberId, current.getId());
+        return ResponseEntity.ok().build();
+    }
+
+    /** 축제 관리자 해제 */
+    @DeleteMapping("/{memberId}/assign-festival/{eventId}")
+    public ResponseEntity<Void> removeFestivalManager(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long memberId,
+            @PathVariable Long eventId) {
+
+        String email = userDetails.getUsername();
+        Member current = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+
+        if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(current.getId())) {
+            return ResponseEntity.status(403).build();
+        }
+
+        festivalAdminService.removeFestivalManager(eventId, memberId);
+        return ResponseEntity.ok().build();
+    }
+
+    /** 특정 회원이 관리하는 축제 목록 조회 */
+    @GetMapping("/{memberId}/managed-festivals")
+    public ResponseEntity<List<Long>> getManagedFestivals(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long memberId) {
+
+        String email = userDetails.getUsername();
+        Member current = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("회원 정보가 없습니다."));
+
+        if (current.getRole() != Role.ADMIN && !isInAdminEmails(current.getEmail()) && !isInAdminUserIds(current.getId())) {
+            return ResponseEntity.status(403).build();
+        }
+
+        List<Long> eventIds = festivalAdminService.getManagedEventIds(memberId);
+        return ResponseEntity.ok(eventIds);
     }
 }

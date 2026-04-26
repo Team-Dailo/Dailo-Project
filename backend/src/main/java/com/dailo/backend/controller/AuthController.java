@@ -1,11 +1,13 @@
 package com.dailo.backend.controller;
 
+import com.dailo.backend.dto.auth.AppleLoginRequestDto;
 import com.dailo.backend.dto.auth.KakaoNativeLoginRequestDto;
 import com.dailo.backend.dto.auth.LoginRequestDto;
 import com.dailo.backend.dto.auth.MemberRequestDto;
 import com.dailo.backend.dto.auth.MemberResponseDto;
 import com.dailo.backend.dto.auth.TokenRequestDto;
 import com.dailo.backend.jwt.TokenDto;
+import com.dailo.backend.service.AppleLoginService;
 import com.dailo.backend.service.AuthService;
 import com.dailo.backend.service.KakaoNativeLoginService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +27,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final KakaoNativeLoginService kakaoNativeLoginService;
+    private final AppleLoginService appleLoginService;
 
     @Operation(summary = "회원가입 인증번호 발송", description = "가입 전 이메일 중복 확인 후 6자리 인증번호를 메일로 발송합니다.")
     @PostMapping("/email/send")
@@ -53,6 +56,14 @@ public class AuthController {
             @RequestBody KakaoNativeLoginRequestDto requestDto
     ) {
         return ResponseEntity.ok(kakaoNativeLoginService.loginWithKakaoToken(requestDto));
+    }
+
+    @Operation(summary = "Apple 로그인", description = "앱에서 Apple Sign In 후 받은 identityToken으로 서버 JWT를 발급합니다.")
+    @PostMapping("/apple")
+    public ResponseEntity<TokenDto> appleLogin(
+            @RequestBody AppleLoginRequestDto requestDto
+    ) {
+        return ResponseEntity.ok(appleLoginService.loginWithApple(requestDto));
     }
 
     @Operation(summary = "비밀번호 재설정 요청", description = "가입된 이메일로 비밀번호 재설정용 64자리 토큰을 발송합니다.")

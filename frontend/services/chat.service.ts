@@ -18,6 +18,7 @@ export type ChatMember = {
   userId: number;
   /** 채팅 목록에서 표시할 상대방 닉네임 (백엔드에서 조회) */
   nickname?: string | null;
+  profileImageUrl?: string | null;
   joinedAt: string;
   lastReadAt?: string;
   /** 채팅방 나가기 시각 (null이면 아직 참여 중) */

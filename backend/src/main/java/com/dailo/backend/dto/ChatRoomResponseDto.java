@@ -26,29 +26,15 @@ public class ChatRoomResponseDto {
     /** 채팅 목록용: 마지막 메시지 시각 (없으면 null) */
     private LocalDateTime lastMessageAt;
 
-    public static ChatRoomResponseDto from(ChatRoom room) {
-        List<ChatMemberDto> activeMembers = room.getMembers().stream()
-                .map(ChatMemberDto::from)
-                .collect(Collectors.toList());
-        return ChatRoomResponseDto.builder()
-                .id(room.getId())
-                .roomType(room.getRoomType())
-                .members(activeMembers)
-                .createdAt(room.getCreatedAt())
-                .updatedAt(room.getUpdatedAt())
-                .unreadCount(null)
-                .build();
-    }
-
-    /** 닉네임 맵 + 미읽음 수 포함 (채팅 목록/상세용). lastMessageContent/lastMessageAt은 별도 설정. */
-    public static ChatRoomResponseDto from(ChatRoom room, Map<Long, String> nicknameByUserId, Integer unreadCount) {
-        return from(room, nicknameByUserId, unreadCount, null, null);
-    }
-
-    public static ChatRoomResponseDto from(ChatRoom room, Map<Long, String> nicknameByUserId, Integer unreadCount,
+    public static ChatRoomResponseDto from(ChatRoom room, Map<Long, String> nicknameByUserId,
+                                          Map<Long, String> profileImageUrlByUserId, Integer unreadCount,
                                           String lastMessageContent, LocalDateTime lastMessageAt) {
         List<ChatMemberDto> activeMembers = room.getMembers().stream()
-                .map(m -> ChatMemberDto.from(m, nicknameByUserId.getOrDefault(m.getUserId(), null)))
+                .map(m -> ChatMemberDto.from(
+                        m,
+                        nicknameByUserId.getOrDefault(m.getUserId(), null),
+                        profileImageUrlByUserId.getOrDefault(m.getUserId(), null)
+                ))
                 .collect(Collectors.toList());
         return ChatRoomResponseDto.builder()
                 .id(room.getId())

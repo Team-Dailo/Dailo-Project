@@ -8,9 +8,6 @@ const USER_EMAIL_KEY = '@dailo/userEmail';
 const USER_ID_KEY = '@dailo/userId';
 const NICKNAME_MAP_KEY = '@dailo/emailToNickname';
 
-/** 이 이메일로 로그인한 경우 마이페이지에 관리자 메뉴 표시 (백엔드 app.admin.emails와 동일하게) */
-export const ADMIN_EMAIL = 'yunajo5858@gmail.com';
-
 /** 백엔드 TokenDto */
 export type TokenDto = {
   grantType: string;
@@ -331,38 +328,27 @@ export async function getEffectiveUserId(): Promise<number> {
 
 export async function getMe(): Promise<MemberResponseDto | null> {
   const token = await getAccessToken();
-  console.log('[getMe] token exists:', !!token);
 
   if (!token) return null;
 
   try {
     const url = `${API_BASE_URL}/api/members/me?_t=${Date.now()}`;
-    console.log('[getMe] request url:', url);
 
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    console.log('[getMe] response status:', res.status);
-    console.log('[getMe] content-type:', res.headers.get('content-type'));
-
     const text = await res.text();
-    console.log('[getMe] response text:', text);
 
     if (!res.ok) return null;
 
     const contentType = res.headers.get('content-type') ?? '';
     if (!contentType.includes('application/json')) {
-      // 카카오 로그인 HTML 등 JSON 이외 응답이 오는 경우가 있어도 앱이 크래시 나지 않도록 경고만 남기고 조용히 무시
-      console.log('[getMe] non-JSON response, skipping me update');
       return null;
     }
 
-    const json = JSON.parse(text) as MemberResponseDto;
-    console.log('[getMe] response json:', json);
-    return json;
-  } catch (e) {
-    console.error('[getMe] fetch error:', e);
+    return JSON.parse(text) as MemberResponseDto;
+  } catch {
     return null;
   }
 }
@@ -544,6 +530,53 @@ export async function loginWithSocialToken(
     role: me.role ?? undefined,
     profileImageUrl,
   };
+}
+
+/** Apple 로그인 요청 DTO */
+export type AppleLoginRequest = {
+  identityToken: string;
+  user: string;
+  fullName?: string | null;
+  email?: string | null;
+};
+
+/**
+ * Apple 로그인 - identityToken을 백엔드로 전송하여 JWT 발급
+ */
+export async function getAppleTokenDto(request: AppleLoginRequest): Promise<TokenDto> {
+  console.log('[getAppleTokenDto] API_BASE_URL:', API_BASE_URL);
+  console.log('[getAppleTokenDto] request url:', `${API_BASE_URL}/api/auth/apple`);
+  console.log('[getAppleTokenDto] identityToken exists:', !!request.identityToken);
+  console.log('[getAppleTokenDto] user:', request.user?.substring(0, 20) + '...');
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/auth/apple`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+  } catch (e) {
+    console.error('[getAppleTokenDto] fetch error:', e);
+    const msg = e instanceof Error ? e.message : '';
+    if (/failed to fetch|network request failed|network error/i.test(msg)) {
+      throw new Error('서버에 연결할 수 없습니다. 네트워크 연결을 확인해 주세요.');
+    }
+    throw e;
+  }
+
+  console.log('[getAppleTokenDto] response status:', res.status);
+
+  const text = await res.text();
+  console.log('[getAppleTokenDto] response text:', text);
+
+  if (!res.ok) {
+    throw new Error(getErrorMessage(text, res.status, 'Apple 로그인에 실패했습니다.'));
+  }
+
+  const parsed = JSON.parse(text) as TokenDto;
+  console.log('[getAppleTokenDto] parsed success:', parsed);
+  return parsed;
 }
 
 export async function withdrawApi(): Promise<void> {

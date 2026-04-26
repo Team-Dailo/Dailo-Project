@@ -8,10 +8,14 @@ import {
   type NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
 import type { Event } from '../../../../types/event';
+import type { BusStop } from '../../../../services/bus.service';
 import { MAP_UI } from '../../../../constants/colors';
 
-/** 마커 아이콘 이미지 (흰색 실루엣 → tintColor로 규모별 색 적용) */
-const MARKER_ICON = require('../../../../assets/images/marker-pin.png');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const MARKER_ICON = require('../../../../assets/images/marker-pin.png') as number;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const BUS_STOP_MARKER = require('../../../../assets/images/bus-marker.png') as number;
+const BUS_STOP_SIZE = 25;
 const MARKER_WIDTH = 36;
 const MARKER_HEIGHT = 48;
 // 바깥 테두리/흰색 바디용 스케일 (중심 기준으로 키움)
@@ -56,7 +60,7 @@ type Props = {
   events: Event[];
   onMarkerPress: (event: Event) => void;
   /** 카메라 이동이 끝났을 때(드래그/줌 후) 호출. region 동기화용 (latitude/longitude는 남서쪽, center 아님) */
-  onCameraIdle?: (params: { region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }; zoom?: number }) => void;
+  onCameraIdle?: (params: { latitude?: number; longitude?: number; zoom?: number; region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number } }) => void;
   /** 현재 위치 버튼을 눌렀을 때 표시할 파란 동그라미 위치 */
   currentLocation?: { latitude: number; longitude: number } | null;
   /** 동그라미 표시용 좌표(실제 위치 못 받을 때 fallback 등). 있으면 이걸 우선 사용 */
@@ -69,6 +73,12 @@ type Props = {
   distanceFilterRadiusM?: number | null;
   /** 거리 필터 원의 중심 (내 위치) */
   distanceFilterCenter?: { latitude: number; longitude: number } | null;
+  /** 버스 정류장 마커 목록 */
+  busStops?: BusStop[];
+  /** 버스 정류장 마커 탭 콜백 */
+  onBusStopPress?: (stop: BusStop) => void;
+  /** 버스 정류장 쿼리 중심 (원형 필터 기준점) */
+  busQueryCenter?: { latitude: number; longitude: number } | null;
 };
 
 // 현재 위치 점: 화면 상에서 항상 일정한 크기의 점으로 표시 (줌 레벨과 무관)
@@ -109,8 +119,47 @@ const DISTANCE_FILTER_CIRCLE_COLOR = 'rgba(59, 130, 246, 0.15)';
 const DISTANCE_FILTER_CIRCLE_OUTLINE_WIDTH = 2;
 const DISTANCE_FILTER_CIRCLE_OUTLINE_COLOR = 'rgba(59, 130, 246, 0.5)';
 
+const CLUSTER_CELL_SIZES = [0.001, 0.002, 0.003, 0.005, 0.007, 0.01, 0.015, 0.02, 0.03, 0.05, 0.1];
+const CLUSTER_TARGET = 15;
+
+function clusterBusStops(stops: BusStop[], zoom: number, centerLat: number, centerLng: number): BusStop[] {
+  if (stops.length === 0) return stops;
+
+  // 원형 필터: 직사각형 bounds 모서리 제거
+  const cosLat = Math.cos(centerLat * Math.PI / 180);
+  const radiusDeg = 0.05 * Math.pow(2, Math.max(0, 14 - zoom));
+  const circular = stops.filter(s => {
+    const dLat = s.latitude - centerLat;
+    const dLng = (s.longitude - centerLng) * cosLat;
+    return dLat * dLat + dLng * dLng <= radiusDeg * radiusDeg;
+  });
+  const candidates = circular.length >= 5 ? circular : stops;
+
+  if (zoom >= 16 || candidates.length <= CLUSTER_TARGET) return candidates;
+
+  // 각 셀에서 셀 중심에 가장 가까운 정류장을 대표로 선택 (DB 정렬 순서 의존 제거)
+  for (const cellSize of CLUSTER_CELL_SIZES) {
+    const cells = new Map<string, { stop: BusStop; dist: number }>();
+    for (const stop of candidates) {
+      const row = Math.floor(stop.latitude / cellSize);
+      const col = Math.floor(stop.longitude / cellSize);
+      const key = `${row}_${col}`;
+      const cellCenterLat = (row + 0.5) * cellSize;
+      const cellCenterLng = (col + 0.5) * cellSize;
+      const dist = Math.hypot(stop.latitude - cellCenterLat, stop.longitude - cellCenterLng);
+      const existing = cells.get(key);
+      if (!existing || dist < existing.dist) cells.set(key, { stop, dist });
+    }
+    if (cells.size <= CLUSTER_TARGET) {
+      return Array.from(cells.values()).map(v => v.stop);
+    }
+  }
+
+  return candidates.slice(0, CLUSTER_TARGET);
+}
+
 export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
-  { style, camera, events, onMarkerPress, onCameraIdle, currentLocation, circleCoords, showMyLocationCircle, selectedEvent, distanceFilterRadiusM, distanceFilterCenter },
+  { style, camera, events, onMarkerPress, onCameraIdle, currentLocation, circleCoords, showMyLocationCircle, selectedEvent, distanceFilterRadiusM, distanceFilterCenter, busStops, onBusStopPress, busQueryCenter },
   ref
 ) {
   const myLocationCoords = circleCoords ?? currentLocation ?? null;
@@ -137,6 +186,12 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
       ),
     [events]
   );
+
+  const clusteredBusStops = useMemo(() => {
+    const filterLat = busQueryCenter?.latitude ?? effectiveCamera.latitude;
+    const filterLng = busQueryCenter?.longitude ?? effectiveCamera.longitude;
+    return clusterBusStops(busStops ?? [], effectiveCamera.zoom, filterLat, filterLng);
+  }, [busStops, effectiveCamera.zoom, effectiveCamera.latitude, effectiveCamera.longitude, busQueryCenter]);
 
   return (
     <NaverMapView
@@ -263,6 +318,19 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
             />
           </NaverMapMarkerOverlay>
         )}
+      {clusteredBusStops.map((stop) => (
+        <NaverMapMarkerOverlay
+          key={`bus-stop-${stop.stopId}`}
+          latitude={stop.latitude}
+          longitude={stop.longitude}
+          width={BUS_STOP_SIZE}
+          height={BUS_STOP_SIZE}
+          anchor={{ x: 0.5, y: 0.5 }}
+          image={BUS_STOP_MARKER}
+          onTap={() => onBusStopPress?.(stop)}
+          globalZIndex={180000}
+        />
+      ))}
       {distanceFilterRadiusM != null &&
         distanceFilterRadiusM > 0 &&
         distanceFilterCenter != null &&
