@@ -2,7 +2,7 @@
   "expo": {
     "name": "다일로",
     "slug": "app",
-    "version": "3.0.0",
+    "version": "4.2.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "app",
@@ -11,6 +11,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.knut.dailo",
+      "buildNumber": "9",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "축제 위치 확인 및 체류 인증을 위해 위치 정보가 필요합니다.",
@@ -83,7 +85,8 @@
           "ios": { "handleKakaoOpenUrl": true }
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,

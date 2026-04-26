@@ -107,6 +107,15 @@ export default function MyPageSettingsScreen() {
 
           <Pressable
             style={styles.item}
+            onPress={() => router.push('/terms-of-service')}
+          >
+            <Ionicons name="document-text-outline" size={22} style={styles.icon} />
+            <Text style={styles.label}>이용약관</Text>
+            <Ionicons name="chevron-forward" size={18} style={styles.arrow} />
+          </Pressable>
+
+          <Pressable
+            style={styles.item}
             onPress={() => router.push('/(tabs)/mypage/privacy-policy')}
           >
             <Ionicons name="shield-checkmark-outline" size={22} style={styles.icon} />

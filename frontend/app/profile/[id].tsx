@@ -291,7 +291,7 @@ export default function MemberProfileScreen() {
       <Pressable style={styles.postItem} onPress={() => handlePostPress(item.id)}>
         <View style={styles.postContent}>
           <Text style={styles.postTitle} numberOfLines={1}>{item.title}</Text>
-          <Text style={styles.postExcerpt} numberOfLines={2}>{item.content}</Text>
+          <Text style={styles.postExcerpt} numberOfLines={2}>{item.contentPreview}</Text>
           <View style={styles.postMeta}>
             <Text style={styles.postTime}>{formatRelativeTime(item.createdAt)}</Text>
             <View style={styles.postStats}>
@@ -449,11 +449,11 @@ export default function MemberProfileScreen() {
         </View>
       ) : (
         <FlatList
-          data={activeTab === 'posts' ? posts : comments}
+          data={(activeTab === 'posts' ? posts : comments) as (PostListItem | MemberCommentItem)[]}
           keyExtractor={(item) => `${activeTab}-${item.id}`}
-          renderItem={activeTab === 'posts'
-            ? (props) => renderPostItem(props as { item: PostListItem })
-            : (props) => renderCommentItem(props as { item: MemberCommentItem })
+          renderItem={({ item }) => activeTab === 'posts'
+            ? renderPostItem({ item: item as PostListItem })
+            : renderCommentItem({ item: item as MemberCommentItem })
           }
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmpty}

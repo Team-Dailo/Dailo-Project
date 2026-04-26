@@ -21,7 +21,7 @@ COPY src ./src
 RUN ./gradlew clean build -x test --no-daemon
 
 # 2단계: 실행 단계
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre-jammy
 
 # 작업 디렉토리
 WORKDIR /app

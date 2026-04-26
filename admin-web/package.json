@@ -1,0 +1,13 @@
+{
+  "name": "dailo-admin-web",
+  "version": "1.0.0",
+  "description": "Dailo 관리자 웹 대시보드",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.18.2"
+  }
+}
