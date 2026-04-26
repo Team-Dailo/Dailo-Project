@@ -28,11 +28,16 @@ import {
 } from "../map/_components/FilterModals";
 import { getDemoLocation } from "../../../services/demoLocationStorage";
 
-/** 2025.11.20 목요일 */
-function formatDate(iso: string): string {
+/** 2026.04.09 ~ 2026.04.12 */
+function formatDateRange(startIso: string, endIso?: string): string {
   try {
-    const d = new Date(iso);
-    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${["일", "월", "화", "수", "목", "금", "토"][d.getDay()]}요일`;
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+    const s = new Date(startIso);
+    if (!endIso) return fmt(s);
+    const e = new Date(endIso);
+    if (s.toDateString() === e.toDateString()) return fmt(s);
+    return `${fmt(s)} ~ ${fmt(e)}`;
   } catch {
     return "";
   }
@@ -407,7 +412,7 @@ export default function EventListScreen() {
             </Text>
           ) : (
             filteredEvents.map((event: Event) => {
-              const dateStr = formatDate(event.startAt);
+              const dateStr = formatDateRange(event.startAt, event.endAt);
               const timeStr = formatTimeRange(event.startAt, event.endAt);
               const ended = isEventEnded(event);
               return (
