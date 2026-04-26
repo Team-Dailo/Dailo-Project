@@ -169,7 +169,7 @@ function openEventModal(id, data) {
   document.getElementById('eventFilter').value = data?.filterGroup || '';
   document.getElementById('eventDesc').value = data?.description || '';
   document.getElementById('eventContact').value = data?.hostContact || '';
-  document.getElementById('eventThumbKey').value = data?.thumbnailUrl || '';
+  document.getElementById('eventThumbKey').value = data?.thumbnailKey || data?.thumbnailUrl || '';
   const preview = document.getElementById('eventThumbPreview');
   const placeholder = document.getElementById('eventDropPlaceholder');
   if (data?.thumbnailUrl) {
