@@ -151,7 +151,9 @@ public class Event {
         this.categories = categories;
         this.status = status;
         this.thumbnailUrl = thumbnailUrl;
-        this.posterUrls = posterUrls != null ? new ArrayList<>(posterUrls) : new ArrayList<>();
+        if (posterUrls != null) {
+            this.posterUrls = new ArrayList<>(posterUrls);
+        }
         this.description = description;
         this.hostContact = hostContact;
         this.filterGroup = filterGroup;
