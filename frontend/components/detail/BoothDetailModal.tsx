@@ -6,6 +6,7 @@ import {
   Text,
   StyleSheet,
   Pressable,
+  ScrollView,
   GestureResponderEvent,
   Linking,
   Modal,
@@ -123,72 +124,79 @@ export default function BoothDetailModal({
           )}
         </View>
 
-        {/* 내용 영역 */}
-        {booth.type === "food" && booth.menu && booth.menu.length > 0 && (
-          <>
-            <View style={styles.infoDivider} />
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>메뉴</Text>
-              {booth.menu.map((m) => (
-                <View key={m} style={styles.menuCard}>
-                  <Text style={styles.menuCardText}>{formatFoodMenuLine(m)}</Text>
+        {/* 내용 영역 — 스크롤 가능 */}
+        <ScrollView
+          style={styles.scrollBody}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {booth.type === "food" && booth.menu && booth.menu.length > 0 && (
+            <>
+              <View style={styles.infoDivider} />
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>메뉴</Text>
+                {booth.menu.map((m) => (
+                  <View key={m} style={styles.menuCard}>
+                    <Text style={styles.menuCardText}>{formatFoodMenuLine(m)}</Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+
+          {booth.type === "experience" && (
+            <>
+              {booth.description && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>이벤트 방식</Text>
+                  <Text style={styles.bodyText}>{booth.description}</Text>
                 </View>
-              ))}
+              )}
+              {booth.rules && booth.rules.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>진행 규칙</Text>
+                  {booth.rules.map((r) => (
+                    <Text key={r} style={styles.bodyText}>
+                      • {r}
+                    </Text>
+                  ))}
+                </View>
+              )}
+              {booth.prizes && booth.prizes.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>시상 및 상품 안내</Text>
+                  {booth.prizes.map((p) => (
+                    <Text key={p} style={styles.bodyText}>
+                      • {p}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+
+          {/* 외부 링크 (맨 아래) */}
+          {booth.externalLink && booth.externalLink.trim() && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>외부 링크</Text>
+              <Pressable
+                onPress={() => {
+                  const url = booth.externalLink!.trim();
+                  const toOpen = url.startsWith("http") ? url : `https://${url}`;
+                  Linking.openURL(toOpen).catch(() => {});
+                }}
+                style={styles.linkRow}
+              >
+                <Ionicons name="link" size={16} color="#4C8BF5" />
+                <Text style={styles.linkText} numberOfLines={1}>
+                  {booth.externalLink!.trim()}
+                </Text>
+                <Ionicons name="open-outline" size={14} color="#4C8BF5" />
+              </Pressable>
             </View>
-          </>
-        )}
-
-        {booth.type === "experience" && (
-          <>
-            {booth.description && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>이벤트 방식</Text>
-                <Text style={styles.bodyText}>{booth.description}</Text>
-              </View>
-            )}
-            {booth.rules && booth.rules.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>진행 규칙</Text>
-                {booth.rules.map((r) => (
-                  <Text key={r} style={styles.bodyText}>
-                    • {r}
-                  </Text>
-                ))}
-              </View>
-            )}
-            {booth.prizes && booth.prizes.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>시상 및 상품 안내</Text>
-                {booth.prizes.map((p) => (
-                  <Text key={p} style={styles.bodyText}>
-                    • {p}
-                  </Text>
-                ))}
-              </View>
-            )}
-          </>
-        )}
-
-        {/* 외부 링크 (맨 아래) */}
-        {booth.externalLink && booth.externalLink.trim() && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>외부 링크</Text>
-            <Pressable
-              onPress={() => {
-                const url = booth.externalLink!.trim();
-                const toOpen = url.startsWith("http") ? url : `https://${url}`;
-                Linking.openURL(toOpen).catch(() => {});
-              }}
-              style={styles.linkRow}
-            >
-              <Ionicons name="link" size={16} color="#4C8BF5" />
-              <Text style={styles.linkText} numberOfLines={1}>
-                {booth.externalLink!.trim()}
-              </Text>
-              <Ionicons name="open-outline" size={14} color="#4C8BF5" />
-            </Pressable>
-          </View>
-        )}
+          )}
+          <View style={styles.scrollBottomPad} />
+        </ScrollView>
         </View>
       </View>
     </Modal>
@@ -208,15 +216,23 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "82%",
+    maxHeight: "78%",
     borderRadius: 20,
     backgroundColor: "#fff",
     paddingHorizontal: 20,
-    paddingVertical: 18,
+    paddingTop: 18,
+    paddingBottom: 0,
     shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowOffset: { width: 0, height: 6 },
     shadowRadius: 12,
     elevation: 8,
+  },
+  scrollBody: {
+    flexGrow: 0,
+  },
+  scrollBottomPad: {
+    height: 18,
   },
   headerRow: {
     flexDirection: "row",

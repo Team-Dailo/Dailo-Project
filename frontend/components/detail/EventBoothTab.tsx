@@ -1,12 +1,21 @@
 // frontend/components/detail/EventBoothTab.tsx
 
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, Pressable, Platform, ToastAndroid, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Platform,
+  ToastAndroid,
+  Alert,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import BoothMap from "./BoothMap";
 import BoothDetailModal from "./BoothDetailModal";
 import BoothLayoutMap from "./BoothLayoutMap";
 import type { EventBoothItem } from "../../types/event";
+import { getBoothVisual } from "../../utils/boothVisual";
 import * as boothFavoriteService from "../../services/boothFavorite.service";
 
 export type BoothType = "food" | "experience";
@@ -44,20 +53,27 @@ export default function EventBoothTab({
   experienceArea = null,
 }: EventBoothTabProps = {}) {
   const [boothType, setBoothType] = useState<BoothType>("food");
-  const [mode, setMode] = useState<Mode>("list");
+  const [mode, setMode] = useState<Mode>("layout");
   const [selectedBooth, setSelectedBooth] = useState<Booth | null>(null);
   const [favoriteSet, setFavoriteSet] = useState<Set<string>>(new Set());
 
   const food = foodBooths && foodBooths.length > 0 ? foodBooths : [];
-  const experience = experienceBooths && experienceBooths.length > 0 ? experienceBooths : [];
+  const experience =
+    experienceBooths && experienceBooths.length > 0 ? experienceBooths : [];
   const booths = (boothType === "food" ? food : experience) as Booth[];
 
   /** 위치 보기 지도 중심: 선택한 타입(푸드/체험) 영역 위치 또는 행사 장소 */
   const mapCenter =
     mode === "map"
       ? boothType === "food"
-        ? foodArea ?? (eventLatitude != null && eventLongitude != null ? { latitude: eventLatitude, longitude: eventLongitude } : null)
-        : experienceArea ?? (eventLatitude != null && eventLongitude != null ? { latitude: eventLatitude, longitude: eventLongitude } : null)
+        ? foodArea ??
+          (eventLatitude != null && eventLongitude != null
+            ? { latitude: eventLatitude, longitude: eventLongitude }
+            : null)
+        : experienceArea ??
+          (eventLatitude != null && eventLongitude != null
+            ? { latitude: eventLatitude, longitude: eventLongitude }
+            : null)
       : null;
 
   const loadFavorites = useCallback(async () => {
@@ -81,47 +97,99 @@ export default function EventBoothTab({
   const handleToggleFavorite = useCallback(
     async (booth: Booth) => {
       if (eventId == null) return;
+
       const item: boothFavoriteService.BoothFavoriteItem = {
         eventId,
         eventTitle,
         boothName: booth.name,
         boothType: booth.type,
       };
+
       const added = await boothFavoriteService.toggleBoothFavorite(item);
       await loadFavorites();
+
       if (Platform.OS === "android") {
         ToastAndroid.show(
           added ? "부스를 즐겨찾기에 추가했어요" : "즐겨찾기를 해제했어요",
           ToastAndroid.SHORT
         );
       } else {
-        Alert.alert(added ? "부스를 즐겨찾기에 추가했어요" : "즐겨찾기를 해제했어요");
+        Alert.alert(
+          added ? "부스를 즐겨찾기에 추가했어요" : "즐겨찾기를 해제했어요"
+        );
       }
     },
     [eventId, eventTitle, loadFavorites]
   );
 
   return (
-    <View>
-      {/* 모드 토글 (배치도 / 목록) — 배치도 모드에서는 푸드트럭/체험부스 세그먼트 숨김 */}
-      <View style={styles.modeToggleRow}>
+    <View style={styles.container}>
+      {/* 모드 토글 */}
+      <View style={styles.modeToggleWrap}>
         <Pressable
-          style={[styles.modeToggleBtn, mode === "layout" && styles.modeToggleBtnActive]}
+          style={[
+            styles.modeToggleBtn,
+            mode === "layout" && styles.modeToggleBtnActive,
+          ]}
           onPress={() => setMode("layout")}
         >
-          <Text style={[styles.modeToggleText, mode === "layout" && styles.modeToggleTextActive]}>배치도</Text>
+          <Ionicons
+            name="grid-outline"
+            size={15}
+            color={mode === "layout" ? "#FFFFFF" : "#6B7280"}
+          />
+          <Text
+            style={[
+              styles.modeToggleText,
+              mode === "layout" && styles.modeToggleTextActive,
+            ]}
+          >
+            배치도
+          </Text>
         </Pressable>
+
         <Pressable
-          style={[styles.modeToggleBtn, mode === "list" && styles.modeToggleBtnActive]}
+          style={[
+            styles.modeToggleBtn,
+            mode === "list" && styles.modeToggleBtnActive,
+          ]}
           onPress={() => setMode("list")}
         >
-          <Text style={[styles.modeToggleText, mode === "list" && styles.modeToggleTextActive]}>목록</Text>
+          <Ionicons
+            name="list-outline"
+            size={15}
+            color={mode === "list" ? "#FFFFFF" : "#6B7280"}
+          />
+          <Text
+            style={[
+              styles.modeToggleText,
+              mode === "list" && styles.modeToggleTextActive,
+            ]}
+          >
+            목록
+          </Text>
         </Pressable>
+
         <Pressable
-          style={[styles.modeToggleBtn, mode === "map" && styles.modeToggleBtnActive]}
+          style={[
+            styles.modeToggleBtn,
+            mode === "map" && styles.modeToggleBtnActive,
+          ]}
           onPress={() => setMode("map")}
         >
-          <Text style={[styles.modeToggleText, mode === "map" && styles.modeToggleTextActive]}>위치</Text>
+          <Ionicons
+            name="location-outline"
+            size={15}
+            color={mode === "map" ? "#FFFFFF" : "#6B7280"}
+          />
+          <Text
+            style={[
+              styles.modeToggleText,
+              mode === "map" && styles.modeToggleTextActive,
+            ]}
+          >
+            위치
+          </Text>
         </Pressable>
       </View>
 
@@ -138,21 +206,42 @@ export default function EventBoothTab({
       {/* 위치 모드 */}
       {mode === "map" && (
         <>
-          {/* 푸드트럭/체험부스 세그먼트 */}
           <View style={styles.segmentContainer}>
             <Pressable
-              style={[styles.segmentItem, boothType === "food" && styles.segmentItemActive]}
+              style={[
+                styles.segmentItem,
+                boothType === "food" && styles.segmentItemActive,
+              ]}
               onPress={() => setBoothType("food")}
             >
-              <Text style={[styles.segmentText, boothType === "food" && styles.segmentTextActive]}>푸드트럭</Text>
+              <Text
+                style={[
+                  styles.segmentText,
+                  boothType === "food" && styles.segmentTextActive,
+                ]}
+              >
+                푸드트럭
+              </Text>
             </Pressable>
+
             <Pressable
-              style={[styles.segmentItem, boothType === "experience" && styles.segmentItemActive]}
+              style={[
+                styles.segmentItem,
+                boothType === "experience" && styles.segmentItemActive,
+              ]}
               onPress={() => setBoothType("experience")}
             >
-              <Text style={[styles.segmentText, boothType === "experience" && styles.segmentTextActive]}>체험부스</Text>
+              <Text
+                style={[
+                  styles.segmentText,
+                  boothType === "experience" && styles.segmentTextActive,
+                ]}
+              >
+                체험부스
+              </Text>
             </Pressable>
           </View>
+
           <BoothMap
             centerLatitude={mapCenter?.latitude}
             centerLongitude={mapCenter?.longitude}
@@ -163,58 +252,129 @@ export default function EventBoothTab({
       {/* 목록 모드 */}
       {mode === "list" && (
         <>
-          {/* 푸드트럭/체험부스 세그먼트 */}
           <View style={styles.segmentContainer}>
             <Pressable
-              style={[styles.segmentItem, boothType === "food" && styles.segmentItemActive]}
+              style={[
+                styles.segmentItem,
+                boothType === "food" && styles.segmentItemActive,
+              ]}
               onPress={() => setBoothType("food")}
             >
-              <Text style={[styles.segmentText, boothType === "food" && styles.segmentTextActive]}>푸드트럭</Text>
+              <Text
+                style={[
+                  styles.segmentText,
+                  boothType === "food" && styles.segmentTextActive,
+                ]}
+              >
+                푸드트럭
+              </Text>
             </Pressable>
+
             <Pressable
-              style={[styles.segmentItem, boothType === "experience" && styles.segmentItemActive]}
+              style={[
+                styles.segmentItem,
+                boothType === "experience" && styles.segmentItemActive,
+              ]}
               onPress={() => setBoothType("experience")}
             >
-              <Text style={[styles.segmentText, boothType === "experience" && styles.segmentTextActive]}>체험부스</Text>
+              <Text
+                style={[
+                  styles.segmentText,
+                  boothType === "experience" && styles.segmentTextActive,
+                ]}
+              >
+                체험부스
+              </Text>
             </Pressable>
           </View>
+
           <View style={styles.listWrapper}>
             {booths.length === 0 ? (
-              <Text style={styles.emptyText}>등록된 부스가 없습니다.</Text>
+              <View style={styles.emptyCard}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={22}
+                  color="#9CA3AF"
+                />
+                <Text style={styles.emptyText}>등록된 부스가 없습니다.</Text>
+              </View>
             ) : (
-              booths.map((booth) => (
-                <Pressable
-                  key={booth.id}
-                  style={styles.boothCard}
-                  onPress={() => setSelectedBooth(booth)}
-                >
-                  <View style={[
-                    styles.iconPlaceholder,
-                    boothType === "food"
-                      ? { backgroundColor: "#FEF0E6" }
-                      : { backgroundColor: "#EBF3FB" },
-                  ]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.boothName}>{booth.name}</Text>
-                    <Text style={styles.boothLocation}>{booth.locationLabel ?? ""}</Text>
-                  </View>
-                  {eventId != null ? (
-                    <Pressable
-                      hitSlop={8}
-                      onPress={(e) => { e.stopPropagation?.(); handleToggleFavorite(booth); }}
-                      style={styles.starButton}
+              booths.map((booth) => {
+                const visual = getBoothVisual(booth, boothType);
+                const isFood = boothType === "food";
+
+                return (
+                  <Pressable
+                    key={booth.id}
+                    style={styles.boothCard}
+                    onPress={() => setSelectedBooth(booth)}
+                  >
+                    <View
+                      style={[
+                        styles.iconPlaceholder,
+                        isFood
+                          ? styles.foodIconPlaceholder
+                          : styles.expIconPlaceholder,
+                      ]}
                     >
                       <Ionicons
-                        name={isFavorite(booth) ? "star" : "star-outline"}
-                        size={24}
-                        color={isFavorite(booth) ? "#EAB308" : "#D1D5DB"}
+                        name={visual.icon}
+                        size={22}
+                        color={isFood ? "#B85721" : "#2F63A7"}
                       />
-                    </Pressable>
-                  ) : (
-                    <Ionicons name="star-outline" size={24} color="#D1D5DB" />
-                  )}
-                </Pressable>
-              ))
+                    </View>
+
+                    <View style={styles.boothTextArea}>
+                      <Text style={styles.boothName} numberOfLines={1}>
+                        {booth.name}
+                      </Text>
+
+                      <View style={styles.boothMetaRow}>
+                        <Text
+                          style={[
+                            styles.categoryChip,
+                            isFood
+                              ? styles.foodCategoryChip
+                              : styles.expCategoryChip,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {visual.label}
+                        </Text>
+
+                        {!!booth.locationLabel && (
+                          <Text style={styles.boothLocation} numberOfLines={1}>
+                            {booth.locationLabel}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {eventId != null ? (
+                      <Pressable
+                        hitSlop={8}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          handleToggleFavorite(booth);
+                        }}
+                        style={styles.starButton}
+                      >
+                        <Ionicons
+                          name={isFavorite(booth) ? "star" : "star-outline"}
+                          size={22}
+                          color={isFavorite(booth) ? "#EAB308" : "#D1D5DB"}
+                        />
+                      </Pressable>
+                    ) : (
+                      <Ionicons
+                        name="star-outline"
+                        size={22}
+                        color="#D1D5DB"
+                      />
+                    )}
+                  </Pressable>
+                );
+              })
             )}
           </View>
         </>
@@ -226,7 +386,9 @@ export default function EventBoothTab({
         booth={selectedBooth}
         eventId={eventId}
         isFavorite={selectedBooth ? isFavorite(selectedBooth) : false}
-        onToggleFavorite={selectedBooth ? () => handleToggleFavorite(selectedBooth) : undefined}
+        onToggleFavorite={
+          selectedBooth ? () => handleToggleFavorite(selectedBooth) : undefined
+        }
         onClose={() => setSelectedBooth(null)}
       />
     </View>
@@ -234,50 +396,62 @@ export default function EventBoothTab({
 }
 
 const styles = StyleSheet.create({
-  modeToggleRow: {
+  container: {
+    paddingBottom: 8,
+  },
+
+  modeToggleWrap: {
     flexDirection: "row",
-    gap: 6,
+    gap: 8,
     marginTop: 12,
-    marginBottom: 8,
+    marginBottom: 10,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 14,
+    padding: 4,
   },
   modeToggleBtn: {
     flex: 1,
-    paddingVertical: 7,
-    borderRadius: 8,
+    minHeight: 42,
+    borderRadius: 11,
     alignItems: "center",
-    backgroundColor: "#F3F4F6",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
   },
   modeToggleBtnActive: {
     backgroundColor: "#111827",
-    borderColor: "#111827",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
   },
   modeToggleText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#6B7280",
   },
   modeToggleTextActive: {
     color: "#FFFFFF",
   },
+
   segmentContainer: {
     flexDirection: "row",
-    backgroundColor: "#f3f3f3",
+    backgroundColor: "#F3F4F6",
     borderRadius: 999,
     padding: 4,
-    marginTop: 12,
-    marginBottom: 20,
+    marginTop: 4,
+    marginBottom: 16,
   },
   segmentItem: {
     flex: 1,
     borderRadius: 999,
-    paddingVertical: 8,
+    paddingVertical: 9,
     alignItems: "center",
     justifyContent: "center",
   },
   segmentItemActive: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 1 },
@@ -286,62 +460,99 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     fontSize: 13,
-    color: "#777",
+    fontWeight: "600",
+    color: "#6B7280",
   },
   segmentTextActive: {
-    fontWeight: "bold",
-    color: "#111",
+    color: "#111827",
   },
+
   listWrapper: {
-    gap: 8,
+    gap: 10,
   },
   boothCard: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#ffffff",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#e5e5e5",
+    borderColor: "#E5E7EB",
   },
   iconPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 15,
     marginRight: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  foodIconPlaceholder: {
+    backgroundColor: "#FFF2EA",
+    borderColor: "#FFD6BE",
+  },
+  expIconPlaceholder: {
+    backgroundColor: "#EEF5FF",
+    borderColor: "#CFE1FA",
+  },
+  boothTextArea: {
+    flex: 1,
+    minWidth: 0,
   },
   boothName: {
     fontSize: 14,
-    fontWeight: "bold",
-    marginBottom: 2,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 6,
+  },
+  boothMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+  },
+  categoryChip: {
+    overflow: "hidden",
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    fontSize: 10,
+    fontWeight: "800",
+    maxWidth: 104,
+  },
+  foodCategoryChip: {
+    backgroundColor: "#FFE7D8",
+    color: "#B85721",
+  },
+  expCategoryChip: {
+    backgroundColor: "#E8F1FD",
+    color: "#2F63A7",
   },
   boothLocation: {
+    flex: 1,
     fontSize: 12,
-    color: "#777",
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    textAlign: "center",
-    paddingVertical: 24,
+    color: "#6B7280",
   },
   starButton: {
     marginLeft: 8,
     padding: 4,
   },
-  bottomButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: "#111111",
+
+  emptyCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
-  bottomButtonText: {
-    color: "#ffffff",
+  emptyText: {
     fontSize: 14,
-    fontWeight: "bold",
-  },
-  mapContainer: {
-    flex: 1,
+    color: "#9CA3AF",
+    textAlign: "center",
   },
 });
