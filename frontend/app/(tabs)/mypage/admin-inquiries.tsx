@@ -68,7 +68,7 @@ export default function AdminInquiriesScreen() {
   if (error) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.errorText}>{error && !error.includes("<html") && !error.includes("<!DOCTYPE") ? error : null}</Text>
       </View>
     );
   }

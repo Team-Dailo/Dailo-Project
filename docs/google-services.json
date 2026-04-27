@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "681600864603",
+    "project_id": "dailo-48088",
+    "storage_bucket": "dailo-48088.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:681600864603:android:e11bee0223f5ff7c00ca7e",
+        "android_client_info": {
+          "package_name": "com.knut.dailo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAc6Wd3SsbhygYh-wR06EGnp15-H7moizE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

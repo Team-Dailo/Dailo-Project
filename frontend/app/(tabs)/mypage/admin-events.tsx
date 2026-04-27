@@ -172,7 +172,7 @@ export default function AdminEventsScreen() {
           </Pressable>
         </View>
       ) : null}
-      {error ? (
+      {error && !error.includes("<html") && !error.includes("<!DOCTYPE") ? (
         <Text style={styles.error}>{error}</Text>
       ) : null}
       {page.content.length === 0 ? (
