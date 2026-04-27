@@ -42,7 +42,8 @@ public class S3UploadService {
             throw new IllegalArgumentException("허용되지 않는 파일 형식입니다. (jpg, jpeg, png, gif, webp만 가능)");
         }
 
-        String key = directory + "/" + UUID.randomUUID() + "." + extension;
+        // CloudFront /static/* → S3 키 매칭을 위해 static/ 접두사 포함
+        String key = "static/" + directory + "/" + UUID.randomUUID() + "." + extension;
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucket)
@@ -58,6 +59,16 @@ public class S3UploadService {
 
         log.info("S3 업로드 완료: {}", key);
         return key;
+    }
+
+    public String resolveUrl(String value) {
+        if (value == null || value.isBlank()) return null;
+        if (value.startsWith("http://") || value.startsWith("https://")) return value;
+        if (value.startsWith("/")) return value;
+        // static/ 접두사가 포함된 키 → /static/... 경로로 변환 (CloudFront → S3 직접 매칭)
+        if (value.startsWith("static/")) return "/" + value;
+        // 레거시 키(접두사 없음) → presigned URL 폴백
+        return getPresignedUrl(value);
     }
 
     public String getPresignedUrl(String key) {
