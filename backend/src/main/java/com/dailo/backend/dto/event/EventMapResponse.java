@@ -31,6 +31,9 @@ public class EventMapResponse {
     /** 좋아요 수 (인기순 목록 표시용) */
     private Integer likeCount;
 
+    /** 축제 구역 다각형 JSON ([{"lat":36.99,"lng":127.92},...]) - null이면 반경 200m 원형 */
+    private String zonePolygon;
+
     public static EventMapResponse from(Event event) {
         return from(event, event.getLikeCount() != null ? event.getLikeCount().longValue() : 0L);
     }
@@ -57,6 +60,7 @@ public class EventMapResponse {
                 .regionName(event.getRegionName())
                 .filterGroup(event.getFilterGroup())
                 .likeCount((int) Math.min(likeCount, Integer.MAX_VALUE))
+                .zonePolygon(event.getZonePolygon())
                 .build();
     }
 }

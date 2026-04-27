@@ -174,6 +174,7 @@ type EventMapResponseItem = {
   placeAddress?: string | null;
   regionName?: string | null;
   likeCount?: number | null;
+  zonePolygon?: string | null;
 };
 
 function filterGroupToScale(fg: string | null | undefined): EventScale {
@@ -204,6 +205,7 @@ function eventMapItemToEvent(item: EventMapResponseItem): Event {
     thumbnailUrl: item.thumbnailUrl ?? undefined,
     isBookmarked: false,
     likeCount: item.likeCount ?? 0,
+    zonePolygon: item.zonePolygon ?? null,
   };
 }
 

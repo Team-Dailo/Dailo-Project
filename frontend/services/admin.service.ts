@@ -69,6 +69,8 @@ export type AdminEventResponse = {
   adminManaged?: boolean;
   /** 소식/타임테이블/부스 JSON */
   extraJson?: string | null;
+  /** 축제 구역 다각형 JSON ([{"lat":36.99,"lng":127.92},...]) */
+  zonePolygon?: string | null;
 };
 
 export type AdminEventCreateRequest = {
@@ -89,6 +91,8 @@ export type AdminEventCreateRequest = {
   description?: string | null;
   hostContact?: string | null;
   extraJson?: string | null;
+  /** 축제 구역 다각형 JSON ([{"lat":36.99,"lng":127.92},...]) - null이면 반경 200m 원형 */
+  zonePolygon?: string | null;
 };
 
 export type ReportResponseDto = {

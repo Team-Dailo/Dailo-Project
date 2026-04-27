@@ -66,7 +66,7 @@ import {
 } from '../../../services/staySessionSync';
 import * as scrapService from '../../../services/scrap.service';
 import { useFestivalParticipation } from '../../../hooks/useFestivalParticipation';
-import { distanceKm } from '../../../utils/geo';
+import { distanceKm, pointInPolygon } from '../../../utils/geo';
 import { getBusStopsInBounds, type BusStop } from '../../../services/bus.service';
 import { BusStopBottomSheet } from './_components/BusStopBottomSheet';
 import FestivalSurveyModal from '../../../components/FestivalSurveyModal';
@@ -264,9 +264,22 @@ export default function MapScreen() {
 
   const participationBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /** 축제 구역 진입/이탈 판정 반경 (km). 이 거리 이내면 "참여 중" */
-  /** 축제 구역 인식 반경: 200m (마커 선택 시 표시되는 빨간 원과 동일) */
+  /** 축제 구역 인식 반경: 200m (zonePolygon 없을 때 폴백) */
   const ZONE_RADIUS_KM = 0.2;
+
+  /** 내 위치가 행사 구역 안에 있는지 판정 (다각형 있으면 polygon, 없으면 반경 200m) */
+  const isInFestivalZone = useCallback(
+    (myLat: number, myLng: number, event: Event): boolean => {
+      if (event.zonePolygon) {
+        try {
+          const poly: { lat: number; lng: number }[] = JSON.parse(event.zonePolygon);
+          if (poly.length >= 3) return pointInPolygon(myLat, myLng, poly);
+        } catch { /* ignore, fall through to circle */ }
+      }
+      return distanceKm(myLat, myLng, event.latitude, event.longitude) <= ZONE_RADIUS_KM;
+    },
+    []
+  );
 
   /** 행사 일정 중인지 (오늘이 startAt~endAt 사이인지). 일정 중일 때만 축제 참여로 인정 */
   const isEventCurrentlyScheduled = useCallback((e: Event) => {
@@ -461,7 +474,7 @@ export default function MapScreen() {
       Number.isFinite(e.latitude) &&
       Number.isFinite(e.longitude) &&
       (e.latitude !== 0 || e.longitude !== 0) &&
-      distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= ZONE_RADIUS_KM;
+      isInFestivalZone(myPos.latitude, myPos.longitude, e);
 
     // 1) 지도에 이미 나와 있는 행사(events)로 바로 참여/비참여 판정 (단, 새로고침 직후에는 아래에서 현재 위치 기준 재조회)
     if (events.length > 0 && !forceZoneFetchAfterRefreshRef.current) {
@@ -504,24 +517,17 @@ export default function MapScreen() {
         if (!entry) return;
         const elat = entry.eventLat;
         const elng = entry.eventLng;
-        const km =
-          elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
-            ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
-            : Infinity;
-        const inZone = km <= ZONE_RADIUS_KM;
+        const missingCoords = elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng);
         const participatingEvent = events.find((e) => String(e.id) === String(entry.eventId));
+        const inZone = participatingEvent
+          ? isInFestivalZone(myPos.latitude, myPos.longitude, participatingEvent)
+          : (!missingCoords && distanceKm(myPos.latitude, myPos.longitude, elat!, elng!) <= ZONE_RADIUS_KM);
         const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
         /** 목록에 참여 행사가 안 잡히면(줌/바운드) 거리만으로 막히지 않게 이탈 후보로 본다 */
-        const shouldClear =
-          km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule) || participatingEvent == null;
+        const shouldClear = !inZone || (inZone && eventOutOfSchedule) || participatingEvent == null;
         if (shouldClear) {
-          const missingCoords =
-            elat == null ||
-            elng == null ||
-            !Number.isFinite(elat) ||
-            !Number.isFinite(elng);
           const mode: 'left_zone' | 'schedule_ended' =
-            missingCoords || km > ZONE_RADIUS_KM || participatingEvent == null ? 'left_zone' : 'schedule_ended';
+            missingCoords || !inZone || participatingEvent == null ? 'left_zone' : 'schedule_ended';
           void finalizeParticipationExit(
             entry,
             { latitude: myPos.latitude, longitude: myPos.longitude },
@@ -551,7 +557,7 @@ export default function MapScreen() {
             Number.isFinite(e.latitude) &&
             Number.isFinite(e.longitude) &&
             (e.latitude !== 0 || e.longitude !== 0) &&
-            distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= ZONE_RADIUS_KM
+            isInFestivalZone(myPos.latitude, myPos.longitude, e)
         );
         if (firstInRange != null) {
           setIsFestivalActive(true);
@@ -595,23 +601,16 @@ export default function MapScreen() {
             if (!entry) return;
             const elat = entry.eventLat;
             const elng = entry.eventLng;
-            const km =
-              elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
-                ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
-                : Infinity;
-            const inZone = km <= ZONE_RADIUS_KM;
+            const missingCoords = elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng);
             const participatingEvent = list.find((e) => String(e.id) === String(entry.eventId));
+            const inZone = participatingEvent
+              ? isInFestivalZone(myPos.latitude, myPos.longitude, participatingEvent)
+              : (!missingCoords && distanceKm(myPos.latitude, myPos.longitude, elat!, elng!) <= ZONE_RADIUS_KM);
             const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
-            const shouldClear =
-              km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule) || participatingEvent == null;
+            const shouldClear = !inZone || (inZone && eventOutOfSchedule) || participatingEvent == null;
             if (shouldClear) {
-              const missingCoords =
-                elat == null ||
-                elng == null ||
-                !Number.isFinite(elat) ||
-                !Number.isFinite(elng);
               const mode: 'left_zone' | 'schedule_ended' =
-                missingCoords || km > ZONE_RADIUS_KM || participatingEvent == null ? 'left_zone' : 'schedule_ended';
+                missingCoords || !inZone || participatingEvent == null ? 'left_zone' : 'schedule_ended';
               void finalizeParticipationExit(
                 entry,
                 { latitude: myPos.latitude, longitude: myPos.longitude },
@@ -654,7 +653,7 @@ export default function MapScreen() {
         Number.isFinite(e.latitude) &&
         Number.isFinite(e.longitude) &&
         (e.latitude !== 0 || e.longitude !== 0) &&
-        distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= ZONE_RADIUS_KM
+        isInFestivalZone(myPos.latitude, myPos.longitude, e)
     );
     const inRange = firstInRange != null;
     if (inRange) {
@@ -694,24 +693,16 @@ export default function MapScreen() {
         }
         const elat = entry.eventLat;
         const elng = entry.eventLng;
-        const km = elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
-          ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
-          : Infinity;
-        const inZone = km <= ZONE_RADIUS_KM;
+        const missingCoords = elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng);
         const participatingEvent = eventsToCheck.find((e) => String(e.id) === String(entry.eventId));
+        const inZone = participatingEvent
+          ? isInFestivalZone(myPos.latitude, myPos.longitude, participatingEvent)
+          : (!missingCoords && distanceKm(myPos.latitude, myPos.longitude, elat!, elng!) <= ZONE_RADIUS_KM);
         const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
-        const shouldClear =
-          elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng)
-            ? true
-            : km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule) || participatingEvent == null;
+        const shouldClear = missingCoords ? true : !inZone || (inZone && eventOutOfSchedule) || participatingEvent == null;
         if (shouldClear) {
-          const missingCoords =
-            elat == null ||
-            elng == null ||
-            !Number.isFinite(elat) ||
-            !Number.isFinite(elng);
           const mode: 'left_zone' | 'schedule_ended' =
-            missingCoords || km > ZONE_RADIUS_KM || participatingEvent == null ? 'left_zone' : 'schedule_ended';
+            missingCoords || !inZone || participatingEvent == null ? 'left_zone' : 'schedule_ended';
           void finalizeParticipationExit(
             entry,
             { latitude: myPos.latitude, longitude: myPos.longitude },
@@ -729,6 +720,7 @@ export default function MapScreen() {
     refreshFestivalParticipation,
     festivalEntry,
     isEventCurrentlyScheduled,
+    isInFestivalZone,
     finalizeParticipationExit,
   ]);
 

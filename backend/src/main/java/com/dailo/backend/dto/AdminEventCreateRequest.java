@@ -53,4 +53,7 @@ public class AdminEventCreateRequest {
 
     /** 소식/타임테이블/푸드트럭/축제부스 JSON (행사 상세 탭 표시용) */
     private String extraJson;
+
+    /** 축제 구역 다각형 JSON ([{"lat":36.99,"lng":127.92},...]) - null이면 반경 200m 원형 */
+    private String zonePolygon;
 }

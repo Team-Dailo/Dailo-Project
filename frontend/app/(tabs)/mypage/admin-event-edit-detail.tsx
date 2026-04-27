@@ -33,6 +33,11 @@ import {
   clearPickedLocation,
 } from "../../../services/eventLocationPickStore";
 import {
+  getZonePickResult,
+  clearZonePickResult,
+  setZonePickRequest,
+} from "../../../services/festivalZonePickStore";
+import {
   parseValue as parseDateTimeValue,
   toISOSlice as toDateTimeISOSlice,
   NativeDateTimePicker,
@@ -214,7 +219,9 @@ export default function AdminEventEditDetailScreen() {
 
   const [uploading, setUploading] = useState(false);
   const [detailSettingsExpanded, setDetailSettingsExpanded] = useState(false);
+  const [zonePolygon, setZonePolygon] = useState<string | null>(null);
   const openedLocationPickerRef = useRef(false);
+  const openedZonePickerRef = useRef(false);
 
   /** 2일 이상 행사일 때 타임테이블 날짜 선택용 일자 라벨 배열 */
   const eventDayLabels = useMemo(
@@ -270,6 +277,12 @@ export default function AdminEventEditDetailScreen() {
           if (addr) setPlaceAddress(addr);
         });
       }
+      const zoneResult = getZonePickResult();
+      if (openedZonePickerRef.current && zoneResult) {
+        setZonePolygon(JSON.stringify(zoneResult.polygon));
+        clearZonePickResult();
+        openedZonePickerRef.current = false;
+      }
     }, [])
   );
 
@@ -321,6 +334,7 @@ export default function AdminEventEditDetailScreen() {
       if (extra.timeline?.[0]?.dateLabel) {
         setTimelineDateLabel(extra.timeline[0].dateLabel);
       }
+      setZonePolygon(res.zonePolygon ?? null);
     } catch {
       Alert.alert("오류", "행사 정보를 불러올 수 없습니다.");
     } finally {
@@ -389,6 +403,7 @@ export default function AdminEventEditDetailScreen() {
         description: description.trim() || undefined,
         hostContact: hostContact.trim() || undefined,
         extraJson: extraJson ?? "{}",
+        zonePolygon: zonePolygon || undefined,
       };
       if (isEdit && eventId != null) {
         await adminService.updateAdminEvent(eventId, body);
@@ -547,6 +562,34 @@ export default function AdminEventEditDetailScreen() {
                 </Text>
                 <Ionicons name="pencil" size={14} color="#9CA3AF" />
               </Pressable>
+              {/* 축제 구역 편집 */}
+              <View style={styles.infoRow}>
+                <Ionicons name="map-outline" size={18} color="#6B7280" style={styles.infoIcon} />
+                <Text style={[styles.infoText, { flex: 1 }]} numberOfLines={1}>
+                  {zonePolygon
+                    ? (() => { try { return `구역 설정됨 (꼭짓점 ${JSON.parse(zonePolygon).length}개)`; } catch { return '구역 설정됨'; } })()
+                    : '축제 구역 미설정 (기본 200m 원형)'}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    const lat = latitude.trim() ? Number(latitude) : 36.991;
+                    const lng = longitude.trim() ? Number(longitude) : 127.926;
+                    let parsedPolygon = null;
+                    if (zonePolygon) { try { parsedPolygon = JSON.parse(zonePolygon); } catch { /* ignore */ } }
+                    setZonePickRequest({ centerLat: lat, centerLng: lng, polygon: parsedPolygon });
+                    openedZonePickerRef.current = true;
+                    router.push('/(tabs)/mypage/festival-zone-picker');
+                  }}
+                  style={styles.zonePillBtn}
+                >
+                  <Text style={styles.zonePillBtnText}>구역 편집</Text>
+                </Pressable>
+                {zonePolygon && (
+                  <Pressable onPress={() => setZonePolygon(null)} style={[styles.zonePillBtn, { backgroundColor: '#FEE2E2', marginLeft: 4 }]}>
+                    <Text style={[styles.zonePillBtnText, { color: '#DC2626' }]}>초기화</Text>
+                  </Pressable>
+                )}
+              </View>
               <Pressable style={styles.infoRow} onPress={() => setEditTarget({ type: "categories" })}>
                 <Ionicons name="pricetag-outline" size={18} color="#6B7280" style={styles.infoIcon} />
                 <Text style={styles.infoText} numberOfLines={1}>
@@ -1660,6 +1703,8 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: "row", alignItems: "center", minHeight: 24 },
   infoIcon: { marginRight: 10, width: 18 },
   infoText: { flex: 1, fontSize: 14, color: "#374151" },
+  zonePillBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: "#DBEAFE" },
+  zonePillBtnText: { fontSize: 12, color: "#1D4ED8", fontWeight: "600" },
   tabsWrapper: { backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: "#eee" },
   body: { paddingHorizontal: 16, paddingTop: 20 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
