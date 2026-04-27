@@ -251,6 +251,8 @@ export default function MapScreen() {
   const [participationExitBanner, setParticipationExitBanner] = useState<{ eventTitle: string } | null>(null);
   const [surveyModalVisible, setSurveyModalVisible] = useState(false);
   const surveyShownForEventRef = useRef<string | null>(null);
+  const [surveyLaterToast, setSurveyLaterToast] = useState(false);
+  const surveyLaterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 참여 완료 시 설문 모달 자동 팝업
   useEffect(() => {
@@ -1386,8 +1388,25 @@ export default function MapScreen() {
           eventId={festivalEntry.eventId}
           eventTitle={festivalEntry.eventTitle ?? ''}
           onClose={() => setSurveyModalVisible(false)}
+          onLater={() => {
+            if (surveyLaterTimerRef.current) clearTimeout(surveyLaterTimerRef.current);
+            setSurveyLaterToast(true);
+            surveyLaterTimerRef.current = setTimeout(() => setSurveyLaterToast(false), 5000);
+          }}
           onSubmitted={() => setSurveyModalVisible(false)}
         />
+      )}
+      {surveyLaterToast && (
+        <Pressable
+          style={styles.surveyLaterToast}
+          onPress={() => setSurveyLaterToast(false)}
+        >
+          <Ionicons name="information-circle-outline" size={18} color="#7C3AED" />
+          <Text style={styles.surveyLaterToastText}>
+            마이페이지에서 언제든지 설문에 참여하실 수 있어요
+          </Text>
+          <Ionicons name="close" size={15} color="#9CA3AF" />
+        </Pressable>
       )}
       {/* 지도 영역: 전체를 채우고, 그 위에 헤더·필터칩·버튼이 오버레이 */}
       <View style={styles.mapArea}>
@@ -2124,6 +2143,31 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
+  surveyLaterToast: {
+    position: 'absolute',
+    bottom: 96,
+    left: 16,
+    right: 16,
+    backgroundColor: '#EDE9FE',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  surveyLaterToastText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#5B21B6',
+    fontWeight: '500',
+  },
 
   sheetWrapper: {
     position: 'absolute',
