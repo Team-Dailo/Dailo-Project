@@ -291,10 +291,10 @@ export async function uploadAdminEventImage(imageUri: string): Promise<string> {
     body: formData,
   });
   if (!res.ok) throw new Error(await res.text().then((t) => t || `업로드 실패 (${res.status})`));
-  const data = (await res.json()) as { path?: string };
-  const path = data?.path ?? '';
-  if (!path) throw new Error('업로드 응답에 path가 없습니다.');
-  return `${API_BASE_URL}${path}`;
+  const data = (await res.json()) as { path?: string; url?: string; key?: string };
+  const url = data?.url ?? data?.path ?? '';
+  if (!url) throw new Error('업로드 응답에 url이 없습니다.');
+  return url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
 }
 
 // --- 신고 처리 (AdminReportController) ---
