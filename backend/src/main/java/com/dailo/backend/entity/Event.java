@@ -53,7 +53,7 @@ public class Event {
     @Column(name = "end_at")
     private LocalDateTime endAt;
 
-    @Column(length = 255)
+    @Column(length = 1000)
     private String thumbnailUrl;
 
     @ElementCollection(targetClass = EventCategory.class)
