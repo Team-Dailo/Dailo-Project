@@ -32,6 +32,7 @@ public class AdminEventService {
     private final EventHistoryRepository eventHistoryRepository;
     private final EventLikeRepository eventLikeRepository;
     private final ClickLogRepository clickLogRepository;
+    private final S3UploadService s3UploadService;
 
     // 행사 생성
     @Transactional // 쓰기 모드
@@ -122,17 +123,42 @@ public class AdminEventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 행사를 찾을 수 없습니다. id=" + eventId));
 
-        return AdminEventResponse.from(event);
+        return resolveThumb(AdminEventResponse.from(event));
     }
 
     // 행사 목록 조회 (페이징, 키워드 없으면 전체)
     public Page<AdminEventResponse> getEventList(Pageable pageable, String keyword) {
         if (keyword != null && !keyword.isBlank()) {
             return eventRepository.searchByKeywordAdmin(keyword.trim(), pageable)
-                    .map(AdminEventResponse::from);
+                    .map(AdminEventResponse::from)
+                    .map(this::resolveThumb);
         }
         return eventRepository.findAll(pageable)
-                .map(AdminEventResponse::from);
+                .map(AdminEventResponse::from)
+                .map(this::resolveThumb);
+    }
+
+    private AdminEventResponse resolveThumb(AdminEventResponse r) {
+        return AdminEventResponse.builder()
+                .id(r.getId())
+                .title(r.getTitle())
+                .placeName(r.getPlaceName())
+                .placeAddress(r.getPlaceAddress())
+                .regionName(r.getRegionName())
+                .latitude(r.getLatitude())
+                .longitude(r.getLongitude())
+                .startAt(r.getStartAt())
+                .endAt(r.getEndAt())
+                .categories(r.getCategories())
+                .status(r.getStatus())
+                .filterGroup(r.getFilterGroup())
+                .thumbnailKey(r.getThumbnailKey())
+                .thumbnailUrl(s3UploadService.resolveUrl(r.getThumbnailKey()))
+                .description(r.getDescription())
+                .hostContact(r.getHostContact())
+                .isAdminManaged(r.isAdminManaged())
+                .extraJson(r.getExtraJson())
+                .build();
     }
 
     /** 행사별 좋아요 수 (관리자용) - 좋아요 많은 순 */
