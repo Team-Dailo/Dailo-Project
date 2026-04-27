@@ -239,6 +239,14 @@ export default function AdminEventEditDetailScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
+      // 존 픽커 결과 (위치 픽커 결과와 독립적으로 처리)
+      const zoneResult = getZonePickResult();
+      if (openedZonePickerRef.current && zoneResult) {
+        setZonePolygon(JSON.stringify(zoneResult.polygon));
+        clearZonePickResult();
+        openedZonePickerRef.current = false;
+      }
+
       const picked = getPickedLocation();
       if (!picked) return;
       if (picked.forArea === "food" || picked.forArea === "experience") {
@@ -276,12 +284,6 @@ export default function AdminEventEditDetailScreen() {
         reverseGeocode(picked.latitude, picked.longitude).then((addr) => {
           if (addr) setPlaceAddress(addr);
         });
-      }
-      const zoneResult = getZonePickResult();
-      if (openedZonePickerRef.current && zoneResult) {
-        setZonePolygon(JSON.stringify(zoneResult.polygon));
-        clearZonePickResult();
-        openedZonePickerRef.current = false;
       }
     }, [])
   );
