@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.knut.dailo",
       "buildNumber": "9",
-      "usesAppleSignIn": true,
+      "usesAppleSignIn": false,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "축제 위치 확인 및 체류 인증을 위해 위치 정보가 필요합니다.",
@@ -85,8 +85,7 @@
           "ios": { "handleKakaoOpenUrl": true }
         }
       ],
-      "expo-notifications",
-      "expo-apple-authentication"
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,

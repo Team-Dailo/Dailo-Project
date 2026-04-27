@@ -1,5 +1,6 @@
 package com.dailo.backend.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +35,18 @@ public class S3UploadService {
     @Value("${cloud.aws.s3.presigned-url-expiration-minutes}")
     private int presignedUrlExpirationMinutes;
 
+    @Value("${app.upload.static-base-path:/static}")
+    private String staticBasePath;
+
+    private String normalizedStaticBase;
+
+    @PostConstruct
+    void initStaticBase() {
+        normalizedStaticBase = staticBasePath.endsWith("/")
+                ? staticBasePath.substring(0, staticBasePath.length() - 1)
+                : staticBasePath;
+    }
+
     public String upload(MultipartFile file, String directory) throws IOException {
         String originalFilename = file.getOriginalFilename();
         String extension = getExtension(originalFilename);
@@ -58,6 +71,13 @@ public class S3UploadService {
 
         log.info("S3 업로드 완료: {}", key);
         return key;
+    }
+
+    public String resolveUrl(String value) {
+        if (value == null || value.isBlank()) return null;
+        if (value.startsWith("http://") || value.startsWith("https://")) return value;
+        if (value.startsWith("/")) return value;
+        return normalizedStaticBase + "/" + value;
     }
 
     public String getPresignedUrl(String key) {

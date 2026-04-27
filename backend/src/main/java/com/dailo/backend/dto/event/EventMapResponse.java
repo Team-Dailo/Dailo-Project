@@ -40,6 +40,10 @@ public class EventMapResponse {
 
     /** 실제 좋아요 수(event_like 집계)를 넣을 때 사용 (지도/검색 응답) */
     public static EventMapResponse from(Event event, long likeCount) {
+        return from(event, likeCount, event.getThumbnailUrl());
+    }
+
+    public static EventMapResponse from(Event event, long likeCount, String resolvedThumbUrl) {
         String mainCategory = "ETC";
         if (event.getCategories() != null && !event.getCategories().isEmpty()) {
             mainCategory = event.getCategories().get(0).name();
@@ -51,7 +55,7 @@ public class EventMapResponse {
                 .latitude(event.getLatitude())
                 .longitude(event.getLongitude())
                 .category(mainCategory)
-                .thumbnailUrl(event.getThumbnailUrl())
+                .thumbnailUrl(resolvedThumbUrl)
                 .status(event.getStatus().name())
                 .startAt(event.getStartAt())
                 .endAt(event.getEndAt())
