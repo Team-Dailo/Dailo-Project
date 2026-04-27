@@ -169,7 +169,7 @@ export default function AdminPostsScreen() {
         })}
       </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={styles.error}>{error && !error.includes("<html") && !error.includes("<!DOCTYPE") ? error : null}</Text> : null}
 
       {page.content.length === 0 ? (
         <Text style={styles.empty}>해당하는 게시글이 없습니다.</Text>
