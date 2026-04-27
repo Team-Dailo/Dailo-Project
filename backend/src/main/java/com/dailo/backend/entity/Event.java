@@ -148,11 +148,13 @@ public class Event {
         this.longitude = longitude;
         this.startAt = startAt;
         this.endAt = endAt;
-        this.categories = categories;
+        this.categories.clear();
+        if (categories != null) this.categories.addAll(categories);
         this.status = status;
         this.thumbnailUrl = thumbnailUrl;
         if (posterUrls != null) {
-            this.posterUrls = new ArrayList<>(posterUrls);
+            this.posterUrls.clear();
+            this.posterUrls.addAll(posterUrls);
         }
         this.description = description;
         this.hostContact = hostContact;
