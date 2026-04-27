@@ -83,6 +83,10 @@ public class Event {
     @Column(name = "extra_json", columnDefinition = "TEXT")
     private String extraJson;
 
+    /** 축제 구역 다각형 좌표 JSON ([{"lat":36.99,"lng":127.92},...]) - null이면 반경 200m 원형 사용 */
+    @Column(name = "zone_polygon", columnDefinition = "TEXT")
+    private String zonePolygon;
+
     // --- 관리자 기능 및 감사(Audit) 필드 ---
 
     // 주최측 연락처
@@ -127,6 +131,7 @@ public class Event {
     public void setViewCount30d(Integer viewCount30d) { this.viewCount30d = viewCount30d != null ? viewCount30d : 0; }
 
     public void setExtraJson(String extraJson) { this.extraJson = extraJson; }
+    public void setZonePolygon(String zonePolygon) { this.zonePolygon = zonePolygon; }
 
     public void updateEvent(String title, String placeName, String placeAddress, String regionName,
                             Double latitude, Double longitude,
@@ -134,7 +139,7 @@ public class Event {
                             List<EventCategory> categories, EventStatus status,
                             String thumbnailUrl, List<String> posterUrls,
                             String description, String hostContact,
-                            String filterGroup) {
+                            String filterGroup, String zonePolygon) {
         this.title = title;
         this.placeName = placeName;
         this.placeAddress = placeAddress;
@@ -150,6 +155,7 @@ public class Event {
         this.description = description;
         this.hostContact = hostContact;
         this.filterGroup = filterGroup;
+        this.zonePolygon = zonePolygon;
         this.isAdminManaged = true;
     }
 }
