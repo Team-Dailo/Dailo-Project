@@ -27,6 +27,7 @@ public class AdminEventResponse {
     private EventStatus status;
     /** 규모(지도·달력 마커 색상): CHUNGJU_CITY, UNIVERSITY, STUDENT_COUNCIL, COLLEGE, CLUB — 관리자 화면·지도 표시 일치용 */
     private String filterGroup;
+    private String thumbnailKey;
     private String thumbnailUrl;
     private String description;
     private String hostContact;
@@ -48,7 +49,7 @@ public class AdminEventResponse {
                 .categories(event.getCategories())
                 .status(event.getStatus())
                 .filterGroup(event.getFilterGroup())
-                .thumbnailUrl(event.getThumbnailUrl())
+                .thumbnailKey(event.getThumbnailUrl())
                 .description(event.getDescription())
                 .hostContact(event.getHostContact())
                 .isAdminManaged(event.isAdminManaged())
