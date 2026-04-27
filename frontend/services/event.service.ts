@@ -225,7 +225,12 @@ export async function getEventsOnMap(params: {
   if (!res.ok) throw new Error(`events map failed: ${res.status}`);
   const data: EventMapResponseItem[] = await res.json();
   const list = data ?? [];
-  if (__DEV__) console.log('[Event API] map ok, count:', list.length);
+  if (__DEV__) {
+    console.log('[Event API] map ok, count:', list.length);
+    const withZone = list.filter(e => e.zonePolygon);
+    if (withZone.length > 0) console.log('[Event API] zonePolygon 있는 행사:', withZone.map(e => `${e.id}:${e.title}`));
+    else console.log('[Event API] zonePolygon 있는 행사 없음 (모두 null)');
+  }
   return list.map(eventMapItemToEvent);
 }
 

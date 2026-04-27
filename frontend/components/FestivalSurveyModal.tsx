@@ -20,10 +20,11 @@ type Props = {
   eventId: number;
   eventTitle: string;
   onClose: () => void;
+  onLater?: () => void;
   onSubmitted: () => void;
 };
 
-export default function FestivalSurveyModal({ visible, eventId, eventTitle, onClose, onSubmitted }: Props) {
+export default function FestivalSurveyModal({ visible, eventId, eventTitle, onClose, onLater, onSubmitted }: Props) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -130,7 +131,7 @@ export default function FestivalSurveyModal({ visible, eventId, eventTitle, onCl
               )}
             </Pressable>
 
-            <Pressable style={styles.laterBtn} onPress={onClose}>
+            <Pressable style={styles.laterBtn} onPress={() => { onLater?.(); onClose(); }}>
               <Text style={styles.laterBtnText}>나중에 하기</Text>
             </Pressable>
           </ScrollView>
