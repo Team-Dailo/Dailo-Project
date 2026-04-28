@@ -10,7 +10,8 @@
       "Bash(git -C /root/study/terraform-aws-modules diff v0.1.4..HEAD -- modules/ecs/main.tf)",
       "Bash(git *)",
       "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")",
-      "Bash(./gradlew compileJava)"
+      "Bash(./gradlew compileJava)",
+      "Bash(npx tsc *)"
     ]
   }
 }

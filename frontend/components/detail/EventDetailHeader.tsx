@@ -14,6 +14,8 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Modal,
+  StatusBar,
 } from "react-native";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
@@ -315,9 +317,28 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     scheduleReminder();
   };
 
+  const [posterFullscreen, setPosterFullscreen] = useState(false);
+
   return (
     <View style={styles.container}>
-      <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" />
+      <Pressable onPress={() => setPosterFullscreen(true)}>
+        <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" />
+      </Pressable>
+
+      <Modal
+        visible={posterFullscreen}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPosterFullscreen(false)}
+      >
+        <View style={styles.fullscreenOverlay}>
+          <Image source={{ uri: posterUri }} style={styles.fullscreenImage} resizeMode="contain" />
+          <Pressable style={styles.fullscreenClose} onPress={() => setPosterFullscreen(false)} hitSlop={10}>
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </Modal>
 
       <View style={[styles.iconRow, { top: insets.top + 4 }]}>
         <Pressable onPress={() => router.back()} style={styles.iconButton} hitSlop={10}>
@@ -544,5 +565,26 @@ const styles = StyleSheet.create({
   errorSub: {
     fontSize: 14,
     color: "#6B7280",
+  },
+  fullscreenOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullscreenImage: {
+    width: "100%",
+    height: "100%",
+  },
+  fullscreenClose: {
+    position: "absolute",
+    top: 48,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
