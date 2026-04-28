@@ -19,20 +19,12 @@ const BUS_STOP_MARKER = require('../../../../assets/images/bus-marker.png') as n
 const BUS_STOP_SIZE = 25;
 const MARKER_WIDTH = 36;
 const MARKER_HEIGHT = 48;
-// 바깥 테두리/흰색 바디용 스케일 (중심 기준으로 키움)
-const MARKER_BORDER_SCALE = 1.14;
-const MARKER_WHITE_SCALE = 1.10;
-// 그림자 영역을 위해 테두리 높이보다 조금 더 긴 컨테이너
+// 그림자 영역을 위해 마커보다 조금 더 긴 컨테이너
 const MARKER_SHADOW_EXTRA_HEIGHT = 6;
-const MARKER_CONTAINER_WIDTH = MARKER_WIDTH * MARKER_BORDER_SCALE;
-const MARKER_BORDER_HEIGHT = MARKER_HEIGHT * MARKER_BORDER_SCALE;
-const MARKER_CONTAINER_HEIGHT = MARKER_BORDER_HEIGHT + MARKER_SHADOW_EXTRA_HEIGHT;
-// 컨테이너 안에서 원본 마커 이미지를 "테두리 높이" 기준으로 가운데 배치
-const MARKER_IMAGE_LEFT = (MARKER_CONTAINER_WIDTH - MARKER_WIDTH) / 2;
-const MARKER_IMAGE_TOP = (MARKER_BORDER_HEIGHT - MARKER_HEIGHT) / 2;
-// 각 레이어를 얼마나 "위로" 올릴지 (px 단위 오프셋)
-const WHITE_MARKER_OFFSET_Y = 0.6;  // 가운데 흰색 마커
-const COLOR_MARKER_OFFSET_Y = 1.2;  // 맨 앞 컬러 마커 + 숫자
+const MARKER_CONTAINER_WIDTH = MARKER_WIDTH;
+const MARKER_CONTAINER_HEIGHT = MARKER_HEIGHT + MARKER_SHADOW_EXTRA_HEIGHT;
+const MARKER_IMAGE_LEFT = 0;
+const MARKER_IMAGE_TOP = 0;
 
 /** 규모(scale) → 마커 tint 색상 (규모 범례와 동일) */
 const SCALE_COLORS: Record<Event['scale'], string> = {
@@ -281,16 +273,6 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
                   </View>
                   <Image
                     source={MARKER_ICON}
-                    style={styles.markerPinImageBorder}
-                    resizeMode="contain"
-                  />
-                  <Image
-                    source={MARKER_ICON}
-                    style={styles.markerPinImageWhite}
-                    resizeMode="contain"
-                  />
-                  <Image
-                    source={MARKER_ICON}
                     style={[styles.markerPinImageEnded, { tintColor: scaleColor }]}
                     resizeMode="contain"
                   />
@@ -298,16 +280,6 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
               ) : (
                 <>
                   <View style={styles.markerBaseShadow} />
-                  <Image
-                    source={MARKER_ICON}
-                    style={styles.markerPinImageBorder}
-                    resizeMode="contain"
-                  />
-                  <Image
-                    source={MARKER_ICON}
-                    style={styles.markerPinImageWhite}
-                    resizeMode="contain"
-                  />
                   <Image
                     source={MARKER_ICON}
                     style={[styles.markerPinImage, { tintColor: scaleColor }]}
@@ -413,42 +385,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     includeFontPadding: false,
   },
-  markerPinImageBorder: {
-    width: MARKER_WIDTH,
-    height: MARKER_HEIGHT,
-    position: 'absolute',
-    left: MARKER_IMAGE_LEFT,
-    top: MARKER_IMAGE_TOP,
-    tintColor: '#D1D5DB', // 조금 더 진한 회색 외곽
-    transform: [{ scale: MARKER_BORDER_SCALE }],
-  },
-  markerPinImageWhite: {
-    width: MARKER_WIDTH,
-    height: MARKER_HEIGHT,
-    position: 'absolute',
-    left: MARKER_IMAGE_LEFT,
-    top: MARKER_IMAGE_TOP - WHITE_MARKER_OFFSET_Y,
-    tintColor: '#FFFFFF', // 안쪽 흰색
-    transform: [{ scale: MARKER_WHITE_SCALE }],
-  },
   markerPinImage: {
     width: MARKER_WIDTH,
     height: MARKER_HEIGHT,
     position: 'absolute',
     left: MARKER_IMAGE_LEFT,
-    top: MARKER_IMAGE_TOP - COLOR_MARKER_OFFSET_Y,
+    top: MARKER_IMAGE_TOP,
   },
   markerPinImageEnded: {
     position: 'absolute',
     left: MARKER_IMAGE_LEFT,
-    top: MARKER_IMAGE_TOP - COLOR_MARKER_OFFSET_Y,
+    top: MARKER_IMAGE_TOP,
     width: MARKER_WIDTH,
     height: MARKER_HEIGHT,
   },
   markerNumberWrap: {
     position: 'absolute',
     left: MARKER_IMAGE_LEFT,
-    top: MARKER_IMAGE_TOP - COLOR_MARKER_OFFSET_Y,
+    top: MARKER_IMAGE_TOP,
     width: MARKER_WIDTH,
     height: MARKER_WIDTH,
     justifyContent: 'center',

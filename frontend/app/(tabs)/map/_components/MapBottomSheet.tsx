@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
+  StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,6 +71,7 @@ export function MapBottomSheet({
   const [detailLoading, setDetailLoading] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [posterFullscreen, setPosterFullscreen] = useState(false);
 
   // expanded 모드 진입 시 상세 데이터 fetch + 북마크 초기화
   useEffect(() => {
@@ -268,7 +271,11 @@ export function MapBottomSheet({
           </View>
 
           {/* 미리보기: 행사 대표 포스터(상세 화면 헤더와 동일 우선순위) */}
-          <View style={styles.previewBox}>
+          <TouchableOpacity
+            style={styles.previewBox}
+            activeOpacity={0.85}
+            onPress={() => posterUri && setPosterFullscreen(true)}
+          >
             {detailLoading && !posterUri ? (
               <View style={styles.loadingSection}>
                 <ActivityIndicator size="small" color="#4C8BF5" />
@@ -280,7 +287,32 @@ export function MapBottomSheet({
                 resizeMode="cover"
               />
             )}
-          </View>
+          </TouchableOpacity>
+
+          {/* 포스터 전체화면 뷰어 */}
+          <Modal
+            visible={posterFullscreen}
+            transparent
+            animationType="fade"
+            statusBarTranslucent
+            onRequestClose={() => setPosterFullscreen(false)}
+          >
+            <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
+            <View style={styles.fullscreenOverlay}>
+              <Image
+                source={{ uri: posterUri ?? DEFAULT_POSTER_URI }}
+                style={styles.fullscreenImage}
+                resizeMode="contain"
+              />
+              <TouchableOpacity
+                style={styles.fullscreenClose}
+                onPress={() => setPosterFullscreen(false)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </Modal>
 
           {/* 하단 버튼 (길찾기 / 상세보기) */}
           <View style={styles.largeButtonRow}>
@@ -555,5 +587,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  fullscreenOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fullscreenClose: {
+    position: 'absolute',
+    top: 48,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

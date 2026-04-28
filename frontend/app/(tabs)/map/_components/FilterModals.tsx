@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 18,
+    marginBottom: 0,
   },
   dayCell: {
     width: '14.2857%',
@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
   dateActionsRow: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8,
+    marginTop: 0,
   },
   clearButton: {
     flex: 1,
