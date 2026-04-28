@@ -69,11 +69,11 @@ export default function EventDetailScreen() {
   }>();
   const { detail: event, loading, error, refetch: refetchDetail } = useEventDetail(id, source ?? "detail");
   const initialTab: TabKey =
-    tabParam === "booths"
-      ? "booths"
+    tabParam === "news"
+      ? "news"
       : tabParam === "timeline"
         ? "timeline"
-        : "news";
+        : "booths";
 
   const extra = useMemo(
     () => parseEventExtra(event?.extraJson ?? null),
