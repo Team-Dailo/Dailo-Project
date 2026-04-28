@@ -19,11 +19,8 @@ import {
   ImageBackground,
   FlatList,
   Image,
-<<<<<<< HEAD
   Platform,
   ToastAndroid,
-=======
->>>>>>> origin/main
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
