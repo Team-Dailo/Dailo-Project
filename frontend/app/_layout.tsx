@@ -4,11 +4,13 @@ import { AppState, BackHandler } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Notifications from 'expo-notifications';
 import { AuthProvider } from '../contexts/AuthContext';
 import { AuthDeepLinkHandler } from '../components/AuthDeepLinkHandler';
 import AppStartupPopupModal from '../components/AppStartupPopupModal';
 import { reconcileFestivalParticipationIfOutsideZone } from '../services/festivalParticipationReconcile';
 import { flushPendingStaySyncQueue } from '../services/staySessionSync';
+import { saveNotificationRecord } from '../services/notificationHistory.service';
 
 function getKakaoNativeAppKey(): string {
   const plugins = Constants.expoConfig?.plugins as [string, { nativeAppKey?: string }][] | undefined;
@@ -51,6 +53,19 @@ export default function RootLayout() {
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
   }, [segments, router]);
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener((notification) => {
+      const { title, body, data } = notification.request.content;
+      void saveNotificationRecord({
+        title: title ?? '',
+        body: body ?? '',
+        receivedAt: new Date().toISOString(),
+        eventId: data?.eventId as string | undefined,
+      });
+    });
+    return () => sub.remove();
+  }, []);
 
   // 체류 종료 대기 큐 → 구역 밖 재검증(지도 미오픈 시에도 서버·로컬 일치)
   useEffect(() => {
@@ -115,6 +130,8 @@ export default function RootLayout() {
         <Stack.Screen name="signup" options={{ headerShown: false }} />
         <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
+        <Stack.Screen name="notification-settings" options={{ headerShown: false }} />
+        <Stack.Screen name="notification-history" options={{ headerShown: false }} />
       </Stack>
     </AuthProvider>
   );

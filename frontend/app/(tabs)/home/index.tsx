@@ -6,6 +6,7 @@ import {
   ScrollView,
   View,
   Text,
+  Animated,
   Image,
   Pressable,
   StyleSheet,
@@ -79,6 +80,60 @@ function formatDday(startAt: string): string {
   if (d > 0) return `D-${d}`;
   if (d === 0) return "D-Day";
   return "종료";
+}
+
+function MarqueeBannerTitle({ text, style }: { text: string; style?: object }) {
+  const [containerW, setContainerW] = useState(0);
+  const [textW, setTextW] = useState(0);
+  const translateX = useRef(new Animated.Value(0)).current;
+  const anim = useRef<Animated.CompositeAnimation | null>(null);
+
+  const shouldScroll = containerW > 0 && textW > containerW + 2;
+
+  useEffect(() => {
+    anim.current?.stop();
+    translateX.setValue(0);
+    if (!shouldScroll) return;
+
+    const dist = textW - containerW + 24;
+    const duration = Math.round((dist / 48) * 1000); // 48 px/s
+
+    const run = () => {
+      anim.current = Animated.sequence([
+        Animated.delay(1400),
+        Animated.timing(translateX, { toValue: -dist, duration, useNativeDriver: true }),
+        Animated.delay(600),
+        Animated.timing(translateX, { toValue: 0, duration: 280, useNativeDriver: true }),
+      ]);
+      anim.current.start(({ finished }) => { if (finished) run(); });
+    };
+    run();
+    return () => { anim.current?.stop(); };
+  }, [shouldScroll, textW, containerW]);
+
+  return (
+    <View
+      style={{ overflow: 'hidden' }}
+      onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
+    >
+      {/* 실제 텍스트 너비 측정용 (절대 위치로 flex 제약 없이 자연 너비 계산) */}
+      <Text
+        style={[style as any, { position: 'absolute', opacity: 0 }]}
+        numberOfLines={1}
+        onLayout={(e) => setTextW(e.nativeEvent.layout.width)}
+        pointerEvents="none"
+      >
+        {text}
+      </Text>
+      <Animated.Text
+        style={[style as any, { transform: [{ translateX }] }]}
+        numberOfLines={1}
+        ellipsizeMode="clip"
+      >
+        {text}
+      </Animated.Text>
+    </View>
+  );
 }
 
 export default function HomeScreen() {
@@ -234,7 +289,7 @@ export default function HomeScreen() {
           <View style={styles.headerRight}>
             <Pressable
               style={styles.headerIconBtn}
-              onPress={() => router.push({ pathname: "/(tabs)/mypage/notification-settings", params: { from: "home" } })}
+              onPress={() => router.push('/notification-history' as any)}
             >
               <Ionicons
                 name="notifications-outline"
@@ -297,7 +352,7 @@ export default function HomeScreen() {
                         <Text style={styles.badgeText}>{formatDday(item.startAt)}</Text>
                       </View>
                       <View style={styles.bannerTextWrapper}>
-                        <Text style={styles.bannerTitle} numberOfLines={1}>{item.title}</Text>
+                        <MarqueeBannerTitle text={item.title} style={styles.bannerTitle} />
                         <Text style={styles.bannerSub} numberOfLines={1}>{item.placeName ?? "장소 미정"}</Text>
                       </View>
                     </Pressable>
@@ -598,6 +653,7 @@ const styles = StyleSheet.create({
   bannerTextWrapper: {
     position: "absolute",
     left: 16,
+    right: 16,
     bottom: 22,
   },
   bannerTitle: {

@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -206,13 +207,24 @@ public class LocationService {
         session.updateLocation(request.latitude(), request.longitude());
     }
 
-    /** 완료된 체류 세션 목록 */
+    /** 완료된 체류 세션 목록 + 구역 내 참여 완료(30분) 달성 중인 세션 */
     @Transactional(readOnly = true)
     public List<StaySessionResponseDto> getCompletedSessions(String principal) {
         Long memberId = getMemberByPrincipal(principal).getId();
-        List<StaySession> sessions = staySessionRepository
+
+        // 구역을 이탈해 종료된 세션
+        List<StaySession> completed = staySessionRepository
                 .findByMemberIdAndStatusOrderByEndTimeDesc(memberId, StayStatus.COMPLETED);
-        return sessions.stream()
+
+        // 아직 구역 안에 있지만 참여 완료 기준(30분) 이상 체류 중인 세션
+        List<StaySession> activeDone = staySessionRepository
+                .findPendingWithMinDuration(memberId, 30L);
+
+        List<StaySession> merged = new ArrayList<>();
+        merged.addAll(activeDone);
+        merged.addAll(completed);
+
+        return merged.stream()
                 .map(this::toResponseDtoSafe)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
