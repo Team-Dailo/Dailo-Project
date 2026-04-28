@@ -2435,7 +2435,7 @@ const styles = StyleSheet.create({
   },
   listButton: {
     paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderRadius: 9999,
     backgroundColor: '#4A9EFF',
     flexDirection: 'row',
