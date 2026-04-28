@@ -423,134 +423,127 @@ export default function CalendarScreen() {
           </View>
         </View>
 
-        {/* 달력 영역만 스크롤 (전체 흰 배경) */}
+        {/* 카테고리: 윤곽선 없음, 연한 배경, 글씨 옆 동그라미 */}
         <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + SHEET_HEIGHTS[sheetLevel] }]}
-          showsVerticalScrollIndicator={false}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.filterChipsWrap, { justifyContent: "center" }]}
+          style={styles.filterChipsScroll}
         >
-          {/* 카테고리: 윤곽선 없음, 연한 배경, 글씨 옆 동그라미 (사진처럼) */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.filterChipsWrap, { justifyContent: "center" }]}
-            style={styles.filterChipsScroll}
-          >
-            {FILTER_CATEGORIES.map((cat) => {
-              const selected = selectedCategory === cat.id;
-              return (
-                <Pressable
-                  key={cat.id}
-                  onPress={() =>
-                    setSelectedCategory(selected ? null : cat.id)
-                  }
+          {FILTER_CATEGORIES.map((cat) => {
+            const selected = selectedCategory === cat.id;
+            return (
+              <Pressable
+                key={cat.id}
+                onPress={() =>
+                  setSelectedCategory(selected ? null : cat.id)
+                }
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: selected ? cat.color : cat.bgLight },
+                ]}
+              >
+                <View style={[styles.filterChipCircle, { backgroundColor: cat.color }]} />
+                <Text
                   style={[
-                    styles.filterChip,
-                    { backgroundColor: selected ? cat.color : cat.bgLight },
+                    styles.filterChipText,
+                    selected && styles.filterChipTextSelected,
                   ]}
                 >
-                  <View style={[styles.filterChipCircle, { backgroundColor: cat.color }]} />
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      selected && styles.filterChipTextSelected,
-                    ]}
-                  >
-                    {cat.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                  {cat.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
-          {/* 요일 + 날짜 카드: 좌우 스와이프로 이전/다음 달 이동 */}
-          <View style={styles.calendarCard} {...panResponder.panHandlers}>
-            <View style={styles.weekdayRow}>
-              {WEEKDAYS.map((w, i) => (
-                <View key={w} style={styles.weekdayCell}>
-                  <Text
-                    style={[
-                      styles.weekdayText,
-                      i === 0 && styles.sundayText,
-                      i === 6 && styles.saturdayText,
-                    ]}
-                  >
-                    {w}
-                  </Text>
-                </View>
-              ))}
-            </View>
-
-            {/* 달력 그리드 (요일과 같은 열 정렬) */}
-            <View style={styles.calendarGrid}>
-            {weeks.map((week, rowIndex) => (
-              <View key={rowIndex} style={styles.weekRow}>
-                {week.map((cell, colIndex) => {
-                  const todayCell = isToday(cell);
-                  const isSelected =
-                    cell.currentMonth && cell.day === selectedDay;
-                  const dayEvents = cell.currentMonth
-                    ? eventsByDayForDots[cell.day] ?? []
-                  : [];
-
-                  return (
-                    <Pressable
-                      key={`${rowIndex}-${colIndex}`}
-                      style={styles.dayCellWrapper}
-                      onPress={() => handleDayPress(cell)}
-                    >
-                      <View
-                        style={[
-                          styles.dayCell,
-                          !cell.currentMonth && styles.dayOutsideMonth,
-                        ]}
-                      >
-                        <View style={styles.dayNumberSlot}>
-                          {todayCell && (
-                            <View style={[StyleSheet.absoluteFillObject, styles.todayBadgeFill]} />
-                          )}
-                          {!todayCell && isSelected && (
-                            <View style={[StyleSheet.absoluteFillObject, styles.selectedDayBoxSquare]} />
-                          )}
-                          <Text
-                            style={[
-                              styles.dayText,
-                              todayCell && styles.todayText,
-                              !todayCell && isSelected && styles.selectedDayText,
-                              !cell.currentMonth && styles.dayTextOutside,
-                              !todayCell && colIndex === 0 && styles.sundayText,
-                              !todayCell && colIndex === 6 && styles.saturdayText,
-                            ]}
-                          >
-                            {cell.day}
-                          </Text>
-                        </View>
-                        {dayEvents.length > 0 && cell.currentMonth && (
-                          <View style={styles.eventLines}>
-                            {dayEvents.slice(0, 3).map((ev) => (
-                              <View key={ev.id} style={styles.eventLineRow}>
-                                <View
-                                  style={[
-                                    styles.eventLine,
-                                    { backgroundColor: getEventColor(ev) },
-                                  ]}
-                                />
-                              </View>
-                            ))}
-                            {dayEvents.length > 3 && (
-                              <Text style={styles.eventLinePlus}>+</Text>
-                            )}
-                          </View>
-                        )}
-                      </View>
-                    </Pressable>
-                  );
-                })}
+        {/* 요일 + 날짜 카드: 좌우 스와이프로 이전/다음 달 이동 */}
+        <View style={styles.calendarCard} {...panResponder.panHandlers}>
+          <View style={styles.weekdayRow}>
+            {WEEKDAYS.map((w, i) => (
+              <View key={w} style={styles.weekdayCell}>
+                <Text
+                  style={[
+                    styles.weekdayText,
+                    i === 0 && styles.sundayText,
+                    i === 6 && styles.saturdayText,
+                  ]}
+                >
+                  {w}
+                </Text>
               </View>
             ))}
-            </View>
           </View>
-        </ScrollView>
+
+          {/* 달력 그리드 (요일과 같은 열 정렬) */}
+          <View style={styles.calendarGrid}>
+          {weeks.map((week, rowIndex) => (
+            <View key={rowIndex} style={styles.weekRow}>
+              {week.map((cell, colIndex) => {
+                const todayCell = isToday(cell);
+                const isSelected =
+                  cell.currentMonth && cell.day === selectedDay;
+                const dayEvents = cell.currentMonth
+                  ? eventsByDayForDots[cell.day] ?? []
+                : [];
+
+                return (
+                  <Pressable
+                    key={`${rowIndex}-${colIndex}`}
+                    style={styles.dayCellWrapper}
+                    onPress={() => handleDayPress(cell)}
+                  >
+                    <View
+                      style={[
+                        styles.dayCell,
+                        !cell.currentMonth && styles.dayOutsideMonth,
+                      ]}
+                    >
+                      <View style={styles.dayNumberSlot}>
+                        {todayCell && (
+                          <View style={[StyleSheet.absoluteFillObject, styles.todayBadgeFill]} />
+                        )}
+                        {!todayCell && isSelected && (
+                          <View style={[StyleSheet.absoluteFillObject, styles.selectedDayBoxSquare]} />
+                        )}
+                        <Text
+                          style={[
+                            styles.dayText,
+                            todayCell && styles.todayText,
+                            !todayCell && isSelected && styles.selectedDayText,
+                            !cell.currentMonth && styles.dayTextOutside,
+                            !todayCell && colIndex === 0 && styles.sundayText,
+                            !todayCell && colIndex === 6 && styles.saturdayText,
+                          ]}
+                        >
+                          {cell.day}
+                        </Text>
+                      </View>
+                      {dayEvents.length > 0 && cell.currentMonth && (
+                        <View style={styles.eventLines}>
+                          {dayEvents.slice(0, 3).map((ev) => (
+                            <View key={ev.id} style={styles.eventLineRow}>
+                              <View
+                                style={[
+                                  styles.eventLine,
+                                  { backgroundColor: getEventColor(ev) },
+                                ]}
+                              />
+                            </View>
+                          ))}
+                          {dayEvents.length > 3 && (
+                            <Text style={styles.eventLinePlus}>+</Text>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+          </View>
+        </View>
 
         {/* 하단 시트: 터치로 위로 당기면 확장되어 카드 전체 표시 */}
         <Animated.View
@@ -679,18 +672,9 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
   },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: HORIZONTAL_PADDING,
-    paddingTop: 20,
-    backgroundColor: "#FFFFFF",
-  },
   filterChipsScroll: {
     marginBottom: 10,
-    marginTop: 0,
-    marginHorizontal: -HORIZONTAL_PADDING,
+    marginTop: 20,
   },
   filterChipsWrap: {
     paddingHorizontal: HORIZONTAL_PADDING,
@@ -724,7 +708,7 @@ const styles = StyleSheet.create({
   },
   calendarCard: {
     paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: HORIZONTAL_PADDING,
     marginBottom: 16,
   },
   weekdayRow: {

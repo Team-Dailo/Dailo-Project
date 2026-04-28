@@ -44,6 +44,9 @@ public class StaySession {
 
     private LocalDateTime lastPingTime;
 
+    /** 30분 체류 미션 알림 발송 시각 (null = 미발송) */
+    private LocalDateTime missionNotifiedAt;
+
     @Builder
     public StaySession(Member member, Event event, Double lat, Double lng) {
         this.member = member;
@@ -68,5 +71,9 @@ public class StaySession {
         this.lastLatitude = lat;
         this.lastLongitude = lng;
         this.lastPingTime = LocalDateTime.now();
+    }
+
+    public void markMissionNotified() {
+        this.missionNotifiedAt = LocalDateTime.now();
     }
 }
