@@ -283,6 +283,16 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     );
     if (notifId) {
       setHasReminder(true);
+      // 알림설정 페이지와 일치하도록 AsyncStorage 동기화
+      try {
+        await AsyncStorage.multiSet([
+          ["@mypage/notification_push_enabled", "true"],
+          ["@mypage/notification_event_reminder", "true"],
+          ["@mypage/notification_event_reminder_booked", "true"],
+        ]);
+      } catch {
+        // 설정 저장 실패해도 알림 예약 자체는 성공
+      }
       const msg =
         daysBefore === 1
           ? "행사 1일 전 오전 9시에 알림을 보내드립니다."

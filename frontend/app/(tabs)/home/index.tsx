@@ -350,7 +350,7 @@ export default function HomeScreen() {
                     >
                       <Image
                         source={{
-                          uri: item.thumbnailUrl ?? "https://via.placeholder.com/700x380.png?text=Poster",
+                          uri: item.thumbnailUrl?.trim() || "https://via.placeholder.com/700x380.png?text=Poster",
                         }}
                         style={styles.bannerImage}
                       />
@@ -394,12 +394,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitleAccent}>인기</Text> 게시물
             </Text>
             <Pressable
-              onPress={() => {
-                (navigation as { navigate: (name: string, params?: object) => void }).navigate(
-                  "board/index",
-                  { sort: "popular" }
-                );
-              }}
+              onPress={() => router.push("/(tabs)/board?sort=popular" as import("expo-router").Href)}
             >
               <Text style={styles.sectionMore}>더 보기 &gt;</Text>
             </Pressable>
@@ -535,7 +530,7 @@ export default function HomeScreen() {
                   >
                     <Image
                       source={{
-                        uri: event.thumbnailUrl ?? "https://via.placeholder.com/200x300.png?text=Poster",
+                        uri: event.thumbnailUrl?.trim() || "https://via.placeholder.com/200x300.png?text=Poster",
                       }}
                       style={styles.eventImage}
                     />

@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../constants/api';
 import { getAccessToken } from './auth.service';
+import { createFormDataFile } from '../utils/uploadFormData';
 
 /** 인증 헤더 (JWT 토큰 필수) */
 const getAuthHeaders = async (): Promise<HeadersInit> => {
@@ -138,6 +139,32 @@ export async function sendMessage(
     body: JSON.stringify({ content, messageType: 'TEXT' }),
   });
   if (!res.ok) throw new Error(`send message failed: ${res.status}`);
+  return res.json();
+}
+
+/** 이미지 업로드 후 IMAGE 타입 메시지 전송 */
+export async function sendChatImage(roomId: number, imageUri: string): Promise<ChatMessageResponse> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('로그인이 필요합니다.');
+  const formData = new FormData();
+  formData.append('file', createFormDataFile(imageUri, 'chat_photo.jpg') as unknown as Blob);
+  const uploadRes = await fetch(`${API_BASE_URL}/api/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!uploadRes.ok) throw new Error(`이미지 업로드 실패: ${uploadRes.status}`);
+  const uploadData = (await uploadRes.json()) as { path?: string };
+  const path = uploadData?.path ?? '';
+  if (!path) throw new Error('업로드 응답에 path가 없습니다.');
+  const imageUrl = `${API_BASE_URL}${path}`;
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/messages`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ content: imageUrl, messageType: 'IMAGE' }),
+  });
+  if (!res.ok) throw new Error(`이미지 메시지 전송 실패: ${res.status}`);
   return res.json();
 }
 

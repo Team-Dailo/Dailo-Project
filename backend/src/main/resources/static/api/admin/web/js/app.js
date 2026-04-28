@@ -169,6 +169,10 @@ function openEventModal(id, data) {
   document.getElementById('eventFilter').value = data?.filterGroup || '';
   document.getElementById('eventDesc').value = data?.description || '';
   document.getElementById('eventContact').value = data?.hostContact || '';
+  const rawExtra = data?.extraJson;
+  document.getElementById('eventExtraJson').value = rawExtra
+    ? (typeof rawExtra === 'string' ? rawExtra : JSON.stringify(rawExtra, null, 2))
+    : '';
   document.getElementById('eventThumbKey').value = data?.thumbnailKey || data?.thumbnailUrl || '';
   const preview = document.getElementById('eventThumbPreview');
   const placeholder = document.getElementById('eventDropPlaceholder');
@@ -210,6 +214,7 @@ async function saveEvent() {
     thumbnailUrl: document.getElementById('eventThumbKey').value || null,
     description: document.getElementById('eventDesc').value || null,
     hostContact: document.getElementById('eventContact').value || null,
+    extraJson: document.getElementById('eventExtraJson').value.trim() || null,
   };
   try {
     if (id) await api(`/api/admin/events/${id}`, { method: 'PUT', body: JSON.stringify(body) });
