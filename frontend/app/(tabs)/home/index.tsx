@@ -116,17 +116,28 @@ function MarqueeBannerTitle({ text, style }: { text: string; style?: object }) {
       style={{ overflow: 'hidden' }}
       onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
     >
-      {/* 실제 텍스트 너비 측정용 (절대 위치로 flex 제약 없이 자연 너비 계산) */}
+      {/* 실제 텍스트 너비 측정용: width:9999로 줄바꿈 방지, onTextLayout으로 실제 렌더 폭 취득 */}
       <Text
-        style={[style as any, { position: 'absolute', opacity: 0 }]}
+        style={[style as any, { position: 'absolute', opacity: 0, width: 9999 }]}
         numberOfLines={1}
-        onLayout={(e) => setTextW(e.nativeEvent.layout.width)}
+        onTextLayout={(e) => {
+          const w = e.nativeEvent.lines[0]?.width;
+          if (w) setTextW(w);
+        }}
         pointerEvents="none"
       >
         {text}
       </Text>
       <Animated.Text
-        style={[style as any, { transform: [{ translateX }] }]}
+        style={[
+          style as any,
+          {
+            transform: [{ translateX }],
+            // 측정된 자연 너비로 명시 설정해야 numberOfLines={1}이 잘라내지 않음
+            // 미측정 시(0)에는 undefined로 둬서 컨테이너 폭 기준으로 표시
+            width: textW > 0 ? Math.ceil(textW) + 1 : undefined,
+          },
+        ]}
         numberOfLines={1}
         ellipsizeMode="clip"
       >

@@ -42,7 +42,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   }).filter(Boolean) as { config: (typeof TAB_CONFIG)[number]; route: (typeof state.routes)[number] }[];
 
   return (
-    <View style={[styles.tabBar, { paddingBottom: insets.bottom }]}>
+    <View style={[styles.tabBar, { paddingBottom: insets.bottom, height: 60 + insets.bottom }]}>
       {tabs.map(({ config, route }) => {
         const routeIndex = state.routes.findIndex((r) => r.key === route.key);
         const isFocused = state.index === routeIndex;
