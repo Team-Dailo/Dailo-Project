@@ -127,7 +127,7 @@ export default function SavedRemindersScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable style={styles.headerBack} onPress={() => router.replace("/(tabs)/mypage")}>
+          <Pressable style={styles.headerBack} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </Pressable>
           <View style={styles.headerTitleWrap} pointerEvents="box-none">
@@ -204,7 +204,7 @@ export default function SavedRemindersScreen() {
                         >
                           <Image
                             source={{
-                              uri: item.thumbnailUrl ?? "https://via.placeholder.com/200x300.png?text=Poster",
+                              uri: item.thumbnailUrl?.trim() || "https://via.placeholder.com/200x300.png?text=Poster",
                             }}
                             style={styles.eventImage}
                           />

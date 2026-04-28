@@ -357,7 +357,7 @@ export default function PostWriteScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={0}
       >
         {/* 헤더: 취소 | 새 게시물 | 공유 */}

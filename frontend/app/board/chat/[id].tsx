@@ -1,13 +1,16 @@
 // app/board/chat/[id].tsx - 채팅화면 (1:1 대화, 백엔드 메시지 히스토리 연동)
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import * as ImagePicker from "expo-image-picker";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,7 +18,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as authService from "../../../services/auth.service";
 import * as blockService from "../../../services/block.service";
 import * as chatService from "../../../services/chat.service";
@@ -25,6 +28,7 @@ type Message = {
   id: string;
   isMe: boolean;
   text: string;
+  imageUrl?: string;
   time?: string;
   createdAt?: string;
 };
@@ -54,10 +58,10 @@ function formatMessageTime(iso?: string): string {
       parsedDate = new Date(iso);
 
     } 
-    // 🔥 타임존 없는 경우 → 서버 시간을 UTC로 간주
+    // 🔥 타임존 없는 경우 → 서버 시간을 KST(+09:00)로 간주
     else {
 
-      parsedDate = new Date(iso + "Z");
+      parsedDate = new Date(iso + "+09:00");
 
     }
     const h = parsedDate.getHours();
@@ -76,6 +80,11 @@ export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const roomId = id ? Number(id) : 0;
+  const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollToEnd = useCallback((animated = true) => {
+    scrollRef.current?.scrollToEnd({ animated });
+  }, []);
   const [input, setInput] = useState("");
   const [room, setRoom] = useState<chatService.ChatRoomResponse | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -131,7 +140,8 @@ export default function ChatRoomScreen() {
       const raw = (msgData.content ?? []).map((m) => ({
         id: String(m.id),
         isMe: m.senderId === myId,
-        text: m.content ?? "",
+        text: m.messageType === 'IMAGE' ? '' : (m.content ?? ""),
+        imageUrl: m.messageType === 'IMAGE' ? (m.content ?? undefined) : undefined,
         time: formatMessageTime(m.createdAt),
         createdAt: m.createdAt,
       }));
@@ -147,6 +157,20 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     fetchRoomAndMessages();
   }, [fetchRoomAndMessages]);
+
+  // 메시지 목록 변경 시 맨 아래로 스크롤
+  useEffect(() => {
+    if (messages.length > 0) {
+      const t = setTimeout(() => scrollToEnd(false), 80);
+      return () => clearTimeout(t);
+    }
+  }, [messages, scrollToEnd]);
+
+  // 키보드가 올라올 때 맨 아래로 스크롤
+  useEffect(() => {
+    const sub = Keyboard.addListener("keyboardDidShow", () => scrollToEnd(true));
+    return () => sub.remove();
+  }, [scrollToEnd]);
 
   // 앱 재진입·다시 들어올 때마다 서버에서 메시지 다시 로드 (채팅 기록 유지)
   useFocusEffect(
@@ -189,6 +213,45 @@ export default function ChatRoomScreen() {
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       Alert.alert("오류", "메시지 전송에 실패했습니다.");
+    }
+  };
+
+  const [imageUploading, setImageUploading] = useState(false);
+
+  const handleSendImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('권한 필요', '사진 전송을 위해 갤러리 접근 권한이 필요합니다.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: false,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    const uri = result.assets[0].uri;
+    const optimisticId = `img${Date.now()}`;
+    const now = new Date().toISOString();
+    setMessages((prev) => [
+      ...prev,
+      { id: optimisticId, isMe: true, text: '', imageUrl: uri, time: formatMessageTime(now), createdAt: now },
+    ]);
+    setImageUploading(true);
+    try {
+      const sent = await chatService.sendChatImage(roomId, uri);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === optimisticId
+            ? { id: String(sent.id), isMe: true, text: '', imageUrl: sent.content ?? uri, time: formatMessageTime(sent.createdAt), createdAt: sent.createdAt }
+            : m,
+        ),
+      );
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      Alert.alert('오류', '사진 전송에 실패했습니다.');
+    } finally {
+      setImageUploading(false);
     }
   };
 
@@ -251,7 +314,7 @@ export default function ChatRoomScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior="padding"
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={0}
       >
         <View style={styles.header}>
@@ -317,10 +380,12 @@ export default function ChatRoomScreen() {
           </View>
         ) : (
           <ScrollView
+            ref={scrollRef}
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => scrollToEnd(false)}
           >
             {messages.map((msg, index) => {
               const isLastOtherInRow =
@@ -354,9 +419,13 @@ export default function ChatRoomScreen() {
                           <Text style={styles.messageTime}>{msg.time}</Text>
                         ) : null}
                       </View>
-                      <View style={styles.myBubble}>
-                        <Text style={styles.myText}>{msg.text}</Text>
-                      </View>
+                      {msg.imageUrl ? (
+                        <Image source={{ uri: msg.imageUrl }} style={styles.chatImage} resizeMode="cover" />
+                      ) : (
+                        <View style={styles.myBubble}>
+                          <Text style={styles.myText}>{msg.text}</Text>
+                        </View>
+                      )}
                     </View>
                   ) : (
                     <View
@@ -366,13 +435,21 @@ export default function ChatRoomScreen() {
                       ]}
                     >
                       {isLastOtherInRow ? (
-                        <View style={styles.otherAvatar} />
+                        partnerImageUri ? (
+                          <Image source={{ uri: partnerImageUri }} style={styles.otherAvatar} />
+                        ) : (
+                          <View style={styles.otherAvatar} />
+                        )
                       ) : (
                         <View style={styles.otherAvatarPlaceholder} />
                       )}
-                      <View style={styles.otherBubble}>
-                        <Text style={styles.otherText}>{msg.text}</Text>
-                      </View>
+                      {msg.imageUrl ? (
+                        <Image source={{ uri: msg.imageUrl }} style={styles.chatImage} resizeMode="cover" />
+                      ) : (
+                        <View style={styles.otherBubble}>
+                          <Text style={styles.otherText}>{msg.text}</Text>
+                        </View>
+                      )}
                       {msg.time ? (
                         <Text style={styles.messageTime}>{msg.time}</Text>
                       ) : null}
@@ -386,15 +463,17 @@ export default function ChatRoomScreen() {
 
         {/* 입력 영역 */}
         {partnerLeft ? (
-          <View style={styles.partnerLeftBanner}>
+          <View style={[styles.partnerLeftBanner, Platform.OS === 'ios' && { paddingBottom: insets.bottom + 14 }]}>
             <Text style={styles.partnerLeftText}>
               상대방이 채팅방을 나갔습니다.
             </Text>
           </View>
         ) : (
-          <View style={styles.inputRow}>
-            <Pressable style={styles.inputIcon}>
-              <Ionicons name="image-outline" size={24} color="#4C8BF5" />
+          <View style={[styles.inputRow, Platform.OS === 'ios' && { paddingBottom: insets.bottom + 10 }]}>
+            <Pressable style={styles.inputIcon} onPress={handleSendImage} disabled={imageUploading}>
+              {imageUploading
+                ? <ActivityIndicator size="small" color="#4C8BF5" />
+                : <Ionicons name="image-outline" size={24} color="#4C8BF5" />}
             </Pressable>
             <TextInput
               style={styles.input}
@@ -526,6 +605,7 @@ const styles = StyleSheet.create({
   },
   sendBtn: { padding: 4, marginBottom: 4 },
   sendBtnDisabled: { opacity: 0.6 },
+  chatImage: { width: 200, height: 200, borderRadius: 12 },
   menuBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",

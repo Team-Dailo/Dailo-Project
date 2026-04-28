@@ -85,6 +85,9 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     /** 시드 데이터 중복 방지: 제목에 해당 문자열이 포함된 이벤트 존재 여부 */
     boolean existsByTitleContaining(String keyword);
 
+    /** 시드 데이터 업데이트: 제목에 해당 문자열이 포함된 첫 번째 이벤트 조회 */
+    java.util.Optional<Event> findFirstByTitleContaining(String keyword);
+
     /** 제목이 정확히 일치하는 이벤트 목록 (이전 시드 삭제용) */
     List<Event> findByTitleIn(List<String> titles);
 

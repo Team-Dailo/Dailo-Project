@@ -90,13 +90,16 @@ export default function NotificationSettingsScreen() {
           try {
             const serverSettings = await notificationService.getNotificationSettings();
             if (serverSettings) {
-              setPushEnabled(serverSettings.newEventEnabled);
+              // 로컬에 이미 설정값이 있을 때만 서버 값으로 동기화 (첫 설치 시 서버 true가 덮어쓰는 것 방지)
+              if (push !== null) {
+                setPushEnabled(serverSettings.newEventEnabled);
+                await AsyncStorage.setItem(STORAGE_KEYS.pushEnabled, String(serverSettings.newEventEnabled));
+              }
               setEventReminderOn(serverSettings.eventReminderEnabled);
               if (serverSettings.subscribedRegions) {
                 setRegionKey(serverSettings.subscribedRegions);
                 setRegionOn(true);
               }
-              await AsyncStorage.setItem(STORAGE_KEYS.pushEnabled, String(serverSettings.newEventEnabled));
               await AsyncStorage.setItem(STORAGE_KEYS.eventReminder, String(serverSettings.eventReminderEnabled));
               if (serverSettings.subscribedRegions) {
                 await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionKey, serverSettings.subscribedRegions);

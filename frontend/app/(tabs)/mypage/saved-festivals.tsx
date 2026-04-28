@@ -45,12 +45,7 @@ function formatTimeRange(startIso: string, endIso?: string): string {
 export default function SavedFestivalsScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
   const goBack = () => {
-    if (from === 'map') {
-      router.replace('/(tabs)/mypage');
-      router.replace('/(tabs)/map');
-    } else {
-      router.replace('/(tabs)/mypage');
-    }
+    router.back();
   };
   const [list, setList] = useState<scrapService.ScrapEventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -222,7 +217,7 @@ export default function SavedFestivalsScreen() {
                       >
                         <Image
                           source={{
-                            uri: item.thumbnailUrl ?? "https://via.placeholder.com/200x300.png?text=Poster",
+                            uri: item.thumbnailUrl?.trim() || "https://via.placeholder.com/200x300.png?text=Poster",
                           }}
                           style={styles.eventImage}
                         />

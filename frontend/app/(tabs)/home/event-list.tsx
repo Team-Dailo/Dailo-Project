@@ -423,7 +423,7 @@ export default function EventListScreen() {
                 >
                   <Image
                     source={{
-                      uri: event.thumbnailUrl ?? "https://via.placeholder.com/200x300.png?text=Poster",
+                      uri: event.thumbnailUrl?.trim() || "https://via.placeholder.com/200x300.png?text=Poster",
                     }}
                     style={styles.eventImage}
                   />

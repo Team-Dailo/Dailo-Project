@@ -101,7 +101,7 @@ public class AdminEventService {
                 request.getDescription(),
                 request.getHostContact(),
                 request.getFilterGroup(),
-                request.getZonePolygon()
+                request.getZonePolygon() != null ? request.getZonePolygon() : event.getZonePolygon()
         );
         if (request.getExtraJson() != null) {
             event.setExtraJson(request.getExtraJson());

@@ -99,9 +99,10 @@ export default function EventDetailScreen() {
         ? {
             ...event,
             thumbnailUrl:
-              (thumbnailFromRoute as string | null | undefined) ??
-              (event as typeof event & { thumbnailUrl?: string | null }).thumbnailUrl ??
-              (event.posterUrls?.[0] ?? null),
+              thumbnailFromRoute?.trim() ||
+              (event as typeof event & { thumbnailUrl?: string | null }).thumbnailUrl?.trim() ||
+              event.posterUrls?.[0] ||
+              null,
           }
         : event,
     [event, thumbnailFromRoute]

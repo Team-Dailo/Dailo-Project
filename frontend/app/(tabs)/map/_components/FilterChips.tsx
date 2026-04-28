@@ -107,13 +107,12 @@ export function FilterChips({
   const scaleLabel = selectedScaleSummary || '규모';
 
   return (
-    <View style={styles.wrapper}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.container}
-        style={styles.scrollView}
-      >
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.container}
+      style={styles.scrollView}
+    >
         {onPressStatus != null ? (
           <Chip
             label={statusLabel}
@@ -204,13 +203,11 @@ export function FilterChips({
           onPress={onPressScale}
           selected={!!selectedScaleSummary}
         />
-      </ScrollView>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { zIndex: 2, backgroundColor: 'transparent' },
   scrollView: { backgroundColor: 'transparent' },
   iconWrap: {
     borderWidth: 1,
@@ -238,6 +235,7 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 6,
     gap: 6,
+    backgroundColor: 'transparent',
   },
   chip: {
     height: 36,

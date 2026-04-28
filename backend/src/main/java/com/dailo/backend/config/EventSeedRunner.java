@@ -43,10 +43,18 @@ public class EventSeedRunner implements ApplicationRunner {
         }
 
         // 2. 신규 통합 축제: Gate to YEOJEONG (2026-04-30)
-        if (!eventRepository.existsByTitleContaining("Gate to YEOJEONG")) {
-            eventRepository.save(buildGateToYeojeongFestival());
-            log.info("시드 데이터 저장: 국립한국교통대 동아리 축제 Gate to YEOJEONG");
-        }
+        // 이미 존재하면 extraJson(타임테이블) 갱신, 없으면 신규 등록
+        eventRepository.findFirstByTitleContaining("Gate to YEOJEONG").ifPresentOrElse(
+            existing -> {
+                existing.setExtraJson(buildGateToYeojeongFestival().getExtraJson());
+                eventRepository.save(existing);
+                log.info("시드 데이터 갱신: 국립한국교통대 동아리 축제 Gate to YEOJEONG (extraJson 업데이트)");
+            },
+            () -> {
+                eventRepository.save(buildGateToYeojeongFestival());
+                log.info("시드 데이터 저장: 국립한국교통대 동아리 축제 Gate to YEOJEONG");
+            }
+        );
 
         // 3. 기존 대학교 및 지역 시드 데이터 (중복 확인 후 삽입)
         if (!eventRepository.existsByTitleContaining("한국교통대 대축제")) {
@@ -81,15 +89,16 @@ public class EventSeedRunner implements ApplicationRunner {
             +   "{\"id\":\"t2\",\"startTime\":\"13:00\",\"endTime\":\"17:30\",\"title\":\"동아리 부스 운영\",\"details\":[\"체험 이벤트\",\"경품 증정\"]},"
             +   "{\"id\":\"t3\",\"startTime\":\"17:00\",\"endTime\":\"20:00\",\"title\":\"동아리 공연\","
             +   "\"performers\":["
-            +     "{\"name\":\"포세이돈\",\"genre\":\"밴드\",\"setlist\":[\"Get your Gun - 브로큰발렌타인\",\"Ao to natsu - Mrs. Greenapple\",\"Poker Face - 브로큰발렌타인\"]},"
-            +     "{\"name\":\"어울림\",\"genre\":\"밴드\",\"setlist\":[\"흔들리는 꽃들 속에서 네 샴푸향이 느껴진거야 - 장범준\",\"나에게로 떠나는 여행 - 버즈\",\"사랑 Two - YB\"]},"
-            +     "{\"name\":\"소리담\",\"genre\":\"밴드\",\"setlist\":[\"Tokyo Inn - 혁오\",\"춤을 춰요 - 라쿠나\",\"Highlight - 터치드\"]},"
-            +     "{\"name\":\"MUSE\",\"genre\":\"밴드\",\"setlist\":[\"antifreeze - 검정치마\",\"에잇 - 아이유\",\"우리의 꿈 - 코요태\"]},"
-            +     "{\"name\":\"식스라인\",\"genre\":\"밴드\",\"setlist\":[\"Pain - 하현상\",\"금붕어 - 한로로\",\"See your eyes - 잔나비\",\"어리고 부끄럽고 바보 같은 - Xdinary Heroes\"]},"
-            +     "{\"name\":\"신문고\",\"genre\":\"밴드\",\"setlist\":[\"데칼코마니 - 마마무\",\"Loveholic - 러브홀릭\",\"나에게로 떠나는 여행 - 버즈\"]},"
-            +     "{\"name\":\"4D\",\"genre\":\"댄스\",\"setlist\":[\"내일에서 기다릴게 - 투모로우바이투게더\",\"404 - 키키\",\"할리우드 액션 - 보이넥스트도어\",\"아브라카타브라 - 미야오\",\"페이머스 - 올데이프로젝트\",\"퓨어허니 - 비욘세\",\"마음에 따라 뛰는건 멋지지않아 - 투어스\"]},"
-            +     "{\"name\":\"피날레\",\"genre\":\"댄스\",\"setlist\":[\"THAT'S A NO NO - ITZY\",\"Loving U - 씨스타\",\"10 Minutes - 이효리\",\"다시 만난 오늘 - TWS\",\"ZOO - NCT & aespa\",\"Supersonic - fromis_9\",\"Friday Night - Young Gunz\",\"짧은 치마 - AOA\"]},"
-            +     "{\"name\":\"바이탈싸인\",\"genre\":\"힙합/댄스\",\"setlist\":[\"404 - 키키\",\"Love me right + 으르렁 - EXO\",\"Bad girl good girl + 보핍보핍 (KISS OF LIFE ver.)\"]}"
+            +     "{\"name\":\"포세이돈\",\"genre\":\"밴드\",\"startTime\":\"17:10\",\"setlist\":[\"Get your Gun - 브로큰발렌타인\",\"Ao to natsu - Mrs. Greenapple\",\"Poker Face - 브로큰발렌타인\"]},"
+            +     "{\"name\":\"어울림\",\"genre\":\"밴드\",\"startTime\":\"17:27\",\"setlist\":[\"흔들리는 꽃들 속에서 네 샴푸향이 느껴진거야 - 장범준\",\"나에게로 떠나는 여행 - 버즈\",\"사랑 Two - YB\"]},"
+            +     "{\"name\":\"소리담\",\"genre\":\"밴드\",\"startTime\":\"17:44\",\"setlist\":[\"Tokyo Inn - 혁오\",\"춤을 춰요 - 라쿠나\",\"Highlight - 터치드\"]},"
+            +     "{\"name\":\"식스라인\",\"genre\":\"밴드\",\"startTime\":\"18:01\",\"setlist\":[\"Pain - 하현상\",\"금붕어 - 한로로\",\"See your eyes - 잔나비\",\"어리고 부끄럽고 바보 같은 - Xdinary Heroes\"]},"
+            +     "{\"name\":\"신문고\",\"genre\":\"밴드\",\"startTime\":\"18:23\",\"setlist\":[\"데칼코마니 - 마마무\",\"Loveholic - 러브홀릭\",\"나에게로 떠나는 여행 - 버즈\"]},"
+            +     "{\"name\":\"MUSE\",\"genre\":\"밴드\",\"startTime\":\"18:40\",\"setlist\":[\"antifreeze - 검정치마\",\"에잇 - 아이유\",\"우리의 꿈 - 코요태\"]},"
+            +     "{\"name\":\"밴드 동아리 연합\",\"genre\":\"밴드 연합\",\"startTime\":\"18:57\",\"setlist\":[]},"
+            +     "{\"name\":\"4D\",\"genre\":\"댄스\",\"startTime\":\"19:14\",\"setlist\":[\"내일에서 기다릴게 - 투모로우바이투게더\",\"404 - 키키\",\"할리우드 액션 - 보이넥스트도어\",\"아브라카타브라 - 미야오\",\"페이머스 - 올데이프로젝트\",\"퓨어허니 - 비욘세\",\"마음에 따라 뛰는건 멋지지않아 - 투어스\"]},"
+            +     "{\"name\":\"피날레\",\"genre\":\"댄스\",\"startTime\":\"19:31\",\"setlist\":[\"THAT'S A NO NO - ITZY\",\"Loving U - 씨스타\",\"10 Minutes - 이효리\",\"다시 만난 오늘 - TWS\",\"ZOO - NCT & aespa\",\"Supersonic - fromis_9\",\"Friday Night - Young Gunz\",\"짧은 치마 - AOA\"]},"
+            +     "{\"name\":\"바이탈싸인\",\"genre\":\"힙합/댄스\",\"startTime\":\"19:53\",\"setlist\":[\"404 - 키키\",\"Love me right + 으르렁 - EXO\",\"Bad girl good girl + 보핍보핍 (KISS OF LIFE ver.)\"]}"
             +   "]}"
             + "],"
             + "\"foodBooths\":["
