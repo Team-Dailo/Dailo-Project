@@ -112,6 +112,7 @@ export function FilterChips({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.container}
+        style={styles.scrollView}
       >
         {onPressStatus != null ? (
           <Chip
@@ -210,6 +211,7 @@ export function FilterChips({
 
 const styles = StyleSheet.create({
   wrapper: { zIndex: 2, backgroundColor: 'transparent' },
+  scrollView: { backgroundColor: 'transparent' },
   iconWrap: {
     borderWidth: 1,
     borderColor: '#FFFFFF',
