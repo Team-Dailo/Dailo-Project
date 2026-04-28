@@ -57,6 +57,7 @@ public class AdminEventService {
                 .description(request.getDescription())
                 .hostContact(request.getHostContact())
                 .extraJson(request.getExtraJson())
+                .zonePolygon(request.getZonePolygon())
                 .isAdminManaged(true)
                 .build();
 
@@ -99,7 +100,8 @@ public class AdminEventService {
                 request.getPosterUrls(),
                 request.getDescription(),
                 request.getHostContact(),
-                request.getFilterGroup()
+                request.getFilterGroup(),
+                request.getZonePolygon()
         );
         if (request.getExtraJson() != null) {
             event.setExtraJson(request.getExtraJson());

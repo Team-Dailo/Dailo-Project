@@ -5,6 +5,7 @@ import {
   NaverMapView,
   NaverMapMarkerOverlay,
   NaverMapCircleOverlay,
+  NaverMapPolygonOverlay,
   type NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
 import type { Event } from '../../../../types/event';
@@ -163,6 +164,50 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
   ref
 ) {
   const myLocationCoords = circleCoords ?? currentLocation ?? null;
+
+  const zoneOverlay = useMemo(() => {
+    if (
+      selectedEvent == null ||
+      !Number.isFinite(selectedEvent.latitude) ||
+      !Number.isFinite(selectedEvent.longitude) ||
+      (selectedEvent.latitude === 0 && selectedEvent.longitude === 0)
+    ) return null;
+
+    if (selectedEvent.zonePolygon) {
+      try {
+        const verts: { lat: number; lng: number }[] = JSON.parse(selectedEvent.zonePolygon);
+        if (Array.isArray(verts) && verts.length >= 3) {
+          const coords = verts.map(v => ({ latitude: v.lat, longitude: v.lng }));
+          return (
+            <NaverMapPolygonOverlay
+              key={`event-zone-poly-${selectedEvent.id}`}
+              coords={[...coords, coords[0]]}
+              color={EVENT_ZONE_COLOR}
+              outlineWidth={EVENT_ZONE_OUTLINE_WIDTH}
+              outlineColor={EVENT_ZONE_OUTLINE_COLOR}
+              zIndex={5}
+              globalZIndex={150000}
+            />
+          );
+        }
+      } catch { /* fall through to circle */ }
+    }
+
+    return (
+      <NaverMapCircleOverlay
+        key={`event-zone-${selectedEvent.id}`}
+        latitude={selectedEvent.latitude}
+        longitude={selectedEvent.longitude}
+        radius={EVENT_ZONE_RADIUS_M}
+        color={EVENT_ZONE_COLOR}
+        outlineWidth={EVENT_ZONE_OUTLINE_WIDTH}
+        outlineColor={EVENT_ZONE_OUTLINE_COLOR}
+        zIndex={5}
+        globalZIndex={150000}
+      />
+    );
+  }, [selectedEvent]);
+
   const effectiveCamera = useMemo(() => {
     const lat = camera?.latitude ?? DEFAULT_CAMERA.latitude;
     const lng = camera?.longitude ?? DEFAULT_CAMERA.longitude;
@@ -277,22 +322,7 @@ export const NaverMap = forwardRef<NaverMapViewRef, Props>(function NaverMap(
           </NaverMapMarkerOverlay>
         );
       })}
-      {selectedEvent != null &&
-        Number.isFinite(selectedEvent.latitude) &&
-        Number.isFinite(selectedEvent.longitude) &&
-        (selectedEvent.latitude !== 0 || selectedEvent.longitude !== 0) && (
-          <NaverMapCircleOverlay
-            key={`event-zone-${selectedEvent.id}`}
-            latitude={selectedEvent.latitude}
-            longitude={selectedEvent.longitude}
-            radius={EVENT_ZONE_RADIUS_M}
-            color={EVENT_ZONE_COLOR}
-            outlineWidth={EVENT_ZONE_OUTLINE_WIDTH}
-            outlineColor={EVENT_ZONE_OUTLINE_COLOR}
-            zIndex={5}
-            globalZIndex={150000}
-          />
-        )}
+      {zoneOverlay}
       {showMyLocationCircle &&
         myLocationCoords != null &&
         Number.isFinite(myLocationCoords.latitude) &&

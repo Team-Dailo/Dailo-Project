@@ -35,6 +35,9 @@ public class AdminEventResponse {
     /** 소식/타임테이블/푸드트럭/축제부스 JSON */
     private String extraJson;
 
+    /** 축제 구역 다각형 JSON ([{"lat":36.99,"lng":127.92},...]) */
+    private String zonePolygon;
+
     public static AdminEventResponse from(Event event) {
         return AdminEventResponse.builder()
                 .id(event.getId())
@@ -54,6 +57,7 @@ public class AdminEventResponse {
                 .hostContact(event.getHostContact())
                 .isAdminManaged(event.isAdminManaged())
                 .extraJson(event.getExtraJson())
+                .zonePolygon(event.getZonePolygon())
                 .build();
     }
 }

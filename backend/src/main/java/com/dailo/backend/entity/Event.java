@@ -53,7 +53,7 @@ public class Event {
     @Column(name = "end_at")
     private LocalDateTime endAt;
 
-    @Column(length = 255)
+    @Column(columnDefinition = "TEXT")
     private String thumbnailUrl;
 
     @ElementCollection(targetClass = EventCategory.class)
@@ -82,6 +82,10 @@ public class Event {
     /** 소식/타임테이블/푸드트럭/축제부스 등 JSON (관리자 입력, 행사 상세 탭에서 사용) */
     @Column(name = "extra_json", columnDefinition = "TEXT")
     private String extraJson;
+
+    /** 축제 구역 다각형 좌표 JSON ([{"lat":36.99,"lng":127.92},...]) - null이면 반경 200m 원형 사용 */
+    @Column(name = "zone_polygon", columnDefinition = "TEXT")
+    private String zonePolygon;
 
     // --- 관리자 기능 및 감사(Audit) 필드 ---
 
@@ -127,6 +131,7 @@ public class Event {
     public void setViewCount30d(Integer viewCount30d) { this.viewCount30d = viewCount30d != null ? viewCount30d : 0; }
 
     public void setExtraJson(String extraJson) { this.extraJson = extraJson; }
+    public void setZonePolygon(String zonePolygon) { this.zonePolygon = zonePolygon; }
 
     public void updateEvent(String title, String placeName, String placeAddress, String regionName,
                             Double latitude, Double longitude,
@@ -134,7 +139,7 @@ public class Event {
                             List<EventCategory> categories, EventStatus status,
                             String thumbnailUrl, List<String> posterUrls,
                             String description, String hostContact,
-                            String filterGroup) {
+                            String filterGroup, String zonePolygon) {
         this.title = title;
         this.placeName = placeName;
         this.placeAddress = placeAddress;
@@ -143,13 +148,18 @@ public class Event {
         this.longitude = longitude;
         this.startAt = startAt;
         this.endAt = endAt;
-        this.categories = categories;
+        this.categories.clear();
+        if (categories != null) this.categories.addAll(categories);
         this.status = status;
         this.thumbnailUrl = thumbnailUrl;
-        this.posterUrls = posterUrls;
+        if (posterUrls != null) {
+            this.posterUrls.clear();
+            this.posterUrls.addAll(posterUrls);
+        }
         this.description = description;
         this.hostContact = hostContact;
         this.filterGroup = filterGroup;
+        this.zonePolygon = zonePolygon;
         this.isAdminManaged = true;
     }
 }

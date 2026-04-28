@@ -33,6 +33,8 @@ export interface Event {
   isBookmarked?: boolean;
   /** 좋아요 수 (지도 인기순 목록 표시용) */
   likeCount?: number;
+  /** 축제 구역 다각형 JSON 문자열 ([{"lat":36.99,"lng":127.92},...]) - null이면 반경 200m 원형 */
+  zonePolygon?: string | null;
 }
 
 /** 소식 한 건 (extraJson 내 news[]) */

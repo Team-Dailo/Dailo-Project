@@ -107,6 +107,10 @@ export default function MyPageLayout() {
         options={{ title: "위치 선택", headerShown: true, headerTitleAlign: "center" }}
       />
       <Stack.Screen
+        name="festival-zone-picker"
+        options={{ title: "축제 구역 편집", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
         name="demo-settings"
         options={{ title: "시범 설정", headerShown: true, headerTitleAlign: "center" }}
       />

@@ -19,6 +19,8 @@ import {
   ImageBackground,
   FlatList,
   Image,
+  Platform,
+  ToastAndroid,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -65,7 +67,7 @@ import {
 } from '../../../services/staySessionSync';
 import * as scrapService from '../../../services/scrap.service';
 import { useFestivalParticipation } from '../../../hooks/useFestivalParticipation';
-import { distanceKm } from '../../../utils/geo';
+import { distanceKm, pointInPolygon } from '../../../utils/geo';
 import { getBusStopsInBounds, type BusStop } from '../../../services/bus.service';
 import { BusStopBottomSheet } from './_components/BusStopBottomSheet';
 import { BusTimetableScreen } from './_components/BusTimetableScreen';
@@ -170,6 +172,11 @@ const SCALE_LABEL_MAP: Record<string, string> = {
   PERSONAL: '개인',
 };
 
+/** 탭 전환 후 복귀 시 마지막 카메라 위치 복원 (앱 세션 유지) */
+let _persistedMapCamera: { latitude: number; longitude: number; zoom: number } | null = null;
+/** 첫 진입 토스트: 세션 중 최초 1회만 */
+let _chungjuToastShown = false;
+
 /** Expo Go에서는 네이버 지도 네이티브 모듈이 없어 크래시됨 → 안내만 표시 */
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -250,6 +257,8 @@ export default function MapScreen() {
   const [participationExitBanner, setParticipationExitBanner] = useState<{ eventTitle: string } | null>(null);
   const [surveyModalVisible, setSurveyModalVisible] = useState(false);
   const surveyShownForEventRef = useRef<string | null>(null);
+  const [surveyLaterToast, setSurveyLaterToast] = useState(false);
+  const surveyLaterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 참여 완료 시 설문 모달 자동 팝업
   useEffect(() => {
@@ -264,9 +273,22 @@ export default function MapScreen() {
 
   const participationBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /** 축제 구역 진입/이탈 판정 반경 (km). 이 거리 이내면 "참여 중" */
-  /** 축제 구역 인식 반경: 200m (마커 선택 시 표시되는 빨간 원과 동일) */
+  /** 축제 구역 인식 반경: 200m (zonePolygon 없을 때 폴백) */
   const ZONE_RADIUS_KM = 0.2;
+
+  /** 내 위치가 행사 구역 안에 있는지 판정 (다각형 있으면 polygon, 없으면 반경 200m) */
+  const isInFestivalZone = useCallback(
+    (myLat: number, myLng: number, event: Event): boolean => {
+      if (event.zonePolygon) {
+        try {
+          const poly: { lat: number; lng: number }[] = JSON.parse(event.zonePolygon);
+          if (poly.length >= 3) return pointInPolygon(myLat, myLng, poly);
+        } catch { /* ignore, fall through to circle */ }
+      }
+      return distanceKm(myLat, myLng, event.latitude, event.longitude) <= ZONE_RADIUS_KM;
+    },
+    []
+  );
 
   /** 행사 일정 중인지 (오늘이 startAt~endAt 사이인지). 일정 중일 때만 축제 참여로 인정 */
   const isEventCurrentlyScheduled = useCallback((e: Event) => {
@@ -426,25 +448,42 @@ export default function MapScreen() {
     }
   }, [demoLocation, currentLocation, isLoggedIn]);
 
+  // 충주 전경이 보이는 초기 구도 (남한강·시청·역이 한 화면에 들어오는 zoom 11)
   const chungjuRegion = useMemo(
     () => ({
-      latitude: REGION_CENTERS.충주.latitude,
-      longitude: REGION_CENTERS.충주.longitude,
-      latitudeDelta: 0.05,
-      longitudeDelta: 0.05,
+      latitude: 36.975,
+      longitude: 127.925,
+      latitudeDelta: 0.09,
+      longitudeDelta: 0.09,
     }),
     []
   );
 
-  // 최초 마운트 시에만 충주로 초기 카메라 설정
+  // 최초 마운트 시: 이전에 저장된 카메라가 있으면 그 위치로, 없으면 충주 초기 구도
   useEffect(() => {
-    setRegion(chungjuRegion);
+    if (_persistedMapCamera) {
+      const delta = 0.01 * Math.pow(2, 14 - _persistedMapCamera.zoom);
+      setRegion({
+        latitude: _persistedMapCamera.latitude,
+        longitude: _persistedMapCamera.longitude,
+        latitudeDelta: delta,
+        longitudeDelta: delta,
+      });
+    } else {
+      setRegion(chungjuRegion);
+    }
   }, []);
 
-  // 지도 탭 포커스 시 주변 행사 캐시 비움 (카메라는 보던 위치 유지)
+  // 지도 탭 포커스 시 주변 행사 캐시 비움 + 첫 진입 토스트
   useFocusEffect(
     useCallback(() => {
       setEventsNearMe(null);
+      if (!_chungjuToastShown) {
+        _chungjuToastShown = true;
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('현재 충주만 지원 중입니다', ToastAndroid.SHORT);
+        }
+      }
     }, [])
   );
 
@@ -461,7 +500,7 @@ export default function MapScreen() {
       Number.isFinite(e.latitude) &&
       Number.isFinite(e.longitude) &&
       (e.latitude !== 0 || e.longitude !== 0) &&
-      distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= ZONE_RADIUS_KM;
+      isInFestivalZone(myPos.latitude, myPos.longitude, e);
 
     // 1) 지도에 이미 나와 있는 행사(events)로 바로 참여/비참여 판정 (단, 새로고침 직후에는 아래에서 현재 위치 기준 재조회)
     if (events.length > 0 && !forceZoneFetchAfterRefreshRef.current) {
@@ -504,24 +543,17 @@ export default function MapScreen() {
         if (!entry) return;
         const elat = entry.eventLat;
         const elng = entry.eventLng;
-        const km =
-          elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
-            ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
-            : Infinity;
-        const inZone = km <= ZONE_RADIUS_KM;
+        const missingCoords = elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng);
         const participatingEvent = events.find((e) => String(e.id) === String(entry.eventId));
+        const inZone = participatingEvent
+          ? isInFestivalZone(myPos.latitude, myPos.longitude, participatingEvent)
+          : (!missingCoords && distanceKm(myPos.latitude, myPos.longitude, elat!, elng!) <= ZONE_RADIUS_KM);
         const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
         /** 목록에 참여 행사가 안 잡히면(줌/바운드) 거리만으로 막히지 않게 이탈 후보로 본다 */
-        const shouldClear =
-          km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule) || participatingEvent == null;
+        const shouldClear = !inZone || (inZone && eventOutOfSchedule) || participatingEvent == null;
         if (shouldClear) {
-          const missingCoords =
-            elat == null ||
-            elng == null ||
-            !Number.isFinite(elat) ||
-            !Number.isFinite(elng);
           const mode: 'left_zone' | 'schedule_ended' =
-            missingCoords || km > ZONE_RADIUS_KM || participatingEvent == null ? 'left_zone' : 'schedule_ended';
+            missingCoords || !inZone || participatingEvent == null ? 'left_zone' : 'schedule_ended';
           void finalizeParticipationExit(
             entry,
             { latitude: myPos.latitude, longitude: myPos.longitude },
@@ -551,7 +583,7 @@ export default function MapScreen() {
             Number.isFinite(e.latitude) &&
             Number.isFinite(e.longitude) &&
             (e.latitude !== 0 || e.longitude !== 0) &&
-            distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= ZONE_RADIUS_KM
+            isInFestivalZone(myPos.latitude, myPos.longitude, e)
         );
         if (firstInRange != null) {
           setIsFestivalActive(true);
@@ -595,23 +627,16 @@ export default function MapScreen() {
             if (!entry) return;
             const elat = entry.eventLat;
             const elng = entry.eventLng;
-            const km =
-              elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
-                ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
-                : Infinity;
-            const inZone = km <= ZONE_RADIUS_KM;
+            const missingCoords = elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng);
             const participatingEvent = list.find((e) => String(e.id) === String(entry.eventId));
+            const inZone = participatingEvent
+              ? isInFestivalZone(myPos.latitude, myPos.longitude, participatingEvent)
+              : (!missingCoords && distanceKm(myPos.latitude, myPos.longitude, elat!, elng!) <= ZONE_RADIUS_KM);
             const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
-            const shouldClear =
-              km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule) || participatingEvent == null;
+            const shouldClear = !inZone || (inZone && eventOutOfSchedule) || participatingEvent == null;
             if (shouldClear) {
-              const missingCoords =
-                elat == null ||
-                elng == null ||
-                !Number.isFinite(elat) ||
-                !Number.isFinite(elng);
               const mode: 'left_zone' | 'schedule_ended' =
-                missingCoords || km > ZONE_RADIUS_KM || participatingEvent == null ? 'left_zone' : 'schedule_ended';
+                missingCoords || !inZone || participatingEvent == null ? 'left_zone' : 'schedule_ended';
               void finalizeParticipationExit(
                 entry,
                 { latitude: myPos.latitude, longitude: myPos.longitude },
@@ -654,7 +679,7 @@ export default function MapScreen() {
         Number.isFinite(e.latitude) &&
         Number.isFinite(e.longitude) &&
         (e.latitude !== 0 || e.longitude !== 0) &&
-        distanceKm(myPos.latitude, myPos.longitude, e.latitude, e.longitude) <= ZONE_RADIUS_KM
+        isInFestivalZone(myPos.latitude, myPos.longitude, e)
     );
     const inRange = firstInRange != null;
     if (inRange) {
@@ -694,24 +719,16 @@ export default function MapScreen() {
         }
         const elat = entry.eventLat;
         const elng = entry.eventLng;
-        const km = elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
-          ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
-          : Infinity;
-        const inZone = km <= ZONE_RADIUS_KM;
+        const missingCoords = elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng);
         const participatingEvent = eventsToCheck.find((e) => String(e.id) === String(entry.eventId));
+        const inZone = participatingEvent
+          ? isInFestivalZone(myPos.latitude, myPos.longitude, participatingEvent)
+          : (!missingCoords && distanceKm(myPos.latitude, myPos.longitude, elat!, elng!) <= ZONE_RADIUS_KM);
         const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
-        const shouldClear =
-          elat == null || elng == null || !Number.isFinite(elat) || !Number.isFinite(elng)
-            ? true
-            : km > ZONE_RADIUS_KM || (inZone && eventOutOfSchedule) || participatingEvent == null;
+        const shouldClear = missingCoords ? true : !inZone || (inZone && eventOutOfSchedule) || participatingEvent == null;
         if (shouldClear) {
-          const missingCoords =
-            elat == null ||
-            elng == null ||
-            !Number.isFinite(elat) ||
-            !Number.isFinite(elng);
           const mode: 'left_zone' | 'schedule_ended' =
-            missingCoords || km > ZONE_RADIUS_KM || participatingEvent == null ? 'left_zone' : 'schedule_ended';
+            missingCoords || !inZone || participatingEvent == null ? 'left_zone' : 'schedule_ended';
           void finalizeParticipationExit(
             entry,
             { latitude: myPos.latitude, longitude: myPos.longitude },
@@ -729,6 +746,7 @@ export default function MapScreen() {
     refreshFestivalParticipation,
     festivalEntry,
     isEventCurrentlyScheduled,
+    isInFestivalZone,
     finalizeParticipationExit,
   ]);
 
@@ -1393,8 +1411,25 @@ export default function MapScreen() {
           eventId={festivalEntry.eventId}
           eventTitle={festivalEntry.eventTitle ?? ''}
           onClose={() => setSurveyModalVisible(false)}
+          onLater={() => {
+            if (surveyLaterTimerRef.current) clearTimeout(surveyLaterTimerRef.current);
+            setSurveyLaterToast(true);
+            surveyLaterTimerRef.current = setTimeout(() => setSurveyLaterToast(false), 5000);
+          }}
           onSubmitted={() => setSurveyModalVisible(false)}
         />
+      )}
+      {surveyLaterToast && (
+        <Pressable
+          style={styles.surveyLaterToast}
+          onPress={() => setSurveyLaterToast(false)}
+        >
+          <Ionicons name="information-circle-outline" size={18} color="#7C3AED" />
+          <Text style={styles.surveyLaterToastText}>
+            마이페이지에서 언제든지 설문에 참여하실 수 있어요
+          </Text>
+          <Ionicons name="close" size={15} color="#9CA3AF" />
+        </Pressable>
       )}
       {/* 지도 영역: 전체를 채우고, 그 위에 헤더·필터칩·버튼이 오버레이 */}
       <View style={styles.mapArea}>
@@ -1433,6 +1468,7 @@ export default function MapScreen() {
                     longitude: centerLng,
                     zoom: Math.min(21, Math.max(10, zoom)),
                   };
+                  _persistedMapCamera = lastCameraRef.current;
                   // region 상태는 건드리지 않음 → 지도가 혼자 움직이지 않음. 해당 영역 행사만 디바운스 조회
                   if (cameraIdleFetchRef.current) clearTimeout(cameraIdleFetchRef.current);
                   cameraIdleFetchRef.current = setTimeout(() => {
@@ -1685,7 +1721,7 @@ export default function MapScreen() {
                     : !isBottomSheetOpen
                       ? -80
                       : collapsedSheetHeight > 0
-                        ? collapsedSheetHeight - 80
+                        ? collapsedSheetHeight - 72
                         : -80),
                 },
               ]}
@@ -2131,6 +2167,31 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
+  surveyLaterToast: {
+    position: 'absolute',
+    bottom: 96,
+    left: 16,
+    right: 16,
+    backgroundColor: '#EDE9FE',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  surveyLaterToastText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#5B21B6',
+    fontWeight: '500',
+  },
 
   sheetWrapper: {
     position: 'absolute',

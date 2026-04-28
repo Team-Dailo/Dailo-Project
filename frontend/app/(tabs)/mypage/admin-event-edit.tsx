@@ -25,6 +25,11 @@ import {
   getPickedLocation,
   clearPickedLocation,
 } from "../../../services/eventLocationPickStore";
+import {
+  getZonePickResult,
+  clearZonePickResult,
+  setZonePickRequest,
+} from "../../../services/festivalZonePickStore";
 import { DateTimePickerField } from "../../../components/common/DateTimePickerField";
 
 const CATEGORIES: { value: string; label: string }[] = [
@@ -98,7 +103,10 @@ export default function AdminEventEditScreen() {
   /** 지도에서 선택한 경우의 위도·경도 (주소 입력만 있으면 빈 문자열) */
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
+  /** 축제 구역 다각형 JSON (null이면 반경 200m 원형) */
+  const [zonePolygon, setZonePolygon] = useState<string | null>(null);
   const openedLocationPickerRef = useRef(false);
+  const openedZonePickerRef = useRef(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -111,6 +119,12 @@ export default function AdminEventEditScreen() {
         reverseGeocode(picked.latitude, picked.longitude).then((addr) => {
           if (addr) setPlaceAddress(addr);
         });
+      }
+      const zoneResult = getZonePickResult();
+      if (openedZonePickerRef.current && zoneResult) {
+        setZonePolygon(JSON.stringify(zoneResult.polygon));
+        clearZonePickResult();
+        openedZonePickerRef.current = false;
       }
     }, [])
   );
@@ -134,6 +148,7 @@ export default function AdminEventEditScreen() {
         setThumbnailUrl(res.thumbnailUrl ?? "");
         setDescription(res.description ?? "");
         setHostContact(res.hostContact ?? "");
+        setZonePolygon(res.zonePolygon ?? null);
       } catch {
         // ignore
       } finally {
@@ -206,6 +221,7 @@ export default function AdminEventEditScreen() {
       thumbnailUrl: thumbnailUrl.trim() || undefined,
       description: description.trim() || undefined,
       hostContact: hostContact.trim() || undefined,
+      zonePolygon: zonePolygon || undefined,
     };
   };
 
@@ -315,6 +331,39 @@ export default function AdminEventEditScreen() {
         >
           <Text style={styles.mapPickBtnText}>지도에서 위치 선택</Text>
         </Pressable>
+        {/* 축제 구역 편집 */}
+        <Text style={styles.label}>축제 구역 설정</Text>
+        <Text style={styles.locationHint}>
+          {zonePolygon
+            ? `다각형 구역 설정됨 (꼭짓점 ${(() => { try { return JSON.parse(zonePolygon).length; } catch { return '?'; } })()}개)`
+            : '미설정 — 기본 반경 200m 원형 구역 사용'}
+        </Text>
+        <View style={styles.zoneRow}>
+          <Pressable
+            style={[styles.mapPickBtn, { marginBottom: 0 }]}
+            onPress={() => {
+              const lat = latitude.trim() ? Number(latitude) : 36.991;
+              const lng = longitude.trim() ? Number(longitude) : 127.926;
+              let parsedPolygon = null;
+              if (zonePolygon) {
+                try { parsedPolygon = JSON.parse(zonePolygon); } catch { /* ignore */ }
+              }
+              setZonePickRequest({ centerLat: lat, centerLng: lng, polygon: parsedPolygon });
+              openedZonePickerRef.current = true;
+              router.push('/(tabs)/mypage/festival-zone-picker');
+            }}
+          >
+            <Text style={styles.mapPickBtnText}>구역 편집</Text>
+          </Pressable>
+          {zonePolygon && (
+            <Pressable
+              style={[styles.mapPickBtn, { marginBottom: 0, marginLeft: 8, borderColor: '#EF4444' }]}
+              onPress={() => { setZonePolygon(null); }}
+            >
+              <Text style={[styles.mapPickBtnText, { color: '#EF4444' }]}>구역 초기화</Text>
+            </Pressable>
+          )}
+        </View>
         <Field label="지역 *" value={regionName} onChangeText={setRegionName} placeholder="예: 충북 충주, 서울 (현재 위치 기준 목록/지도 필터용)" />
         <DateTimePickerField
           label="시작일·시간 *"
@@ -471,6 +520,7 @@ const styles = StyleSheet.create({
   field: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 8 },
   locationHint: { fontSize: 12, color: "#6B7280", marginTop: -8, marginBottom: 8 },
+  zoneRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   mapPickBtn: {
     alignSelf: "flex-start",
     paddingVertical: 10,
