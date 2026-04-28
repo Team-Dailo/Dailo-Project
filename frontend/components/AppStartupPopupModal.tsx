@@ -111,7 +111,7 @@ export default function AppStartupPopupModal() {
               )}
             </Pressable>
           ) : popups.length > 1 ? (
-            <View style={styles.linkBar}>
+            <View style={[styles.linkBar, styles.linkBarCenter]}>
               <Text style={styles.indicator}>
                 {currentIndex + 1}/{popups.length}
               </Text>
@@ -158,21 +158,26 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   linkBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#1F1F1F',
+  },
+  linkBarCenter: {
+    // 인디케이터만 있을 때도 동일 레이아웃
   },
   linkBarText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
+    textAlign: 'center',
   },
   indicator: {
     fontSize: 13,
     color: '#CCCCCC',
+    position: 'absolute',
+    right: 16,
   },
   buttonRow: {
     flexDirection: 'row',

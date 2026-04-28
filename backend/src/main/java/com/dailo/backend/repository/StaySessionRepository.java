@@ -24,4 +24,8 @@ public interface StaySessionRepository extends JpaRepository<StaySession, Long> 
     /** 구역 안에 있지만 참여 완료 기준 시간 이상 체류 중인 PENDING 세션 */
     @Query(value = "SELECT * FROM stay_session WHERE member_id = :memberId AND status = 'PENDING' AND TIMESTAMPDIFF(MINUTE, start_time, NOW()) >= :minMinutes ORDER BY start_time DESC", nativeQuery = true)
     List<StaySession> findPendingWithMinDuration(@Param("memberId") Long memberId, @Param("minMinutes") long minMinutes);
+
+    /** 30분 이상 체류 중이지만 미션 알림을 아직 발송하지 않은 전체 PENDING 세션 */
+    @Query(value = "SELECT * FROM stay_session WHERE status = 'PENDING' AND TIMESTAMPDIFF(MINUTE, start_time, NOW()) >= :minMinutes AND mission_notified_at IS NULL", nativeQuery = true)
+    List<StaySession> findPendingNeedingMissionNotification(@Param("minMinutes") long minMinutes);
 }
