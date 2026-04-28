@@ -53,6 +53,7 @@ export default function MyPageLayout() {
       <Stack.Screen name="my-reports" options={{ headerShown: false }} />
       <Stack.Screen name="block-list" options={{ headerShown: false }} />
       <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
+      <Stack.Screen name="notification-settings" options={{ headerShown: false }} />
       <Stack.Screen
         name="admin"
         options={{ title: "관리자 메뉴", headerShown: true, headerTitleAlign: "center" }}
@@ -189,6 +190,38 @@ export default function MyPageLayout() {
       <Stack.Screen
         name="admin-surveys"
         options={{ title: "설문 응답 목록", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-dashboard"
+        options={{ title: "대시보드", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-comments"
+        options={{ title: "댓글 관리", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-faq-edit"
+        options={{ title: "FAQ 등록/수정", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-push"
+        options={{ title: "푸시 알림 발송", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-app-versions"
+        options={{ title: "앱 버전 관리", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-app-version-edit"
+        options={{ title: "앱 버전 등록/수정", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-logs"
+        options={{ title: "활동 로그", headerShown: true, headerTitleAlign: "center" }}
+      />
+      <Stack.Screen
+        name="admin-guide"
+        options={{ title: "이용안내 수정", headerShown: true, headerTitleAlign: "center" }}
       />
     </Stack>
   );

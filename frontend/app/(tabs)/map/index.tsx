@@ -19,8 +19,11 @@ import {
   ImageBackground,
   FlatList,
   Image,
+<<<<<<< HEAD
   Platform,
   ToastAndroid,
+=======
+>>>>>>> origin/main
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -1378,7 +1381,7 @@ export default function MapScreen() {
 
   // 하단 탭 바 높이 + safe area만큼 올려서 탭과 겹치지 않게 (_layout.tsx tabBar height 72와 동일)
   const TAB_BAR_HEIGHT = 72;
-  const bottomInset = Platform.OS === 'ios' ? 0 : Math.max(insets.bottom ?? 0, 24);
+  const bottomInset = Math.max(insets.bottom ?? 0, 24);
   const tabBarOffset = TAB_BAR_HEIGHT + bottomInset;
 
   // 필터칩 위 여백: 검색창과 필터칩 사이 간격 (이전처럼 복원)
@@ -1660,7 +1663,7 @@ export default function MapScreen() {
               }}
             >
               <View style={styles.bookmarkButtonIconArea}>
-                <Ionicons name="bus" size={26} color={showBusStops ? '#fff' : '#4C8BF5'} />
+                <Ionicons name="bus" size={22} color={showBusStops ? '#fff' : '#4C8BF5'} />
               </View>
               <Text style={[styles.bookmarkButtonText, showBusStops && { color: '#fff' }]}>버스</Text>
             </TouchableOpacity>
@@ -1727,27 +1730,27 @@ export default function MapScreen() {
               ]}
           >
             <View style={styles.listButtonCenterFull}>
-              {/* 좌측: 버스 시간표 */}
-              <View style={styles.listButtonSideLeft}>
+              {showBusStops && (
                 <TouchableOpacity
-                  style={styles.busTimetableButton}
+                  style={[styles.busTimetableButton, { position: 'absolute', left: 16 }]}
                   activeOpacity={0.85}
                   onPress={() => setShowBusTimetable(true)}
                 >
-                  <Ionicons name="bus-outline" size={15} color="#2563eb" style={{ marginRight: 4 }} />
                   <Text style={styles.busTimetableButtonText}>버스 시간표</Text>
                 </TouchableOpacity>
-              </View>
-              {/* 가운데: 축제 목록 보기 */}
+              )}
               <TouchableOpacity
                 style={styles.listButton}
                 activeOpacity={0.85}
                 onPress={onPressFestivalList}
               >
+                <View style={styles.menuIcon}>
+                  <View style={styles.menuIconBar} />
+                  <View style={styles.menuIconBar} />
+                  <View style={styles.menuIconBar} />
+                </View>
                 <Text style={styles.listButtonText}>축제 목록 보기</Text>
               </TouchableOpacity>
-              {/* 우측 균형 맞춤 */}
-              <View style={styles.listButtonSideRight} />
             </View>
             <View style={styles.zoomAndLocationColumn}>
                 <View style={styles.zoomControlBox}>
@@ -2340,12 +2343,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: 56,
-    height: 72,
+    height: 64,
     borderRadius: 14,
     backgroundColor: MAP_UI.cardBg,
-    paddingTop: 10,
+    paddingTop: 8,
     paddingBottom: 8,
-    gap: 6,
+    gap: 4,
     elevation: 8,
     shadowColor: 'rgba(0,0,0,0.15)',
     shadowOpacity: 1,
@@ -2430,38 +2433,51 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'center',
-  },
-  listButtonSideLeft: {
-    flex: 1,
-    alignItems: 'flex-end',
-    paddingRight: 8,
-  },
-  listButtonSideRight: {
-    flex: 1,
   },
   listButton: {
-    paddingHorizontal: 24,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#4C8BF5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  listButtonText: { color: '#ffffff', fontWeight: '600' },
-  busTimetableButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 9999,
+    backgroundColor: '#4A9EFF',
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
     justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  busTimetableButtonText: { color: '#2563eb', fontWeight: '600', fontSize: 13 },
+  listButtonText: { color: '#ffffff', fontWeight: '700', fontSize: 15, letterSpacing: -0.3 },
+  busTimetableButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 9999,
+    backgroundColor: '#C2C2C2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  busTimetableButtonText: { color: '#ffffff', fontWeight: '600', fontSize: 15, letterSpacing: -0.5 },
+  menuIcon: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 3,
+  },
+  menuIconBar: {
+    width: 14,
+    height: 2.5,
+    borderRadius: 2,
+    backgroundColor: '#ffffff',
+  },
   zoomAndLocationColumn: {
     position: 'absolute',
     right: 16,

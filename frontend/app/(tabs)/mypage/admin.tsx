@@ -39,9 +39,6 @@ export default function AdminMenuScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.description}>
-        백엔드 /api/admin/* API와 연동된 관리 기능입니다.
-      </Text>
       <View style={styles.card}>
         {MENU_ITEMS.map((item) => (
           <Pressable
@@ -64,12 +61,6 @@ export default function AdminMenuScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F4F6" },
   content: { padding: 16, paddingBottom: 32 },
-  description: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginBottom: 16,
-    lineHeight: 20,
-  },
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,

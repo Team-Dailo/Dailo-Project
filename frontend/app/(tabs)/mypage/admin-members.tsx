@@ -132,7 +132,7 @@ export default function AdminMembersScreen() {
       }
     >
       {error ? (
-        <Text style={styles.error}>{error}</Text>
+        <Text style={styles.error}>{error && !error.includes("<html") && !error.includes("<!DOCTYPE") ? error : null}</Text>
       ) : page.content.length === 0 ? (
         <Text style={styles.empty}>등록된 회원이 없습니다.</Text>
       ) : (

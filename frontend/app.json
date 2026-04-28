@@ -13,6 +13,7 @@
       "bundleIdentifier": "com.knut.dailo",
       "buildNumber": "9",
       "usesAppleSignIn": false,
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "축제 위치 확인 및 체류 인증을 위해 위치 정보가 필요합니다.",
@@ -36,7 +37,8 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
       ],
-      "package": "com.knut.dailo"
+      "package": "com.knut.dailo",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
