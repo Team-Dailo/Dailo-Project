@@ -106,6 +106,7 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     DEFAULT_POSTER_URI;
   const [clickCount, setClickCount] = useState<number | null>(null);
   const [hasReminder, setHasReminder] = useState(false);
+  const [posterFullscreen, setPosterFullscreen] = useState(false);
 
   // 행사 상세 진입 시 조회(클릭) 로그 기록 + 조회수 표시
   useEffect(() => {
@@ -316,8 +317,6 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     }
     scheduleReminder();
   };
-
-  const [posterFullscreen, setPosterFullscreen] = useState(false);
 
   return (
     <View style={styles.container}>
