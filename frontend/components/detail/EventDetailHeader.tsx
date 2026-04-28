@@ -25,9 +25,7 @@ import type { EventDetail } from "../../types/event";
 import * as logService from "../../services/log.service";
 import * as eventReminder from "../../services/eventReminder.service";
 
-const EVENT_REMINDER_BOOKED_KEY = "@mypage/notification_event_reminder_booked";
 const EVENT_REMINDER_BOOKED_DAYS_KEY = "@mypage/notification_event_reminder_days_before";
-const EVENT_REMINDER_BOOKED_TIME_HOUR_KEY = "@mypage/notification_event_reminder_time_hour";
 
 const DEFAULT_POSTER_URI =
   "https://images.unsplash.com/photo-1485550409059-9afb054cada4?w=800";
@@ -227,18 +225,20 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
       // 위치 없이 목적지만 열기
     }
 
-    const params = new URLSearchParams({
-      dlat: String(event.latitude),
-      dlng: String(event.longitude),
-      dname: destination,
-      appname: "com.knut.dailo",
-    });
+    // URLSearchParams는 한글 공백을 + 로 인코딩하므로 수동 빌드
+    const dlat = String(event.latitude);
+    const dlng = String(event.longitude);
+    const dname = encodeURIComponent(destination);
+    let nmapUrl =
+      `nmap://route/car` +
+      `?dlat=${dlat}&dlng=${dlng}&dname=${dname}` +
+      `&appname=com.knut.dailo`;
     if (startLat != null && startLng != null) {
-      params.set("slat", String(startLat));
-      params.set("slng", String(startLng));
-      params.set("sname", "현재 위치");
+      const slat = String(startLat);
+      const slng = String(startLng);
+      const sname = encodeURIComponent("현재 위치");
+      nmapUrl += `&slat=${slat}&slng=${slng}&sname=${sname}`;
     }
-    const nmapUrl = `nmap://route/car?${params.toString()}`;
     Linking.openURL(nmapUrl).catch(openNaverWeb);
   };
 
@@ -270,37 +270,26 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
       // ignore and use default
     }
 
-    // 알림 시각 설정 불러오기 (기본 9시)
-    let timeHour = 9;
-    try {
-      const storedTime = await AsyncStorage.getItem(EVENT_REMINDER_BOOKED_TIME_HOUR_KEY);
-      if (storedTime != null && storedTime !== "") {
-        const parsedTime = parseInt(storedTime, 10);
-        if (!Number.isNaN(parsedTime) && parsedTime >= 0 && parsedTime <= 23) {
-          timeHour = parsedTime;
-        }
-      }
-    } catch {
-      // ignore and use default
-    }
-
     const notifId = await eventReminder.scheduleEventReminder(
       String(event.id),
       event.title,
       event.startAt,
       daysBefore,
       "booked",
-      timeHour
+      9
     );
     if (notifId) {
       setHasReminder(true);
       const msg =
         daysBefore === 1
-          ? "행사 1일 전에 알림을 보내드립니다."
-          : `행사 ${daysBefore}일 전에 알림을 보내드립니다.`;
-      Alert.alert("알림 예약", msg);
+          ? "행사 1일 전 오전 9시에 알림을 보내드립니다."
+          : `행사 ${daysBefore}일 전 오전 9시에 알림을 보내드립니다.`;
+      if (Platform.OS === "android") {
+        ToastAndroid.show(msg, ToastAndroid.LONG);
+      } else {
+        Alert.alert("알림 예약", msg);
+      }
     } else {
-      // 권한은 있지만 다른 이유로 실패 (예: 이미 지난 날짜)
       Alert.alert("알림 실패", "알림을 예약할 수 없습니다. 행사 날짜를 확인해 주세요.");
     }
   };
@@ -323,25 +312,7 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
       ]);
       return;
     }
-    AsyncStorage.getItem(EVENT_REMINDER_BOOKED_KEY).then((value) => {
-      if (value !== "true") {
-        Alert.alert(
-          "알림 설정",
-          "알림설정에서 '예약한 행사 알림'을 켜주세요. 마이페이지 → 알림설정에서 설정할 수 있어요.",
-          [
-            { text: "취소", style: "cancel" },
-            {
-              text: "설정으로 이동",
-              onPress: () => {
-                router.push({ pathname: "/(tabs)/mypage/notification-settings", params: { from: "event-detail" } });
-              },
-            },
-          ]
-        );
-        return;
-      }
-      scheduleReminder();
-    });
+    scheduleReminder();
   };
 
   return (

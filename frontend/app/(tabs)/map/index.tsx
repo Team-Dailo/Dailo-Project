@@ -20,6 +20,7 @@ import {
   FlatList,
   Image,
   Platform,
+  ToastAndroid,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -170,6 +171,11 @@ const SCALE_LABEL_MAP: Record<string, string> = {
   CLUB: '동아리/소모임',
   PERSONAL: '개인',
 };
+
+/** 탭 전환 후 복귀 시 마지막 카메라 위치 복원 (앱 세션 유지) */
+let _persistedMapCamera: { latitude: number; longitude: number; zoom: number } | null = null;
+/** 첫 진입 토스트: 세션 중 최초 1회만 */
+let _chungjuToastShown = false;
 
 /** Expo Go에서는 네이버 지도 네이티브 모듈이 없어 크래시됨 → 안내만 표시 */
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -442,25 +448,42 @@ export default function MapScreen() {
     }
   }, [demoLocation, currentLocation, isLoggedIn]);
 
+  // 충주 전경이 보이는 초기 구도 (남한강·시청·역이 한 화면에 들어오는 zoom 11)
   const chungjuRegion = useMemo(
     () => ({
-      latitude: REGION_CENTERS.충주.latitude,
-      longitude: REGION_CENTERS.충주.longitude,
-      latitudeDelta: 0.05,
-      longitudeDelta: 0.05,
+      latitude: 36.975,
+      longitude: 127.925,
+      latitudeDelta: 0.09,
+      longitudeDelta: 0.09,
     }),
     []
   );
 
-  // 최초 마운트 시에만 충주로 초기 카메라 설정
+  // 최초 마운트 시: 이전에 저장된 카메라가 있으면 그 위치로, 없으면 충주 초기 구도
   useEffect(() => {
-    setRegion(chungjuRegion);
+    if (_persistedMapCamera) {
+      const delta = 0.01 * Math.pow(2, 14 - _persistedMapCamera.zoom);
+      setRegion({
+        latitude: _persistedMapCamera.latitude,
+        longitude: _persistedMapCamera.longitude,
+        latitudeDelta: delta,
+        longitudeDelta: delta,
+      });
+    } else {
+      setRegion(chungjuRegion);
+    }
   }, []);
 
-  // 지도 탭 포커스 시 주변 행사 캐시 비움 (카메라는 보던 위치 유지)
+  // 지도 탭 포커스 시 주변 행사 캐시 비움 + 첫 진입 토스트
   useFocusEffect(
     useCallback(() => {
       setEventsNearMe(null);
+      if (!_chungjuToastShown) {
+        _chungjuToastShown = true;
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('현재 충주만 지원 중입니다', ToastAndroid.SHORT);
+        }
+      }
     }, [])
   );
 
@@ -1445,6 +1468,7 @@ export default function MapScreen() {
                     longitude: centerLng,
                     zoom: Math.min(21, Math.max(10, zoom)),
                   };
+                  _persistedMapCamera = lastCameraRef.current;
                   // region 상태는 건드리지 않음 → 지도가 혼자 움직이지 않음. 해당 영역 행사만 디바운스 조회
                   if (cameraIdleFetchRef.current) clearTimeout(cameraIdleFetchRef.current);
                   cameraIdleFetchRef.current = setTimeout(() => {
@@ -1697,7 +1721,7 @@ export default function MapScreen() {
                     : !isBottomSheetOpen
                       ? -80
                       : collapsedSheetHeight > 0
-                        ? collapsedSheetHeight - 80
+                        ? collapsedSheetHeight - 72
                         : -80),
                 },
               ]}

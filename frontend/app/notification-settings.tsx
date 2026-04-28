@@ -1,4 +1,4 @@
-// app/(tabs)/mypage/notification-settings.tsx - 알림설정
+// app/notification-settings.tsx - 알림설정
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -12,16 +12,15 @@ import {
   ActivityIndicator,
   Platform,
   ToastAndroid,
-  TextInput,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as eventReminder from '../../../services/eventReminder.service';
-import * as notificationService from '../../../services/notification.service';
-import { useAuthContext } from '../../../contexts/AuthContext';
-import { REGION_PICKER_OPTIONS } from '../../../utils/region';
+import * as eventReminder from '../services/eventReminder.service';
+import * as notificationService from '../services/notification.service';
+import { useAuthContext } from '../contexts/AuthContext';
+import { REGION_PICKER_OPTIONS } from '../utils/region';
 
 const STORAGE_KEYS = {
   pushEnabled: '@mypage/notification_push_enabled',
@@ -29,10 +28,8 @@ const STORAGE_KEYS = {
   eventReminderBooked: '@mypage/notification_event_reminder_booked',
   eventReminderRegion: '@mypage/notification_event_reminder_region',
   eventReminderRegionKey: '@mypage/notification_event_reminder_region_key',
-  // 예약한 행사 알림용 기본 값 (기존 키 유지)
   eventReminderBookedDaysBefore: '@mypage/notification_event_reminder_days_before',
   eventReminderBookedTimeHour: '@mypage/notification_event_reminder_time_hour',
-  // 지역 행사 알림용 별도 설정
   eventReminderRegionDaysBefore: '@mypage/notification_region_event_reminder_days_before',
   eventReminderRegionTimeHour: '@mypage/notification_region_event_reminder_time_hour',
 };
@@ -40,9 +37,9 @@ const STORAGE_KEYS = {
 export default function NotificationSettingsScreen() {
   const { isLoggedIn } = useAuthContext();
 
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [eventReminderOn, setEventReminderOn] = useState(true);
-  const [bookedOn, setBookedOn] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [eventReminderOn, setEventReminderOn] = useState(false);
+  const [bookedOn, setBookedOn] = useState(false);
   const [regionOn, setRegionOn] = useState(false);
   const [regionKey, setRegionKey] = useState<string | null>(null);
   const [regionModalVisible, setRegionModalVisible] = useState(false);
@@ -51,9 +48,6 @@ export default function NotificationSettingsScreen() {
   const [regionDaysBefore, setRegionDaysBefore] = useState<number>(1);
   const [daysModalTarget, setDaysModalTarget] = useState<'booked' | 'region'>('booked');
   const [daysModalVisible, setDaysModalVisible] = useState(false);
-  const [bookedTimeHour, setBookedTimeHour] = useState<number>(9);
-  const [regionTimeHour, setRegionTimeHour] = useState<number>(9);
-  const [timeInput, setTimeInput] = useState<string>('9');
   const [regionMoreVisible, setRegionMoreVisible] = useState(false);
 
   const handleBack = useCallback(() => {
@@ -63,8 +57,7 @@ export default function NotificationSettingsScreen() {
   useEffect(() => {
     (async () => {
       try {
-        // 1. 로컬 저장소에서 불러오기
-        const [push, reminder, booked, region, rKey, bookedDays, bookedTime, regionDays, regionTime] =
+        const [push, reminder, booked, region, rKey, bookedDays, regionDays] =
           await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.pushEnabled),
           AsyncStorage.getItem(STORAGE_KEYS.eventReminder),
@@ -72,9 +65,7 @@ export default function NotificationSettingsScreen() {
           AsyncStorage.getItem(STORAGE_KEYS.eventReminderRegion),
           AsyncStorage.getItem(STORAGE_KEYS.eventReminderRegionKey),
           AsyncStorage.getItem(STORAGE_KEYS.eventReminderBookedDaysBefore),
-          AsyncStorage.getItem(STORAGE_KEYS.eventReminderBookedTimeHour),
           AsyncStorage.getItem(STORAGE_KEYS.eventReminderRegionDaysBefore),
-          AsyncStorage.getItem(STORAGE_KEYS.eventReminderRegionTimeHour),
         ]);
         if (push !== null) setPushEnabled(push === 'true');
         if (reminder !== null) setEventReminderOn(reminder === 'true');
@@ -93,27 +84,9 @@ export default function NotificationSettingsScreen() {
             setRegionDaysBefore(parsed);
           }
         }
-        if (bookedTime != null && bookedTime !== '') {
-          const parsedTime = parseInt(bookedTime, 10);
-          if (!Number.isNaN(parsedTime) && parsedTime >= 0 && parsedTime <= 23) {
-            setBookedTimeHour(parsedTime);
-            setTimeInput(String(parsedTime));
-          }
-        } else {
-          setTimeInput('9');
-        }
-        if (regionTime != null && regionTime !== '') {
-          const parsedTime = parseInt(regionTime, 10);
-          if (!Number.isNaN(parsedTime) && parsedTime >= 0 && parsedTime <= 23) {
-            setRegionTimeHour(parsedTime);
-          }
-        }
-
-        // 2. 로그인 상태면 서버에서 설정 동기화
         if (isLoggedIn) {
           try {
             const serverSettings = await notificationService.getNotificationSettings();
-            // 서버 설정이 있으면 로컬에 반영
             if (serverSettings) {
               setPushEnabled(serverSettings.newEventEnabled);
               setEventReminderOn(serverSettings.eventReminderEnabled);
@@ -121,7 +94,6 @@ export default function NotificationSettingsScreen() {
                 setRegionKey(serverSettings.subscribedRegions);
                 setRegionOn(true);
               }
-              // 로컬 저장소에도 동기화
               await AsyncStorage.setItem(STORAGE_KEYS.pushEnabled, String(serverSettings.newEventEnabled));
               await AsyncStorage.setItem(STORAGE_KEYS.eventReminder, String(serverSettings.eventReminderEnabled));
               if (serverSettings.subscribedRegions) {
@@ -145,7 +117,6 @@ export default function NotificationSettingsScreen() {
     }
   };
 
-  // 서버에 알림 설정 동기화
   const syncToServer = useCallback(async (settings: {
     newEventEnabled: boolean;
     eventReminderEnabled: boolean;
@@ -158,9 +129,7 @@ export default function NotificationSettingsScreen() {
         eventReminderEnabled: settings.eventReminderEnabled,
         subscribedRegions: settings.subscribedRegions,
       });
-    } catch {
-      // 서버 동기화 실패 시 무시 (로컬은 이미 저장됨)
-    }
+    } catch {}
   }, [isLoggedIn]);
 
   const handlePushChange = async (value: boolean) => {
@@ -182,7 +151,6 @@ export default function NotificationSettingsScreen() {
       eventReminder.cancelScheduledByOrigin('booked').catch(() => {});
       eventReminder.cancelScheduledByOrigin('region').catch(() => {});
     }
-    // 서버 동기화
     syncToServer({
       newEventEnabled: value,
       eventReminderEnabled: value ? eventReminderOn : false,
@@ -204,7 +172,6 @@ export default function NotificationSettingsScreen() {
       await eventReminder.cancelScheduledByOrigin('booked');
       await eventReminder.cancelScheduledByOrigin('region');
     }
-    // 서버 동기화
     syncToServer({
       newEventEnabled: pushEnabled,
       eventReminderEnabled: value,
@@ -228,13 +195,24 @@ export default function NotificationSettingsScreen() {
   const handleRegionChange = async (value: boolean) => {
     if (!pushEnabled || !eventReminderOn) return;
     if (value) {
-      showToast('지역을 선택하면 해당 지역 행사 1일 전에 알림을 받을 수 있어요.');
-      // 토글을 켰을 때 바로 ON 상태로 유지되도록 저장
       setRegionOn(true);
+      setRegionLoading(true);
       try {
         await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegion, 'true');
-      } catch {}
-      setRegionModalVisible(true);
+        await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionKey, '충주');
+        const result = await eventReminder.scheduleRegionEventRemindersByRegionKey('충주');
+        setRegionKey('충주');
+        syncToServer({ newEventEnabled: pushEnabled, eventReminderEnabled: eventReminderOn, subscribedRegions: '충주' });
+        if (result.ok) {
+          showToast(result.count > 0
+            ? `충주 지역 행사 ${result.count}건에 대해 1일 전 오전 9시 알림을 예약했어요.`
+            : '충주 지역에 예정된 행사가 없어요. 행사가 등록되면 알려드릴게요.');
+        }
+      } catch {
+        setRegionOn(false);
+      } finally {
+        setRegionLoading(false);
+      }
       return;
     }
     setRegionOn(false);
@@ -244,7 +222,6 @@ export default function NotificationSettingsScreen() {
       await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionKey, '');
     } catch {}
     await eventReminder.cancelScheduledByOrigin('region');
-    // 서버 동기화 (지역 설정 해제)
     syncToServer({
       newEventEnabled: pushEnabled,
       eventReminderEnabled: eventReminderOn,
@@ -262,7 +239,6 @@ export default function NotificationSettingsScreen() {
         setRegionKey(key);
         await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegion, 'true');
         await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionKey, key);
-        // 서버 동기화
         syncToServer({
           newEventEnabled: pushEnabled,
           eventReminderEnabled: eventReminderOn,
@@ -284,17 +260,11 @@ export default function NotificationSettingsScreen() {
     }
   };
 
-  const regionLabel = regionKey
-    ? REGION_PICKER_OPTIONS.find((r) => r.key === regionKey)?.label ?? regionKey
-    : null;
-
   const openDaysModal = (target: 'booked' | 'region') => {
     if (!pushEnabled || !eventReminderOn) return;
     if (target === 'booked' && !bookedOn) return;
-    // 지역 행사 알림은 꺼져 있어도 시간 설정은 가능하도록 허용
+    if (target === 'region' && !regionOn) return;
     setDaysModalTarget(target);
-    const baseHour = target === 'booked' ? bookedTimeHour : regionTimeHour;
-    setTimeInput(String(baseHour));
     setDaysModalVisible(true);
   };
 
@@ -314,33 +284,13 @@ export default function NotificationSettingsScreen() {
     }
   };
 
-  const handleSelectTimeHour = async (value: number) => {
-    if (daysModalTarget === 'booked') {
-      setBookedTimeHour(value);
-      try {
-        await AsyncStorage.setItem(STORAGE_KEYS.eventReminderBookedTimeHour, String(value));
-      } catch {}
-    } else {
-      setRegionTimeHour(value);
-      try {
-        await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionTimeHour, String(value));
-      } catch {}
-    }
-    setDaysModalVisible(false);
-  };
-
-  const formatTimeLabel = (h: number): string => {
-    const suffix = h >= 12 ? '오후' : '오전';
-    const hour12 = ((h + 11) % 12) + 1;
-    return `${suffix} ${hour12}시`;
-  };
   const bookedDaysLabel =
     (bookedDaysBefore === 1 ? '행사 1일 전' : `행사 ${bookedDaysBefore}일 전`) +
-    `, ${formatTimeLabel(bookedTimeHour)}에 알림`;
+    ' 오전 9시에 알림';
 
   const regionDaysLabel =
     (regionDaysBefore === 1 ? '행사 1일 전' : `행사 ${regionDaysBefore}일 전`) +
-    `, ${formatTimeLabel(regionTimeHour)}에 알림`;
+    ' 오전 9시에 알림';
 
   return (
     <>
@@ -416,9 +366,9 @@ export default function NotificationSettingsScreen() {
                     </View>
                   </View>
                   <View style={[styles.subRow, styles.rowBorder, subDisabled && styles.rowDisabled]}>
-                    <View>
+                    <View style={{ flex: 1 }}>
                       <Text style={[styles.subLabel, subDisabled && styles.labelDisabled]}>지역 행사 알림</Text>
-                      <Text style={styles.subHint}>{regionDaysLabel}</Text>
+                      <Text style={styles.subHint}>충주 지역 · {regionDaysLabel}</Text>
                     </View>
                     <View style={styles.subRight}>
                       <Switch
@@ -429,9 +379,7 @@ export default function NotificationSettingsScreen() {
                         thumbColor="#FFFFFF"
                       />
                       <Pressable
-                        onPress={() => {
-                          if (!subDisabled) setRegionMoreVisible(true);
-                        }}
+                        onPress={() => openDaysModal('region')}
                         disabled={subDisabled}
                         hitSlop={8}
                         style={styles.moreIconButton}
@@ -444,26 +392,24 @@ export default function NotificationSettingsScreen() {
                       </Pressable>
                     </View>
                   </View>
+                  {/* 지역 선택 UI - 추후 지역 확장 시 활성화 예정
                   {regionOn && pushEnabled && eventReminderOn ? (
-                    <Pressable
-                      style={[styles.subRow, styles.rowBorder, styles.regionRow]}
-                      onPress={() => setRegionModalVisible(true)}
-                    >
-                      <Text style={styles.regionLabel}>
-                        {regionLoading ? '설정 중…' : regionLabel ? `선택 지역: ${regionLabel}` : '지역 선택'}
-                      </Text>
+                    <Pressable style={[styles.subRow, styles.rowBorder, styles.regionRow]} onPress={() => setRegionModalVisible(true)}>
+                      <Text style={styles.regionLabel}>{regionLabel ? `선택 지역: ${regionLabel}` : '지역 선택'}</Text>
                       <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
                     </Pressable>
                   ) : null}
+                  */}
                 </>
               );
             })()}
           </View>
           <Text style={styles.reminderDescription}>
-            • 예약한 행사 알림: 행사 상세 화면에서 알림 아이콘을 누르면 해당 행사 1일 전(기본) 또는 원하는 날에 알림을 받을 수 있어요.
+            • 예약한 행사 알림: 행사 상세 화면에서 알림 아이콘을 누르면 행사 하루 전 오전 9시에 알림을 받을 수 있어요.
             {'\n'}
-            • 지역 행사 알림: 위에서 지역을 지정하면, 해당 지역에서 열리는 행사 1일 전에 알려드려요.
+            • 지역 행사 알림: 현재 충주 지역만 기본 제공됩니다. 추후 더 많은 지역이 추가될 예정이에요.
           </Text>
+
         </ScrollView>
 
         <Modal
@@ -529,39 +475,13 @@ export default function NotificationSettingsScreen() {
                     onPress={() => handleSelectDaysBefore(d)}
                   >
                     <Text style={styles.regionItemText}>
-                      {d === 1 ? '행사 1일 전' : `행사 ${d}일 전`}
+                      {d === 1 ? '행사 1일 전 오전 9시' : `행사 ${d}일 전 오전 9시`}
                     </Text>
                     {(daysModalTarget === 'booked' ? bookedDaysBefore : regionDaysBefore) === d ? (
                       <Ionicons name="checkmark" size={22} color="#4C8BF5" />
                     ) : null}
                   </Pressable>
                 ))}
-                <View style={styles.modalSectionDivider} />
-                <View style={styles.timeInputRow}>
-                  <Text style={styles.timeInputLabel}>알림 시각 (0~23시)</Text>
-                  <TextInput
-                    style={styles.timeInput}
-                    value={timeInput}
-                    onChangeText={setTimeInput}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    placeholder="9"
-                    placeholderTextColor="#9CA3AF"
-                  />
-                  <Pressable
-                    onPress={() => {
-                      const v = parseInt(timeInput, 10);
-                      if (Number.isNaN(v) || v < 0 || v > 23) {
-                        Alert.alert('입력 오류', '0~23 사이의 숫자로 시간을 입력해 주세요.');
-                        return;
-                      }
-                      handleSelectTimeHour(v);
-                    }}
-                    hitSlop={4}
-                  >
-                    <Text style={styles.timeApplyText}>적용</Text>
-                  </Pressable>
-                </View>
               </ScrollView>
             </View>
           </Pressable>
@@ -592,7 +512,7 @@ export default function NotificationSettingsScreen() {
                   openDaysModal('region');
                 }}
               >
-                <Text style={styles.moreMenuText}>시간 설정</Text>
+                <Text style={styles.moreMenuText}>알림 시점 설정</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -661,16 +581,20 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingHorizontal: 4,
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '70%',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginTop: 12,
+  },
+  historyLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: '#111827',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -683,7 +607,6 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 17, fontWeight: '600', color: '#111827' },
   modalLoading: { padding: 40, alignItems: 'center' },
-  regionList: { maxHeight: 320 },
   regionItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -752,35 +675,5 @@ const styles = StyleSheet.create({
   },
   daysModalList: {
     maxHeight: 320,
-  },
-  timeInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  timeInputLabel: {
-    fontSize: 14,
-    color: '#111827',
-    flex: 1,
-  },
-  timeInput: {
-    width: 56,
-    height: 36,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    fontSize: 14,
-    color: '#111827',
-    textAlign: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  timeApplyText: {
-    fontSize: 14,
-    color: '#4C8BF5',
-    fontWeight: '500',
   },
 });

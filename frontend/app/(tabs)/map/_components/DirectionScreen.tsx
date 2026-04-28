@@ -81,20 +81,22 @@ export function DirectionScreen({ visible, event, startLocation, onClose }: Prop
       openNaverMapWeb();
       return;
     }
-    const appname = 'com.knut.dailo';
-    const dname = encodeURIComponent(destination);
-    const params = new URLSearchParams({
-      dlat: String(event.latitude!),
-      dlng: String(event.longitude!),
-      dname,
-      appname,
-    });
+
+    // URLSearchParams는 한글 공백을 + 로 인코딩하므로 수동 빌드
+    const dlat = String(event.latitude!);
+    const dlng = String(event.longitude!);
+    const dname = encodeURIComponent(destination || event.placeName || event.title);
+    let nmapUrl =
+      `nmap://route/car` +
+      `?dlat=${dlat}&dlng=${dlng}&dname=${dname}` +
+      `&appname=com.knut.dailo`;
+
     if (startLocation?.latitude != null && startLocation?.longitude != null) {
-      params.set('slat', String(startLocation.latitude));
-      params.set('slng', String(startLocation.longitude));
-      params.set('sname', '현재 위치');
+      const slat = String(startLocation.latitude);
+      const slng = String(startLocation.longitude);
+      const sname = encodeURIComponent('현재 위치');
+      nmapUrl += `&slat=${slat}&slng=${slng}&sname=${sname}`;
     }
-    const nmapUrl = `nmap://route/car?${params.toString()}`;
 
     // 웹/WebView에서는 nmap 스킴이 크롬에서 빈 화면이 뜨므로 바로 웹 URL 사용
     if (Platform.OS === 'web') {

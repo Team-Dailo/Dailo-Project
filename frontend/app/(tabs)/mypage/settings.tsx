@@ -85,7 +85,7 @@ export default function MyPageSettingsScreen() {
         <View style={styles.container}>
           <Pressable
             style={styles.item}
-            onPress={() => router.push('/(tabs)/mypage/notification-settings')}
+            onPress={() => router.push('/notification-settings')}
           >
             <Ionicons
               name="notifications-outline"
