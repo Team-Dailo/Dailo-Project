@@ -2,8 +2,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import * as MediaLibrary from "expo-media-library";
-import * as FileSystem from "expo-file-system/legacy";
+// import * as MediaLibrary from "expo-media-library";
+// import * as FileSystem from "expo-file-system/legacy";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -109,14 +109,29 @@ function formatMessageTime(iso?: string): string {
 /** 실제 비율로 사진 표시 + 탭 시 전체화면 */
 function ChatImageBubble({ uri, onPress }: { uri: string; onPress: () => void }) {
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   useEffect(() => {
-    Image.getSize(uri, (w, h) => setImgSize({ w, h }), () => {});
+    setLoadFailed(false);
+    Image.getSize(uri, (w, h) => setImgSize({ w, h }), () => setLoadFailed(true));
   }, [uri]);
   const MAX_W = 220;
   const displayH = imgSize ? Math.round((imgSize.h / imgSize.w) * MAX_W) : MAX_W;
+  if (loadFailed) {
+    return (
+      <View style={{ width: MAX_W, height: 72, backgroundColor: "#F3F4F6", borderRadius: 12, justifyContent: "center", alignItems: "center" }}>
+        <Ionicons name="image-outline" size={24} color="#9CA3AF" />
+        <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>이미지를 불러올 수 없습니다</Text>
+      </View>
+    );
+  }
   return (
     <Pressable onPress={onPress} style={{ borderRadius: 12, overflow: "hidden" }}>
-      <Image source={{ uri }} style={{ width: MAX_W, height: displayH, borderRadius: 12 }} resizeMode="cover" />
+      <Image
+        source={{ uri }}
+        style={{ width: MAX_W, height: displayH, borderRadius: 12 }}
+        resizeMode="cover"
+        onError={() => setLoadFailed(true)}
+      />
     </Pressable>
   );
 }
@@ -179,14 +194,23 @@ export default function ChatRoomScreen() {
       setNotificationsOn(notifStatus.notificationOn);
       const myId = uid ?? 0;
       // API는 최신순(Desc)이므로 채팅은 과거→최신 순으로 보이도록 뒤집기
-      const raw = (msgData.content ?? []).map((m) => ({
-        id: String(m.id),
-        isMe: m.senderId === myId,
-        text: m.messageType === 'IMAGE' ? '' : (m.content ?? ""),
-        imageUrl: m.messageType === 'IMAGE' ? normalizeImageUrl(m.content) : undefined,
-        time: formatMessageTime(m.createdAt),
-        createdAt: m.createdAt,
-      }));
+      const raw = (msgData.content ?? []).map((m) => {
+        const isImage =
+          m.messageType?.toUpperCase() === 'IMAGE' ||
+          // 구버전 메시지: messageType 무관하게 업로드 이미지 URL이면 이미지로 표시
+          (!!m.content &&
+            m.content.includes('/uploads/') &&
+            /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(m.content) &&
+            (m.content.startsWith('http://') || m.content.startsWith('https://')));
+        return {
+          id: String(m.id),
+          isMe: m.senderId === myId,
+          text: isImage ? '' : (m.content ?? ""),
+          imageUrl: isImage ? normalizeImageUrl(m.content) : undefined,
+          time: formatMessageTime(m.createdAt),
+          createdAt: m.createdAt,
+        };
+      });
       setMessages([...raw].reverse());
       await chatService.markRoomAsRead(roomId);
     } catch {
@@ -270,27 +294,27 @@ export default function ChatRoomScreen() {
         return;
       }
 
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("권한 필요", "사진 저장을 위해 미디어 라이브러리 접근 권한이 필요합니다.");
-        return;
-      }
+      // const { status } = await MediaLibrary.requestPermissionsAsync();
+      // if (status !== "granted") {
+      //   Alert.alert("권한 필요", "사진 저장을 위해 미디어 라이브러리 접근 권한이 필요합니다.");
+      //   return;
+      // }
 
-      let localUri = fullUri;
-      if (fullUri.startsWith("http://") || fullUri.startsWith("https://")) {
-        const docDir = FileSystem.documentDirectory;
-        if (!docDir) {
-          Alert.alert("오류", "파일 저장 경로를 찾을 수 없습니다.");
-          return;
-        }
-        const ext = (fullUri.split(".").pop()?.split("?")[0] ?? "jpg").toLowerCase();
-        const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
-        const dest = `${docDir}chat_${Date.now()}.${safeExt}`;
-        const result = await FileSystem.downloadAsync(fullUri, dest);
-        localUri = result.uri;
-      }
-      await MediaLibrary.saveToLibraryAsync(localUri);
-      Alert.alert("저장 완료", "사진이 갤러리에 저장되었습니다.");
+      // let localUri = fullUri;
+      // if (fullUri.startsWith("http://") || fullUri.startsWith("https://")) {
+      //   const docDir = FileSystem.documentDirectory;
+      //   if (!docDir) {
+      //     Alert.alert("오류", "파일 저장 경로를 찾을 수 없습니다.");
+      //     return;
+      //   }
+      //   const ext = (fullUri.split(".").pop()?.split("?")[0] ?? "jpg").toLowerCase();
+      //   const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
+      //   const dest = `${docDir}chat_${Date.now()}.${safeExt}`;
+      //   const result = await FileSystem.downloadAsync(fullUri, dest);
+      //   localUri = result.uri;
+      // }
+      // await MediaLibrary.saveToLibraryAsync(localUri);
+      // Alert.alert("저장 완료", "사진이 갤러리에 저장되었습니다.");
     } catch (e) {
       console.log("[ChatImage] save failed:", e);
       Alert.alert("오류", "저장에 실패했습니다.");
@@ -453,8 +477,8 @@ export default function ChatRoomScreen() {
           </Pressable>
         </Modal>
 
-        {/* 사진 전체화면 뷰어 */}
-        <Modal
+        {/* 사진 전체화면 뷰어 - 임시 주석 처리 */}
+        {/* <Modal
           visible={!!viewImageUrl}
           transparent={false}
           animationType="fade"
@@ -473,7 +497,7 @@ export default function ChatRoomScreen() {
               <Image source={{ uri: viewImageUrl }} style={styles.imageViewerImage} resizeMode="contain" />
             )}
           </View>
-        </Modal>
+        </Modal> */}
 
         {loading ? (
           <View style={styles.loadingWrap}>
@@ -520,13 +544,14 @@ export default function ChatRoomScreen() {
                           <Text style={styles.messageTime}>{msg.time}</Text>
                         ) : null}
                       </View>
-                      {msg.imageUrl ? (
+                      {/* 이미지 버블 임시 주석 처리 */}
+                      {/* {msg.imageUrl ? (
                         <ChatImageBubble uri={msg.imageUrl} onPress={() => setViewImageUrl(msg.imageUrl!)} />
-                      ) : (
+                      ) : ( */}
                         <View style={styles.myBubble}>
-                          <Text style={styles.myText}>{msg.text}</Text>
+                          <Text style={styles.myText}>{msg.imageUrl ? '[이미지]' : msg.text}</Text>
                         </View>
-                      )}
+                      {/* )} */}
                     </View>
                   ) : (
                     <View
@@ -544,13 +569,14 @@ export default function ChatRoomScreen() {
                       ) : (
                         <View style={styles.otherAvatarPlaceholder} />
                       )}
-                      {msg.imageUrl ? (
+                      {/* 이미지 버블 임시 주석 처리 */}
+                      {/* {msg.imageUrl ? (
                         <ChatImageBubble uri={msg.imageUrl} onPress={() => setViewImageUrl(msg.imageUrl!)} />
-                      ) : (
+                      ) : ( */}
                         <View style={styles.otherBubble}>
-                          <Text style={styles.otherText}>{msg.text}</Text>
+                          <Text style={styles.otherText}>{msg.imageUrl ? '[이미지]' : msg.text}</Text>
                         </View>
-                      )}
+                      {/* )} */}
                       {msg.time ? (
                         <Text style={styles.messageTime}>{msg.time}</Text>
                       ) : null}
@@ -571,11 +597,13 @@ export default function ChatRoomScreen() {
           </View>
         ) : (
           <View style={[styles.inputRow, Platform.OS === 'ios' && { paddingBottom: insets.bottom + 10 }]}>
+            {/* 이미지 전송 버튼 임시 주석 처리
             <Pressable style={styles.inputIcon} onPress={handleSendImage} disabled={imageUploading}>
               {imageUploading
                 ? <ActivityIndicator size="small" color="#4C8BF5" />
                 : <Ionicons name="image-outline" size={24} color="#4C8BF5" />}
             </Pressable>
+            */}
             <TextInput
               style={styles.input}
               placeholder="메시지 보내기.."
