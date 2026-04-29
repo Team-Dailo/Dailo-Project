@@ -2491,9 +2491,10 @@ const styles = StyleSheet.create({
   listButtonText: { color: '#ffffff', fontWeight: '700', fontSize: 15, letterSpacing: -0.3 },
   busTimetableButton: {
     paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderRadius: 9999,
-    backgroundColor: '#C2C2C2',
+    backgroundColor: '#9CA3AF',
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -2502,7 +2503,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 4,
   },
-  busTimetableButtonText: { color: '#ffffff', fontWeight: '600', fontSize: 15, letterSpacing: -0.5 },
+  busTimetableButtonText: { color: '#ffffff', fontWeight: '700', fontSize: 15, letterSpacing: -0.3 },
   menuIcon: {
     flexDirection: 'column',
     justifyContent: 'center',
