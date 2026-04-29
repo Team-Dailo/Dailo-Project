@@ -27,10 +27,24 @@ export function parseEventExtra(extraJson: string | null | undefined): EventExtr
     const raw = JSON.parse(extraJson) as Record<string, unknown>;
     const result: EventExtra = {};
     if (Array.isArray(raw.news)) {
-      result.news = raw.news.filter(
-        (n): n is EventNewsItem =>
-          n != null && typeof n === 'object' && typeof (n as EventNewsItem).id === 'string'
-      ) as EventNewsItem[];
+      result.news = raw.news
+        .filter(
+          (n): n is EventNewsItem =>
+            n != null && typeof n === 'object' && typeof (n as EventNewsItem).id === 'string'
+        )
+        .map((n) => {
+          const item = n as Record<string, unknown>;
+          const imageUrls = Array.isArray(item.imageUrls)
+            ? (item.imageUrls.filter((u) => typeof u === 'string' && u) as string[])
+            : undefined;
+          return {
+            id: String(item.id),
+            title: typeof item.title === 'string' ? item.title : '',
+            body: typeof item.body === 'string' ? item.body : '',
+            date: typeof item.date === 'string' ? item.date : '',
+            imageUrls,
+          } as EventNewsItem;
+        });
     }
     if (Array.isArray(raw.timeline)) {
       result.timeline = raw.timeline.filter(
