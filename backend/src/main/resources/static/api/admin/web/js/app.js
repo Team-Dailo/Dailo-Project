@@ -806,22 +806,18 @@ function buildNewsRow(item) {
   const row = document.createElement('div');
   row.className = 'news-row';
   row.dataset.id = item.id || String(Date.now()) + Math.random().toString(36).slice(2, 6);
-  row.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:10px;background:#fafafa';
+  row.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:12px;background:#fafafa;box-sizing:border-box';
   const imgs = Array.isArray(item.imageUrls) ? item.imageUrls : [];
   row.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 160px;gap:10px">
-      <div>
-        <input type="text" class="news-title" placeholder="소식 제목" value="${escAttr(item.title || '')}" style="width:100%;margin-bottom:6px">
-        <textarea class="news-body" placeholder="내용 (줄바꿈 가능)" rows="4" style="width:100%;margin-bottom:6px;resize:vertical">${escAttr(item.body || '')}</textarea>
-        <input type="text" class="news-date" placeholder="날짜 (예: 2025.05.10)" value="${escAttr(item.date || '')}" style="width:100%">
-      </div>
-      <div>
-        <div class="news-dropzone" style="border:1px dashed var(--border);border-radius:8px;padding:10px;text-align:center;cursor:pointer;font-size:12px;color:var(--muted)">이미지 드래그 또는 클릭</div>
-        <input type="file" class="news-file" accept="image/*" style="display:none">
-        <div class="news-thumbs" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
-      </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <input type="text" class="news-title" placeholder="소식 제목" value="${escAttr(item.title || '')}" style="width:100%;box-sizing:border-box">
+      <textarea class="news-body" placeholder="내용 (줄바꿈 가능)" rows="4" style="width:100%;box-sizing:border-box;resize:vertical">${escAttr(item.body || '')}</textarea>
+      <input type="text" class="news-date" placeholder="날짜 (예: 2025.05.10)" value="${escAttr(item.date || '')}" style="width:100%;box-sizing:border-box">
+      <div class="news-dropzone" style="border:1px dashed var(--border);border-radius:8px;padding:14px;text-align:center;cursor:pointer;font-size:12px;color:var(--muted);background:#fff">이미지 드래그하거나 클릭하여 업로드</div>
+      <input type="file" class="news-file" accept="image/*" style="display:none">
+      <div class="news-thumbs" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
-    <div style="text-align:right;margin-top:8px">
+    <div style="text-align:right;margin-top:10px">
       <button type="button" class="btn btn-d btn-sm news-remove">삭제</button>
     </div>
   `;
@@ -850,13 +846,21 @@ function buildNewsRow(item) {
 
 function buildNewsThumb(url) {
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:relative;width:54px;height:54px';
+  wrap.style.cssText = 'position:relative;width:80px;height:80px';
   wrap.innerHTML = `
-    <img src="${escAttr(url)}" data-url="${escAttr(url)}" style="width:54px;height:54px;border-radius:6px;object-fit:cover;background:#e5e7eb">
-    <button type="button" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:9px;border:none;background:#111827;color:#fff;font-size:11px;line-height:1;cursor:pointer">×</button>
+    <img src="${escAttr(url)}" data-url="${escAttr(url)}" style="width:80px;height:80px;border-radius:8px;object-fit:cover;background:#e5e7eb;display:block">
+    <button type="button" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:10px;border:none;background:#111827;color:#fff;font-size:12px;line-height:1;cursor:pointer">×</button>
   `;
   wrap.querySelector('button').addEventListener('click', () => wrap.remove());
   return wrap;
+}
+
+/** 업로드 응답의 상대경로(/static/...)를 앱·웹 모두에서 보이도록 절대 URL로 변환 */
+function toAbsoluteUrl(pathOrUrl) {
+  if (!pathOrUrl) return '';
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  if (pathOrUrl.startsWith('/')) return window.location.origin + pathOrUrl;
+  return pathOrUrl;
 }
 
 async function uploadNewsImage(file, thumbsEl, zoneEl) {
@@ -872,7 +876,8 @@ async function uploadNewsImage(file, thumbsEl, zoneEl) {
     });
     if (!res.ok) throw new Error('업로드 실패 (' + res.status + ')');
     const data = await res.json();
-    thumbsEl.appendChild(buildNewsThumb(data.url));
+    const absUrl = toAbsoluteUrl(data.url);
+    thumbsEl.appendChild(buildNewsThumb(absUrl));
   } catch (e) {
     alert(e.message);
   } finally {

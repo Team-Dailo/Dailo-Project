@@ -5,6 +5,15 @@ import { useRouter } from "expo-router";
 import type { EventNewsItem } from "../../types/event";
 import type { PostListItem } from "../../types/board";
 import * as boardService from "../../services/board.service";
+import { API_BASE_URL } from "../../constants/api";
+
+/** 상대 경로(/static/...)로 저장된 이미지를 RN에서 가져올 절대 URL로 변환 */
+function resolveImageUrl(url: string): string {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith("/")) return `${API_BASE_URL}${url}`;
+  return url;
+}
 
 interface EventNewsTabProps {
   /** 저장된 소식 목록 (없으면 빈 화면) */
@@ -137,7 +146,7 @@ function NewsCard({ title, body, date, imageUrls }: NewsCardProps) {
           {imageUrls!.map((url, i) => (
             <Image
               key={`${url}-${i}`}
-              source={{ uri: url }}
+              source={{ uri: resolveImageUrl(url) }}
               style={styles.newsImage}
               resizeMode="cover"
             />
