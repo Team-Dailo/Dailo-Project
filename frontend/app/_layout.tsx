@@ -1,6 +1,7 @@
 // app/_layout.tsx
 import React, { useEffect } from 'react';
 import { Alert, AppState, BackHandler } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
@@ -194,6 +195,7 @@ export default function RootLayout() {
   }, []);
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <AuthProvider>
       <AuthDeepLinkHandler />
       <AppStartupPopupModal />
@@ -212,5 +214,6 @@ export default function RootLayout() {
         <Stack.Screen name="notification-history" options={{ headerShown: false }} />
       </Stack>
     </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
