@@ -15,6 +15,7 @@ public class DashboardResponseDto {
     private MemberStatsDto memberStats;
     private EventStatsDto eventStats;
     private PostStatsDto postStats;
+    private CommentStatsDto commentStats;
     private ReportStatsDto reportStats;
     private InquiryStatsDto inquiryStats;
     private LocalDateTime generatedAt;

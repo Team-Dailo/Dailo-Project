@@ -11,7 +11,23 @@
       "Bash(git *)",
       "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")",
       "Bash(./gradlew compileJava)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npx expo run:ios)",
+      "Bash(npx expo install:*)",
+      "Bash(./gradlew bootRun:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Bash(python3:*)",
+      "Bash(./gradlew clean compileJava:*)",
+      "Bash(find:*)",
+      "Bash(./gradlew clean build:*)",
+      "Bash(javap:*)",
+      "Bash(ls:*)",
+      "Bash(./gradlew:*)",
+      "Bash(ps:*)",
+      "Bash(kill:*)"
     ]
   }
 }

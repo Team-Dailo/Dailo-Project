@@ -11,11 +11,16 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
 @Repository
 public interface CommentRepository extends JpaRepository<Comment, Long> {
+
+    // 오늘 작성된 댓글 수 (삭제되지 않은 것만)
+    @Query("SELECT COUNT(c) FROM Comment c WHERE c.createdAt >= :dateTime AND c.deletedAt IS NULL")
+    long countByCreatedAtAfterAndNotDeleted(@Param("dateTime") LocalDateTime dateTime);
 
     /** 내가 댓글 단 게시글 ID 목록 (최근 댓글 기준 정렬) */
     @Query(value = "SELECT post_id FROM comments WHERE author_id = :authorId AND deleted_at IS NULL GROUP BY post_id ORDER BY MAX(created_at) DESC", nativeQuery = true)
