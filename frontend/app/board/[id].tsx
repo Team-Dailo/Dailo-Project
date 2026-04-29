@@ -24,7 +24,7 @@ import ImageViewing from "react-native-image-viewing";
 import * as Clipboard from "expo-clipboard";
 import { useAuthContext } from "../../contexts/AuthContext";
 import { usePostDetail, useComments } from "../../hooks/useBoard";
-import { formatDateTime, formatRelativeTime } from "../../utils/formatDate";
+import { formatDateTime } from "../../utils/formatDate";
 import * as boardService from "../../services/board.service";
 import * as reportService from "../../services/report.service";
 import * as authService from "../../services/auth.service";
@@ -65,7 +65,7 @@ function toCommentDisplay(c: { id: number; authorId: number | null; authorNickna
     authorId: isDeleted ? null : c.authorId,
     author,
     authorProfileImageUrl,
-    time: formatRelativeTime(createdAt),
+    time: formatDateTime(createdAt),
     content: isDeleted ? null : c.content,
     likes: isDeleted ? 0 : (c.likeCount ?? 0),
     createdAt: createdAt,
@@ -722,7 +722,7 @@ export default function PostDetailScreen() {
                   )}
                   <View style={styles.postMeta}>
                     <Text style={styles.author}>{authorDisplayName}</Text>
-                    <Text style={styles.timeText}>{formatRelativeTime((post as Record<string, unknown>).createdAt as string ?? (post as Record<string, unknown>).created_at as string)}</Text>
+                    <Text style={styles.timeText}>{formatDateTime((post as Record<string, unknown>).createdAt as string ?? (post as Record<string, unknown>).created_at as string)}</Text>
                   </View>
                 </Pressable>
                 {post.title ? <Text style={styles.postTitle}>{post.title}</Text> : null}

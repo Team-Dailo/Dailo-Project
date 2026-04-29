@@ -99,7 +99,7 @@ const REGION_CITIES_BY_PROVINCE: Record<string, string[]> = {
 };
 
 // --- 소식/타임테이블/부스 (extraJson으로 API 저장) ---
-export type NewsItemEdit = { id: string; title: string; body: string; date: string };
+export type NewsItemEdit = { id: string; title: string; body: string; date: string; imageUrls?: string[] };
 export type PerformerEdit = {
   name: string;
   genre: string;
