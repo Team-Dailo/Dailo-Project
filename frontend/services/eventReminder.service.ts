@@ -111,9 +111,13 @@ export async function scheduleEventReminder(
     
     // 알림 시간이 현재 시간보다 과거면 예약 불가
     if (triggerDate.getTime() <= now.getTime()) return null;
-    
+
+    // 알림이 실제 울리는 시점 기준으로 "n일 후" 계산
+    const triggerDay = new Date(triggerDate.getFullYear(), triggerDate.getMonth(), triggerDate.getDate());
+    const daysAtFireTime = Math.max(0, Math.round((startDate.getTime() - triggerDay.getTime()) / (1000 * 60 * 60 * 24)));
+
     const notifTitle = "행사 알림";
-    const notifBody = reminderBodyText(daysUntilStart, eventTitle);
+    const notifBody = reminderBodyText(daysAtFireTime, eventTitle);
     const identifier = await Notifications.scheduleNotificationAsync({
       content: {
         title: notifTitle,

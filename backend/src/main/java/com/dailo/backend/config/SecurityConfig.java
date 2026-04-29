@@ -87,6 +87,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/posts/**").authenticated()
 
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/uploads/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/static/**").permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/static/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/upload").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/content/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/inquiries").permitAll()

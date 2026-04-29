@@ -168,7 +168,12 @@ export default function ChatListScreen() {
             const timeStr = (item.lastMessageAt ?? item.updatedAt) ? formatChatTime((item.lastMessageAt ?? item.updatedAt)!) : "";
             const colorIndex = (item.id ?? 0) % AVATAR_COLORS.length;
             const unread = Math.max(0, (item as { unreadCount?: number }).unreadCount ?? 0);
-            const preview = (item.lastMessageContent ?? "").trim() || "대화를 시작해 보세요";
+            const rawContent = (item.lastMessageContent ?? "").trim();
+            const preview = !rawContent
+              ? "대화를 시작해 보세요"
+              : rawContent.startsWith("http") || rawContent.startsWith("/uploads/")
+              ? "사진을 보냈습니다"
+              : rawContent;
             const roomId = item.id != null ? Number(item.id) : 0;
             return (
               <TouchableOpacity

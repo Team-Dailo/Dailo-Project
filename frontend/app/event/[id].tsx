@@ -73,7 +73,9 @@ export default function EventDetailScreen() {
       ? "news"
       : tabParam === "timeline"
         ? "timeline"
-        : "booths";
+        : tabParam === "booths"
+          ? "booths"
+          : "news";
 
   const extra = useMemo(
     () => parseEventExtra(event?.extraJson ?? null),
