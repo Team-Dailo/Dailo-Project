@@ -2,8 +2,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import * as MediaLibrary from "expo-media-library";
-import * as FileSystem from "expo-file-system/legacy";
+// import * as MediaLibrary from "expo-media-library";
+// import * as FileSystem from "expo-file-system/legacy";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -294,27 +294,27 @@ export default function ChatRoomScreen() {
         return;
       }
 
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("권한 필요", "사진 저장을 위해 미디어 라이브러리 접근 권한이 필요합니다.");
-        return;
-      }
+      // const { status } = await MediaLibrary.requestPermissionsAsync();
+      // if (status !== "granted") {
+      //   Alert.alert("권한 필요", "사진 저장을 위해 미디어 라이브러리 접근 권한이 필요합니다.");
+      //   return;
+      // }
 
-      let localUri = fullUri;
-      if (fullUri.startsWith("http://") || fullUri.startsWith("https://")) {
-        const docDir = FileSystem.documentDirectory;
-        if (!docDir) {
-          Alert.alert("오류", "파일 저장 경로를 찾을 수 없습니다.");
-          return;
-        }
-        const ext = (fullUri.split(".").pop()?.split("?")[0] ?? "jpg").toLowerCase();
-        const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
-        const dest = `${docDir}chat_${Date.now()}.${safeExt}`;
-        const result = await FileSystem.downloadAsync(fullUri, dest);
-        localUri = result.uri;
-      }
-      await MediaLibrary.saveToLibraryAsync(localUri);
-      Alert.alert("저장 완료", "사진이 갤러리에 저장되었습니다.");
+      // let localUri = fullUri;
+      // if (fullUri.startsWith("http://") || fullUri.startsWith("https://")) {
+      //   const docDir = FileSystem.documentDirectory;
+      //   if (!docDir) {
+      //     Alert.alert("오류", "파일 저장 경로를 찾을 수 없습니다.");
+      //     return;
+      //   }
+      //   const ext = (fullUri.split(".").pop()?.split("?")[0] ?? "jpg").toLowerCase();
+      //   const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
+      //   const dest = `${docDir}chat_${Date.now()}.${safeExt}`;
+      //   const result = await FileSystem.downloadAsync(fullUri, dest);
+      //   localUri = result.uri;
+      // }
+      // await MediaLibrary.saveToLibraryAsync(localUri);
+      // Alert.alert("저장 완료", "사진이 갤러리에 저장되었습니다.");
     } catch (e) {
       console.log("[ChatImage] save failed:", e);
       Alert.alert("오류", "저장에 실패했습니다.");
