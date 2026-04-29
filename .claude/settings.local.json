@@ -28,7 +28,9 @@
       "Bash(ls:*)",
       "Bash(./gradlew:*)",
       "Bash(ps:*)",
-      "Bash(kill:*)"
+      "Bash(kill:*)",
+      "Bash(xcrun simctl:*)",
+      "Bash(grep:*)"
     ]
   }
 }

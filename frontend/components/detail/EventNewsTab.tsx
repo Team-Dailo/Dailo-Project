@@ -1,13 +1,23 @@
 // frontend/components/detail/EventNewsTab.tsx
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Image, ScrollView } from "react-native";
+import {
+  View, Text, StyleSheet, Pressable, ActivityIndicator,
+  Image, ScrollView, Modal, TouchableOpacity, Dimensions,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring,
+} from "react-native-reanimated";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import type { EventNewsItem } from "../../types/event";
 import type { PostListItem } from "../../types/board";
 import * as boardService from "../../services/board.service";
 import { API_BASE_URL } from "../../constants/api";
 
-/** 상대 경로(/static/...)로 저장된 이미지를 RN에서 가져올 절대 URL로 변환 */
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 function resolveImageUrl(url: string): string {
   if (!url) return "";
   if (/^https?:\/\//i.test(url)) return url;
@@ -16,9 +26,7 @@ function resolveImageUrl(url: string): string {
 }
 
 interface EventNewsTabProps {
-  /** 저장된 소식 목록 (없으면 빈 화면) */
   news?: EventNewsItem[] | null;
-  /** 행사 ID - 이 행사에 대한 후기 목록을 소식 아래에 표시 */
   eventId?: number | null;
 }
 
@@ -41,6 +49,7 @@ export default function EventNewsTab({ news, eventId }: EventNewsTabProps) {
   const router = useRouter();
   const list = news && news.length > 0 ? news : [];
 
+  const [selectedNews, setSelectedNews] = useState<EventNewsItem | null>(null);
   const [reviews, setReviews] = useState<PostListItem[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
 
@@ -53,18 +62,10 @@ export default function EventNewsTab({ news, eventId }: EventNewsTabProps) {
     setReviewsLoading(true);
     boardService
       .getPostsByEventId(eventId, { page: 0, size: 20 })
-      .then((res) => {
-        if (!cancelled) setReviews(res.content ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setReviews([]);
-      })
-      .finally(() => {
-        if (!cancelled) setReviewsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then((res) => { if (!cancelled) setReviews(res.content ?? []); })
+      .catch(() => { if (!cancelled) setReviews([]); })
+      .finally(() => { if (!cancelled) setReviewsLoading(false); });
+    return () => { cancelled = true; };
   }, [eventId]);
 
   return (
@@ -74,17 +75,14 @@ export default function EventNewsTab({ news, eventId }: EventNewsTabProps) {
         <Text style={styles.emptyText}>등록된 소식이 없습니다.</Text>
       ) : (
         list.map((item) => (
-          <NewsCard
-            key={item.id}
-            title={item.title}
-            body={item.body}
-            date={item.date}
-            imageUrls={item.imageUrls}
-          />
+          <NewsCard key={item.id} item={item} onPress={() => setSelectedNews(item)} />
         ))
       )}
 
-      {/* 행사 후기 (게시판에서 이 행사로 작성한 후기) */}
+      {selectedNews && (
+        <NewsDetailModal news={selectedNews} onClose={() => setSelectedNews(null)} />
+      )}
+
       {eventId != null && (
         <View style={styles.reviewSection}>
           <Text style={styles.sectionTitle}>후기</Text>
@@ -113,47 +111,174 @@ export default function EventNewsTab({ news, eventId }: EventNewsTabProps) {
   );
 }
 
+// --- 카드 (목록용 작은 미리보기) ---
+
 interface NewsCardProps {
-  title: string;
-  body: string;
-  date: string;
-  imageUrls?: string[];
+  item: EventNewsItem;
+  onPress: () => void;
 }
 
-function NewsCard({ title, body, date, imageUrls }: NewsCardProps) {
+function NewsCard({ item, onPress }: NewsCardProps) {
+  const { title, body, date, imageUrls } = item;
   const hasImages = Array.isArray(imageUrls) && imageUrls.length > 0;
+  const thumb = hasImages ? resolveImageUrl(imageUrls![0]) : null;
+
   return (
-    <View style={styles.newsCard}>
-      <View style={styles.newsRow}>
-        <View style={styles.newsIconCircle}>
+    <Pressable style={styles.newsCard} onPress={onPress}>
+      {thumb ? (
+        <Image source={{ uri: thumb }} style={styles.newsThumb} resizeMode="cover" />
+      ) : (
+        <View style={[styles.newsThumb, styles.newsThumbPlaceholder]}>
           <Text style={styles.newsIcon}>🔔</Text>
         </View>
-
-        <View style={styles.newsTextWrapper}>
-          <Text style={styles.newsTitle}>{title}</Text>
-          <Text style={styles.newsBody}>{body}</Text>
-        </View>
-
+      )}
+      <View style={styles.newsTextWrapper}>
+        <Text style={styles.newsTitle} numberOfLines={2}>{title}</Text>
+        {!!body && <Text style={styles.newsBody} numberOfLines={1}>{body}</Text>}
         <Text style={styles.newsDate}>{date}</Text>
       </View>
-      {hasImages && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.newsImagesScroll}
-          contentContainerStyle={styles.newsImagesContent}
-        >
-          {imageUrls!.map((url, i) => (
-            <Image
-              key={`${url}-${i}`}
-              source={{ uri: resolveImageUrl(url) }}
-              style={styles.newsImage}
-              resizeMode="cover"
-            />
-          ))}
-        </ScrollView>
+      <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
+    </Pressable>
+  );
+}
+
+// --- 핀치줌 이미지 뷰어 ---
+
+function ZoomableImage({ uri }: { uri: string }) {
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedX = useSharedValue(0);
+  const savedY = useSharedValue(0);
+
+  const pinch = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = Math.max(1, savedScale.value * e.scale);
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+    });
+
+  const pan = Gesture.Pan()
+    .onUpdate((e) => {
+      translateX.value = savedX.value + e.translationX;
+      translateY.value = savedY.value + e.translationY;
+    })
+    .onEnd(() => {
+      savedX.value = translateX.value;
+      savedY.value = translateY.value;
+      if (scale.value <= 1) {
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        savedX.value = 0;
+        savedY.value = 0;
+      }
+    });
+
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      scale.value = withSpring(1);
+      savedScale.value = 1;
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+      savedX.value = 0;
+      savedY.value = 0;
+    });
+
+  const composed = Gesture.Race(doubleTap, Gesture.Simultaneous(pinch, pan));
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: scale.value },
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+    ],
+  }));
+
+  return (
+    <GestureDetector gesture={composed}>
+      <Animated.Image
+        source={{ uri }}
+        style={[styles.fullscreenImage, animatedStyle]}
+        resizeMode="contain"
+      />
+    </GestureDetector>
+  );
+}
+
+// --- 상세 모달 ---
+
+interface NewsDetailModalProps {
+  news: EventNewsItem;
+  onClose: () => void;
+}
+
+function NewsDetailModal({ news, onClose }: NewsDetailModalProps) {
+  const { title, body, date, imageUrls } = news;
+  const hasImages = Array.isArray(imageUrls) && imageUrls.length > 0;
+  const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
+
+  return (
+    <>
+      <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalHeaderTitle}>소식</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Ionicons name="close" size={24} color="#111827" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {hasImages && (
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                style={styles.modalImagesScroll}
+              >
+                {imageUrls!.map((url, i) => (
+                  <TouchableOpacity
+                    key={`${url}-${i}`}
+                    activeOpacity={0.9}
+                    onPress={() => setFullscreenUrl(resolveImageUrl(url))}
+                  >
+                    <Image
+                      source={{ uri: resolveImageUrl(url) }}
+                      style={styles.modalImage}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalTitle}>{title}</Text>
+              <Text style={styles.modalDate}>{date}</Text>
+              {!!body && <Text style={styles.modalBodyText}>{body}</Text>}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {fullscreenUrl && (
+        <Modal visible animationType="fade" transparent onRequestClose={() => setFullscreenUrl(null)}>
+          <View style={styles.fullscreenBg}>
+            <TouchableOpacity
+              style={styles.fullscreenClose}
+              onPress={() => setFullscreenUrl(null)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+            <ZoomableImage uri={fullscreenUrl} />
+          </View>
+        </Modal>
       )}
-    </View>
+    </>
   );
 }
 
@@ -163,61 +288,97 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 12,
   },
+  // 목록 카드
   newsCard: {
-    borderRadius: 16,
-    backgroundColor: "#f7f7f7",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
-  },
-  newsRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
+    backgroundColor: "#f7f7f7",
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
+    gap: 12,
   },
-  newsIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#e6f0ff",
+  newsThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 10,
+    backgroundColor: "#E5E7EB",
+  },
+  newsThumbPlaceholder: {
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    backgroundColor: "#e6f0ff",
   },
   newsIcon: {
-    fontSize: 18,
+    fontSize: 26,
   },
   newsTextWrapper: {
     flex: 1,
+    gap: 3,
   },
   newsTitle: {
     fontSize: 14,
     fontWeight: "bold",
-    marginBottom: 4,
+    color: "#111827",
   },
   newsBody: {
-    fontSize: 13,
-    color: "#555",
-    lineHeight: 18,
-  },
-  newsImagesScroll: {
-    marginTop: 10,
-  },
-  newsImagesContent: {
-    gap: 8,
-    paddingRight: 4,
-  },
-  newsImage: {
-    width: 160,
-    height: 160,
-    borderRadius: 10,
-    backgroundColor: "#E5E7EB",
-    marginRight: 8,
+    fontSize: 12,
+    color: "#6B7280",
   },
   newsDate: {
     fontSize: 11,
-    color: "#aaa",
-    marginLeft: 8,
+    color: "#9CA3AF",
   },
+  // 모달
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  modalContent: {
+    paddingBottom: 40,
+  },
+  modalImagesScroll: {
+    backgroundColor: "#fff",
+  },
+  modalImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH * 1.2,
+    backgroundColor: "#fff",
+  },
+  modalBody: {
+    padding: 20,
+    gap: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#111827",
+  },
+  modalDate: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  modalBodyText: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 22,
+    marginTop: 4,
+  },
+  // 공통
   emptyText: {
     fontSize: 14,
     color: "#9CA3AF",
@@ -256,5 +417,21 @@ const styles = StyleSheet.create({
   reviewDate: {
     fontSize: 11,
     color: "#9CA3AF",
+  },
+  fullscreenBg: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullscreenClose: {
+    position: "absolute",
+    top: 52,
+    right: 20,
+    zIndex: 10,
+  },
+  fullscreenImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH * 1.5,
   },
 });

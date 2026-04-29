@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -35,6 +35,33 @@ type Message = {
   time?: string;
   createdAt?: string;
 };
+
+/** 상대 경로를 절대 URL로 변환 */
+function normalizeImageUrl(url?: string | null): string | undefined {
+  const value = url?.trim();
+  if (!value) return undefined;
+
+  // 이미 완전한 URL이거나 로컬/데이터 URI인 경우 그대로 반환
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("file://") ||
+    value.startsWith("data:")
+  ) {
+    return value;
+  }
+
+  // API_BASE_URL의 trailing slash 제거
+  const baseUrl = API_BASE_URL.replace(/\/$/, "");
+
+  // /uploads/... 형태
+  if (value.startsWith("/")) {
+    return `${baseUrl}${value}`;
+  }
+
+  // uploads/... 형태 (slash 없는 상대 경로)
+  return `${baseUrl}/${value}`;
+}
 
 function formatDateLabel(iso?: string): string {
   if (!iso) return "";
@@ -127,10 +154,7 @@ export default function ChatRoomScreen() {
   const [notificationsOn, setNotificationsOn] = useState(true);
 
   const partner = room?.members?.find((m) => m.userId !== myUserId);
-  const rawPartnerImageUrl = partner?.profileImageUrl?.trim();
-  const partnerImageUri = rawPartnerImageUrl
-    ? (rawPartnerImageUrl.startsWith("/") ? `${API_BASE_URL}${rawPartnerImageUrl}` : rawPartnerImageUrl)
-    : null;
+  const partnerImageUri = normalizeImageUrl(partner?.profileImageUrl) ?? null;
   const partnerNick = partner
     ? (
         (partner as { nickname?: string; nick_name?: string }).nickname ??
@@ -173,7 +197,7 @@ export default function ChatRoomScreen() {
       const raw = (msgData.content ?? []).map((m) => {
         const isImage =
           m.messageType?.toUpperCase() === 'IMAGE' ||
-          // 구버전/잘못 저장된 메시지: messageType 무관하게 업로드 이미지 URL이면 이미지로 표시
+          // 구버전 메시지: messageType 무관하게 업로드 이미지 URL이면 이미지로 표시
           (!!m.content &&
             m.content.includes('/uploads/') &&
             /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(m.content) &&
@@ -182,7 +206,7 @@ export default function ChatRoomScreen() {
           id: String(m.id),
           isMe: m.senderId === myId,
           text: isImage ? '' : (m.content ?? ""),
-          imageUrl: isImage ? (m.content || undefined) : undefined,
+          imageUrl: isImage ? normalizeImageUrl(m.content) : undefined,
           time: formatMessageTime(m.createdAt),
           createdAt: m.createdAt,
         };
@@ -263,22 +287,36 @@ export default function ChatRoomScreen() {
 
   const handleSaveImage = async (uri: string) => {
     try {
+      // 상대 경로를 절대 URL로 변환
+      const fullUri = normalizeImageUrl(uri);
+      if (!fullUri) {
+        Alert.alert("오류", "저장할 이미지 주소가 없습니다.");
+        return;
+      }
+
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== "granted") {
         Alert.alert("권한 필요", "사진 저장을 위해 미디어 라이브러리 접근 권한이 필요합니다.");
         return;
       }
-      let localUri = uri;
-      if (uri.startsWith("http")) {
-        const ext = (uri.split(".").pop()?.split("?")[0] ?? "jpg").toLowerCase();
+
+      let localUri = fullUri;
+      if (fullUri.startsWith("http://") || fullUri.startsWith("https://")) {
+        const docDir = FileSystem.documentDirectory;
+        if (!docDir) {
+          Alert.alert("오류", "파일 저장 경로를 찾을 수 없습니다.");
+          return;
+        }
+        const ext = (fullUri.split(".").pop()?.split("?")[0] ?? "jpg").toLowerCase();
         const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
-        const dest = FileSystem.documentDirectory + `chat_${Date.now()}.${safeExt}`;
-        const result = await FileSystem.downloadAsync(uri, dest);
+        const dest = `${docDir}chat_${Date.now()}.${safeExt}`;
+        const result = await FileSystem.downloadAsync(fullUri, dest);
         localUri = result.uri;
       }
       await MediaLibrary.saveToLibraryAsync(localUri);
       Alert.alert("저장 완료", "사진이 갤러리에 저장되었습니다.");
-    } catch {
+    } catch (e) {
+      console.log("[ChatImage] save failed:", e);
       Alert.alert("오류", "저장에 실패했습니다.");
     }
   };
@@ -308,7 +346,7 @@ export default function ChatRoomScreen() {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === optimisticId
-            ? { id: String(sent.id), isMe: true, text: '', imageUrl: sent.content ?? uri, time: formatMessageTime(sent.createdAt), createdAt: sent.createdAt }
+            ? { id: String(sent.id), isMe: true, text: '', imageUrl: normalizeImageUrl(sent.content) ?? uri, time: formatMessageTime(sent.createdAt), createdAt: sent.createdAt }
             : m,
         ),
       );
