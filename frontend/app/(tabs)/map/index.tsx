@@ -455,8 +455,8 @@ export default function MapScreen() {
     () => ({
       latitude: 36.975,
       longitude: 127.925,
-      latitudeDelta: 0.09,
-      longitudeDelta: 0.09,
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02,
     }),
     []
   );
@@ -806,6 +806,24 @@ export default function MapScreen() {
   const mapRef = useRef<React.ComponentRef<typeof NaverMap> | null>(null);
   /** 지도 드래그/줌 후 실제 화면 상태. setRegion 하지 않고 ref만 갱신해 지도가 제멋대로 움직이지 않게 함 */
   const lastCameraRef = useRef<{ latitude: number; longitude: number; zoom: number } | null>(null);
+  /** 내 위치 실시간 추적 모드 */
+  const [isFollowing, setIsFollowing] = useState(false);
+  const isFollowingRef = useRef(false);
+  /** 마지막 프로그래밍 카메라 이동 시각 → onCameraIdle이 여러 번 와도 일정 시간 내엔 following 해제 안 함 */
+  const lastProgrammaticMoveAtRef = useRef(0);
+
+  // following 모드일 때 currentLocation 바뀌면 카메라 이동
+  useEffect(() => {
+    if (!isFollowingRef.current || !currentLocation || !mapRef.current) return;
+    lastProgrammaticMoveAtRef.current = Date.now();
+    mapRef.current.animateCameraTo({
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
+      zoom: lastCameraRef.current?.zoom ?? 15,
+      duration: 300,
+      easing: 'Linear',
+    });
+  }, [currentLocation]);
 
   // 위치를 잡은 뒤 현재 위치 파란 점을 기본으로 표시 (칩/카드 추가 후 위치·축제 못 잡는 느낌 완화)
   useEffect(() => {
@@ -1159,12 +1177,14 @@ export default function MapScreen() {
     // 권한은 있는데 위치 못 받음(에뮬 등) → 기본 좌표로라도 이동해서 버튼이 동작한 것처럼
     if (!coords) coords = FALLBACK_COORDS;
     setMyLocationCircleCoords(coords);
-    focusCurrentLocation();
+    isFollowingRef.current = true;
+    setIsFollowing(true);
+    lastProgrammaticMoveAtRef.current = Date.now();
     if (mapRef.current) {
       mapRef.current.animateCameraTo({
         latitude: coords.latitude,
         longitude: coords.longitude,
-        zoom: 15,
+        zoom: lastCameraRef.current?.zoom ?? 15,
         duration: 500,
         easing: 'EaseOut',
       });
@@ -1414,7 +1434,7 @@ export default function MapScreen() {
       {festivalEntry && (
         <FestivalSurveyModal
           visible={surveyModalVisible}
-          eventId={festivalEntry.eventId}
+          eventId={Number(festivalEntry.eventId)}
           eventTitle={festivalEntry.eventTitle ?? ''}
           onClose={() => setSurveyModalVisible(false)}
           onLater={() => {
@@ -1439,7 +1459,15 @@ export default function MapScreen() {
       )}
       {/* 지도 영역: 전체를 채우고, 그 위에 헤더·필터칩·버튼이 오버레이 */}
       <View style={styles.mapArea}>
-        <View style={[styles.mapContainer, StyleSheet.absoluteFill]}>
+        <View
+          style={[styles.mapContainer, StyleSheet.absoluteFill]}
+          onTouchStart={() => {
+            if (isFollowingRef.current) {
+              isFollowingRef.current = false;
+              setIsFollowing(false);
+            }
+          }}
+        >
           {isExpoGo ? (
             <View style={styles.mapFallback}>
               <Text style={styles.mapFallbackText}>지도는 개발 빌드에서만 이용할 수 있습니다.</Text>
@@ -1459,6 +1487,10 @@ export default function MapScreen() {
                 selectedEvent={selectedEvent ?? null}
                 onMarkerPress={handleMarkerPress}
                 onCameraIdle={(params) => {
+                  if (Date.now() - lastProgrammaticMoveAtRef.current > 600) {
+                    isFollowingRef.current = false;
+                    setIsFollowing(false);
+                  }
                   const r = params.region;
                   if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return;
                   // params.latitude/longitude = 카메라 중심 (탭바 뒤 포함 전체 뷰 기준)
@@ -1766,6 +1798,7 @@ export default function MapScreen() {
                       if (!mapRef.current) return;
                       const newZoom = Math.min(21, currentZoom + 1);
                       lastCameraRef.current = { latitude: centerLat, longitude: centerLng, zoom: newZoom };
+                      lastProgrammaticMoveAtRef.current = Date.now();
                       mapRef.current.animateCameraTo({
                         latitude: centerLat,
                         longitude: centerLng,
@@ -1788,6 +1821,7 @@ export default function MapScreen() {
                       if (!mapRef.current) return;
                       const newZoom = Math.max(10, currentZoom - 1);
                       lastCameraRef.current = { latitude: centerLat, longitude: centerLng, zoom: newZoom };
+                      lastProgrammaticMoveAtRef.current = Date.now();
                       mapRef.current.animateCameraTo({
                         latitude: centerLat,
                         longitude: centerLng,
@@ -1802,13 +1836,13 @@ export default function MapScreen() {
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity
-                  style={styles.currentLocationButton}
+                  style={[styles.currentLocationButton, isFollowing && styles.currentLocationButtonActive]}
                   activeOpacity={0.85}
                   onPress={onFocusCurrentLocation}
                   accessibilityLabel="현재 위치"
                 >
-                <Ionicons name="locate" size={22} color="#4C8BF5" />
-              </TouchableOpacity>
+                  <Ionicons name={isFollowing ? "navigate" : "locate"} size={22} color={isFollowing ? "#fff" : "#4C8BF5"} />
+                </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -2522,6 +2556,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 16,
+  },
+  currentLocationButtonActive: {
+    backgroundColor: '#4C8BF5',
   },
 
   // 전체 화면 모달 (축제 구역 진입)

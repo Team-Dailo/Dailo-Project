@@ -30,7 +30,8 @@
       "Bash(ps:*)",
       "Bash(kill:*)",
       "Bash(xcrun simctl:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nMerge origin/dev into feature/festival-stay-sync\n\nResolve conflicts:\n- .claude/settings.local.json: Keep additional permissions\n- frontend/app.json: Keep buildNumber 15\n- frontend/app/login/index.tsx: Keep user-friendly error messages\n- frontend/utils/formatDate.ts: Keep formatPostListTime function\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
