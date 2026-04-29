@@ -113,7 +113,7 @@ export default function BlockListScreen() {
                     )}
                   </Pressable>
                 </View>
-                <Text style={styles.date}>{formatRelativeTime(b.createdAt)}</Text>
+                <Text style={styles.date}>{formatRelativeTime((b as Record<string, unknown>).createdAt as string ?? (b as Record<string, unknown>).created_at as string)}</Text>
               </View>
             ))
           )}

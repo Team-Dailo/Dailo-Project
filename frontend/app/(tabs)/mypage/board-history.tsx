@@ -51,11 +51,12 @@ function toPostRow(item: PostListItem): PostRow {
     `user_${item.authorId}`;
   const firstImage =
     Array.isArray(item.imageUrls) && item.imageUrls.length > 0 ? item.imageUrls[0] ?? "" : "";
+  const createdAt = (raw.createdAt ?? raw.created_at ?? item.createdAt) as string | undefined;
   return {
     id: String(item.id),
     author: authorName,
     title: item.title,
-    time: formatRelativeTime(item.createdAt),
+    time: formatRelativeTime(createdAt),
     tag: item.categoryType ?? "",
     content: contentStr,
     likes: item.likeCount ?? 0,
