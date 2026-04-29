@@ -205,7 +205,7 @@
   <div class="modal-actions"><button class="btn btn-g btn-sm" onclick="closeModal('inquiryModal')">닫기</button><button class="btn btn-p btn-sm" onclick="saveInquiryAnswer()">답변 저장</button></div>
 </div></div>
 
-<div class="modal-bg" id="eventModal"><div class="modal" style="width:600px">
+<div class="modal-bg" id="eventModal"><div class="modal" style="width:720px;max-width:95vw;max-height:90vh;overflow-y:auto">
   <h3 id="eventModalTitle">행사 추가</h3>
   <input type="hidden" id="eventEditId">
   <div class="fg"><label>제목 *</label><input type="text" id="eventTitle"></div>
@@ -252,6 +252,10 @@
   </div>
   <div class="fg"><label>설명</label><textarea id="eventDesc"></textarea></div>
   <div class="fg"><label>주최자 연락처</label><input type="text" id="eventContact"></div>
+    <label>최신 소식 <span style="font-weight:400;color:var(--muted)">(여러 줄·이미지 가능, 행사 상세 [소식] 탭에 표시)</span></label>
+    <div id="eventNewsList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:8px"></div>
+    <button type="button" class="btn btn-g btn-sm" onclick="addNewsItem()">+ 소식 추가</button>
+  </div>
   <div class="fg">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <label style="margin-bottom:0">동아리 공연 팀 편집</label>

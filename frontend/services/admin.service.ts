@@ -917,13 +917,30 @@ export type PushResponse = {
   failedCount: number;
 };
 
+type BackendPushResponse = {
+  totalTargets: number;
+  successCount: number;
+  failCount: number;
+  sentAt: string;
+};
+
+function transformPushResponse(data: BackendPushResponse): PushResponse {
+  return {
+    success: data.successCount > 0 || data.totalTargets === 0,
+    message: data.successCount > 0 ? '발송 완료' : '발송 대상이 없습니다',
+    sentCount: data.successCount,
+    failedCount: data.failCount,
+  };
+}
+
 export async function sendPushToAll(title: string, body: string): Promise<PushResponse> {
   const res = await adminFetch('/api/admin/notifications/send-all', {
     method: 'POST',
     body: JSON.stringify({ title, body }),
   });
   if (!res.ok) throw new Error(await res.text().then((t) => t || '전체 발송 실패'));
-  return res.json();
+  const data: BackendPushResponse = await res.json();
+  return transformPushResponse(data);
 }
 
 export async function sendPushToMembers(title: string, body: string, memberIds: number[]): Promise<PushResponse> {
@@ -932,7 +949,8 @@ export async function sendPushToMembers(title: string, body: string, memberIds: 
     body: JSON.stringify({ title, body, memberIds }),
   });
   if (!res.ok) throw new Error(await res.text().then((t) => t || '발송 실패'));
-  return res.json();
+  const data: BackendPushResponse = await res.json();
+  return transformPushResponse(data);
 }
 
 // --- 문의 답변 (AdminInquiryController) ---

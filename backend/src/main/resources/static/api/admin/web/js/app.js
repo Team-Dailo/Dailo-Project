@@ -263,6 +263,18 @@ function openEventModal(id, data) {
     preview.style.display = 'none';
     placeholder.style.display = '';
   }
+  // 최신 소식 (extraJson.news) 로드
+  let news = [];
+  try {
+    if (data?.extraJson) {
+      const parsed = JSON.parse(data.extraJson);
+      if (Array.isArray(parsed?.news)) news = parsed.news;
+    }
+  } catch (_) { news = []; }
+  _eventExtraCache = (() => {
+    try { return data?.extraJson ? JSON.parse(data.extraJson) : {}; } catch (_) { return {}; }
+  })();
+  renderNewsList(news);
   document.querySelectorAll('#eventCategories input[type=checkbox]').forEach(cb => {
     cb.checked = (data?.categories || []).includes(cb.value);
   });
@@ -411,19 +423,45 @@ function toggleExtraJsonRaw() {
 
 function buildExtraJson() {
   const rawText = document.getElementById('eventExtraJson').value.trim();
-  const performers = getPerformersFromEditor();
-  // 퍼포머 에디터에 데이터가 있고 timeline 인덱스가 파악된 경우
-  if (performers.length > 0 && _perfTimelineIdx >= 0) {
-    try {
-      const base = rawText ? JSON.parse(rawText) : {};
-      if (base.timeline && base.timeline[_perfTimelineIdx]) {
-        base.timeline[_perfTimelineIdx].performers = performers;
-      }
-      return JSON.stringify(base);
-    } catch { /* 파싱 실패 시 아래로 fallthrough */ }
+  // 1) raw textarea가 있으면 그걸 base, 없으면 _eventExtraCache 사용 (기존 키 보존)
+  let base = {};
+  try {
+    base = rawText ? JSON.parse(rawText) : { ..._eventExtraCache };
+  } catch {
+    base = { ..._eventExtraCache };
   }
-  // 퍼포머 없이 textarea만 있는 경우 (새 행사 또는 performers 없는 행사)
-  return rawText || null;
+
+  // 2) performers를 timeline에 반영
+  const performers = getPerformersFromEditor();
+  if (performers.length > 0 && _perfTimelineIdx >= 0) {
+    if (base.timeline && base.timeline[_perfTimelineIdx]) {
+      base.timeline[_perfTimelineIdx].performers = performers;
+    }
+  }
+
+  // 3) news 항목 수집 (소식 편집기)
+  const newsWrap = document.getElementById('eventNewsList');
+  if (newsWrap) {
+    const news = [];
+    newsWrap.querySelectorAll('.news-row').forEach((row) => {
+      const title = row.querySelector('.news-title').value.trim();
+      const body = row.querySelector('.news-body').value;
+      const date = row.querySelector('.news-date').value.trim();
+      const imageUrls = Array.from(row.querySelectorAll('.news-thumbs img')).map((img) => img.dataset.url || img.src);
+      if (!title && !body && imageUrls.length === 0) return;
+      news.push({
+        id: row.dataset.id,
+        title,
+        body,
+        date,
+        ...(imageUrls.length > 0 ? { imageUrls } : {}),
+      });
+    });
+    if (news.length > 0) base.news = news;
+    else delete base.news;
+  }
+
+  return Object.keys(base).length > 0 ? JSON.stringify(base) : null;
 }
 
 // ===== Posts =====
@@ -750,6 +788,107 @@ function initEventMap(lat, lng) {
 function updateLatLngInputs(lat, lng) {
   document.getElementById('eventLat').value = Math.round(lat * 1e7) / 1e7;
   document.getElementById('eventLng').value = Math.round(lng * 1e7) / 1e7;
+}
+
+// ===== Event News (extraJson.news) =====
+let _eventExtraCache = {};
+
+function escAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function renderNewsList(news) {
+  const wrap = document.getElementById('eventNewsList');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  (news || []).forEach((n) => wrap.appendChild(buildNewsRow(n)));
+}
+
+function buildNewsRow(item) {
+  const row = document.createElement('div');
+  row.className = 'news-row';
+  row.dataset.id = item.id || String(Date.now()) + Math.random().toString(36).slice(2, 6);
+  row.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:12px;background:#fafafa;box-sizing:border-box';
+  const imgs = Array.isArray(item.imageUrls) ? item.imageUrls : [];
+  row.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <input type="text" class="news-title" placeholder="소식 제목" value="${escAttr(item.title || '')}" style="width:100%;box-sizing:border-box">
+      <textarea class="news-body" placeholder="내용 (줄바꿈 가능)" rows="4" style="width:100%;box-sizing:border-box;resize:vertical">${escAttr(item.body || '')}</textarea>
+      <input type="text" class="news-date" placeholder="날짜 (예: 2025.05.10)" value="${escAttr(item.date || '')}" style="width:100%;box-sizing:border-box">
+      <div class="news-dropzone" style="border:1px dashed var(--border);border-radius:8px;padding:14px;text-align:center;cursor:pointer;font-size:12px;color:var(--muted);background:#fff">이미지 드래그하거나 클릭하여 업로드</div>
+      <input type="file" class="news-file" accept="image/*" style="display:none">
+      <div class="news-thumbs" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div style="text-align:right;margin-top:10px">
+      <button type="button" class="btn btn-d btn-sm news-remove">삭제</button>
+    </div>
+  `;
+  // 이미지 썸네일
+  const thumbs = row.querySelector('.news-thumbs');
+  imgs.forEach((url) => thumbs.appendChild(buildNewsThumb(url)));
+  // 드래그/드롭/클릭 업로드
+  const zone = row.querySelector('.news-dropzone');
+  const fileInput = row.querySelector('.news-file');
+  zone.addEventListener('click', () => fileInput.click());
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.background = '#eef2ff'; });
+  zone.addEventListener('dragleave', () => { zone.style.background = ''; });
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.style.background = '';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) uploadNewsImage(file, thumbs, zone);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) uploadNewsImage(fileInput.files[0], thumbs, zone);
+    fileInput.value = '';
+  });
+  row.querySelector('.news-remove').addEventListener('click', () => row.remove());
+  return row;
+}
+
+function buildNewsThumb(url) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;width:80px;height:80px';
+  wrap.innerHTML = `
+    <img src="${escAttr(url)}" data-url="${escAttr(url)}" style="width:80px;height:80px;border-radius:8px;object-fit:cover;background:#e5e7eb;display:block">
+    <button type="button" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:10px;border:none;background:#111827;color:#fff;font-size:12px;line-height:1;cursor:pointer">×</button>
+  `;
+  wrap.querySelector('button').addEventListener('click', () => wrap.remove());
+  return wrap;
+}
+
+/** 업로드 응답의 상대경로(/static/...)를 앱·웹 모두에서 보이도록 절대 URL로 변환 */
+function toAbsoluteUrl(pathOrUrl) {
+  if (!pathOrUrl) return '';
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  if (pathOrUrl.startsWith('/')) return window.location.origin + pathOrUrl;
+  return pathOrUrl;
+}
+
+async function uploadNewsImage(file, thumbsEl, zoneEl) {
+  const original = zoneEl.textContent;
+  zoneEl.textContent = '업로드 중...';
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/admin/upload', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + getToken(), 'X-User-Id': localStorage.getItem('admin_id') || '' },
+      body: fd,
+    });
+    if (!res.ok) throw new Error('업로드 실패 (' + res.status + ')');
+    const data = await res.json();
+    const absUrl = toAbsoluteUrl(data.url);
+    thumbsEl.appendChild(buildNewsThumb(absUrl));
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    zoneEl.textContent = original;
+  }
+}
+
+function addNewsItem() {
+  const wrap = document.getElementById('eventNewsList');
+  if (!wrap) return;
+  wrap.appendChild(buildNewsRow({ id: String(Date.now()), title: '', body: '', date: '', imageUrls: [] }));
 }
 
 // ===== Dropzone Upload =====
