@@ -26,6 +26,14 @@ import { Ionicons } from "@expo/vector-icons";
 import EventDetailTabs, { TabKey } from "../../../components/detail/EventDetailTabs";
 import * as adminService from "../../../services/admin.service";
 import { parseEventExtra, stringifyEventExtra } from "../../../utils/eventExtra";
+import { API_BASE_URL } from "../../../constants/api";
+
+function resolveNewsImageUrl(url: string): string {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith("/")) return `${API_BASE_URL}${url}`;
+  return url;
+}
 import { MAP_UI } from "../../../constants/colors";
 import { geocodeAddress, reverseGeocode } from "../../../services/geocoding.service";
 import {
@@ -810,7 +818,7 @@ function AdminNewsSection({
             {Array.isArray(item.imageUrls) && item.imageUrls.length > 0 && (
               <View style={styles.newsThumbRow}>
                 {item.imageUrls.slice(0, 4).map((url, i) => (
-                  <Image key={`${url}-${i}`} source={{ uri: url }} style={styles.newsThumbItem} />
+                  <Image key={`${url}-${i}`} source={{ uri: resolveNewsImageUrl(url) }} style={styles.newsThumbItem} />
                 ))}
               </View>
             )}
@@ -1614,7 +1622,7 @@ function EditModal({
                 <View style={styles.newsImagesRow}>
                   {newsImages.map((url, i) => (
                     <View key={`${url}-${i}`} style={styles.newsImageItem}>
-                      <Image source={{ uri: url }} style={styles.newsImageThumb} />
+                      <Image source={{ uri: resolveNewsImageUrl(url) }} style={styles.newsImageThumb} />
                       <Pressable
                         style={styles.newsImageRemove}
                         onPress={() => setNewsImages((prev) => prev.filter((_, idx) => idx !== i))}
