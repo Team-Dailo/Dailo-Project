@@ -94,23 +94,97 @@ function pagingHtml(id, page, totalPages, fn) {
 
 // ===== Dashboard =====
 async function loadDashboard() {
+  document.getElementById('dashStats').innerHTML = '<div class="stat"><div class="l" style="text-align:center;padding:20px">로딩 중…</div></div>';
   try {
-    const d = await apiJson('/api/admin/dashboard');
-    const ms = d.memberStats || d;
-    const es = d.eventStats || d;
-    const ps = d.postStats || d;
-    const rs = d.reportStats || d;
-    const is = d.inquiryStats || d;
-    document.getElementById('dashStats').innerHTML = `
-      <div class="stat"><div class="l">전체 회원</div><div class="v">${ms.totalMembers ?? '-'}</div></div>
-      <div class="stat"><div class="l">오늘 가입</div><div class="v">${ms.todaySignups ?? '-'}</div></div>
-      <div class="stat"><div class="l">전체 행사</div><div class="v">${es.totalEvents ?? '-'}</div></div>
-      <div class="stat"><div class="l">전체 게시글</div><div class="v">${ps.totalPosts ?? '-'}</div></div>
-      <div class="stat"><div class="l">미처리 신고</div><div class="v">${rs.pendingReports ?? '-'}</div></div>
-      <div class="stat"><div class="l">미처리 문의</div><div class="v">${is.pendingInquiries ?? '-'}</div></div>
-    `;
+    const [d, activity] = await Promise.all([
+      apiJson('/api/admin/dashboard'),
+      apiJson('/api/admin/dashboard/daily-activity').catch(() => null),
+    ]);
+    const ms = d.memberStats;
+    const es = d.eventStats;
+    const ps = d.postStats;
+    const rs = d.reportStats;
+    const is = d.inquiryStats;
+
+    // 1. 핵심 지표 카드
+    let html = '<div class="stats">';
+    html += '<div class="stat"><div class="l">전체 회원</div><div class="v">' + ms.total + '</div>'
+          + (ms.todaySignups > 0 ? '<div style="font-size:12px;color:var(--success);margin-top:4px">+' + ms.todaySignups + ' 오늘 가입</div>' : '') + '</div>';
+    html += '<div class="stat"><div class="l">활성 회원</div><div class="v" style="color:var(--success)">' + ms.active + '</div>'
+          + (ms.suspended > 0 ? '<div style="font-size:12px;color:var(--warn);margin-top:4px">정지 ' + ms.suspended + '명</div>' : '') + '</div>';
+    html += '<div class="stat"><div class="l">전체 행사</div><div class="v">' + es.total + '</div>'
+          + '<div style="font-size:12px;color:var(--success);margin-top:4px">ACTIVE ' + es.active + '</div></div>';
+    html += '<div class="stat"><div class="l">전체 게시글</div><div class="v">' + ps.total + '</div>'
+          + (ps.todayPosts > 0 ? '<div style="font-size:12px;color:var(--success);margin-top:4px">+' + ps.todayPosts + ' 오늘</div>' : '') + '</div>';
+    html += '<div class="stat"><div class="l">미처리 신고</div>'
+          + '<div class="v" style="' + (rs.pending > 0 ? 'color:var(--danger)' : '') + '">' + rs.pending + '</div>'
+          + '<div style="font-size:12px;color:var(--muted);margin-top:4px">전체 ' + rs.total + '</div></div>';
+    html += '<div class="stat"><div class="l">미처리 문의</div>'
+          + '<div class="v" style="' + (is.pending > 0 ? 'color:var(--danger)' : '') + '">' + is.pending + '</div>'
+          + '<div style="font-size:12px;color:var(--muted);margin-top:4px">전체 ' + is.total + '</div></div>';
+    if (activity) {
+      html += '<div class="stat"><div class="l">오늘 조회 클릭</div><div class="v">' + activity.totalClicks + '</div></div>';
+    }
+    html += '</div>';
+
+    // 2. 상세 현황 (2열)
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">';
+
+    html += '<div class="card"><h3>회원 현황</h3><table>'
+          + '<tr><td>활성</td><td style="text-align:right;font-weight:700;color:var(--success)">' + ms.active + '</td></tr>'
+          + '<tr><td>정지</td><td style="text-align:right;font-weight:700;color:var(--warn)">' + ms.suspended + '</td></tr>'
+          + '<tr><td>탈퇴</td><td style="text-align:right;font-weight:700;color:var(--muted)">' + ms.deleted + '</td></tr>'
+          + '<tr><td>오늘 가입</td><td style="text-align:right;font-weight:700">' + ms.todaySignups + '</td></tr>'
+          + '</table></div>';
+
+    html += '<div class="card"><h3>행사 현황</h3><table>'
+          + '<tr><td>ACTIVE</td><td style="text-align:right;font-weight:700;color:var(--success)">' + es.active + '</td></tr>'
+          + '<tr><td>DRAFT</td><td style="text-align:right;font-weight:700;color:var(--warn)">' + es.draft + '</td></tr>'
+          + '<tr><td>ENDED</td><td style="text-align:right;font-weight:700;color:var(--muted)">' + es.ended + '</td></tr>'
+          + '<tr><td>INACTIVE</td><td style="text-align:right;font-weight:700;color:var(--muted)">' + es.inactive + '</td></tr>'
+          + '</table></div>';
+
+    html += '<div class="card"><h3>게시글 현황</h3><table>'
+          + '<tr><td>게시 중</td><td style="text-align:right;font-weight:700;color:var(--success)">' + ps.published + '</td></tr>'
+          + '<tr><td>숨김</td><td style="text-align:right;font-weight:700;color:var(--warn)">' + ps.hidden + '</td></tr>'
+          + '<tr><td>오늘 작성</td><td style="text-align:right;font-weight:700">' + ps.todayPosts + '</td></tr>'
+          + '</table></div>';
+
+    html += '<div class="card"><h3>신고 / 문의</h3><table>'
+          + '<tr><td>미처리 신고</td><td style="text-align:right;font-weight:700;color:' + (rs.pending > 0 ? 'var(--danger)' : 'inherit') + '">' + rs.pending + '</td></tr>'
+          + '<tr><td>처리된 신고</td><td style="text-align:right;font-weight:700;color:var(--muted)">' + rs.resolved + '</td></tr>'
+          + '<tr><td>미처리 문의</td><td style="text-align:right;font-weight:700;color:' + (is.pending > 0 ? 'var(--danger)' : 'inherit') + '">' + is.pending + '</td></tr>'
+          + '<tr><td>답변 완료</td><td style="text-align:right;font-weight:700;color:var(--muted)">' + is.answered + '</td></tr>'
+          + '</table></div>';
+
+    html += '</div>';
+
+    // 3. 시간대별 조회 차트
+    if (activity && activity.hourlyCounts && activity.hourlyCounts.length > 0) {
+      const maxCount = Math.max.apply(null, activity.hourlyCounts.map(function(h) { return h.count; })) || 1;
+      html += '<div class="card"><h3>오늘 시간대별 클릭 현황</h3>'
+            + '<div style="display:flex;align-items:flex-end;gap:3px;height:90px;margin-top:10px">';
+      activity.hourlyCounts.forEach(function(h) {
+        const barH = Math.round((h.count / maxCount) * 80);
+        const label = h.hour < 10 ? '0' + h.hour : '' + h.hour;
+        html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px" title="' + h.hour + '시: ' + h.count + '회">'
+              + '<div style="width:100%;background:var(--pri);border-radius:2px 2px 0 0;height:' + barH + 'px;min-height:' + (h.count > 0 ? 2 : 0) + 'px"></div>'
+              + '<div style="font-size:9px;color:var(--muted)">' + label + '</div>'
+              + '</div>';
+      });
+      html += '</div></div>';
+    }
+
+    // 생성 시각
+    if (d.generatedAt) {
+      let ts = d.generatedAt;
+      try { ts = new Date(Array.isArray(d.generatedAt) ? d.generatedAt[0] + '-' + String(d.generatedAt[1]).padStart(2,'0') + '-' + String(d.generatedAt[2]).padStart(2,'0') : d.generatedAt).toLocaleString('ko-KR'); } catch {}
+      html += '<div style="font-size:11px;color:var(--muted);text-align:right;margin-top:4px">생성시각: ' + ts + '</div>';
+    }
+
+    document.getElementById('dashStats').innerHTML = html;
   } catch (e) {
-    document.getElementById('dashStats').innerHTML = `<div class="stat"><div class="l">로드 실패: ${esc(e.message)}</div></div>`;
+    document.getElementById('dashStats').innerHTML = '<div class="stat"><div class="l">로드 실패: ' + esc(e.message) + '</div></div>';
   }
 }
 
@@ -170,9 +244,13 @@ function openEventModal(id, data) {
   document.getElementById('eventDesc').value = data?.description || '';
   document.getElementById('eventContact').value = data?.hostContact || '';
   const rawExtra = data?.extraJson;
-  document.getElementById('eventExtraJson').value = rawExtra
+  const rawExtraStr = rawExtra
     ? (typeof rawExtra === 'string' ? rawExtra : JSON.stringify(rawExtra, null, 2))
     : '';
+  document.getElementById('eventExtraJson').value = rawExtraStr;
+  let parsedForEditor = null;
+  try { parsedForEditor = rawExtraStr ? JSON.parse(rawExtraStr) : null; } catch {}
+  initPerformerEditor(parsedForEditor);
   document.getElementById('eventThumbKey').value = data?.thumbnailKey || data?.thumbnailUrl || '';
   const preview = document.getElementById('eventThumbPreview');
   const placeholder = document.getElementById('eventDropPlaceholder');
@@ -214,7 +292,7 @@ async function saveEvent() {
     thumbnailUrl: document.getElementById('eventThumbKey').value || null,
     description: document.getElementById('eventDesc').value || null,
     hostContact: document.getElementById('eventContact').value || null,
-    extraJson: document.getElementById('eventExtraJson').value.trim() || null,
+    extraJson: buildExtraJson(),
   };
   try {
     if (id) await api(`/api/admin/events/${id}`, { method: 'PUT', body: JSON.stringify(body) });
@@ -225,6 +303,127 @@ async function saveEvent() {
 async function deleteEvent(id) {
   if (!confirm('정말 삭제하시겠습니까?')) return;
   try { await api(`/api/admin/events/${id}`, { method: 'DELETE' }); loadEvents(0); } catch (e) { alert(e.message); }
+}
+
+// ===== Performer Editor =====
+let _perfTimelineIdx = -1;
+
+function initPerformerEditor(parsed) {
+  _perfTimelineIdx = -1;
+  let performers = [];
+  if (parsed && Array.isArray(parsed.timeline)) {
+    for (let i = 0; i < parsed.timeline.length; i++) {
+      if (Array.isArray(parsed.timeline[i].performers)) {
+        _perfTimelineIdx = i;
+        performers = parsed.timeline[i].performers;
+        break;
+      }
+    }
+  }
+  renderPerformerList(performers);
+}
+
+function renderPerformerList(performers) {
+  const list = document.getElementById('performerList');
+  if (!list) return;
+  if (!performers || performers.length === 0) {
+    list.innerHTML = '<p style="font-size:13px;color:var(--muted);margin:0">공연 팀이 없습니다. "+ 팀 추가"로 추가하세요.</p>';
+    return;
+  }
+  list.innerHTML = performers.map((p, i) => `
+    <div class="performer-card">
+      <div class="performer-header">
+        <input class="perf-name" type="text" placeholder="팀 이름" value="${esc(p.name||'')}" style="width:130px;font-weight:600">
+        <input class="perf-genre" type="text" placeholder="장르" value="${esc(p.genre||'')}" style="width:90px">
+        <input class="perf-time" type="text" placeholder="시작시간 예)19:53" value="${esc(p.startTime||'')}" style="width:110px">
+        <button type="button" onclick="removePerformerRow(${i})" class="btn btn-d btn-sm" style="padding:3px 10px;margin-left:auto">팀 삭제</button>
+      </div>
+      <div class="setlist-wrap">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">셋리스트</div>
+        ${(p.setlist||[]).map((song, si) => `
+          <div class="song-row">
+            <span class="song-num">${si+1}.</span>
+            <input class="song-input" type="text" value="${esc(song)}" placeholder="곡명 - 아티스트">
+            <button type="button" onclick="removeSongRow(${i},${si})" class="btn btn-d btn-sm" style="padding:2px 8px;font-size:12px">×</button>
+          </div>
+        `).join('')}
+        <button type="button" onclick="addSongRow(${i})" class="btn btn-g btn-sm" style="font-size:12px;margin-top:6px">+ 곡 추가</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function getPerformersFromEditor() {
+  const performers = [];
+  document.querySelectorAll('#performerList .performer-card').forEach(card => {
+    performers.push({
+      name: card.querySelector('.perf-name').value.trim(),
+      genre: card.querySelector('.perf-genre').value.trim(),
+      startTime: card.querySelector('.perf-time').value.trim(),
+      setlist: Array.from(card.querySelectorAll('.song-input')).map(i => i.value.trim()).filter(Boolean),
+    });
+  });
+  return performers;
+}
+
+function addPerformerRow() {
+  const current = getPerformersFromEditor();
+  current.push({ name: '', genre: '', startTime: '', setlist: [] });
+  if (_perfTimelineIdx < 0) _perfTimelineIdx = 0;
+  renderPerformerList(current);
+  setTimeout(() => {
+    const cards = document.querySelectorAll('#performerList .performer-card');
+    if (cards.length) cards[cards.length - 1].querySelector('.perf-name').focus();
+  }, 30);
+}
+
+function removePerformerRow(idx) {
+  const current = getPerformersFromEditor();
+  current.splice(idx, 1);
+  renderPerformerList(current);
+}
+
+function addSongRow(perfIdx) {
+  const current = getPerformersFromEditor();
+  if (!current[perfIdx]) return;
+  current[perfIdx].setlist.push('');
+  renderPerformerList(current);
+  setTimeout(() => {
+    const cards = document.querySelectorAll('#performerList .performer-card');
+    if (cards[perfIdx]) {
+      const inputs = cards[perfIdx].querySelectorAll('.song-input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    }
+  }, 30);
+}
+
+function removeSongRow(perfIdx, songIdx) {
+  const current = getPerformersFromEditor();
+  if (!current[perfIdx]) return;
+  current[perfIdx].setlist.splice(songIdx, 1);
+  renderPerformerList(current);
+}
+
+function toggleExtraJsonRaw() {
+  const ta = document.getElementById('eventExtraJson');
+  ta.style.display = ta.style.display === 'none' ? '' : 'none';
+}
+
+function buildExtraJson() {
+  const rawText = document.getElementById('eventExtraJson').value.trim();
+  const performers = getPerformersFromEditor();
+  // 퍼포머 에디터에 데이터가 있고 timeline 인덱스가 파악된 경우
+  if (performers.length > 0 && _perfTimelineIdx >= 0) {
+    try {
+      const base = rawText ? JSON.parse(rawText) : {};
+      if (base.timeline && base.timeline[_perfTimelineIdx]) {
+        base.timeline[_perfTimelineIdx].performers = performers;
+      }
+      return JSON.stringify(base);
+    } catch { /* 파싱 실패 시 아래로 fallthrough */ }
+  }
+  // 퍼포머 없이 textarea만 있는 경우 (새 행사 또는 performers 없는 행사)
+  return rawText || null;
 }
 
 // ===== Posts =====
