@@ -1,6 +1,7 @@
 // contexts/AuthContext.tsx
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import * as authService from '../services/auth.service';
+import { registerPushToken } from '../services/notification.service';
 
 export type AuthUser = {
   name: string;
@@ -53,6 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const profileImageUrl = (me.profileImageUrl ?? meAny.profile_image_url ?? '')?.toString?.()?.trim() || undefined;
       if (id != null) await authService.setStoredUserId(id);
       setUser({ name, id, role, email, profileImageUrl: profileImageUrl || undefined, profileImageVersion: Date.now() });
+      // 앱 시작 시 로그인 상태면 푸시 토큰 등록 (토큰 갱신 대비)
+      registerPushToken().catch(() => {});
     })();
   }, []);
 
@@ -61,6 +64,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...u,
       profileImageVersion: u.profileImageVersion ?? Date.now(),
     });
+    // 로그인 후 푸시 토큰 등록 (비동기, 실패해도 로그인은 진행)
+    registerPushToken().catch(() => {});
   }, []);
 
   const logout = useCallback(async () => {

@@ -599,12 +599,39 @@ export type DashboardResponse = {
   pendingInquiries: number;
   todaySignups: number;
   todayPosts: number;
+  todayComments: number;
+};
+
+/** 백엔드 실제 응답 구조 (중첩) */
+type DashboardRawResponse = {
+  memberStats?: { total?: number; active?: number; todaySignups?: number };
+  eventStats?: { total?: number };
+  postStats?: { total?: number; todayPosts?: number };
+  commentStats?: { total?: number; todayComments?: number };
+  reportStats?: { pending?: number };
+  inquiryStats?: { pending?: number };
 };
 
 export async function getDashboard(): Promise<DashboardResponse> {
   const res = await adminFetch('/api/admin/dashboard');
   if (!res.ok) throw new Error(await res.text().then((t) => t || '대시보드 조회 실패'));
-  return res.json();
+  const raw: DashboardRawResponse = await res.json();
+
+  // DEBUG: API 응답 확인
+  console.log('[Dashboard] raw response:', JSON.stringify(raw, null, 2));
+
+  // 중첩 구조를 평탄화
+  return {
+    totalMembers: raw.memberStats?.total ?? 0,
+    totalPosts: raw.postStats?.total ?? 0,
+    totalComments: raw.commentStats?.total ?? 0,
+    totalEvents: raw.eventStats?.total ?? 0,
+    pendingReports: raw.reportStats?.pending ?? 0,
+    pendingInquiries: raw.inquiryStats?.pending ?? 0,
+    todaySignups: raw.memberStats?.todaySignups ?? 0,
+    todayPosts: raw.postStats?.todayPosts ?? 0,
+    todayComments: raw.commentStats?.todayComments ?? 0,
+  };
 }
 
 // --- 일일 활동 통계 ---

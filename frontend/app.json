@@ -2,7 +2,7 @@
   "expo": {
     "name": "다일로",
     "slug": "app",
-    "version": "4.2.2",
+    "version": "4.2.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "app",
@@ -11,8 +11,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.knut.dailo",
-      "buildNumber": "9",
-      "usesAppleSignIn": false,
+      "buildNumber": "14",
+      "usesAppleSignIn": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -87,7 +87,8 @@
           "ios": { "handleKakaoOpenUrl": true }
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,

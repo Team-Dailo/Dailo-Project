@@ -107,7 +107,7 @@ export default function MyReportsScreen() {
                   사유: {REASON_LABEL[r.reason] ?? r.reason}
                   {r.description ? ` - ${r.description}` : ""}
                 </Text>
-                <Text style={styles.date}>{formatRelativeTime(r.createdAt)}</Text>
+                <Text style={styles.date}>{formatRelativeTime((r as Record<string, unknown>).createdAt as string ?? (r as Record<string, unknown>).created_at as string)}</Text>
               </View>
             ))
           )}

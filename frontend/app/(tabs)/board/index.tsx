@@ -76,13 +76,14 @@ function toPost(item: { id: number; authorId?: number; author_id?: number; autho
   const urls = (raw.imageUrls ?? item.imageUrls ?? raw.image_urls) as string[] | undefined;
   const firstImage = Array.isArray(urls) && urls.length > 0 ? urls[0] : undefined;
   const eventTitle = (raw.eventTitle ?? item.eventTitle ?? raw.event_title ?? item.event_title) as string | null | undefined;
+  const createdAt = (raw.createdAt ?? raw.created_at ?? item.createdAt) as string | undefined;
   return {
     id: String(item.id),
     authorId,
     author: authorName,
     authorProfileImageUrl: profileUrl && typeof profileUrl === "string" && profileUrl.trim() ? profileUrl.trim() : null,
     title: item.title,
-    time: formatRelativeTime(item.createdAt),
+    time: formatRelativeTime(createdAt),
     tag: item.categoryType ?? "",
     content: contentStr,
     likes: item.likeCount ?? 0,

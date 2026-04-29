@@ -1,5 +1,6 @@
 package com.dailo.backend.service;
 
+import com.dailo.backend.domain.enums.CommentStatus;
 import com.dailo.backend.domain.enums.EventStatus;
 import com.dailo.backend.domain.enums.InquiryStatus;
 import com.dailo.backend.domain.enums.MemberStatus;
@@ -13,12 +14,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -27,6 +30,7 @@ public class AdminDashboardService {
     private final MemberRepository memberRepository;
     private final EventRepository eventRepository;
     private final PostRepository postRepository;
+    private final CommentRepository commentRepository;
     private final ReportRepository reportRepository;
     private final InquiryRepository inquiryRepository;
     private final ClickLogRepository clickLogRepository;
@@ -57,6 +61,21 @@ public class AdminDashboardService {
                 .todayPosts(postRepository.countByCreatedAtAfter(startOfToday))
                 .build();
 
+        long commentTotal = commentRepository.count();
+        long commentVisible = commentRepository.countByStatus(CommentStatus.VISIBLE);
+        long commentHidden = commentRepository.countByStatus(CommentStatus.HIDDEN);
+        long todayComments = commentRepository.countByCreatedAtAfterAndNotDeleted(startOfToday);
+        log.info("Dashboard commentStats: total={}, visible={}, hidden={}, todayComments={}",
+                 commentTotal, commentVisible, commentHidden, todayComments);
+
+        CommentStatsDto commentStats = CommentStatsDto.builder()
+                .total(commentTotal)
+                .visible(commentVisible)
+                .hidden(commentHidden)
+                .todayComments(todayComments)
+                .build();
+        log.info("Built commentStats: {}", commentStats);
+
         ReportStatsDto reportStats = ReportStatsDto.builder()
                 .total(reportRepository.count())
                 .pending(reportRepository.countByStatus(ReportStatus.PENDING))
@@ -70,14 +89,17 @@ public class AdminDashboardService {
                 .answered(inquiryRepository.countByStatus(InquiryStatus.ANSWERED))
                 .build();
 
-        return DashboardResponseDto.builder()
+        DashboardResponseDto response = DashboardResponseDto.builder()
                 .memberStats(memberStats)
                 .eventStats(eventStats)
                 .postStats(postStats)
+                .commentStats(commentStats)
                 .reportStats(reportStats)
                 .inquiryStats(inquiryStats)
                 .generatedAt(LocalDateTime.now())
                 .build();
+        log.info("Dashboard response commentStats: {}", response.getCommentStats());
+        return response;
     }
 
     /**

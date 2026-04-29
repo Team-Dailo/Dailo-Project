@@ -20,38 +20,11 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as chatService from "../../../services/chat.service";
 import * as authService from "../../../services/auth.service";
+import { formatChatTime } from "../../../utils/formatDate";
 
 const CHAT_NOTIFICATION_KEY = "@chat/notification_enabled";
 
 const AVATAR_COLORS = ["#E0E7FF", "#FCE7F3", "#D1FAE5", "#FEF3C7", "#E5E7EB", "#F3E8FF", "#DBEAFE"];
-
-function formatRoomTime(iso: string): string {
-  try {
-    if (!iso) return "";
-
-    let parsedDate: Date;
-
-    // 🔥 타임존 있는 경우 그대로 사용
-    if (iso.includes("Z") || iso.includes("+")) {
-      parsedDate = new Date(iso);
-    } 
-    // 🔥 타임존 없는 경우 → UTC로 강제
-    else {
-      parsedDate = new Date(iso + "Z");
-    }
-
-    const now = new Date();
-    const diff = now.getTime() - parsedDate.getTime();
-
-    if (diff < 60000) return "방금 전";
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
-    if (diff < 172800000) return "어제";
-    return `${Math.floor(diff / 86400000)}일 전`;
-  } catch {
-    return "";
-  }
-}
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -192,7 +165,7 @@ export default function ChatListScreen() {
             const partnerImageUri = rawImageUrl
               ? (rawImageUrl.startsWith("/") ? `${API_BASE_URL}${rawImageUrl}` : rawImageUrl)
               : null;
-            const timeStr = (item.lastMessageAt ?? item.updatedAt) ? formatRoomTime((item.lastMessageAt ?? item.updatedAt)!) : "";
+            const timeStr = (item.lastMessageAt ?? item.updatedAt) ? formatChatTime((item.lastMessageAt ?? item.updatedAt)!) : "";
             const colorIndex = (item.id ?? 0) % AVATAR_COLORS.length;
             const unread = Math.max(0, (item as { unreadCount?: number }).unreadCount ?? 0);
             const preview = (item.lastMessageContent ?? "").trim() || "대화를 시작해 보세요";
