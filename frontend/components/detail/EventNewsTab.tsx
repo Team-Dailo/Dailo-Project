@@ -1,6 +1,6 @@
 // frontend/components/detail/EventNewsTab.tsx
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Image, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import type { EventNewsItem } from "../../types/event";
 import type { PostListItem } from "../../types/board";
@@ -70,6 +70,7 @@ export default function EventNewsTab({ news, eventId }: EventNewsTabProps) {
             title={item.title}
             body={item.body}
             date={item.date}
+            imageUrls={item.imageUrls}
           />
         ))
       )}
@@ -107,9 +108,11 @@ interface NewsCardProps {
   title: string;
   body: string;
   date: string;
+  imageUrls?: string[];
 }
 
-function NewsCard({ title, body, date }: NewsCardProps) {
+function NewsCard({ title, body, date, imageUrls }: NewsCardProps) {
+  const hasImages = Array.isArray(imageUrls) && imageUrls.length > 0;
   return (
     <View style={styles.newsCard}>
       <View style={styles.newsRow}>
@@ -124,6 +127,23 @@ function NewsCard({ title, body, date }: NewsCardProps) {
 
         <Text style={styles.newsDate}>{date}</Text>
       </View>
+      {hasImages && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.newsImagesScroll}
+          contentContainerStyle={styles.newsImagesContent}
+        >
+          {imageUrls!.map((url, i) => (
+            <Image
+              key={`${url}-${i}`}
+              source={{ uri: url }}
+              style={styles.newsImage}
+              resizeMode="cover"
+            />
+          ))}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -168,6 +188,21 @@ const styles = StyleSheet.create({
   newsBody: {
     fontSize: 13,
     color: "#555",
+    lineHeight: 18,
+  },
+  newsImagesScroll: {
+    marginTop: 10,
+  },
+  newsImagesContent: {
+    gap: 8,
+    paddingRight: 4,
+  },
+  newsImage: {
+    width: 160,
+    height: 160,
+    borderRadius: 10,
+    backgroundColor: "#E5E7EB",
+    marginRight: 8,
   },
   newsDate: {
     fontSize: 11,
