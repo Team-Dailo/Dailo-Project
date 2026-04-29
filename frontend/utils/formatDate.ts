@@ -46,6 +46,27 @@ export function formatDateTimeAdmin(iso: string): string {
   return `${y}.${m}.${day} ${h}:${min}`;
 }
 
+/** 게시물 목록용: 24시간 이내 → 상대 시간, 이후 → MM.DD (올해 다르면 YYYY.MM.DD) */
+export function formatPostListTime(iso?: string): string {
+  try {
+    if (!iso) return '';
+    const d = new Date(iso.includes('Z') || iso.includes('+') ? iso : iso + '+09:00');
+    if (Number.isNaN(d.getTime())) return '';
+    const diff = Date.now() - d.getTime();
+    if (diff < 0) return '방금 전';
+    if (diff < 60_000) return '방금 전';
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
+    const today = new Date();
+    if (d.getFullYear() === today.getFullYear()) {
+      return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`;
+    }
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  } catch {
+    return '';
+  }
+}
+
 /** 상대 시간 표시
  * - 5분 이내: 방금 전
  * - 1시간 이내: N분 전

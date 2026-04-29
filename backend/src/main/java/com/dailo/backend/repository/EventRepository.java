@@ -6,9 +6,11 @@ import com.dailo.backend.domain.enums.EventStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -87,6 +89,20 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     /** 시드 데이터 업데이트: 제목에 해당 문자열이 포함된 첫 번째 이벤트 조회 */
     java.util.Optional<Event> findFirstByTitleContaining(String keyword);
+
+    /** 시드 데이터 중복 방지: soft-delete 포함 전체 카운트 (@Where 우회) */
+    @Query(value = "SELECT COUNT(*) FROM events WHERE title LIKE CONCAT('%', :keyword, '%')", nativeQuery = true)
+    long countByTitleContainingIgnoreDeleted(@Param("keyword") String keyword);
+
+    /** 시드 데이터 조회: soft-delete 포함 첫 번째 이벤트 (@Where 우회) */
+    @Query(value = "SELECT * FROM events WHERE title LIKE CONCAT('%', :keyword, '%') LIMIT 1", nativeQuery = true)
+    java.util.Optional<Event> findFirstByTitleContainingIgnoreDeleted(@Param("keyword") String keyword);
+
+    /** soft-delete 복원: deleted_at 을 NULL 로 초기화 */
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE events SET deleted_at = NULL WHERE id = :id", nativeQuery = true)
+    void restoreByIdNative(@Param("id") Long id);
 
     /** 제목이 정확히 일치하는 이벤트 목록 (이전 시드 삭제용) */
     List<Event> findByTitleIn(List<String> titles);

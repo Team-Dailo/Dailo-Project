@@ -14,6 +14,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   TextInput,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -224,7 +225,7 @@ export function DateTimePickerField({
               <NativeDateTimePicker
                 value={date}
                 mode="date"
-                display="calendar"
+                display={Platform.OS === "ios" ? "inline" : "calendar"}
                 onChange={onDateChangeFromCalendar}
                 minimumDate={new Date(2000, 0, 1)}
                 maximumDate={new Date(2100, 11, 31)}

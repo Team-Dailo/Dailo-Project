@@ -468,9 +468,8 @@ export default function BoardScreen() {
             </View>
             <Text style={styles.noticeText} numberOfLines={2} ellipsizeMode="tail">
               {latestNotice
-                ? (latestNotice.title?.trim() ? `[${latestNotice.title.trim()}] ` : "") +
-                  (latestNotice.content?.trim().replace(/\s+/g, " ").slice(0, 80) || "").trim() +
-                  (latestNotice.content && latestNotice.content.trim().length > 80 ? "…" : "")
+                ? (latestNotice.title?.trim() ? `[${latestNotice.title.trim()}]\n` : "") +
+                  (latestNotice.content?.trim() || "")
                 : "등록된 공지사항이 없습니다."}
             </Text>
           </Pressable>
