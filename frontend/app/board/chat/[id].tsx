@@ -82,14 +82,29 @@ function formatMessageTime(iso?: string): string {
 /** 실제 비율로 사진 표시 + 탭 시 전체화면 */
 function ChatImageBubble({ uri, onPress }: { uri: string; onPress: () => void }) {
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   useEffect(() => {
-    Image.getSize(uri, (w, h) => setImgSize({ w, h }), () => {});
+    setLoadFailed(false);
+    Image.getSize(uri, (w, h) => setImgSize({ w, h }), () => setLoadFailed(true));
   }, [uri]);
   const MAX_W = 220;
   const displayH = imgSize ? Math.round((imgSize.h / imgSize.w) * MAX_W) : MAX_W;
+  if (loadFailed) {
+    return (
+      <View style={{ width: MAX_W, height: 72, backgroundColor: "#F3F4F6", borderRadius: 12, justifyContent: "center", alignItems: "center" }}>
+        <Ionicons name="image-outline" size={24} color="#9CA3AF" />
+        <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>이미지를 불러올 수 없습니다</Text>
+      </View>
+    );
+  }
   return (
     <Pressable onPress={onPress} style={{ borderRadius: 12, overflow: "hidden" }}>
-      <Image source={{ uri }} style={{ width: MAX_W, height: displayH, borderRadius: 12 }} resizeMode="cover" />
+      <Image
+        source={{ uri }}
+        style={{ width: MAX_W, height: displayH, borderRadius: 12 }}
+        resizeMode="cover"
+        onError={() => setLoadFailed(true)}
+      />
     </Pressable>
   );
 }
@@ -155,14 +170,23 @@ export default function ChatRoomScreen() {
       setNotificationsOn(notifStatus.notificationOn);
       const myId = uid ?? 0;
       // API는 최신순(Desc)이므로 채팅은 과거→최신 순으로 보이도록 뒤집기
-      const raw = (msgData.content ?? []).map((m) => ({
-        id: String(m.id),
-        isMe: m.senderId === myId,
-        text: m.messageType === 'IMAGE' ? '' : (m.content ?? ""),
-        imageUrl: m.messageType === 'IMAGE' ? (m.content ?? undefined) : undefined,
-        time: formatMessageTime(m.createdAt),
-        createdAt: m.createdAt,
-      }));
+      const raw = (msgData.content ?? []).map((m) => {
+        const isImage =
+          m.messageType?.toUpperCase() === 'IMAGE' ||
+          // 구버전/잘못 저장된 메시지: messageType 무관하게 업로드 이미지 URL이면 이미지로 표시
+          (!!m.content &&
+            m.content.includes('/uploads/') &&
+            /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(m.content) &&
+            (m.content.startsWith('http://') || m.content.startsWith('https://')));
+        return {
+          id: String(m.id),
+          isMe: m.senderId === myId,
+          text: isImage ? '' : (m.content ?? ""),
+          imageUrl: isImage ? (m.content || undefined) : undefined,
+          time: formatMessageTime(m.createdAt),
+          createdAt: m.createdAt,
+        };
+      });
       setMessages([...raw].reverse());
       await chatService.markRoomAsRead(roomId);
     } catch {

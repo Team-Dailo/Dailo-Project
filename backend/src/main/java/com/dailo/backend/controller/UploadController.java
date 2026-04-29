@@ -54,7 +54,9 @@ public class UploadController {
         try {
             if (useS3 && s3UploadService != null) {
                 String key = s3UploadService.upload(file, "uploads");
-                String path = staticBasePath + "/" + key;
+                // resolveUrl: "static/uploads/..." → "/static/uploads/..." (CloudFront 경로)
+                // staticBasePath를 직접 붙이면 "/static/static/..." 중복이 생기므로 resolveUrl 사용
+                String path = s3UploadService.resolveUrl(key);
                 Map<String, String> body = new HashMap<>();
                 body.put("path", path);
                 return ResponseEntity.ok(body);
