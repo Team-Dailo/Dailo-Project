@@ -293,7 +293,7 @@ export default function MemberProfileScreen() {
           <Text style={styles.postTitle} numberOfLines={1}>{item.title}</Text>
           <Text style={styles.postExcerpt} numberOfLines={2}>{item.contentPreview}</Text>
           <View style={styles.postMeta}>
-            <Text style={styles.postTime}>{formatRelativeTime(item.createdAt)}</Text>
+            <Text style={styles.postTime}>{formatRelativeTime((item as Record<string, unknown>).createdAt as string ?? (item as Record<string, unknown>).created_at as string)}</Text>
             <View style={styles.postStats}>
               <Ionicons name="heart-outline" size={12} color="#9CA3AF" />
               <Text style={styles.postStatText}>{item.likeCount ?? 0}</Text>
@@ -321,7 +321,7 @@ export default function MemberProfileScreen() {
           )}
           <Text style={styles.commentText} numberOfLines={2}>{item.content}</Text>
           <View style={styles.postMeta}>
-            <Text style={styles.postTime}>{formatRelativeTime(item.createdAt)}</Text>
+            <Text style={styles.postTime}>{formatRelativeTime((item as Record<string, unknown>).createdAt as string ?? (item as Record<string, unknown>).created_at as string)}</Text>
             <View style={styles.postStats}>
               <Ionicons name="heart-outline" size={12} color="#9CA3AF" />
               <Text style={styles.postStatText}>{item.likeCount ?? 0}</Text>

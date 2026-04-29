@@ -20,29 +20,11 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as chatService from "../../../services/chat.service";
 import * as authService from "../../../services/auth.service";
+import { formatChatTime } from "../../../utils/formatDate";
 
 const CHAT_NOTIFICATION_KEY = "@chat/notification_enabled";
 
 const AVATAR_COLORS = ["#E0E7FF", "#FCE7F3", "#D1FAE5", "#FEF3C7", "#E5E7EB", "#F3E8FF", "#DBEAFE"];
-
-function formatRoomTime(iso: string): string {
-  try {
-    if (!iso) return "";
-    // 타임존 없는 경우 서버 시간을 KST(+09:00)로 간주
-    const d = new Date(iso.includes("Z") || iso.includes("+") ? iso : iso + "+09:00");
-    if (Number.isNaN(d.getTime())) return "";
-    const diff = Date.now() - d.getTime();
-    if (diff < 0) return "방금 전";
-    if (diff < 60_000) return "방금 전";
-    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
-    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
-    if (diff < 2_592_000_000) return `${Math.floor(diff / 86_400_000)}일 전`;
-    if (diff < 31_536_000_000) return `${Math.floor(diff / 2_592_000_000)}달 전`;
-    return `${Math.floor(diff / 31_536_000_000)}년 전`;
-  } catch {
-    return "";
-  }
-}
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -183,7 +165,7 @@ export default function ChatListScreen() {
             const partnerImageUri = rawImageUrl
               ? (rawImageUrl.startsWith("/") ? `${API_BASE_URL}${rawImageUrl}` : rawImageUrl)
               : null;
-            const timeStr = (item.lastMessageAt ?? item.updatedAt) ? formatRoomTime((item.lastMessageAt ?? item.updatedAt)!) : "";
+            const timeStr = (item.lastMessageAt ?? item.updatedAt) ? formatChatTime((item.lastMessageAt ?? item.updatedAt)!) : "";
             const colorIndex = (item.id ?? 0) % AVATAR_COLORS.length;
             const unread = Math.max(0, (item as { unreadCount?: number }).unreadCount ?? 0);
             const rawContent = (item.lastMessageContent ?? "").trim();

@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
-  // Apple 로그인 버튼 스타일 (Apple HIG 준수)
+  // Apple 로그인 버튼 스타일 (Apple 공식 버튼)
   appleLoginButton: {
     width: '100%',
     height: 44,

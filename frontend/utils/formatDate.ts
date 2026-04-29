@@ -67,21 +67,133 @@ export function formatPostListTime(iso?: string): string {
   }
 }
 
-/** 상대 시간 (n분 전 / n시간 전 / n일 전 / n달 전 / n년 전) */
+/** 상대 시간 표시
+ * - 5분 이내: 방금 전
+ * - 1시간 이내: N분 전
+ * - 오늘 내 1시간 이상: N시간 전
+ * - 어제~6일: N일 전
+ * - 7일~: N주 전
+ * - 4주~: N달 전
+ * - 12달~: N년 전
+ */
 export function formatRelativeTime(iso?: string): string {
   try {
     if (!iso) return '';
-    // 타임존 없는 경우 서버 시간을 KST(+09:00)로 간주
-    const d = new Date(iso.includes('Z') || iso.includes('+') ? iso : iso + '+09:00');
-    if (Number.isNaN(d.getTime())) return '';
-    const diff = Date.now() - d.getTime();
-    if (diff < 0) return '방금 전';
-    if (diff < 60_000) return '방금 전';
-    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
-    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
-    if (diff < 2_592_000_000) return `${Math.floor(diff / 86_400_000)}일 전`;
-    if (diff < 31_536_000_000) return `${Math.floor(diff / 2_592_000_000)}달 전`;
-    return `${Math.floor(diff / 31_536_000_000)}년 전`;
+
+    // 서버가 KST로 보내므로 타임존 없으면 KST(+09:00)로 해석
+    let d: Date;
+    if (iso.includes('Z') || iso.includes('+') || iso.includes('-', 10)) {
+      d = new Date(iso);
+    } else {
+      d = new Date(iso + '+09:00');
+    }
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+
+    // 음수(미래)는 "방금 전"으로 표시 (서버 시간 오차 허용)
+    if (diffMs < 0) return '방금 전';
+
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+
+    // 5분 이내: 방금 전
+    if (diffMinutes < 5) return '방금 전';
+
+    // 1시간 이내: N분 전
+    if (diffMinutes < 60) return `${diffMinutes}분 전`;
+
+    // 날짜 비교를 위해 자정 기준 계산
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const targetDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffDays = Math.floor((todayStart.getTime() - targetDate.getTime()) / 86400000);
+
+    // 오늘 (자정 이전): N시간 전
+    if (diffDays === 0) {
+      return `${diffHours}시간 전`;
+    }
+
+    // 1~6일 전: N일 전
+    if (diffDays < 7) {
+      return `${diffDays}일 전`;
+    }
+
+    // 7일 이상 ~ 4주 미만: N주 전
+    const diffWeeks = Math.floor(diffDays / 7);
+    if (diffWeeks < 4) {
+      return `${diffWeeks}주 전`;
+    }
+
+    // 4주 이상 ~ 12달 미만: N달 전
+    const diffMonths = Math.floor(diffDays / 30);
+    if (diffMonths < 12) {
+      return `${diffMonths}달 전`;
+    }
+
+    // 12달 이상: N년 전
+    const diffYears = Math.floor(diffDays / 365);
+    return `${diffYears}년 전`;
+  } catch {
+    return '';
+  }
+}
+
+/** 채팅용 시간 표시
+ * - 당일: 오전/오후 H:MM (예: 오후 3:45)
+ * - 1~6일 전: N일 전
+ * - 7일~4주 미만: N주 전
+ * - 4주~12달 미만: N달 전
+ * - 12달 이상: N년 전
+ */
+export function formatChatTime(iso?: string): string {
+  try {
+    if (!iso) return '';
+
+    // 서버가 KST로 보내므로 타임존 없으면 KST(+09:00)로 해석
+    let d: Date;
+    if (iso.includes('Z') || iso.includes('+') || iso.includes('-', 10)) {
+      d = new Date(iso);
+    } else {
+      d = new Date(iso + '+09:00');
+    }
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+
+    if (diffMs < 0) return '방금 전';
+
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const targetDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffDays = Math.floor((todayStart.getTime() - targetDate.getTime()) / 86400000);
+
+    // 당일: 오전/오후 H:MM 형식
+    if (diffDays === 0) {
+      const hours = d.getHours();
+      const minutes = d.getMinutes();
+      const period = hours < 12 ? '오전' : '오후';
+      const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+      const displayMinutes = String(minutes).padStart(2, '0');
+      return `${period} ${displayHours}:${displayMinutes}`;
+    }
+
+    // 1~6일 전: N일 전
+    if (diffDays < 7) {
+      return `${diffDays}일 전`;
+    }
+
+    // 7일 이상 ~ 4주 미만: N주 전
+    const diffWeeks = Math.floor(diffDays / 7);
+    if (diffWeeks < 4) {
+      return `${diffWeeks}주 전`;
+    }
+
+    // 4주 이상 ~ 12달 미만: N달 전
+    const diffMonths = Math.floor(diffDays / 30);
+    if (diffMonths < 12) {
+      return `${diffMonths}달 전`;
+    }
+
+    // 12달 이상: N년 전
+    const diffYears = Math.floor(diffDays / 365);
+    return `${diffYears}년 전`;
   } catch {
     return '';
   }
