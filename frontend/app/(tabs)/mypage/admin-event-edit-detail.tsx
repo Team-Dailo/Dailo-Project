@@ -99,7 +99,6 @@ const REGION_CITIES_BY_PROVINCE: Record<string, string[]> = {
 };
 
 // --- 소식/타임테이블/부스 (extraJson으로 API 저장) ---
-<<<<<<< HEAD
 export type NewsItemEdit = { id: string; title: string; body: string; date: string };
 export type PerformerEdit = {
   name: string;
@@ -107,9 +106,7 @@ export type PerformerEdit = {
   startTime: string;
   setlist: string[];
 };
-=======
-export type NewsItemEdit = { id: string; title: string; body: string; date: string; imageUrls?: string[] };
->>>>>>> origin/main
+
 export type TimelineItemEdit = {
   id: string;
   dateLabel?: string;
@@ -1032,12 +1029,9 @@ function EditModal({
   const [text4, setText4] = useState("");
   const [text5, setText5] = useState(""); // 푸드트럭 메뉴-가격 (한 줄에 하나, 예: 타코야끼(6pcs) - 5,000원)
   const [text6, setText6] = useState(""); // 부스/푸드트럭 외부 링크
-<<<<<<< HEAD
   const [editPerformers, setEditPerformers] = useState<PerformerEdit[]>([]);
-=======
   const [newsImages, setNewsImages] = useState<string[]>([]); // 소식 첨부 이미지 URL 목록
   const [newsUploading, setNewsUploading] = useState(false);
->>>>>>> origin/main
   const [coordsGeocoding, setCoordsGeocoding] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedFilterGroup, setSelectedFilterGroup] = useState("");
