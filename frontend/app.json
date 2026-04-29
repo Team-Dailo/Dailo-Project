@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.knut.dailo",
       "buildNumber": "9",
-      "usesAppleSignIn": false,
+      "usesAppleSignIn": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -87,7 +87,8 @@
           "ios": { "handleKakaoOpenUrl": true }
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,

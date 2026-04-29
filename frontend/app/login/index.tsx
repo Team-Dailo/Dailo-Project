@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-// import * as AppleAuthentication from 'expo-apple-authentication';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { useAuth } from '../../hooks/useAuth';
 import { useSafeBack } from '../../hooks/useSafeBack';
 import * as authService from '../../services/auth.service';
@@ -110,17 +110,64 @@ export default function LoginScreen() {
     }
   };
 
-  // Apple 로그인 (iOS만 지원) - 임시 비활성화
-  // const [appleLoading, setAppleLoading] = useState(false);
-  // const [isAppleAvailable, setIsAppleAvailable] = useState(false);
+  // Apple 로그인 (iOS만 지원)
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [isAppleAvailable, setIsAppleAvailable] = useState(false);
 
-  // useEffect(() => {
-  //   if (Platform.OS === 'ios') {
-  //     AppleAuthentication.isAvailableAsync().then(setIsAppleAvailable);
-  //   }
-  // }, []);
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      AppleAuthentication.isAvailableAsync().then(setIsAppleAvailable);
+    }
+  }, []);
 
-  // const handleAppleLogin = async () => { ... };
+  const handleAppleLogin = async () => {
+    setAppleLoading(true);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        Alert.alert('Apple 로그인', 'Apple 로그인을 취소했거나 토큰을 받지 못했습니다.');
+        return;
+      }
+
+      const tokenDto = await authService.getAppleTokenDto({
+        identityToken: credential.identityToken,
+        user: credential.user,
+        email: credential.email ?? undefined,
+        fullName: credential.fullName
+          ? {
+              givenName: credential.fullName.givenName ?? undefined,
+              familyName: credential.fullName.familyName ?? undefined,
+            }
+          : undefined,
+      });
+
+      const user = await authService.loginWithSocialToken(tokenDto);
+
+      login({
+        name: user.name,
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        profileImageUrl: user.profileImageUrl,
+      });
+
+      router.replace('/(tabs)/home');
+    } catch (e: any) {
+      if (e.code === 'ERR_REQUEST_CANCELED') {
+        return;
+      }
+      const msg = e instanceof Error ? e.message : 'Apple 로그인에 실패했습니다.';
+      Alert.alert('Apple 로그인 실패', msg);
+    } finally {
+      setAppleLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -192,7 +239,6 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
-          {/* 소셜 로그인 임시 비활성화 (App Store 심사용)
           <Pressable
             style={({ pressed }) => [
               styles.kakaoLoginButton,
@@ -212,25 +258,14 @@ export default function LoginScreen() {
           </Pressable>
 
           {Platform.OS === 'ios' && isAppleAvailable && (
-            <Pressable
-              style={({ pressed }) => [
-                styles.appleLoginButton,
-                (pressed || appleLoading) && styles.appleLoginButtonPressed,
-              ]}
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={8}
+              style={styles.appleLoginButton}
               onPress={handleAppleLogin}
-              disabled={appleLoading}
-            >
-              {appleLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
-                  <Text style={styles.appleLoginButtonText}>Apple로 로그인</Text>
-                </>
-              )}
-            </Pressable>
+            />
           )}
-          */}
 
           <Pressable
             style={styles.signupLink}
@@ -341,8 +376,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 14,
-    borderRadius: 4,
+    height: 44,
+    borderRadius: 8,
     backgroundColor: '#FEE500',
     marginTop: 12,
   },
@@ -356,21 +391,8 @@ const styles = StyleSheet.create({
   },
   // Apple 로그인 버튼 스타일 (Apple HIG 준수)
   appleLoginButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 4,
-    backgroundColor: '#000000',
+    width: '100%',
+    height: 44,
     marginTop: 12,
-  },
-  appleLoginButtonPressed: {
-    opacity: 0.9,
-  },
-  appleLoginButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
 });
