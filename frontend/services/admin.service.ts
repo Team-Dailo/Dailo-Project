@@ -617,6 +617,9 @@ export async function getDashboard(): Promise<DashboardResponse> {
   if (!res.ok) throw new Error(await res.text().then((t) => t || '대시보드 조회 실패'));
   const raw: DashboardRawResponse = await res.json();
 
+  // DEBUG: API 응답 확인
+  console.log('[Dashboard] raw response:', JSON.stringify(raw, null, 2));
+
   // 중첩 구조를 평탄화
   return {
     totalMembers: raw.memberStats?.total ?? 0,

@@ -543,6 +543,7 @@ export type AppleLoginRequest = {
 /**
  * Apple 로그인 - identityToken을 백엔드로 전송하여 JWT 발급
  */
+// Apple login debug temporary code - START
 export async function getAppleTokenDto(request: AppleLoginRequest): Promise<TokenDto> {
   console.log('[getAppleTokenDto] API_BASE_URL:', API_BASE_URL);
   console.log('[getAppleTokenDto] request url:', `${API_BASE_URL}/api/auth/apple`);
@@ -560,9 +561,13 @@ export async function getAppleTokenDto(request: AppleLoginRequest): Promise<Toke
     console.error('[getAppleTokenDto] fetch error:', e);
     const msg = e instanceof Error ? e.message : '';
     if (/failed to fetch|network request failed|network error/i.test(msg)) {
-      throw new Error('서버에 연결할 수 없습니다. 네트워크 연결을 확인해 주세요.');
+      throw new Error(
+        `[Apple API Error]\nstatus: NETWORK_ERROR\nresponse: ${msg || '서버에 연결할 수 없습니다.'}`
+      );
     }
-    throw e;
+    throw new Error(
+      `[Apple API Error]\nstatus: FETCH_ERROR\nresponse: ${msg || String(e)}`
+    );
   }
 
   console.log('[getAppleTokenDto] response status:', res.status);
@@ -571,13 +576,16 @@ export async function getAppleTokenDto(request: AppleLoginRequest): Promise<Toke
   console.log('[getAppleTokenDto] response text:', text);
 
   if (!res.ok) {
-    throw new Error(getErrorMessage(text, res.status, 'Apple 로그인에 실패했습니다.'));
+    throw new Error(
+      `[Apple API Error]\nstatus: ${res.status}\nresponse: ${text || '(empty response)'}`
+    );
   }
 
   const parsed = JSON.parse(text) as TokenDto;
-  console.log('[getAppleTokenDto] parsed success:', parsed);
+  console.log('[getAppleTokenDto] parsed success (tokens hidden)');
   return parsed;
 }
+// Apple login debug temporary code - END
 
 export async function withdrawApi(): Promise<void> {
   const token = await getAccessToken();

@@ -120,8 +120,13 @@ export default function LoginScreen() {
     }
   }, []);
 
+  // Apple login debug temporary code - START
   const handleAppleLogin = async () => {
     setAppleLoading(true);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let debugRequest: any = null;
+
     try {
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
@@ -130,22 +135,50 @@ export default function LoginScreen() {
         ],
       });
 
+      console.log('[handleAppleLogin] credential received');
+      console.log('[handleAppleLogin] identityToken exists:', !!credential.identityToken);
+      console.log('[handleAppleLogin] user:', credential.user);
+      console.log('[handleAppleLogin] email:', credential.email);
+      console.log('[handleAppleLogin] fullName raw:', JSON.stringify(credential.fullName));
+
       if (!credential.identityToken) {
         Alert.alert('Apple 로그인', 'Apple 로그인을 취소했거나 토큰을 받지 못했습니다.');
         return;
       }
 
-      const tokenDto = await authService.getAppleTokenDto({
+      if (!credential.user) {
+        Alert.alert('Apple 로그인', 'Apple 사용자 ID를 받지 못했습니다.');
+        return;
+      }
+
+      // fullName을 문자열로 변환 (familyName + givenName 순서, 한국식)
+      const fullName = credential.fullName
+        ? [credential.fullName.familyName, credential.fullName.givenName]
+            .filter(Boolean)
+            .join('')
+        : undefined;
+
+      const requestBody = {
         identityToken: credential.identityToken,
         user: credential.user,
         email: credential.email ?? undefined,
-        fullName: credential.fullName
-          ? {
-              givenName: credential.fullName.givenName ?? undefined,
-              familyName: credential.fullName.familyName ?? undefined,
-            }
-          : undefined,
-      });
+        fullName: fullName || undefined,
+      };
+
+      // 디버그용 요청 정보 (민감정보 제거)
+      debugRequest = {
+        hasIdentityToken: !!requestBody.identityToken,
+        identityTokenPreview: requestBody.identityToken
+          ? requestBody.identityToken.slice(0, 20) + '...'
+          : null,
+        user: requestBody.user,
+        email: requestBody.email ?? null,
+        fullName: requestBody.fullName ?? null,
+      };
+
+      console.log('[handleAppleLogin] debugRequest:', JSON.stringify(debugRequest, null, 2));
+
+      const tokenDto = await authService.getAppleTokenDto(requestBody);
 
       const user = await authService.loginWithSocialToken(tokenDto);
 
@@ -162,12 +195,25 @@ export default function LoginScreen() {
       if (e.code === 'ERR_REQUEST_CANCELED') {
         return;
       }
-      const msg = e instanceof Error ? e.message : 'Apple 로그인에 실패했습니다.';
-      Alert.alert('Apple 로그인 실패', msg);
+
+      // 디버그용 Alert - 상세 오류 정보 표시
+      Alert.alert(
+        'Apple 로그인 실패 (디버그)',
+        JSON.stringify(
+          {
+            code: e?.code ?? null,
+            message: e?.message ?? String(e),
+            request: debugRequest,
+          },
+          null,
+          2
+        )
+      );
     } finally {
       setAppleLoading(false);
     }
   };
+  // Apple login debug temporary code - END
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
