@@ -86,12 +86,15 @@ const EVENT_ZONE_COLOR = 'rgba(239, 68, 68, 0.25)';
 const EVENT_ZONE_OUTLINE_WIDTH = 2;
 const EVENT_ZONE_OUTLINE_COLOR = 'rgba(239, 68, 68, 0.6)';
 
-/** 행사 시작일까지 남은 일수 (이미 시작했으면 0) */
+/** 행사 시작일까지 남은 일수 (날짜 기준, 오늘 자정에 감소) */
 function getDaysUntilStart(startAt: string): number {
-  const start = new Date(startAt).getTime();
-  const now = Date.now();
-  if (Number.isNaN(start)) return 0;
-  const days = Math.ceil((start - now) / (24 * 60 * 60 * 1000));
+  const startDate = new Date(startAt);
+  if (Number.isNaN(startDate.getTime())) return 0;
+  const today = new Date();
+  // 시간 제거하고 날짜만 비교 (로컬 타임존 기준)
+  const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const days = Math.round((startDay.getTime() - todayDay.getTime()) / (24 * 60 * 60 * 1000));
   return Math.max(0, days);
 }
 

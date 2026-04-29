@@ -98,7 +98,7 @@ public class EventSeedRunner implements ApplicationRunner {
             +     "{\"name\":\"밴드 동아리 연합\",\"genre\":\"밴드 연합\",\"startTime\":\"18:57\",\"setlist\":[]},"
             +     "{\"name\":\"4D\",\"genre\":\"댄스\",\"startTime\":\"19:14\",\"setlist\":[\"내일에서 기다릴게 - 투모로우바이투게더\",\"404 - 키키\",\"할리우드 액션 - 보이넥스트도어\",\"아브라카타브라 - 미야오\",\"페이머스 - 올데이프로젝트\",\"퓨어허니 - 비욘세\",\"마음에 따라 뛰는건 멋지지않아 - 투어스\"]},"
             +     "{\"name\":\"피날레\",\"genre\":\"댄스\",\"startTime\":\"19:31\",\"setlist\":[\"THAT'S A NO NO - ITZY\",\"Loving U - 씨스타\",\"10 Minutes - 이효리\",\"다시 만난 오늘 - TWS\",\"ZOO - NCT & aespa\",\"Supersonic - fromis_9\",\"Friday Night - Young Gunz\",\"짧은 치마 - AOA\"]},"
-            +     "{\"name\":\"바이탈싸인\",\"genre\":\"힙합/댄스\",\"startTime\":\"19:53\",\"setlist\":[\"404 - 키키\",\"Love me right + 으르렁 - EXO\",\"Bad girl good girl + 보핍보핍 (KISS OF LIFE ver.)\"]}"
+            +     "{\"name\":\"바이탈싸인\",\"genre\":\"힙합/댄스\",\"startTime\":\"19:53\",\"setlist\":[\"Pubic Enemy VAXA remix\",\"404 - KiiiKiii\",\"Black swan VAXA remix\",\"Love me right - EXO\",\"으르렁 - EXO\",\"Final - VAXA\",\"Bad girl good girl - Miss A\",\"Bo peep Bo peep - 티아라\",\"Vital xignz up - VAXA\"]}"
             +   "]}"
             + "],"
             + "\"foodBooths\":["
