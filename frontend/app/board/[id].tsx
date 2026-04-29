@@ -24,7 +24,7 @@ import ImageViewing from "react-native-image-viewing";
 import * as Clipboard from "expo-clipboard";
 import { useAuthContext } from "../../contexts/AuthContext";
 import { usePostDetail, useComments } from "../../hooks/useBoard";
-import { formatRelativeTime } from "../../utils/formatDate";
+import { formatDateTime, formatRelativeTime } from "../../utils/formatDate";
 import * as boardService from "../../services/board.service";
 import * as reportService from "../../services/report.service";
 import * as authService from "../../services/auth.service";

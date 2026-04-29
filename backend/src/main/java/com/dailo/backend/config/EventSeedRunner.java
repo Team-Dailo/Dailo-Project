@@ -43,9 +43,12 @@ public class EventSeedRunner implements ApplicationRunner {
         }
 
         // 2. 신규 통합 축제: Gate to YEOJEONG (2026-04-30)
-        // 이미 존재하면 extraJson(타임테이블) 갱신, 없으면 신규 등록
-        eventRepository.findFirstByTitleContaining("Gate to YEOJEONG").ifPresentOrElse(
+        // soft-delete 포함 전체에서 검색 → 있으면 복원 후 extraJson 갱신, 없으면 신규 등록
+        eventRepository.findFirstByTitleContainingIgnoreDeleted("Gate to YEOJEONG").ifPresentOrElse(
             existing -> {
+                if (existing.getDeletedAt() != null) {
+                    eventRepository.restoreByIdNative(existing.getId());
+                }
                 existing.setExtraJson(buildGateToYeojeongFestival().getExtraJson());
                 eventRepository.save(existing);
                 log.info("시드 데이터 갱신: 국립한국교통대 동아리 축제 Gate to YEOJEONG (extraJson 업데이트)");
@@ -56,20 +59,20 @@ public class EventSeedRunner implements ApplicationRunner {
             }
         );
 
-        // 3. 기존 대학교 및 지역 시드 데이터 (중복 확인 후 삽입)
-        if (!eventRepository.existsByTitleContaining("한국교통대 대축제")) {
+        // 3. 기존 대학교 및 지역 시드 데이터 (soft-delete 포함 중복 확인 후 삽입)
+        if (eventRepository.countByTitleContainingIgnoreDeleted("한국교통대 대축제") == 0) {
             eventRepository.save(buildKnutDaechukje());
             log.info("시드 데이터 저장: 한국교통대 대축제");
         }
-        if (!eventRepository.existsByTitleContaining("건국대 충주캠퍼스 축제")) {
+        if (eventRepository.countByTitleContainingIgnoreDeleted("건국대 충주캠퍼스 축제") == 0) {
             eventRepository.save(buildKkuChungjuFestival());
             log.info("시드 데이터 저장: 건국대 충주캠퍼스 축제");
         }
-        if (!eventRepository.existsByTitleContaining("충주시 축제 중앙탑")) {
+        if (eventRepository.countByTitleContainingIgnoreDeleted("충주시 축제 중앙탑") == 0) {
             eventRepository.save(buildChungjuJungangtapEvent());
             log.info("시드 데이터 저장: 충주시 축제 중앙탑 행사");
         }
-        if (!eventRepository.existsByTitleContaining("충주 시민 미술 전시")) {
+        if (eventRepository.countByTitleContainingIgnoreDeleted("충주 시민 미술 전시") == 0) {
             eventRepository.save(buildChungjuArtExhibition());
             log.info("시드 데이터 저장: 충주 시민 미술 전시");
         }

@@ -197,19 +197,17 @@ export default function LoginScreen() {
         return;
       }
 
-      // 디버그용 Alert - 상세 오류 정보 표시
-      Alert.alert(
-        'Apple 로그인 실패 (디버그)',
-        JSON.stringify(
-          {
-            code: e?.code ?? null,
-            message: e?.message ?? String(e),
-            request: debugRequest,
-          },
-          null,
-          2
-        )
-      );
+      console.log('[Apple Login] error:', e?.code, e?.message, e);
+
+      // 사용자 친화적 에러 메시지
+      let userMessage = 'Apple 로그인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+      if (e?.message?.includes('network') || e?.message?.includes('Network')) {
+        userMessage = '네트워크 연결을 확인해 주세요.';
+      } else if (e?.message?.includes('timeout')) {
+        userMessage = '서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.';
+      }
+
+      Alert.alert('Apple 로그인 실패', userMessage);
     } finally {
       setAppleLoading(false);
     }
