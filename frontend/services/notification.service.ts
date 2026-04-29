@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
 import { API_BASE_URL } from '../constants/api';
 import { getAccessToken } from './auth.service';
 
@@ -16,8 +15,20 @@ const getAuthHeaders = async (): Promise<HeadersInit> => {
   return headers;
 };
 
-/** FCM 푸시 토큰 획득 */
-async function getExpoPushToken(): Promise<string | null> {
+/**
+ * FCM Registration Token 획득
+ *
+ * 서버가 Firebase Admin SDK로 FCM에 직접 발송하므로
+ * Expo Push Token이 아닌 FCM Registration Token이 필요합니다.
+ *
+ * app.json에 googleServicesFile이 설정되어 있으므로:
+ * - Android: FCM Registration Token 반환
+ * - iOS: FCM Registration Token 반환 (GoogleService-Info.plist 연동)
+ *
+ * 참고: googleServicesFile이 없으면 iOS는 APNs 토큰을 반환하며,
+ * 이 경우 Firebase Admin SDK로 직접 발송할 수 없습니다.
+ */
+async function getDevicePushToken(): Promise<string | null> {
   try {
     // 알림 권한 확인
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -43,11 +54,10 @@ async function getExpoPushToken(): Promise<string | null> {
       });
     }
 
-    // 푸시 토큰 획득
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId,
-    });
+    // FCM Registration Token 획득
+    // getDevicePushTokenAsync()는 projectId가 필요 없음
+    const tokenData = await Notifications.getDevicePushTokenAsync();
+    console.log('[PushToken] FCM 토큰 획득 성공, type:', tokenData.type);
 
     return tokenData.data;
   } catch (e) {
@@ -60,7 +70,7 @@ async function getExpoPushToken(): Promise<string | null> {
 /** 서버에 푸시 토큰 등록 - POST /api/notification/token */
 export async function registerPushToken(): Promise<boolean> {
   try {
-    const pushToken = await getExpoPushToken();
+    const pushToken = await getDevicePushToken();
     if (!pushToken) {
       console.log('[PushToken] 푸시 토큰을 획득하지 못했습니다.');
       return false;

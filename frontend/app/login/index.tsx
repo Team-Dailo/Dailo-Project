@@ -174,9 +174,10 @@ export default function LoginScreen() {
         user: requestBody.user,
         email: requestBody.email ?? null,
         fullName: requestBody.fullName ?? null,
+        fullNameType: typeof requestBody.fullName,
       };
 
-      console.log('[handleAppleLogin] debugRequest:', JSON.stringify(debugRequest, null, 2));
+      console.log('[Apple Login] request body debug:', debugRequest);
 
       const tokenDto = await authService.getAppleTokenDto(requestBody);
 
