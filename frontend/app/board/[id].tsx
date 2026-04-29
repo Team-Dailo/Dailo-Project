@@ -749,7 +749,10 @@ export default function PostDetailScreen() {
                   const list = Array.isArray(urls) ? urls : [];
                   if (list.length === 0) return null;
                   const gap = 8;
-                  const size = Math.floor((winWidth - 32 - gap * 2) / 3);
+                  const contentWidth = winWidth - 32;
+                  // 1장: 전체 너비, 2장: 절반씩, 3장 이상: 2열
+                  const cols = list.length === 1 ? 1 : 2;
+                  const size = Math.floor((contentWidth - gap * (cols - 1)) / cols);
                   return (
                     <View style={styles.postImagesWrap}>
                       {list.map((uri, index) => (
