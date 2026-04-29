@@ -34,11 +34,12 @@ function toPostRow(item: PostListItem): PostRow {
   let contentStr = typeof preview === "string" ? preview.trim() : "";
   if (contentStr.length > 120) contentStr = contentStr.slice(0, 120) + "…";
   const authorName = (item.authorNickname ?? (raw.author_nickname as string) ?? "").trim() || `user_${item.authorId}`;
+  const createdAt = (raw.createdAt ?? raw.created_at ?? item.createdAt) as string | undefined;
   return {
     id: String(item.id),
     author: authorName,
     title: item.title,
-    time: formatRelativeTime(item.createdAt),
+    time: formatRelativeTime(createdAt),
     tag: item.categoryType ?? "",
     content: contentStr,
     likes: item.likeCount ?? 0,

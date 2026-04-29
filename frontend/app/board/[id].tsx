@@ -57,17 +57,19 @@ function toCommentDisplay(c: { id: number; authorId: number | null; authorNickna
   const profileUrl = (raw.authorProfileImageUrl ?? raw.author_profile_image_url ?? c.authorProfileImageUrl) as string | null | undefined;
   const authorProfileImageUrl = isDeleted ? null : (profileUrl && typeof profileUrl === "string" && profileUrl.trim() ? profileUrl.trim() : null);
   const replies = (c.replies ?? []).map((r: unknown) => toCommentDisplay(r as Parameters<typeof toCommentDisplay>[0]));
+  const createdAt = (raw.createdAt ?? raw.created_at ?? c.createdAt) as string;
+  const updatedAt = (raw.updatedAt ?? raw.updated_at ?? c.updatedAt ?? createdAt) as string;
 
   return {
     id: String(c.id),
     authorId: isDeleted ? null : c.authorId,
     author,
     authorProfileImageUrl,
-    time: formatRelativeTime(c.createdAt),
+    time: formatRelativeTime(createdAt),
     content: isDeleted ? null : c.content,
     likes: isDeleted ? 0 : (c.likeCount ?? 0),
-    createdAt: c.createdAt,
-    updatedAt: c.updatedAt ?? c.createdAt,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
     deleted: isDeleted,
     replies,
   };
@@ -720,7 +722,7 @@ export default function PostDetailScreen() {
                   )}
                   <View style={styles.postMeta}>
                     <Text style={styles.author}>{authorDisplayName}</Text>
-                    <Text style={styles.timeText}>{formatRelativeTime(post.createdAt)}</Text>
+                    <Text style={styles.timeText}>{formatRelativeTime((post as Record<string, unknown>).createdAt as string ?? (post as Record<string, unknown>).created_at as string)}</Text>
                   </View>
                 </Pressable>
                 {post.title ? <Text style={styles.postTitle}>{post.title}</Text> : null}

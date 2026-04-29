@@ -53,12 +53,16 @@ export default function SavedPostsScreen() {
     try {
       const data = await savedPostService.getSavedPostSummaries();
       const rows: SavedRow[] =
-        (data ?? []).map((p) => ({
-          id: String(p.id),
-          title: p.title || `게시글 #${p.id}`,
-          time: p.createdAt ? formatRelativeTime(p.createdAt) : "",
-          imageUri: p.imageUrl,
-        }));
+        (data ?? []).map((p) => {
+          const raw = p as Record<string, unknown>;
+          const createdAt = (raw.createdAt ?? raw.created_at) as string | undefined;
+          return {
+            id: String(p.id),
+            title: p.title || `게시글 #${p.id}`,
+            time: createdAt ? formatRelativeTime(createdAt) : "",
+            imageUri: p.imageUrl,
+          };
+        });
       setList(rows);
 
       // 썸네일이 비어 있는 항목들은 백엔드에서 한 번 더 가져와 채운다.
