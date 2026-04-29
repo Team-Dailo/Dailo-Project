@@ -86,7 +86,7 @@ const REGION_CITIES_BY_PROVINCE: Record<string, string[]> = {
 };
 
 // --- 소식/타임테이블/부스 (extraJson으로 API 저장) ---
-export type NewsItemEdit = { id: string; title: string; body: string; date: string };
+export type NewsItemEdit = { id: string; title: string; body: string; date: string; imageUrls?: string[] };
 export type TimelineItemEdit = {
   id: string;
   dateLabel?: string;
@@ -761,7 +761,14 @@ function AdminNewsSection({
         items.map((item) => (
           <Pressable key={item.id} style={styles.newsCard} onPress={() => onEdit(item)}>
             <Text style={styles.newsTitle}>{item.title}</Text>
-            <Text style={styles.newsBody} numberOfLines={2}>{item.body}</Text>
+            <Text style={styles.newsBody} numberOfLines={3}>{item.body}</Text>
+            {Array.isArray(item.imageUrls) && item.imageUrls.length > 0 && (
+              <View style={styles.newsThumbRow}>
+                {item.imageUrls.slice(0, 4).map((url, i) => (
+                  <Image key={`${url}-${i}`} source={{ uri: url }} style={styles.newsThumbItem} />
+                ))}
+              </View>
+            )}
             <Text style={styles.newsDate}>{item.date}</Text>
           </Pressable>
         ))
@@ -961,6 +968,8 @@ function EditModal({
   const [text4, setText4] = useState("");
   const [text5, setText5] = useState(""); // 푸드트럭 메뉴-가격 (한 줄에 하나, 예: 타코야끼(6pcs) - 5,000원)
   const [text6, setText6] = useState(""); // 부스/푸드트럭 외부 링크
+  const [newsImages, setNewsImages] = useState<string[]>([]); // 소식 첨부 이미지 URL 목록
+  const [newsUploading, setNewsUploading] = useState(false);
   const [coordsGeocoding, setCoordsGeocoding] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedFilterGroup, setSelectedFilterGroup] = useState("");
@@ -1043,10 +1052,12 @@ function EditModal({
         setText(n.title);
         setText2(n.body);
         setText3(n.date);
+        setNewsImages(Array.isArray(n.imageUrls) ? [...n.imageUrls] : []);
       } else {
         setText("");
         setText2("");
         setText3("");
+        setNewsImages([]);
       }
     }
     if (editTarget.type === "timeline") {
@@ -1172,10 +1183,11 @@ function EditModal({
     if (editTarget.type === "news") {
       const list = (values.newsList as NewsItemEdit[]) ?? [];
       const existing = editTarget.item as NewsItemEdit | undefined;
+      const imageUrls = newsImages.length > 0 ? [...newsImages] : undefined;
       if (existing) {
-        onSave.setNewsList(list.map((n) => (n.id === existing.id ? { ...n, title: text, body: text2, date: text3 } : n)));
+        onSave.setNewsList(list.map((n) => (n.id === existing.id ? { ...n, title: text, body: text2, date: text3, imageUrls } : n)));
       } else {
-        onSave.setNewsList([...list, { id: String(Date.now()), title: text, body: text2, date: text3 }]);
+        onSave.setNewsList([...list, { id: String(Date.now()), title: text, body: text2, date: text3, imageUrls }]);
       }
     }
     if (editTarget.type === "timeline") {
@@ -1520,16 +1532,19 @@ function EditModal({
             )}
             {(editTarget?.type === "news" || editTarget?.type === "timeline" || editTarget?.type === "booth") && (
               <TextInput
-                style={styles.modalInput}
+                style={[styles.modalInput, editTarget?.type === "news" && styles.modalInputMultiline]}
                 value={text2}
                 onChangeText={setText2}
                 placeholder={
-                  editTarget?.type === "news" ? "내용" :
+                  editTarget?.type === "news" ? "내용 (줄바꿈 가능)" :
                   editTarget?.type === "timeline" ? "시작 시간 (예: 12:00)" : "운영시간"
                 }
                 placeholderTextColor="#9CA3AF"
-              keyboardType="default"
-            />
+                keyboardType="default"
+                multiline={editTarget?.type === "news"}
+                numberOfLines={editTarget?.type === "news" ? 6 : 1}
+                textAlignVertical={editTarget?.type === "news" ? "top" : "center"}
+              />
             )}
             {editTarget?.type === "coords" && onPressMapPick && (
               <TouchableOpacity style={styles.modalMapPickButton} onPress={onPressMapPick} activeOpacity={0.85}>
@@ -1548,6 +1563,56 @@ function EditModal({
                 }
                 placeholderTextColor="#9CA3AF"
               />
+            )}
+            {editTarget?.type === "news" && (
+              <View style={styles.newsImagesWrap}>
+                <View style={styles.newsImagesRow}>
+                  {newsImages.map((url, i) => (
+                    <View key={`${url}-${i}`} style={styles.newsImageItem}>
+                      <Image source={{ uri: url }} style={styles.newsImageThumb} />
+                      <Pressable
+                        style={styles.newsImageRemove}
+                        onPress={() => setNewsImages((prev) => prev.filter((_, idx) => idx !== i))}
+                      >
+                        <Ionicons name="close" size={14} color="#FFF" />
+                      </Pressable>
+                    </View>
+                  ))}
+                  <Pressable
+                    style={[styles.newsImageAddBtn, newsUploading && { opacity: 0.5 }]}
+                    onPress={async () => {
+                      try {
+                        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                        if (status !== "granted") {
+                          Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다.");
+                          return;
+                        }
+                        const result = await ImagePicker.launchImageLibraryAsync({
+                          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                          allowsEditing: false,
+                          quality: 0.8,
+                        });
+                        if (result.canceled || !result.assets?.[0]?.uri) return;
+                        setNewsUploading(true);
+                        try {
+                          const url = await adminService.uploadAdminEventImage(result.assets[0].uri);
+                          setNewsImages((prev) => [...prev, url]);
+                        } catch (e) {
+                          Alert.alert("업로드 실패", e instanceof Error ? e.message : "사진 업로드에 실패했습니다.");
+                        } finally {
+                          setNewsUploading(false);
+                        }
+                      } catch (e) {
+                        Alert.alert("오류", e instanceof Error ? e.message : String(e));
+                      }
+                    }}
+                    disabled={newsUploading}
+                  >
+                    <Ionicons name="add" size={20} color="#4C8BF5" />
+                    <Text style={styles.newsImageAddText}>{newsUploading ? "업로드 중" : "사진 추가"}</Text>
+                  </Pressable>
+                </View>
+              </View>
             )}
             {(editTarget?.type === "timeline" || editTarget?.type === "booth") && (
               <TextInput
@@ -1684,6 +1749,23 @@ const styles = StyleSheet.create({
   newsTitle: { fontSize: 14, fontWeight: "bold", marginBottom: 4 },
   newsBody: { fontSize: 13, color: "#555", marginBottom: 4 },
   newsDate: { fontSize: 11, color: "#9CA3AF" },
+  newsThumbRow: { flexDirection: "row", gap: 6, marginTop: 6, marginBottom: 6 },
+  newsThumbItem: { width: 56, height: 56, borderRadius: 8, backgroundColor: "#E5E7EB" },
+  newsImagesWrap: { marginTop: 8, marginBottom: 8 },
+  newsImagesRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  newsImageItem: { position: "relative" },
+  newsImageThumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: "#E5E7EB" },
+  newsImageRemove: {
+    position: "absolute", top: -6, right: -6,
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: "#111827", alignItems: "center", justifyContent: "center",
+  },
+  newsImageAddBtn: {
+    width: 72, height: 72, borderRadius: 8,
+    borderWidth: 1, borderStyle: "dashed", borderColor: "#9CA3AF",
+    alignItems: "center", justifyContent: "center", gap: 2,
+  },
+  newsImageAddText: { fontSize: 11, color: "#4C8BF5" },
   dateRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingVertical: 8 },
   dateRowText: { fontSize: 16, fontWeight: "600" },
   timelineCard: { flexDirection: "row", alignItems: "flex-start", marginBottom: 12 },

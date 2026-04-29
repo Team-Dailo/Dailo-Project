@@ -41,6 +41,8 @@ export interface EventNewsItem {
   title: string;
   body: string;
   date: string;
+  /** 첨부 이미지 URL 목록 (없으면 undefined 또는 빈 배열) */
+  imageUrls?: string[];
 }
 
 /** 타임테이블 한 건 (extraJson 내 timeline[]) */
