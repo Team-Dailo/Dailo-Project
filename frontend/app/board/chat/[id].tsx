@@ -477,8 +477,8 @@ export default function ChatRoomScreen() {
           </Pressable>
         </Modal>
 
-        {/* 사진 전체화면 뷰어 */}
-        <Modal
+        {/* 사진 전체화면 뷰어 - 임시 주석 처리 */}
+        {/* <Modal
           visible={!!viewImageUrl}
           transparent={false}
           animationType="fade"
@@ -497,7 +497,7 @@ export default function ChatRoomScreen() {
               <Image source={{ uri: viewImageUrl }} style={styles.imageViewerImage} resizeMode="contain" />
             )}
           </View>
-        </Modal>
+        </Modal> */}
 
         {loading ? (
           <View style={styles.loadingWrap}>
@@ -544,13 +544,14 @@ export default function ChatRoomScreen() {
                           <Text style={styles.messageTime}>{msg.time}</Text>
                         ) : null}
                       </View>
-                      {msg.imageUrl ? (
+                      {/* 이미지 버블 임시 주석 처리 */}
+                      {/* {msg.imageUrl ? (
                         <ChatImageBubble uri={msg.imageUrl} onPress={() => setViewImageUrl(msg.imageUrl!)} />
-                      ) : (
+                      ) : ( */}
                         <View style={styles.myBubble}>
-                          <Text style={styles.myText}>{msg.text}</Text>
+                          <Text style={styles.myText}>{msg.imageUrl ? '[이미지]' : msg.text}</Text>
                         </View>
-                      )}
+                      {/* )} */}
                     </View>
                   ) : (
                     <View
@@ -568,13 +569,14 @@ export default function ChatRoomScreen() {
                       ) : (
                         <View style={styles.otherAvatarPlaceholder} />
                       )}
-                      {msg.imageUrl ? (
+                      {/* 이미지 버블 임시 주석 처리 */}
+                      {/* {msg.imageUrl ? (
                         <ChatImageBubble uri={msg.imageUrl} onPress={() => setViewImageUrl(msg.imageUrl!)} />
-                      ) : (
+                      ) : ( */}
                         <View style={styles.otherBubble}>
-                          <Text style={styles.otherText}>{msg.text}</Text>
+                          <Text style={styles.otherText}>{msg.imageUrl ? '[이미지]' : msg.text}</Text>
                         </View>
-                      )}
+                      {/* )} */}
                       {msg.time ? (
                         <Text style={styles.messageTime}>{msg.time}</Text>
                       ) : null}
@@ -595,11 +597,13 @@ export default function ChatRoomScreen() {
           </View>
         ) : (
           <View style={[styles.inputRow, Platform.OS === 'ios' && { paddingBottom: insets.bottom + 10 }]}>
+            {/* 이미지 전송 버튼 임시 주석 처리
             <Pressable style={styles.inputIcon} onPress={handleSendImage} disabled={imageUploading}>
               {imageUploading
                 ? <ActivityIndicator size="small" color="#4C8BF5" />
                 : <Ionicons name="image-outline" size={24} color="#4C8BF5" />}
             </Pressable>
+            */}
             <TextInput
               style={styles.input}
               placeholder="메시지 보내기.."
