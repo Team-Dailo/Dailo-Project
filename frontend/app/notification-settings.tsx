@@ -44,11 +44,12 @@ export default function NotificationSettingsScreen() {
   const [regionKey, setRegionKey] = useState<string | null>(null);
   const [regionModalVisible, setRegionModalVisible] = useState(false);
   const [regionLoading, setRegionLoading] = useState(false);
-  const [bookedDaysBefore, setBookedDaysBefore] = useState<number>(1);
-  const [regionDaysBefore, setRegionDaysBefore] = useState<number>(1);
-  const [daysModalTarget, setDaysModalTarget] = useState<'booked' | 'region'>('booked');
-  const [daysModalVisible, setDaysModalVisible] = useState(false);
-  const [regionMoreVisible, setRegionMoreVisible] = useState(false);
+  // 알림 시점 고정: 1일 전 오전 9시
+  // const [bookedDaysBefore, setBookedDaysBefore] = useState<number>(1);
+  // const [regionDaysBefore, setRegionDaysBefore] = useState<number>(1);
+  // const [daysModalTarget, setDaysModalTarget] = useState<'booked' | 'region'>('booked');
+  // const [daysModalVisible, setDaysModalVisible] = useState(false);
+  // const [regionMoreVisible, setRegionMoreVisible] = useState(false);
 
   const handleBack = useCallback(() => {
     router.back();
@@ -57,44 +58,48 @@ export default function NotificationSettingsScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const [push, reminder, booked, region, rKey, bookedDays, regionDays] =
+        const [push, reminder, booked, region, rKey] =
           await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.pushEnabled),
           AsyncStorage.getItem(STORAGE_KEYS.eventReminder),
           AsyncStorage.getItem(STORAGE_KEYS.eventReminderBooked),
           AsyncStorage.getItem(STORAGE_KEYS.eventReminderRegion),
           AsyncStorage.getItem(STORAGE_KEYS.eventReminderRegionKey),
-          AsyncStorage.getItem(STORAGE_KEYS.eventReminderBookedDaysBefore),
-          AsyncStorage.getItem(STORAGE_KEYS.eventReminderRegionDaysBefore),
+          // AsyncStorage.getItem(STORAGE_KEYS.eventReminderBookedDaysBefore),
+          // AsyncStorage.getItem(STORAGE_KEYS.eventReminderRegionDaysBefore),
         ]);
         if (push !== null) setPushEnabled(push === 'true');
         if (reminder !== null) setEventReminderOn(reminder === 'true');
         if (booked !== null) setBookedOn(booked === 'true');
         if (region !== null) setRegionOn(region === 'true');
         if (rKey != null && rKey !== '') setRegionKey(rKey);
-        if (bookedDays != null && bookedDays !== '') {
-          const parsed = parseInt(bookedDays, 10);
-          if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 30) {
-            setBookedDaysBefore(parsed);
-          }
-        }
-        if (regionDays != null && regionDays !== '') {
-          const parsed = parseInt(regionDays, 10);
-          if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 30) {
-            setRegionDaysBefore(parsed);
-          }
-        }
+        // 알림 시점 고정: 1일 전 오전 9시 (선택 기능 비활성화)
+        // if (bookedDays != null && bookedDays !== '') {
+        //   const parsed = parseInt(bookedDays, 10);
+        //   if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 30) {
+        //     setBookedDaysBefore(parsed);
+        //   }
+        // }
+        // if (regionDays != null && regionDays !== '') {
+        //   const parsed = parseInt(regionDays, 10);
+        //   if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 30) {
+        //     setRegionDaysBefore(parsed);
+        //   }
+        // }
         if (isLoggedIn) {
           try {
             const serverSettings = await notificationService.getNotificationSettings();
             if (serverSettings) {
-              setPushEnabled(serverSettings.newEventEnabled);
+              // 로컬에 이미 설정값이 있을 때만 서버 값으로 동기화 (첫 설치 시 서버 true가 덮어쓰는 것 방지)
+              if (push !== null) {
+                setPushEnabled(serverSettings.newEventEnabled);
+                await AsyncStorage.setItem(STORAGE_KEYS.pushEnabled, String(serverSettings.newEventEnabled));
+              }
               setEventReminderOn(serverSettings.eventReminderEnabled);
               if (serverSettings.subscribedRegions) {
                 setRegionKey(serverSettings.subscribedRegions);
                 setRegionOn(true);
               }
-              await AsyncStorage.setItem(STORAGE_KEYS.pushEnabled, String(serverSettings.newEventEnabled));
               await AsyncStorage.setItem(STORAGE_KEYS.eventReminder, String(serverSettings.eventReminderEnabled));
               if (serverSettings.subscribedRegions) {
                 await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionKey, serverSettings.subscribedRegions);
@@ -260,37 +265,40 @@ export default function NotificationSettingsScreen() {
     }
   };
 
-  const openDaysModal = (target: 'booked' | 'region') => {
-    if (!pushEnabled || !eventReminderOn) return;
-    if (target === 'booked' && !bookedOn) return;
-    if (target === 'region' && !regionOn) return;
-    setDaysModalTarget(target);
-    setDaysModalVisible(true);
-  };
+  // 알림 시점 선택 비활성화 (1일 전 오전 9시 고정)
+  // const openDaysModal = (target: 'booked' | 'region') => {
+  //   if (!pushEnabled || !eventReminderOn) return;
+  //   if (target === 'booked' && !bookedOn) return;
+  //   if (target === 'region' && !regionOn) return;
+  //   setDaysModalTarget(target);
+  //   setDaysModalVisible(true);
+  // };
 
-  const handleSelectDaysBefore = async (value: number) => {
-    setDaysModalVisible(false);
-    const safe = Math.max(1, Math.min(30, Math.floor(value) || 1));
-    if (daysModalTarget === 'booked') {
-      setBookedDaysBefore(safe);
-      try {
-        await AsyncStorage.setItem(STORAGE_KEYS.eventReminderBookedDaysBefore, String(safe));
-      } catch {}
-    } else {
-      setRegionDaysBefore(safe);
-      try {
-        await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionDaysBefore, String(safe));
-      } catch {}
-    }
-  };
+  // const handleSelectDaysBefore = async (value: number) => {
+  //   setDaysModalVisible(false);
+  //   const safe = Math.max(1, Math.min(30, Math.floor(value) || 1));
+  //   if (daysModalTarget === 'booked') {
+  //     setBookedDaysBefore(safe);
+  //     try {
+  //       await AsyncStorage.setItem(STORAGE_KEYS.eventReminderBookedDaysBefore, String(safe));
+  //     } catch {}
+  //   } else {
+  //     setRegionDaysBefore(safe);
+  //     try {
+  //       await AsyncStorage.setItem(STORAGE_KEYS.eventReminderRegionDaysBefore, String(safe));
+  //     } catch {}
+  //   }
+  // };
 
-  const bookedDaysLabel =
-    (bookedDaysBefore === 1 ? '행사 1일 전' : `행사 ${bookedDaysBefore}일 전`) +
-    ' 오전 9시에 알림';
-
-  const regionDaysLabel =
-    (regionDaysBefore === 1 ? '행사 1일 전' : `행사 ${regionDaysBefore}일 전`) +
-    ' 오전 9시에 알림';
+  // 알림 시점 고정: 1일 전 오전 9시
+  const bookedDaysLabel = '행사 1일 전 오전 9시에 알림';
+  const regionDaysLabel = '행사 1일 전 오전 9시에 알림';
+  // const bookedDaysLabel =
+  //   (bookedDaysBefore === 1 ? '행사 1일 전' : `행사 ${bookedDaysBefore}일 전`) +
+  //   ' 오전 9시에 알림';
+  // const regionDaysLabel =
+  //   (regionDaysBefore === 1 ? '행사 1일 전' : `행사 ${regionDaysBefore}일 전`) +
+  //   ' 오전 9시에 알림';
 
   return (
     <>
@@ -351,6 +359,7 @@ export default function NotificationSettingsScreen() {
                         trackColor={{ false: '#E5E7EB', true: '#93C5FD' }}
                         thumbColor="#FFFFFF"
                       />
+                      {/* 알림 시점 선택 버튼 비활성화 (1일 전 오전 9시 고정)
                       <Pressable
                         onPress={() => openDaysModal('booked')}
                         disabled={subDisabled}
@@ -363,6 +372,7 @@ export default function NotificationSettingsScreen() {
                           color={subDisabled || !bookedOn ? '#9CA3AF' : '#4C8BF5'}
                         />
                       </Pressable>
+                      */}
                     </View>
                   </View>
                   <View style={[styles.subRow, styles.rowBorder, subDisabled && styles.rowDisabled]}>
@@ -378,6 +388,7 @@ export default function NotificationSettingsScreen() {
                         trackColor={{ false: '#E5E7EB', true: '#93C5FD' }}
                         thumbColor="#FFFFFF"
                       />
+                      {/* 알림 시점 선택 버튼 비활성화 (1일 전 오전 9시 고정)
                       <Pressable
                         onPress={() => openDaysModal('region')}
                         disabled={subDisabled}
@@ -390,6 +401,7 @@ export default function NotificationSettingsScreen() {
                           color={subDisabled || !regionOn ? '#9CA3AF' : '#4C8BF5'}
                         />
                       </Pressable>
+                      */}
                     </View>
                   </View>
                   {/* 지역 선택 UI - 추후 지역 확장 시 활성화 예정
@@ -450,6 +462,7 @@ export default function NotificationSettingsScreen() {
           </Pressable>
         </Modal>
 
+        {/* 알림 시점 선택 모달 비활성화 (1일 전 오전 9시 고정)
         <Modal
           visible={daysModalVisible}
           transparent
@@ -486,7 +499,9 @@ export default function NotificationSettingsScreen() {
             </View>
           </Pressable>
         </Modal>
+        */}
 
+        {/* 지역 더보기 메뉴 비활성화 (알림 시점 설정 제거로 불필요)
         <Modal
           visible={regionMoreVisible}
           transparent
@@ -517,6 +532,7 @@ export default function NotificationSettingsScreen() {
             </View>
           </Pressable>
         </Modal>
+        */}
       </SafeAreaView>
     </>
   );

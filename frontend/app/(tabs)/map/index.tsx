@@ -252,6 +252,8 @@ export default function MapScreen() {
   const { isLoggedIn } = useAuth();
   const [isFestivalActive, setIsFestivalActive] = useState(false);
   const wasInFestivalZoneRef = useRef(false);
+  /** finalizeParticipationExit 중복 호출 방지 (5초마다 구역 판정 시 동시 실행 막음) */
+  const isFinalizingExitRef = useRef(false);
   const { entry: festivalEntry, elapsedFormatted: festivalElapsed, isCompleted: festivalIsCompleted, refresh: refreshFestivalParticipation } = useFestivalParticipation();
   /** 구역 이탈 직후 잠시 표시하는 완료 칩(타이머는 이미 끔) */
   const [participationExitBanner, setParticipationExitBanner] = useState<{ eventTitle: string } | null>(null);
@@ -266,7 +268,7 @@ export default function MapScreen() {
     const eventKey = String(festivalEntry.eventId);
     if (surveyShownForEventRef.current === eventKey) return;
     surveyShownForEventRef.current = eventKey;
-    checkSurveySubmitted(festivalEntry.eventId).then((submitted) => {
+    checkSurveySubmitted(Number(festivalEntry.eventId)).then((submitted) => {
       if (!submitted) setSurveyModalVisible(true);
     });
   }, [festivalIsCompleted, festivalEntry, isLoggedIn]);
@@ -551,14 +553,15 @@ export default function MapScreen() {
         const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
         /** 목록에 참여 행사가 안 잡히면(줌/바운드) 거리만으로 막히지 않게 이탈 후보로 본다 */
         const shouldClear = !inZone || (inZone && eventOutOfSchedule) || participatingEvent == null;
-        if (shouldClear) {
+        if (shouldClear && !isFinalizingExitRef.current) {
           const mode: 'left_zone' | 'schedule_ended' =
             missingCoords || !inZone || participatingEvent == null ? 'left_zone' : 'schedule_ended';
-          void finalizeParticipationExit(
+          isFinalizingExitRef.current = true;
+          finalizeParticipationExit(
             entry,
             { latitude: myPos.latitude, longitude: myPos.longitude },
             mode
-          );
+          ).finally(() => { isFinalizingExitRef.current = false; });
         }
       });
       return;
@@ -634,14 +637,15 @@ export default function MapScreen() {
               : (!missingCoords && distanceKm(myPos.latitude, myPos.longitude, elat!, elng!) <= ZONE_RADIUS_KM);
             const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
             const shouldClear = !inZone || (inZone && eventOutOfSchedule) || participatingEvent == null;
-            if (shouldClear) {
+            if (shouldClear && !isFinalizingExitRef.current) {
               const mode: 'left_zone' | 'schedule_ended' =
                 missingCoords || !inZone || participatingEvent == null ? 'left_zone' : 'schedule_ended';
-              void finalizeParticipationExit(
+              isFinalizingExitRef.current = true;
+              finalizeParticipationExit(
                 entry,
                 { latitude: myPos.latitude, longitude: myPos.longitude },
                 mode
-              );
+              ).finally(() => { isFinalizingExitRef.current = false; });
             }
           });
         }
@@ -660,14 +664,15 @@ export default function MapScreen() {
           elat != null && elng != null && Number.isFinite(elat) && Number.isFinite(elng)
             ? distanceKm(myPos.latitude, myPos.longitude, elat, elng)
             : Infinity;
-        if (km > ZONE_RADIUS_KM) {
+        if (km > ZONE_RADIUS_KM && !isFinalizingExitRef.current) {
           wasInFestivalZoneRef.current = false;
           setIsFestivalActive(false);
-          void finalizeParticipationExit(
+          isFinalizingExitRef.current = true;
+          finalizeParticipationExit(
             entry,
             { latitude: myPos.latitude, longitude: myPos.longitude },
             'left_zone'
-          );
+          ).finally(() => { isFinalizingExitRef.current = false; });
         }
       });
       return;
@@ -726,14 +731,15 @@ export default function MapScreen() {
           : (!missingCoords && distanceKm(myPos.latitude, myPos.longitude, elat!, elng!) <= ZONE_RADIUS_KM);
         const eventOutOfSchedule = participatingEvent ? !isEventCurrentlyScheduled(participatingEvent) : false;
         const shouldClear = missingCoords ? true : !inZone || (inZone && eventOutOfSchedule) || participatingEvent == null;
-        if (shouldClear) {
+        if (shouldClear && !isFinalizingExitRef.current) {
           const mode: 'left_zone' | 'schedule_ended' =
             missingCoords || !inZone || participatingEvent == null ? 'left_zone' : 'schedule_ended';
-          void finalizeParticipationExit(
+          isFinalizingExitRef.current = true;
+          finalizeParticipationExit(
             entry,
             { latitude: myPos.latitude, longitude: myPos.longitude },
             mode
-          );
+          ).finally(() => { isFinalizingExitRef.current = false; });
         }
       });
     }
@@ -2435,7 +2441,7 @@ const styles = StyleSheet.create({
   },
   listButton: {
     paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderRadius: 9999,
     backgroundColor: '#4A9EFF',
     flexDirection: 'row',

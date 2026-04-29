@@ -1,12 +1,11 @@
 // frontend/hooks/useMap.ts
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import * as Location from 'expo-location';
 import type { Region } from 'react-native-maps';
 import type { Event } from '../types/event';
 import { getEventsOnMap } from '../services/event.service';
 
-/** 실기기: 4초면 충분. 에뮬레이터: Set location 반영이 느려서 10초까지 대기 */
-const LOCATION_REQUEST_TIMEOUT_MS = 10000;
 /** 지도 영역 변경 시 API 재요청 디바운스(ms) */
 const MAP_FETCH_DEBOUNCE_MS = 600;
 /** 확대해도 마커가 사라지지 않도록 요청 bounds 최소 크기(degree). 이보다 작게 요청하면 결과가 없을 수 있음 */
@@ -22,6 +21,8 @@ export function useMap() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isBottomSheetOpen, setBottomSheetOpen] = useState(false);
   const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  const locationStartingRef = useRef(false);
 
   const fetchEventsInBounds = useCallback((r: Region) => {
     const latDelta = Math.max(r.latitudeDelta, MIN_LAT_DELTA);
@@ -47,37 +48,69 @@ export function useMap() {
     longitudeDelta: 0.05,
   };
 
+  const startLocationWatch = useCallback(async () => {
+    // 이미 구독 중이거나 시작 중이면 중복 생성 방지 (async 레이스 컨디션)
+    if (locationSubscriptionRef.current || locationStartingRef.current) return;
+    locationStartingRef.current = true;
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== Location.PermissionStatus.GRANTED) return;
+
+      // 초기값: 캐시된 위치로 빠르게 표시
+      const cached = await Location.getLastKnownPositionAsync({});
+      if (cached?.coords) {
+        setCurrentLocation({ latitude: cached.coords.latitude, longitude: cached.coords.longitude });
+      }
+
+      locationSubscriptionRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 5000,
+          distanceInterval: 10,
+        },
+        (loc) => {
+          const { latitude, longitude } = loc.coords;
+          setCurrentLocation({ latitude, longitude });
+        }
+      );
+    } finally {
+      locationStartingRef.current = false;
+    }
+  }, []);
+
+  const stopLocationWatch = useCallback(() => {
+    locationSubscriptionRef.current?.remove();
+    locationSubscriptionRef.current = null;
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-
       if (status !== Location.PermissionStatus.GRANTED) {
         setRegion(defaultRegion);
         return;
       }
-
-      // 에뮬: Set location은 getCurrentPosition 요청에 반영되는 경우가 많음. 먼저 현재 위치 요청.
-      let loc: Location.LocationObject | null = null;
-      try {
-        loc = await Promise.race([
-          Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Low,
-            mayShowUserSettingsDialog: false,
-          }),
-          new Promise<null>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), LOCATION_REQUEST_TIMEOUT_MS)
-          ),
-        ]);
-      } catch {
-        // 타임아웃/실패 시 캐시 시도
-      }
-      if (!loc) loc = await Location.getLastKnownPositionAsync({});
-      if (loc?.coords) {
-        setCurrentLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-      }
       setRegion(defaultRegion);
+      await startLocationWatch();
     })();
-  }, []);
+
+    const appStateSub = AppState.addEventListener(
+      'change',
+      (nextState: AppStateStatus) => {
+        if (nextState === 'active') {
+          startLocationWatch();
+        } else if (nextState === 'background' || nextState === 'inactive') {
+          stopLocationWatch();
+        }
+      }
+    );
+
+    return () => {
+      stopLocationWatch();
+      appStateSub.remove();
+    };
+  }, [startLocationWatch, stopLocationWatch]);
 
   useEffect(() => {
     if (!region) return;
@@ -112,7 +145,9 @@ export function useMap() {
     }));
   };
 
-  /** 현재 위치를 다시 가져옴. 에뮬레이터에서는 캐시된 위치(getLastKnown)를 먼저 시도. */
+  /** 현재 위치 버튼 또는 구역 판정 시 호출.
+   *  watch가 살아있으면 최신 currentLocation을 그대로 사용.
+   *  없으면 GPS 직접 조회(구역 판정 정확도 유지). */
   const refreshCurrentLocation = async (): Promise<{
     latitude: number;
     longitude: number;
@@ -120,20 +155,19 @@ export function useMap() {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== Location.PermissionStatus.GRANTED) return null;
     try {
-      // 에뮬: Extended controls에서 지정한 위치는 getCurrentPosition 응답으로 올 수 있음. 먼저 요청.
       let loc: Location.LocationObject | null = null;
       try {
         loc = await Promise.race([
           Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Low,
+            accuracy: Location.Accuracy.Balanced,
             mayShowUserSettingsDialog: false,
           }),
           new Promise<null>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), LOCATION_REQUEST_TIMEOUT_MS)
+            setTimeout(() => reject(new Error('timeout')), 8000)
           ),
         ]);
       } catch {
-        // 타임아웃 시 캐시 시도
+        // 타임아웃 시 캐시 사용
       }
       if (!loc) loc = await Location.getLastKnownPositionAsync({});
       if (!loc?.coords) return null;

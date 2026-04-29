@@ -424,6 +424,7 @@ export default function CalendarScreen() {
         </View>
 
         {/* 카테고리: 윤곽선 없음, 연한 배경, 글씨 옆 동그라미 */}
+        <View style={styles.filterChipsOuter}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -456,6 +457,7 @@ export default function CalendarScreen() {
             );
           })}
         </ScrollView>
+        </View>
 
         {/* 요일 + 날짜 카드: 좌우 스와이프로 이전/다음 달 이동 */}
         <View style={styles.calendarCard} {...panResponder.panHandlers}>
@@ -672,9 +674,13 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
   },
+  filterChipsOuter: {
+    height: 52,
+    marginTop: 12,
+    marginBottom: 6,
+  },
   filterChipsScroll: {
-    marginBottom: 10,
-    marginTop: 20,
+    flex: 1,
   },
   filterChipsWrap: {
     paddingHorizontal: HORIZONTAL_PADDING,

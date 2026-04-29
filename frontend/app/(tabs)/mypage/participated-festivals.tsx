@@ -92,9 +92,7 @@ export default function ParticipatedFestivalsScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.contents}>
-            <Text style={styles.listHint}>
-              구역 체류가 서버에 종료로 저장된 기록입니다. 10분만 머물어도 표시되며, 30분 이상만 보는 미션 목록은 다른 메뉴입니다.
-            </Text>
+
             {list.length === 0 ? (
               <Text style={styles.empty}>축제 구역에 참여한 기록이 없습니다.</Text>
             ) : (

@@ -6,6 +6,7 @@ import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getCurrentRegionKey, REGION_CENTERS, REGION_BOUNDS_DELTA } from "../utils/region";
 import { getEventsOnMap } from "./event.service";
+import { saveNotificationRecord, removeNotificationRecordsByEventId } from "./notificationHistory.service";
 
 const CHANNEL_ID = "event-reminder";
 
@@ -111,10 +112,12 @@ export async function scheduleEventReminder(
     // 알림 시간이 현재 시간보다 과거면 예약 불가
     if (triggerDate.getTime() <= now.getTime()) return null;
     
+    const notifTitle = "행사 알림";
+    const notifBody = reminderBodyText(daysUntilStart, eventTitle);
     const identifier = await Notifications.scheduleNotificationAsync({
       content: {
-        title: "행사 알림",
-        body: reminderBodyText(daysUntilStart, eventTitle),
+        title: notifTitle,
+        body: notifBody,
         data: { eventId, daysBefore: days, origin },
       },
       trigger: {
@@ -123,6 +126,15 @@ export async function scheduleEventReminder(
         channelId: CHANNEL_ID,
       },
     });
+
+    // 예약 시점에 알림 기록 미리 저장 (백그라운드 수신 시에도 기록이 남도록)
+    void saveNotificationRecord({
+      title: notifTitle,
+      body: notifBody,
+      receivedAt: triggerDate.toISOString(),
+      eventId,
+    });
+
     return identifier;
   } catch {
     return null;
@@ -140,6 +152,8 @@ export async function cancelEventReminders(eventId: string): Promise<void> {
       await Notifications.cancelScheduledNotificationAsync(n.identifier);
     }
   }
+  // 예약 시 미리 저장한 알림 기록도 제거
+  await removeNotificationRecordsByEventId(eventId);
 }
 
 /**

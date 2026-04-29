@@ -40,3 +40,11 @@ export async function clearNotificationHistory(): Promise<void> {
     await AsyncStorage.removeItem(HISTORY_KEY);
   } catch {}
 }
+
+export async function removeNotificationRecordsByEventId(eventId: string): Promise<void> {
+  try {
+    const existing = await getNotificationHistory();
+    const filtered = existing.filter((r) => r.eventId !== eventId);
+    await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(filtered));
+  } catch {}
+}

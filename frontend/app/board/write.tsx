@@ -1,5 +1,5 @@
 // app/board/write.tsx
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Keyboard,
   Alert,
   ActivityIndicator,
   Modal,
@@ -28,7 +27,11 @@ import { useMyUserId } from "../../hooks/useAuth";
 import { API_BASE_URL } from "../../constants/api";
 import type { Event } from "../../types/event";
 import { getDemoLocation } from "../../services/demoLocationStorage";
-import { getCurrentRegionKey, EVENT_PICKER_REGION_OPTIONS } from "../../utils/eventPickerRegion";
+import { getCurrentRegionKey } from "../../utils/eventPickerRegion";
+
+const REGION_OPTIONS = ["전체", "충주"] as const;
+const PICKER_ITEM_H = 44;
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 const CATEGORIES = ["후기", "질문", "자유"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -46,7 +49,6 @@ export default function PostWriteScreen() {
   const [category, setCategory] = useState<Category>("자유");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(!!editId);
   /** 후기 카테고리일 때 선택한 행사 */
@@ -54,6 +56,7 @@ export default function PostWriteScreen() {
   const [selectedEventTitle, setSelectedEventTitle] = useState<string>("");
   const [eventPickerVisible, setEventPickerVisible] = useState(false);
   const [eventList, setEventList] = useState<Event[]>([]);
+
   const [eventListLoading, setEventListLoading] = useState(false);
   /** 행사 선택 필터: 지역(기본=현재 위치 도시) / 월(기본=현재 월) / 행사명 */
   const [eventPickerRegion, setEventPickerRegion] = useState<string>("");
@@ -62,21 +65,23 @@ export default function PostWriteScreen() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
   const [eventPickerKeyword, setEventPickerKeyword] = useState<string>("");
+
+  const yearListRef = useRef<FlatList>(null);
+  const monthListRef = useRef<FlatList>(null);
+  const keywordTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const YEAR_OPTIONS = useMemo(() => {
+    const y = new Date().getFullYear();
+    return [y - 1, y, y + 1, y + 2];
+  }, []);
+
+  const pickerYear = parseInt(eventPickerMonth.split('-')[0], 10) || new Date().getFullYear();
+  const pickerMonthNum = parseInt(eventPickerMonth.split('-')[1], 10) || new Date().getMonth() + 1;
   /** 선택한 사진 URI 목록 (동영상 불가, 사진만) */
   const [selectedImageUris, setSelectedImageUris] = useState<string[]>([]);
   /** 수정 시 기존 게시글에 있던 이미지 URL (서버에 이미 저장됨) */
   const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
 
-  useEffect(() => {
-    const show = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hide = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const subShow = Keyboard.addListener(show, (e) => setKeyboardHeight(e.endCoordinates.height));
-    const subHide = Keyboard.addListener(hide, () => setKeyboardHeight(0));
-    return () => {
-      subShow.remove();
-      subHide.remove();
-    };
-  }, []);
 
   useEffect(() => {
     if (!editId) {
@@ -229,6 +234,17 @@ export default function PostWriteScreen() {
     [eventPickerRegion, eventPickerMonth, eventPickerKeyword, getMonthRange, selectedEventId]
   );
 
+  useEffect(() => {
+    if (!eventPickerVisible) return;
+    const yIdx = YEAR_OPTIONS.indexOf(pickerYear);
+    const mIdx = pickerMonthNum - 1;
+    const t = setTimeout(() => {
+      if (yIdx >= 0) yearListRef.current?.scrollToOffset({ offset: yIdx * PICKER_ITEM_H, animated: false });
+      if (mIdx >= 0) monthListRef.current?.scrollToOffset({ offset: mIdx * PICKER_ITEM_H, animated: false });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [eventPickerVisible]);
+
   const openEventPicker = useCallback(async () => {
     setEventPickerVisible(true);
     let region = eventPickerRegion;
@@ -361,10 +377,7 @@ export default function PostWriteScreen() {
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[
-            styles.scrollContent,
-            keyboardHeight > 0 && { paddingBottom: keyboardHeight + 120 },
-          ]}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={true}
         >
@@ -506,10 +519,11 @@ export default function PostWriteScreen() {
                 </Pressable>
               </View>
               <View style={styles.eventPickerFilters}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.eventPickerFilterRow}>
+                {/* 지역: 전체 / 충주만 */}
+                <View style={styles.eventPickerFilterRow}>
                   <Text style={styles.eventPickerFilterLabel}>지역</Text>
-                  <ScrollView horizontal contentContainerStyle={styles.eventPickerChips}>
-                    {EVENT_PICKER_REGION_OPTIONS.map((r) => (
+                  <View style={styles.eventPickerChips}>
+                    {REGION_OPTIONS.map((r) => (
                       <Pressable
                         key={r}
                         style={[styles.eventPickerChip, eventPickerRegion === r && styles.eventPickerChipActive]}
@@ -521,49 +535,93 @@ export default function PostWriteScreen() {
                         <Text style={[styles.eventPickerChipText, eventPickerRegion === r && styles.eventPickerChipTextActive]}>{r}</Text>
                       </Pressable>
                     ))}
-                  </ScrollView>
-                </ScrollView>
-                <View style={styles.eventPickerFilterRow}>
-                  <Text style={styles.eventPickerFilterLabel}>월</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.eventPickerChips}>
-                    {(() => {
-                      const now = new Date();
-                      const options: string[] = [];
-                      for (let i = -6; i <= 12; i++) {
-                        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-                        options.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-                      }
-                      return options.map((yyyyMm) => {
-                        const [y, m] = yyyyMm.split("-").map(Number);
-                        const label = now.getFullYear() === y ? `${m}월` : `${y}년 ${m}월`;
-                        return (
-                          <Pressable
-                            key={yyyyMm}
-                            style={[styles.eventPickerChip, eventPickerMonth === yyyyMm && styles.eventPickerChipActive]}
-                            onPress={() => {
-                              setEventPickerMonth(yyyyMm);
-                              loadEventListForPicker({ month: yyyyMm });
-                            }}
-                          >
-                            <Text style={[styles.eventPickerChipText, eventPickerMonth === yyyyMm && styles.eventPickerChipTextActive]}>{label}</Text>
-                          </Pressable>
-                        );
-                      });
-                    })()}
-                  </ScrollView>
+                  </View>
                 </View>
-                <View style={styles.eventPickerKeywordRow}>
+
+                {/* 날짜: 연도 + 월 드럼롤 피커 */}
+                <View style={styles.eventPickerFilterRow}>
+                  <Text style={styles.eventPickerFilterLabel}>날짜</Text>
+                  <View style={styles.datePickerWrapper}>
+                    <View style={styles.datePickerHighlight} pointerEvents="none" />
+                    <FlatList
+                      ref={yearListRef}
+                      data={YEAR_OPTIONS}
+                      style={styles.datePickerCol}
+                      snapToInterval={PICKER_ITEM_H}
+                      decelerationRate="fast"
+                      showsVerticalScrollIndicator={false}
+                      contentContainerStyle={{ paddingVertical: PICKER_ITEM_H }}
+                      getItemLayout={(_, i) => ({ length: PICKER_ITEM_H, offset: PICKER_ITEM_H * i, index: i })}
+                      onMomentumScrollEnd={(e) => {
+                        const idx = Math.round(e.nativeEvent.contentOffset.y / PICKER_ITEM_H);
+                        const year = YEAR_OPTIONS[idx];
+                        if (year) {
+                          const ym = `${year}-${String(pickerMonthNum).padStart(2, '0')}`;
+                          setEventPickerMonth(ym);
+                          loadEventListForPicker({ month: ym });
+                        }
+                      }}
+                      renderItem={({ item }) => (
+                        <View style={[styles.pickerItem, item === pickerYear && styles.pickerItemSelected]}>
+                          <Text style={[styles.pickerItemText, item === pickerYear && styles.pickerItemTextSelected]}>
+                            {item}년
+                          </Text>
+                        </View>
+                      )}
+                      keyExtractor={(item) => String(item)}
+                    />
+                    <View style={styles.datePickerDivider} />
+                    <FlatList
+                      ref={monthListRef}
+                      data={MONTH_OPTIONS}
+                      style={styles.datePickerCol}
+                      snapToInterval={PICKER_ITEM_H}
+                      decelerationRate="fast"
+                      showsVerticalScrollIndicator={false}
+                      contentContainerStyle={{ paddingVertical: PICKER_ITEM_H }}
+                      getItemLayout={(_, i) => ({ length: PICKER_ITEM_H, offset: PICKER_ITEM_H * i, index: i })}
+                      onMomentumScrollEnd={(e) => {
+                        const idx = Math.round(e.nativeEvent.contentOffset.y / PICKER_ITEM_H);
+                        const month = MONTH_OPTIONS[idx];
+                        if (month) {
+                          const ym = `${pickerYear}-${String(month).padStart(2, '0')}`;
+                          setEventPickerMonth(ym);
+                          loadEventListForPicker({ month: ym });
+                        }
+                      }}
+                      renderItem={({ item }) => (
+                        <View style={[styles.pickerItem, item === pickerMonthNum && styles.pickerItemSelected]}>
+                          <Text style={[styles.pickerItemText, item === pickerMonthNum && styles.pickerItemTextSelected]}>
+                            {item}월
+                          </Text>
+                        </View>
+                      )}
+                      keyExtractor={(item) => String(item)}
+                    />
+                  </View>
+                </View>
+
+                {/* 행사명: 돋보기 아이콘 검색창 */}
+                <View style={styles.eventPickerFilterRow}>
                   <Text style={styles.eventPickerFilterLabel}>행사명</Text>
-                  <TextInput
-                    style={styles.eventPickerKeywordInput}
-                    placeholder="행사명 검색"
-                    placeholderTextColor="#9CA3AF"
-                    value={eventPickerKeyword}
-                    onChangeText={setEventPickerKeyword}
-                  />
-                  <Pressable style={styles.eventPickerSearchBtn} onPress={loadEventListForPicker} disabled={eventListLoading}>
-                    <Text style={styles.eventPickerSearchBtnText}>검색</Text>
-                  </Pressable>
+                  <View style={styles.eventPickerKeywordWrap}>
+                    <Ionicons name="search-outline" size={16} color="#9CA3AF" style={styles.keywordSearchIcon} />
+                    <TextInput
+                      style={styles.eventPickerKeywordInput}
+                      placeholder="행사명 검색"
+                      placeholderTextColor="#9CA3AF"
+                      value={eventPickerKeyword}
+                      onChangeText={(text) => {
+                        setEventPickerKeyword(text);
+                        if (keywordTimeoutRef.current) clearTimeout(keywordTimeoutRef.current);
+                        keywordTimeoutRef.current = setTimeout(() => {
+                          loadEventListForPicker({ keyword: text });
+                        }, 500);
+                      }}
+                      onSubmitEditing={() => loadEventListForPicker()}
+                      returnKeyType="search"
+                    />
+                  </View>
                 </View>
               </View>
               {eventListLoading ? (
@@ -595,8 +653,8 @@ export default function PostWriteScreen() {
           </Pressable>
         </Modal>
 
-        {/* 사진 - 키보드 없을 땐 하단, 키보드 뜨면 키보드 위에 여유 간격 */}
-        <View style={[styles.attachRow, { bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 0 }]}>
+        {/* 사진 버튼 - 키보드 위에 고정 */}
+        <View style={styles.attachRow}>
           <Pressable
             style={styles.attachBtn}
             onPress={openImagePicker}
@@ -693,9 +751,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   attachRow: {
-    position: "absolute",
-    left: 0,
-    right: 0,
     flexDirection: "row",
     gap: 16,
     paddingHorizontal: 16,
@@ -703,8 +758,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
-    zIndex: 10,
-    elevation: 10,
   },
   attachBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 4 },
   attachText: { fontSize: 14, color: "#6B7280" },
@@ -745,12 +798,12 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
   modalClose: { fontSize: 16, color: "#4C8BF5" },
-  eventPickerFilters: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", gap: 10 },
-  eventPickerFilterRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  eventPickerFilters: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", gap: 12 },
+  eventPickerFilterRow: { flexDirection: "row", alignItems: "center" },
   eventPickerFilterLabel: { fontSize: 13, color: "#6B7280", width: 44, marginRight: 8 },
-  eventPickerChips: { flexDirection: "row", gap: 8, paddingVertical: 4 },
+  eventPickerChips: { flexDirection: "row", gap: 8, paddingVertical: 2 },
   eventPickerChip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
@@ -760,13 +813,53 @@ const styles = StyleSheet.create({
   eventPickerChipActive: { backgroundColor: "#4C8BF5", borderColor: "#4C8BF5" },
   eventPickerChipText: { fontSize: 13, color: "#4B5563", fontWeight: "500" },
   eventPickerChipTextActive: { color: "#FFFFFF" },
-  eventPickerKeywordRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  eventPickerKeywordInput: {
+  // 날짜 드럼롤 피커
+  datePickerWrapper: {
     flex: 1,
+    flexDirection: "row",
+    height: PICKER_ITEM_H * 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    overflow: "hidden",
+    backgroundColor: "#F9FAFB",
+  },
+  datePickerCol: { flex: 1 },
+  datePickerDivider: { width: 1, backgroundColor: "#E5E7EB" },
+  datePickerHighlight: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: PICKER_ITEM_H,
+    height: PICKER_ITEM_H,
+    backgroundColor: "rgba(76,139,245,0.08)",
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#4C8BF5",
+    zIndex: 1,
+  },
+  pickerItem: {
+    height: PICKER_ITEM_H,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickerItemSelected: {},
+  pickerItemText: { fontSize: 14, color: "#9CA3AF" },
+  pickerItemTextSelected: { fontSize: 15, fontWeight: "700", color: "#111827" },
+  // 행사명 검색창 (돋보기 아이콘 내장)
+  eventPickerKeywordWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#D1D5DB",
     borderRadius: 10,
-    paddingHorizontal: 12,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 10,
+  },
+  keywordSearchIcon: { marginRight: 6 },
+  eventPickerKeywordInput: {
+    flex: 1,
     paddingVertical: 10,
     fontSize: 14,
     color: "#111827",

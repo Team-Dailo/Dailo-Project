@@ -1,4 +1,5 @@
 // app/(tabs)/_layout.tsx
+import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { Tabs } from "expo-router";
 import React, { useEffect } from "react";
@@ -8,7 +9,10 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Text,
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const TAB_ICONS = {
   home: require("../../assets/images/tab-home.png"),
@@ -18,41 +22,62 @@ const TAB_ICONS = {
   mypage: require("../../assets/images/tab-mypage.png"),
 };
 
-function TabIcon({
-  source,
-  color,
-  size,
-}: {
-  source: number;
-  color: string;
-  size: number;
-}) {
-  return (
-    <Image
-      source={source}
-      style={{ width: size, height: size, tintColor: color }}
-      resizeMode="contain"
-    />
-  );
-}
+const TAB_CONFIG = [
+  { key: "home",    label: "홈",        icon: TAB_ICONS.home },
+  { key: "calendar", label: "달력",     icon: TAB_ICONS.calendar },
+  { key: "map",     label: "지도",      icon: TAB_ICONS.map },
+  { key: "board",   label: "게시판",    icon: TAB_ICONS.board },
+  { key: "mypage",  label: "마이페이지", icon: TAB_ICONS.mypage },
+] as const;
 
-/** 탭 아이콘을 눌렀을 때 항상 해당 탭의 루트 화면으로 이동시키는 버튼 */
-function RootTabButton(props: {
-  target: string;
-  params?: object;
-  onPress?: (e?: any) => void;
-  children: React.ReactNode;
-  [key: string]: unknown;
-}) {
-  const navigation = useNavigation();
-  const { target, params, onPress: defaultOnPress, ...rest } = props;
-  const onPress = () => {
-    (
-      navigation as { navigate: (name: string, params?: object) => void }
-    ).navigate(target, params);
-    defaultOnPress?.();
-  };
-  return <Pressable {...(rest as any)} onPress={onPress} />;
+function CustomTabBar({ state, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+
+  // TAB_CONFIG 순서를 유지하면서 실제 route만 매핑
+  const tabs = TAB_CONFIG.map((config) => {
+    const route = state.routes.find(
+      (r) => r.name === config.key || r.name.startsWith(config.key + "/")
+    );
+    return route ? { config, route } : null;
+  }).filter(Boolean) as { config: (typeof TAB_CONFIG)[number]; route: (typeof state.routes)[number] }[];
+
+  const bottomPad = Platform.OS === 'ios' ? Math.max(insets.bottom - 12, 4) : insets.bottom;
+  return (
+    <View style={[styles.tabBar, { paddingBottom: bottomPad, height: 60 + bottomPad }]}>
+      {tabs.map(({ config, route }) => {
+        const routeIndex = state.routes.findIndex((r) => r.key === route.key);
+        const isFocused = state.index === routeIndex;
+        const color = isFocused ? "#565656" : "#A0A0A0";
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: "tabPress",
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!event.defaultPrevented) {
+            navigation.navigate(route.name as never);
+          }
+        };
+
+        return (
+          <Pressable
+            key={route.key}
+            onPress={onPress}
+            style={styles.tabItem}
+            android_ripple={{ color: "transparent" }}
+          >
+            <Image
+              source={config.icon}
+              style={[styles.tabIcon, { tintColor: color }]}
+              resizeMode="contain"
+            />
+            <Text style={[styles.tabLabel, { color }]}>{config.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 }
 
 export default function TabsLayout() {
@@ -85,90 +110,38 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: "#565656",
-        tabBarInactiveTintColor: "#A0A0A0",
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabLabel,
-      }}
+      screenOptions={{ headerShown: false }}
+      tabBar={(props) => <CustomTabBar {...props} />}
     >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: "홈",
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon source={TAB_ICONS.home} color={color} size={size} />
-          ),
-          tabBarButton: (props) => <RootTabButton {...props} target="home" />,
-        }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: "달력",
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon source={TAB_ICONS.calendar} color={color} size={size} />
-          ),
-          tabBarButton: (props) => (
-            <RootTabButton {...props} target="calendar" />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="map"
-        options={{
-          title: "지도",
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon source={TAB_ICONS.map} color={color} size={size} />
-          ),
-          tabBarButton: (props) => (
-            <RootTabButton {...props} target="map" />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="board"
-        options={{
-          title: "게시판",
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon source={TAB_ICONS.board} color={color} size={size} />
-          ),
-          tabBarButton: (props) => (
-            <RootTabButton {...props} target="board" />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="mypage"
-        options={{
-          title: "마이페이지",
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon source={TAB_ICONS.mypage} color={color} size={size} />
-          ),
-          tabBarButton: (props) => (
-            <RootTabButton
-              {...props}
-              target="mypage"
-              params={{ screen: "index" }}
-            />
-          ),
-        }}
-      />
+      <Tabs.Screen name="home" />
+      <Tabs.Screen name="calendar" />
+      <Tabs.Screen name="map" />
+      <Tabs.Screen name="board" />
+      <Tabs.Screen name="mypage" />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
   tabBar: {
+    flexDirection: "row",
     height: 60,
     backgroundColor: "#FFFFFF",
-    borderTopColor: "#E5E5E5",
     borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E5E5",
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  tabIcon: {
+    width: 24,
+    height: 24,
   },
   tabLabel: {
     fontSize: 10,
-    marginTop: 2,
-    marginBottom: 2,
+    fontWeight: "500",
   },
 });

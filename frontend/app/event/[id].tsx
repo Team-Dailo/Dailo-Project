@@ -69,11 +69,11 @@ export default function EventDetailScreen() {
   }>();
   const { detail: event, loading, error, refetch: refetchDetail } = useEventDetail(id, source ?? "detail");
   const initialTab: TabKey =
-    tabParam === "booths"
-      ? "booths"
+    tabParam === "news"
+      ? "news"
       : tabParam === "timeline"
         ? "timeline"
-        : "news";
+        : "booths";
 
   const extra = useMemo(
     () => parseEventExtra(event?.extraJson ?? null),
@@ -99,9 +99,10 @@ export default function EventDetailScreen() {
         ? {
             ...event,
             thumbnailUrl:
-              (thumbnailFromRoute as string | null | undefined) ??
-              (event as typeof event & { thumbnailUrl?: string | null }).thumbnailUrl ??
-              (event.posterUrls?.[0] ?? null),
+              thumbnailFromRoute?.trim() ||
+              (event as typeof event & { thumbnailUrl?: string | null }).thumbnailUrl?.trim() ||
+              event.posterUrls?.[0] ||
+              null,
           }
         : event,
     [event, thumbnailFromRoute]

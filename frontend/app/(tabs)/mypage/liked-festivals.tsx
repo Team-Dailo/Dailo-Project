@@ -91,7 +91,7 @@ export default function LikedFestivalsScreen() {
       >
         <Image
           source={{
-            uri: item.thumbnailUrl ?? "https://via.placeholder.com/80x80.png?text=+",
+            uri: item.thumbnailUrl?.trim() || "https://via.placeholder.com/80x80.png?text=+",
           }}
           style={styles.thumb}
         />

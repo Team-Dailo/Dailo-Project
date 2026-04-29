@@ -14,6 +14,8 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Modal,
+  StatusBar,
 } from "react-native";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
@@ -104,6 +106,7 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     DEFAULT_POSTER_URI;
   const [clickCount, setClickCount] = useState<number | null>(null);
   const [hasReminder, setHasReminder] = useState(false);
+  const [posterFullscreen, setPosterFullscreen] = useState(false);
 
   // 행사 상세 진입 시 조회(클릭) 로그 기록 + 조회수 표시
   useEffect(() => {
@@ -280,6 +283,16 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
     );
     if (notifId) {
       setHasReminder(true);
+      // 알림설정 페이지와 일치하도록 AsyncStorage 동기화
+      try {
+        await AsyncStorage.multiSet([
+          ["@mypage/notification_push_enabled", "true"],
+          ["@mypage/notification_event_reminder", "true"],
+          ["@mypage/notification_event_reminder_booked", "true"],
+        ]);
+      } catch {
+        // 설정 저장 실패해도 알림 예약 자체는 성공
+      }
       const msg =
         daysBefore === 1
           ? "행사 1일 전 오전 9시에 알림을 보내드립니다."
@@ -317,7 +330,24 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
 
   return (
     <View style={styles.container}>
-      <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" />
+      <Pressable onPress={() => setPosterFullscreen(true)}>
+        <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" />
+      </Pressable>
+
+      <Modal
+        visible={posterFullscreen}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPosterFullscreen(false)}
+      >
+        <View style={styles.fullscreenOverlay}>
+          <Image source={{ uri: posterUri }} style={styles.fullscreenImage} resizeMode="contain" />
+          <Pressable style={styles.fullscreenClose} onPress={() => setPosterFullscreen(false)} hitSlop={10}>
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </Modal>
 
       <View style={[styles.iconRow, { top: insets.top + 4 }]}>
         <Pressable onPress={() => router.back()} style={styles.iconButton} hitSlop={10}>
@@ -544,5 +574,26 @@ const styles = StyleSheet.create({
   errorSub: {
     fontSize: 14,
     color: "#6B7280",
+  },
+  fullscreenOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullscreenImage: {
+    width: "100%",
+    height: "100%",
+  },
+  fullscreenClose: {
+    position: "absolute",
+    top: 48,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
