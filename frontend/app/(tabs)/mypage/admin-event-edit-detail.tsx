@@ -92,6 +92,12 @@ const REGION_CITIES_BY_PROVINCE: Record<string, string[]> = {
 
 // --- 소식/타임테이블/부스 (extraJson으로 API 저장) ---
 export type NewsItemEdit = { id: string; title: string; body: string; date: string };
+export type PerformerEdit = {
+  name: string;
+  genre: string;
+  startTime: string;
+  setlist: string[];
+};
 export type TimelineItemEdit = {
   id: string;
   dateLabel?: string;
@@ -100,6 +106,7 @@ export type TimelineItemEdit = {
   title: string;
   location?: string;
   details?: string[];
+  performers?: PerformerEdit[];
 };
 export type BoothEdit = {
   id: string;
@@ -1006,6 +1013,7 @@ function EditModal({
   const [text4, setText4] = useState("");
   const [text5, setText5] = useState(""); // 푸드트럭 메뉴-가격 (한 줄에 하나, 예: 타코야끼(6pcs) - 5,000원)
   const [text6, setText6] = useState(""); // 부스/푸드트럭 외부 링크
+  const [editPerformers, setEditPerformers] = useState<PerformerEdit[]>([]);
   const [coordsGeocoding, setCoordsGeocoding] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedFilterGroup, setSelectedFilterGroup] = useState("");
@@ -1020,6 +1028,9 @@ function EditModal({
   const [selectedEndDate, setSelectedEndDate] = useState(new Date());
   /** 달력 아이콘으로 연 달력: 'start' | 'end' | null */
   const [dateCalendarOpenFor, setDateCalendarOpenFor] = useState<'start' | 'end' | null>(null);
+  /** 날짜 텍스트 입력 (직접 타이핑 지원) */
+  const [startRawText, setStartRawText] = useState("");
+  const [endRawText, setEndRawText] = useState("");
   /** 시간 편집: 시작/종료 시·분 휠 */
   const [timeStartHour, setTimeStartHour] = useState(0);
   const [timeStartMinute, setTimeStartMinute] = useState(0);
@@ -1065,8 +1076,12 @@ function EditModal({
     if (editTarget.type === "date") {
       const startStr = (values.timeStart as string) ?? "";
       const endStr = (values.timeEnd as string) ?? "";
-      setSelectedStartDate(startStr ? new Date(startStr) : new Date());
-      setSelectedEndDate(endStr ? new Date(endStr) : new Date());
+      const s = startStr ? new Date(startStr) : new Date();
+      const e = endStr ? new Date(endStr) : new Date();
+      setSelectedStartDate(s);
+      setSelectedEndDate(e);
+      setStartRawText(`${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`);
+      setEndRawText(`${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`);
     }
     if (editTarget.type === "time") {
       const startStr = (values.timeStart as string) ?? "";
@@ -1102,6 +1117,7 @@ function EditModal({
         setText3(t.endTime ?? "");
         setText4(t.title);
         setText5(Array.isArray(t.details) && t.details.length > 0 ? t.details.join("\n") : "");
+        setEditPerformers(Array.isArray(t.performers) ? t.performers.map((p) => ({ ...p, setlist: [...(p.setlist ?? [])] })) : []);
       } else {
         const selectedDateLabel = "selectedDateLabel" in editTarget ? (editTarget as { selectedDateLabel?: string }).selectedDateLabel : undefined;
         setText(selectedDateLabel ?? "");
@@ -1109,6 +1125,7 @@ function EditModal({
         setText3("");
         setText4("");
         setText5("");
+        setEditPerformers([]);
       }
     }
     if (editTarget.type === "booth") {
@@ -1235,6 +1252,7 @@ function EditModal({
         endTime: text3 || undefined,
         title: text4,
         details,
+        performers: editPerformers.length > 0 ? editPerformers : undefined,
       };
       let next: TimelineItemEdit[];
       if (existing) {
@@ -1377,8 +1395,9 @@ function EditModal({
                 <View style={styles.dateInputRow}>
                   <TextInput
                     style={[styles.modalInput, styles.dateInputFlex]}
-                    value={`${selectedStartDate.getFullYear()}-${String(selectedStartDate.getMonth() + 1).padStart(2, "0")}-${String(selectedStartDate.getDate()).padStart(2, "0")}`}
+                    value={startRawText}
                     onChangeText={(t) => {
+                      setStartRawText(t);
                       const m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
                       if (m) {
                         const y = parseInt(m[1], 10);
@@ -1391,6 +1410,7 @@ function EditModal({
                     }}
                     placeholder="YYYY-MM-DD"
                     placeholderTextColor="#9CA3AF"
+                    keyboardType="numbers-and-punctuation"
                   />
                   <Pressable
                     style={styles.calendarIconBtn}
@@ -1403,8 +1423,9 @@ function EditModal({
                 <View style={styles.dateInputRow}>
                   <TextInput
                     style={[styles.modalInput, styles.dateInputFlex]}
-                    value={`${selectedEndDate.getFullYear()}-${String(selectedEndDate.getMonth() + 1).padStart(2, "0")}-${String(selectedEndDate.getDate()).padStart(2, "0")}`}
+                    value={endRawText}
                     onChangeText={(t) => {
+                      setEndRawText(t);
                       const m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
                       if (m) {
                         const y = parseInt(m[1], 10);
@@ -1417,6 +1438,7 @@ function EditModal({
                     }}
                     placeholder="YYYY-MM-DD"
                     placeholderTextColor="#9CA3AF"
+                    keyboardType="numbers-and-punctuation"
                   />
                   <Pressable
                     style={styles.calendarIconBtn}
@@ -1430,11 +1452,18 @@ function EditModal({
                   <NativeDateTimePicker
                     value={dateCalendarOpenFor === "start" ? selectedStartDate : selectedEndDate}
                     mode="date"
-                    display="calendar"
+                    display={Platform.OS === "ios" ? "inline" : "calendar"}
                     onChange={(_, selected) => {
                       if (selected) {
-                        if (dateCalendarOpenFor === "start") setSelectedStartDate(selected);
-                        else setSelectedEndDate(selected);
+                        const fmt = (d: Date) =>
+                          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                        if (dateCalendarOpenFor === "start") {
+                          setSelectedStartDate(selected);
+                          setStartRawText(fmt(selected));
+                        } else {
+                          setSelectedEndDate(selected);
+                          setEndRawText(fmt(selected));
+                        }
                       }
                       setDateCalendarOpenFor(null);
                     }}
@@ -1615,6 +1644,109 @@ function EditModal({
                 multiline
                 numberOfLines={4}
               />
+            )}
+            {editTarget?.type === "timeline" && (
+              <View style={styles.perfSection}>
+                <View style={styles.perfSectionHeader}>
+                  <Text style={styles.perfSectionTitle}>공연팀</Text>
+                  <Pressable
+                    style={styles.perfAddBtn}
+                    onPress={() =>
+                      setEditPerformers([...editPerformers, { name: "", genre: "", startTime: "", setlist: [] }])
+                    }
+                  >
+                    <Text style={styles.perfAddBtnText}>+ 팀 추가</Text>
+                  </Pressable>
+                </View>
+                {editPerformers.map((perf, pi) => (
+                  <View key={pi} style={styles.perfCard}>
+                    <View style={styles.perfCardHeader}>
+                      <TextInput
+                        style={[styles.modalInput, { flex: 1, marginRight: 6, marginBottom: 0 }]}
+                        value={perf.name}
+                        onChangeText={(v) => {
+                          const next = editPerformers.map((p, i) => i === pi ? { ...p, name: v } : p);
+                          setEditPerformers(next);
+                        }}
+                        placeholder="팀 이름"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                      <Pressable
+                        onPress={() => setEditPerformers(editPerformers.filter((_, i) => i !== pi))}
+                        hitSlop={8}
+                      >
+                        <Ionicons name="close-circle" size={22} color="#EF4444" />
+                      </Pressable>
+                    </View>
+                    <View style={styles.perfCardRow}>
+                      <TextInput
+                        style={[styles.modalInput, { flex: 1, marginRight: 6 }]}
+                        value={perf.genre}
+                        onChangeText={(v) => {
+                          const next = editPerformers.map((p, i) => i === pi ? { ...p, genre: v } : p);
+                          setEditPerformers(next);
+                        }}
+                        placeholder="장르 (예: 밴드)"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                      <TextInput
+                        style={[styles.modalInput, { flex: 1 }]}
+                        value={perf.startTime}
+                        onChangeText={(v) => {
+                          const next = editPerformers.map((p, i) => i === pi ? { ...p, startTime: v } : p);
+                          setEditPerformers(next);
+                        }}
+                        placeholder="시작시간 (예: 19:00)"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                    </View>
+                    <Text style={styles.perfSetlistTitle}>셋리스트</Text>
+                    {perf.setlist.map((song, si) => (
+                      <View key={si} style={styles.perfSongRow}>
+                        <Text style={styles.perfSongNum}>{si + 1}.</Text>
+                        <TextInput
+                          style={[styles.modalInput, { flex: 1 }]}
+                          value={song}
+                          onChangeText={(v) => {
+                            const next = editPerformers.map((p, i) => {
+                              if (i !== pi) return p;
+                              const songs = p.setlist.map((s, j) => j === si ? v : s);
+                              return { ...p, setlist: songs };
+                            });
+                            setEditPerformers(next);
+                          }}
+                          placeholder="곡명 - 아티스트"
+                          placeholderTextColor="#9CA3AF"
+                        />
+                        <Pressable
+                          onPress={() => {
+                            const next = editPerformers.map((p, i) => {
+                              if (i !== pi) return p;
+                              return { ...p, setlist: p.setlist.filter((_, j) => j !== si) };
+                            });
+                            setEditPerformers(next);
+                          }}
+                          hitSlop={8}
+                          style={{ paddingLeft: 4 }}
+                        >
+                          <Ionicons name="remove-circle-outline" size={20} color="#9CA3AF" />
+                        </Pressable>
+                      </View>
+                    ))}
+                    <Pressable
+                      style={styles.perfAddSongBtn}
+                      onPress={() => {
+                        const next = editPerformers.map((p, i) =>
+                          i === pi ? { ...p, setlist: [...p.setlist, ""] } : p
+                        );
+                        setEditPerformers(next);
+                      }}
+                    >
+                      <Text style={styles.perfAddSongBtnText}>+ 곡 추가</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
             )}
             {editTarget?.type === "booth" && (!editTarget.item || (editTarget.item as BoothEdit).type === "food") && (
               <TextInput
@@ -1863,4 +1995,17 @@ const styles = StyleSheet.create({
   modalBtnPrimary: { backgroundColor: "#4C8BF5" },
   modalBtnText: { color: "#FFF", fontWeight: "600" },
   modalBtnTextCancel: { color: "#6B7280" },
+  perfSection: { marginBottom: 12 },
+  perfSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  perfSectionTitle: { fontSize: 14, fontWeight: "700", color: "#374151" },
+  perfAddBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE" },
+  perfAddBtnText: { fontSize: 13, color: "#4C8BF5", fontWeight: "600" },
+  perfCard: { backgroundColor: "#F9FAFB", borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: "#E5E7EB" },
+  perfCardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  perfCardRow: { flexDirection: "row", gap: 6 },
+  perfSetlistTitle: { fontSize: 12, color: "#6B7280", fontWeight: "600", marginTop: 4, marginBottom: 6 },
+  perfSongRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+  perfSongNum: { fontSize: 13, color: "#9CA3AF", width: 22, textAlign: "right", marginRight: 6 },
+  perfAddSongBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, backgroundColor: "#F3F4F6", alignSelf: "flex-start", marginTop: 4 },
+  perfAddSongBtnText: { fontSize: 12, color: "#4C8BF5", fontWeight: "500" },
 });

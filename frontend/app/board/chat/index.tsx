@@ -28,26 +28,17 @@ const AVATAR_COLORS = ["#E0E7FF", "#FCE7F3", "#D1FAE5", "#FEF3C7", "#E5E7EB", "#
 function formatRoomTime(iso: string): string {
   try {
     if (!iso) return "";
-
-    let parsedDate: Date;
-
-    // 🔥 타임존 있는 경우 그대로 사용
-    if (iso.includes("Z") || iso.includes("+")) {
-      parsedDate = new Date(iso);
-    } 
-    // 🔥 타임존 없는 경우 → UTC로 강제
-    else {
-      parsedDate = new Date(iso + "Z");
-    }
-
-    const now = new Date();
-    const diff = now.getTime() - parsedDate.getTime();
-
-    if (diff < 60000) return "방금 전";
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
-    if (diff < 172800000) return "어제";
-    return `${Math.floor(diff / 86400000)}일 전`;
+    // 타임존 없는 경우 서버 시간을 KST(+09:00)로 간주
+    const d = new Date(iso.includes("Z") || iso.includes("+") ? iso : iso + "+09:00");
+    if (Number.isNaN(d.getTime())) return "";
+    const diff = Date.now() - d.getTime();
+    if (diff < 0) return "방금 전";
+    if (diff < 60_000) return "방금 전";
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
+    if (diff < 2_592_000_000) return `${Math.floor(diff / 86_400_000)}일 전`;
+    if (diff < 31_536_000_000) return `${Math.floor(diff / 2_592_000_000)}달 전`;
+    return `${Math.floor(diff / 31_536_000_000)}년 전`;
   } catch {
     return "";
   }
@@ -195,7 +186,12 @@ export default function ChatListScreen() {
             const timeStr = (item.lastMessageAt ?? item.updatedAt) ? formatRoomTime((item.lastMessageAt ?? item.updatedAt)!) : "";
             const colorIndex = (item.id ?? 0) % AVATAR_COLORS.length;
             const unread = Math.max(0, (item as { unreadCount?: number }).unreadCount ?? 0);
-            const preview = (item.lastMessageContent ?? "").trim() || "대화를 시작해 보세요";
+            const rawContent = (item.lastMessageContent ?? "").trim();
+            const preview = !rawContent
+              ? "대화를 시작해 보세요"
+              : rawContent.startsWith("http") || rawContent.startsWith("/uploads/")
+              ? "사진을 보냈습니다"
+              : rawContent;
             const roomId = item.id != null ? Number(item.id) : 0;
             return (
               <TouchableOpacity

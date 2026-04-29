@@ -2,6 +2,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
+import * as FileSystem from "expo-file-system";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,6 +15,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -74,6 +77,21 @@ function formatMessageTime(iso?: string): string {
 
   }
 
+}
+
+/** 실제 비율로 사진 표시 + 탭 시 전체화면 */
+function ChatImageBubble({ uri, onPress }: { uri: string; onPress: () => void }) {
+  const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    Image.getSize(uri, (w, h) => setImgSize({ w, h }), () => {});
+  }, [uri]);
+  const MAX_W = 220;
+  const displayH = imgSize ? Math.round((imgSize.h / imgSize.w) * MAX_W) : MAX_W;
+  return (
+    <Pressable onPress={onPress} style={{ borderRadius: 12, overflow: "hidden" }}>
+      <Image source={{ uri }} style={{ width: MAX_W, height: displayH, borderRadius: 12 }} resizeMode="cover" />
+    </Pressable>
+  );
 }
 
 export default function ChatRoomScreen() {
@@ -217,6 +235,29 @@ export default function ChatRoomScreen() {
   };
 
   const [imageUploading, setImageUploading] = useState(false);
+  const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
+
+  const handleSaveImage = async (uri: string) => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("권한 필요", "사진 저장을 위해 미디어 라이브러리 접근 권한이 필요합니다.");
+        return;
+      }
+      let localUri = uri;
+      if (uri.startsWith("http")) {
+        const ext = (uri.split(".").pop()?.split("?")[0] ?? "jpg").toLowerCase();
+        const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
+        const dest = FileSystem.documentDirectory + `chat_${Date.now()}.${safeExt}`;
+        const result = await FileSystem.downloadAsync(uri, dest);
+        localUri = result.uri;
+      }
+      await MediaLibrary.saveToLibraryAsync(localUri);
+      Alert.alert("저장 완료", "사진이 갤러리에 저장되었습니다.");
+    } catch {
+      Alert.alert("오류", "저장에 실패했습니다.");
+    }
+  };
 
   const handleSendImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -374,6 +415,28 @@ export default function ChatRoomScreen() {
           </Pressable>
         </Modal>
 
+        {/* 사진 전체화면 뷰어 */}
+        <Modal
+          visible={!!viewImageUrl}
+          transparent={false}
+          animationType="fade"
+          onRequestClose={() => setViewImageUrl(null)}
+          statusBarTranslucent
+        >
+          <View style={styles.imageViewerBg}>
+            <StatusBar hidden />
+            <Pressable style={styles.imageViewerClose} onPress={() => setViewImageUrl(null)} hitSlop={12}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </Pressable>
+            <Pressable style={styles.imageViewerSave} onPress={() => viewImageUrl && handleSaveImage(viewImageUrl)} hitSlop={12}>
+              <Ionicons name="download-outline" size={28} color="#fff" />
+            </Pressable>
+            {viewImageUrl && (
+              <Image source={{ uri: viewImageUrl }} style={styles.imageViewerImage} resizeMode="contain" />
+            )}
+          </View>
+        </Modal>
+
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color="#6366F1" />
@@ -420,7 +483,7 @@ export default function ChatRoomScreen() {
                         ) : null}
                       </View>
                       {msg.imageUrl ? (
-                        <Image source={{ uri: msg.imageUrl }} style={styles.chatImage} resizeMode="cover" />
+                        <ChatImageBubble uri={msg.imageUrl} onPress={() => setViewImageUrl(msg.imageUrl!)} />
                       ) : (
                         <View style={styles.myBubble}>
                           <Text style={styles.myText}>{msg.text}</Text>
@@ -444,7 +507,7 @@ export default function ChatRoomScreen() {
                         <View style={styles.otherAvatarPlaceholder} />
                       )}
                       {msg.imageUrl ? (
-                        <Image source={{ uri: msg.imageUrl }} style={styles.chatImage} resizeMode="cover" />
+                        <ChatImageBubble uri={msg.imageUrl} onPress={() => setViewImageUrl(msg.imageUrl!)} />
                       ) : (
                         <View style={styles.otherBubble}>
                           <Text style={styles.otherText}>{msg.text}</Text>
@@ -605,7 +668,10 @@ const styles = StyleSheet.create({
   },
   sendBtn: { padding: 4, marginBottom: 4 },
   sendBtnDisabled: { opacity: 0.6 },
-  chatImage: { width: 200, height: 200, borderRadius: 12 },
+  imageViewerBg: { flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" },
+  imageViewerClose: { position: "absolute", top: 52, left: 16, zIndex: 10, padding: 8 },
+  imageViewerSave: { position: "absolute", top: 52, right: 16, zIndex: 10, padding: 8 },
+  imageViewerImage: { width: "100%", height: "100%" },
   menuBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",

@@ -46,22 +46,42 @@ export function formatDateTimeAdmin(iso: string): string {
   return `${y}.${m}.${day} ${h}:${min}`;
 }
 
-/** 상대 시간 (24시간 미만: 방금 전, N분/시간 전 / 24시간 이상: 작성 날짜·시간) */
+/** 게시물 목록용: 24시간 이내 → 상대 시간, 이후 → MM.DD (올해 다르면 YYYY.MM.DD) */
+export function formatPostListTime(iso?: string): string {
+  try {
+    if (!iso) return '';
+    const d = new Date(iso.includes('Z') || iso.includes('+') ? iso : iso + '+09:00');
+    if (Number.isNaN(d.getTime())) return '';
+    const diff = Date.now() - d.getTime();
+    if (diff < 0) return '방금 전';
+    if (diff < 60_000) return '방금 전';
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
+    const today = new Date();
+    if (d.getFullYear() === today.getFullYear()) {
+      return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`;
+    }
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  } catch {
+    return '';
+  }
+}
+
+/** 상대 시간 (n분 전 / n시간 전 / n일 전 / n달 전 / n년 전) */
 export function formatRelativeTime(iso?: string): string {
   try {
     if (!iso) return '';
-
-    // 🔥 UTC → KST 변환
-    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
-
-    const now = new Date();
-    const diff = now.getTime() - d.getTime();
-
-    if (diff < 60000) return '방금 전';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
-    if (diff < 172800000) return '어제';
-    return `${Math.floor(diff / 86400000)}일 전`;
+    // 타임존 없는 경우 서버 시간을 KST(+09:00)로 간주
+    const d = new Date(iso.includes('Z') || iso.includes('+') ? iso : iso + '+09:00');
+    if (Number.isNaN(d.getTime())) return '';
+    const diff = Date.now() - d.getTime();
+    if (diff < 0) return '방금 전';
+    if (diff < 60_000) return '방금 전';
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
+    if (diff < 2_592_000_000) return `${Math.floor(diff / 86_400_000)}일 전`;
+    if (diff < 31_536_000_000) return `${Math.floor(diff / 2_592_000_000)}달 전`;
+    return `${Math.floor(diff / 31_536_000_000)}년 전`;
   } catch {
     return '';
   }

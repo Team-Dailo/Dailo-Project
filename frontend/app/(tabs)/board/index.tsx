@@ -20,7 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { usePostList } from "../../../hooks/useBoard";
-import { formatRelativeTime } from "../../../utils/formatDate";
+import { formatPostListTime } from "../../../utils/formatDate";
 import { useAuthContext, useMyUserId } from "../../../hooks/useAuth";
 import type { PostListItem } from "../../../types/board";
 import { getEventList } from "../../../services/event.service";
@@ -82,7 +82,7 @@ function toPost(item: { id: number; authorId?: number; author_id?: number; autho
     author: authorName,
     authorProfileImageUrl: profileUrl && typeof profileUrl === "string" && profileUrl.trim() ? profileUrl.trim() : null,
     title: item.title,
-    time: formatRelativeTime(item.createdAt),
+    time: formatPostListTime(item.createdAt),
     tag: item.categoryType ?? "",
     content: contentStr,
     likes: item.likeCount ?? 0,
@@ -467,9 +467,8 @@ export default function BoardScreen() {
             </View>
             <Text style={styles.noticeText} numberOfLines={2} ellipsizeMode="tail">
               {latestNotice
-                ? (latestNotice.title?.trim() ? `[${latestNotice.title.trim()}] ` : "") +
-                  (latestNotice.content?.trim().replace(/\s+/g, " ").slice(0, 80) || "").trim() +
-                  (latestNotice.content && latestNotice.content.trim().length > 80 ? "…" : "")
+                ? (latestNotice.title?.trim() ? `[${latestNotice.title.trim()}]\n` : "") +
+                  (latestNotice.content?.trim() || "")
                 : "등록된 공지사항이 없습니다."}
             </Text>
           </Pressable>
