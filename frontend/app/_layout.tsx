@@ -93,16 +93,56 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    const sub = Notifications.addNotificationReceivedListener((notification) => {
+    // 포그라운드 수신
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
       const { title, body, data } = notification.request.content;
+      const eventId = data?.eventId != null ? String(data.eventId) : undefined;
       void saveNotificationRecord({
         title: title ?? '',
         body: body ?? '',
         receivedAt: new Date().toISOString(),
-        eventId: data?.eventId as string | undefined,
+        eventId,
       });
     });
-    return () => sub.remove();
+
+    // 백그라운드·종료 상태에서 알림 탭해서 진입한 경우
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const { title, body, data } = response.notification.request.content;
+      const eventId = data?.eventId != null ? String(data.eventId) : undefined;
+      void saveNotificationRecord({
+        title: title ?? '',
+        body: body ?? '',
+        receivedAt: new Date().toISOString(),
+        eventId,
+      });
+      if (eventId) {
+        router.push(`/event/${eventId}` as import('expo-router').Href);
+      }
+    });
+
+    // 앱이 완전히 꺼진 상태에서 알림 탭으로 실행된 경우
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      const { title, body, data } = response.notification.request.content;
+      const eventId = data?.eventId != null ? String(data.eventId) : undefined;
+      void saveNotificationRecord({
+        title: title ?? '',
+        body: body ?? '',
+        receivedAt: new Date().toISOString(),
+        eventId,
+      });
+      if (eventId) {
+        // 콜드 스타트 시 라우터가 준비될 때까지 짧게 대기
+        setTimeout(() => {
+          router.push(`/event/${eventId}` as import('expo-router').Href);
+        }, 500);
+      }
+    });
+
+    return () => {
+      receivedSub.remove();
+      responseSub.remove();
+    };
   }, []);
 
   // 체류 종료 대기 큐 → 구역 밖 재검증(지도 미오픈 시에도 서버·로컬 일치)
