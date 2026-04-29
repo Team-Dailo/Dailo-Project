@@ -426,9 +426,9 @@ export default function HomeScreen() {
                     try {
                       const created = new Date(createdAt).getTime();
                       const now = Date.now();
-                      const diffDays = (now - created) / (24 * 60 * 60 * 1000);
-                      // 3일 이상 지난 글은 N 배지 숨김
-                      if (diffDays >= 3) return null;
+                      const diffMinutes = (now - created) / (60 * 1000);
+                      // 5분 이상 지난 글은 N 배지 숨김
+                      if (diffMinutes >= 5) return null;
                     } catch {
                       return null;
                     }

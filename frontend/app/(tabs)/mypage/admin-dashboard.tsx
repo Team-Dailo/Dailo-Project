@@ -129,6 +129,10 @@ export default function AdminDashboardScreen() {
         <StatCard icon="person-add-outline" label="오늘 가입" value={data.todaySignups} color="#10B981" />
         <StatCard icon="create-outline" label="오늘 게시글" value={data.todayPosts} color="#3B82F6" />
       </View>
+      <View style={styles.row}>
+        <StatCard icon="chatbubble-outline" label="오늘 댓글" value={data.todayComments} color="#EC4899" />
+        <View style={{ flex: 1 }} />
+      </View>
 
       {/* 시간대별 사용자 활동 */}
       <Text style={styles.sectionTitle}>시간대별 사용자 활동</Text>

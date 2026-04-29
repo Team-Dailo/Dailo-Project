@@ -76,13 +76,14 @@ function toPost(item: { id: number; authorId?: number; author_id?: number; autho
   const urls = (raw.imageUrls ?? item.imageUrls ?? raw.image_urls) as string[] | undefined;
   const firstImage = Array.isArray(urls) && urls.length > 0 ? urls[0] : undefined;
   const eventTitle = (raw.eventTitle ?? item.eventTitle ?? raw.event_title ?? item.event_title) as string | null | undefined;
+  const createdAt = (raw.createdAt ?? raw.created_at ?? item.createdAt) as string | undefined;
   return {
     id: String(item.id),
     authorId,
     author: authorName,
     authorProfileImageUrl: profileUrl && typeof profileUrl === "string" && profileUrl.trim() ? profileUrl.trim() : null,
     title: item.title,
-    time: formatPostListTime(item.createdAt),
+    time: formatPostListTime(createdAt),
     tag: item.categoryType ?? "",
     content: contentStr,
     likes: item.likeCount ?? 0,
@@ -467,8 +468,9 @@ export default function BoardScreen() {
             </View>
             <Text style={styles.noticeText} numberOfLines={2} ellipsizeMode="tail">
               {latestNotice
-                ? (latestNotice.title?.trim() ? `[${latestNotice.title.trim()}]\n` : "") +
-                  (latestNotice.content?.trim() || "")
+                ? (latestNotice.title?.trim() ? `[${latestNotice.title.trim()}] ` : "") +
+                  (latestNotice.content?.trim().replace(/\s+/g, " ").slice(0, 80) || "").trim() +
+                  (latestNotice.content && latestNotice.content.trim().length > 80 ? "…" : "")
                 : "등록된 공지사항이 없습니다."}
             </Text>
           </Pressable>
