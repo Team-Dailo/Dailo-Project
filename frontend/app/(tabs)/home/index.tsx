@@ -16,6 +16,8 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Alert,
+  BackHandler,
+  Platform,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -218,6 +220,17 @@ export default function HomeScreen() {
     useCallback(() => {
       refetchEventList();
     }, [refetchEventList])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return;
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        BackHandler.exitApp();
+        return true;
+      });
+      return () => sub.remove();
+    }, [])
   );
 
   const onCarouselScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {

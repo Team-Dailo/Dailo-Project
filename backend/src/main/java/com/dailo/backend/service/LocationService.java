@@ -62,6 +62,18 @@ public class LocationService {
     }
 
     /**
+     * 폴리곤이 설정된 경우 폴리곤 내부 여부로, 없으면 200m 반경으로 구역 판정
+     */
+    private boolean isInsideEventZone(double lat, double lng, Event event) {
+        String polygon = event.getZonePolygon();
+        if (polygon != null && !polygon.isBlank()) {
+            return GeometryUtils.isPointInPolygon(lat, lng, polygon);
+        }
+        double distance = GeometryUtils.calculateDistance(lat, lng, event.getLatitude(), event.getLongitude());
+        return distance <= ALLOWED_RADIUS_METER;
+    }
+
+    /**
      * [체류 시작]
      * 옵션 B: 같은 날 PENDING이면 이어쓰기(기존 세션 id 반환)
      */
@@ -87,12 +99,7 @@ public class LocationService {
             }
         }
 
-        double distance = GeometryUtils.calculateDistance(
-                request.latitude(), request.longitude(),
-                event.getLatitude(), event.getLongitude()
-        );
-
-        if (distance > ALLOWED_RADIUS_METER) {
+        if (!isInsideEventZone(request.latitude(), request.longitude(), event)) {
             throw new IllegalArgumentException("행사장 근처가 아닙니다.");
         }
 
@@ -121,13 +128,9 @@ public class LocationService {
 
         Event event = session.getEvent();
 
-        // 완료는 행사장 반경 200m 내에서만
-        double distanceToEvent = GeometryUtils.calculateDistance(
-                request.latitude(), request.longitude(),
-                event.getLatitude(), event.getLongitude()
-        );
-        if (distanceToEvent > ALLOWED_RADIUS_METER) {
-            session.markAsFraud(); // 정책: 강하게 처리
+        // 완료는 행사장 구역 내에서만 (폴리곤 우선, 없으면 200m 반경)
+        if (!isInsideEventZone(request.latitude(), request.longitude(), event)) {
+            session.markAsFraud();
             throw new IllegalStateException("행사장 반경 밖에서는 체류 완료할 수 없습니다.");
         }
 

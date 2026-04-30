@@ -1,10 +1,8 @@
 // app/(tabs)/_layout.tsx
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { useNavigation } from "@react-navigation/native";
 import { Tabs } from "expo-router";
-import React, { useEffect } from "react";
+import React from "react";
 import {
-  BackHandler,
   Image,
   Platform,
   Pressable,
@@ -81,33 +79,6 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 export default function TabsLayout() {
-  const navigation = useNavigation();
-
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      const state = navigation.getState();
-      const currentTab = state?.routes?.[state.index];
-      const nestedState = currentTab?.state as
-        | { index?: number; routes?: unknown[] }
-        | undefined;
-      const isAtTabRoot =
-        !nestedState ||
-        typeof nestedState.index !== "number" ||
-        nestedState.index <= 0;
-      if (isAtTabRoot) {
-        BackHandler.exitApp();
-        return true;
-      }
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-        return true;
-      }
-      return false;
-    });
-    return () => sub.remove();
-  }, [navigation]);
-
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
