@@ -1496,27 +1496,29 @@ function EditModal({
                 </View>
                 {/* 달력 아이콘 누르면 네이티브 달력만 표시 (팝업 없음) */}
                 {dateCalendarOpenFor !== null && NativeDateTimePicker && (
-                  <NativeDateTimePicker
-                    value={dateCalendarOpenFor === "start" ? selectedStartDate : selectedEndDate}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "inline" : "calendar"}
-                    onChange={(_, selected) => {
-                      if (selected) {
-                        const fmt = (d: Date) =>
-                          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-                        if (dateCalendarOpenFor === "start") {
-                          setSelectedStartDate(selected);
-                          setStartRawText(fmt(selected));
-                        } else {
-                          setSelectedEndDate(selected);
-                          setEndRawText(fmt(selected));
+                  <View style={Platform.OS === "ios" ? styles.inlineCalendarWrap : undefined}>
+                    <NativeDateTimePicker
+                      value={dateCalendarOpenFor === "start" ? selectedStartDate : selectedEndDate}
+                      mode="date"
+                      display={Platform.OS === "ios" ? "inline" : "calendar"}
+                      onChange={(_, selected) => {
+                        if (selected) {
+                          const fmt = (d: Date) =>
+                            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                          if (dateCalendarOpenFor === "start") {
+                            setSelectedStartDate(selected);
+                            setStartRawText(fmt(selected));
+                          } else {
+                            setSelectedEndDate(selected);
+                            setEndRawText(fmt(selected));
+                          }
                         }
-                      }
-                      setDateCalendarOpenFor(null);
-                    }}
-                    minimumDate={new Date(2000, 0, 1)}
-                    maximumDate={new Date(2100, 11, 31)}
-                  />
+                        setDateCalendarOpenFor(null);
+                      }}
+                      minimumDate={new Date(2000, 0, 1)}
+                      maximumDate={new Date(2100, 11, 31)}
+                    />
+                  </View>
                 )}
               </View>
             )}
@@ -2049,6 +2051,7 @@ const styles = StyleSheet.create({
   modalScrollContent: { paddingBottom: 24 },
   modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
   dateTimePickerWrap: { marginBottom: 16 },
+  inlineCalendarWrap: { marginHorizontal: -20, overflow: "hidden" },
   dateTimePickerLabel: { fontSize: 14, fontWeight: "600", color: "#6B7280", marginBottom: 8 },
   dateTimePickerLabelSecond: { marginTop: 12 },
   dateInputRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },

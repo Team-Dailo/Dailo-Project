@@ -246,17 +246,43 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
   };
 
   const scheduleReminder = async () => {
+    // 날짜 사전 체크 → 친절한 안내 메시지
+    try {
+      const start = new Date(event.startAt);
+      const now = new Date();
+      const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const daysUntilStart = Math.floor((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysUntilStart < 0) {
+        Alert.alert("알림 설정 불가", "이미 종료된 행사입니다.\n알림을 설정할 수 없습니다.");
+        return;
+      }
+      if (daysUntilStart === 0) {
+        const triggerToday = new Date(now);
+        triggerToday.setHours(9, 0, 0, 0);
+        if (triggerToday.getTime() <= now.getTime()) {
+          Alert.alert(
+            "알림 설정 불가",
+            "오늘 열리는 행사입니다.\n당일에는 알림을 설정할 수 없습니다."
+          );
+          return;
+        }
+      }
+    } catch {
+      // 날짜 파싱 실패 시 이후 로직에서 처리
+    }
+
     // 권한 먼저 체크
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== "granted") {
-      // 권한이 없으면 권한 요청
       const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
       if (requestedStatus !== "granted") {
         Alert.alert("알림 실패", "알림 권한을 허용해 주세요.");
         return;
       }
     }
-    
+
     await eventReminder.cancelEventReminders(String(event.id));
 
     // 알림 시점 (며칠 전) 설정 불러오기 (기본 1일 전)
@@ -303,7 +329,7 @@ export default function EventDetailHeader({ id, event, loading, error, onShare, 
         Alert.alert("알림 예약", msg);
       }
     } else {
-      Alert.alert("알림 실패", "알림을 예약할 수 없습니다. 행사 날짜를 확인해 주세요.");
+      Alert.alert("알림 설정 불가", "행사가 임박하거나 이미 지나\n알림을 설정할 수 없습니다.");
     }
   };
 
