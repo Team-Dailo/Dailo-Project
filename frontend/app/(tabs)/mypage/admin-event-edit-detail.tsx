@@ -715,6 +715,14 @@ export default function AdminEventEditDetailScreen() {
                 onAddFood={() => setEditTarget({ type: "booth" })}
                 onAddExperience={() => setEditTarget({ type: "booth", item: { id: "", name: "", locationLabel: "", type: "experience" } })}
                 onEdit={(item) => setEditTarget({ type: "booth", item })}
+                onMove={(type, fromIdx, toIdx) => {
+                  const setter = type === "food" ? setFoodBooths : setExperienceBooths;
+                  const list = type === "food" ? foodBooths : experienceBooths;
+                  if (toIdx < 0 || toIdx >= list.length) return;
+                  const next = [...list];
+                  [next[fromIdx], next[toIdx]] = [next[toIdx], next[fromIdx]];
+                  setter(next);
+                }}
                 onPickBoothLocation={(booth) => {
                   setEditTarget(null);
                   const initialLat = latitude.trim() || "36.991";
@@ -944,6 +952,7 @@ function AdminBoothsSection({
   onAddFood,
   onAddExperience,
   onEdit,
+  onMove,
   onPickBoothLocation,
 }: {
   foodBooths: BoothEdit[];
@@ -951,6 +960,7 @@ function AdminBoothsSection({
   onAddFood: () => void;
   onAddExperience: () => void;
   onEdit: (item: BoothEdit) => void;
+  onMove: (type: "food" | "experience", fromIdx: number, toIdx: number) => void;
   onPickBoothLocation: (booth: BoothEdit) => void;
 }) {
   const [boothType, setBoothType] = useState<"food" | "experience">("food");
@@ -989,8 +999,24 @@ function AdminBoothsSection({
           <Text style={styles.placeholderText}>탭하여 부스 추가</Text>
         </Pressable>
       ) : (
-        list.map((booth) => (
+        list.map((booth, idx) => (
           <View key={booth.id} style={styles.boothCardRow}>
+            <View style={styles.boothOrderBtns}>
+              <Pressable
+                onPress={() => onMove(boothType, idx, idx - 1)}
+                disabled={idx === 0}
+                style={[styles.boothOrderBtn, idx === 0 && styles.boothOrderBtnDisabled]}
+              >
+                <Ionicons name="chevron-up" size={16} color={idx === 0 ? "#D1D5DB" : "#6B7280"} />
+              </Pressable>
+              <Pressable
+                onPress={() => onMove(boothType, idx, idx + 1)}
+                disabled={idx === list.length - 1}
+                style={[styles.boothOrderBtn, idx === list.length - 1 && styles.boothOrderBtnDisabled]}
+              >
+                <Ionicons name="chevron-down" size={16} color={idx === list.length - 1 ? "#D1D5DB" : "#6B7280"} />
+              </Pressable>
+            </View>
             <Pressable style={styles.boothCard} onPress={() => onEdit(booth)}>
               <Text style={styles.boothName}>{booth.name}</Text>
               <Text style={styles.boothMeta}>{booth.time || ""} {booth.host ? `· ${booth.host}` : ""}</Text>
@@ -2011,6 +2037,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
   },
   boothLocationBtnText: { fontSize: 13, color: "#4C8BF5", fontWeight: "500" },
+  boothOrderBtns: { flexDirection: "column", justifyContent: "center", gap: 2 },
+  boothOrderBtn: { padding: 4, borderRadius: 6, backgroundColor: "#F3F4F6" },
+  boothOrderBtnDisabled: { opacity: 0.3 },
   star: { fontSize: 18, color: "#FFCC00", marginLeft: 8 },
   saveBtn: { marginTop: 24, marginHorizontal: 16, paddingVertical: 14, borderRadius: 12, backgroundColor: "#4C8BF5", alignItems: "center" },
   saveBtnDisabled: { opacity: 0.6 },
