@@ -34,6 +34,14 @@ public class S3UploadService {
     @Value("${cloud.aws.s3.presigned-url-expiration-minutes}")
     private int presignedUrlExpirationMinutes;
 
+    /**
+     * 공개 객체 서빙 베이스 URL. R2 등 CloudFront가 없는 환경에서 설정.
+     * 비어 있으면 기존 동작(CloudFront /static 상대경로)을 유지.
+     * 예: https://pub-xxxx.r2.dev  또는  https://cdn.kodeploy.com
+     */
+    @Value("${cloud.aws.s3.public-base-url:}")
+    private String publicBaseUrl;
+
     public String upload(MultipartFile file, String directory) throws IOException {
         String originalFilename = file.getOriginalFilename();
         String extension = getExtension(originalFilename);
@@ -65,8 +73,18 @@ public class S3UploadService {
         if (value == null || value.isBlank()) return null;
         if (value.startsWith("http://") || value.startsWith("https://")) return value;
         if (value.startsWith("/")) return value;
-        // static/ 접두사가 포함된 키 → /static/... 경로로 변환 (CloudFront → S3 직접 매칭)
-        if (value.startsWith("static/")) return "/" + value;
+        // static/ 접두사가 포함된 키 → 공개 URL로 변환
+        if (value.startsWith("static/")) {
+            // R2 등 공개 베이스 URL이 설정된 경우: 절대 URL (CloudFront 없음)
+            if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+                String base = publicBaseUrl.endsWith("/")
+                        ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1)
+                        : publicBaseUrl;
+                return base + "/" + value;
+            }
+            // 기본(AWS): CloudFront → S3 직접 매칭되는 /static/... 상대경로
+            return "/" + value;
+        }
         // 레거시 키(접두사 없음) → presigned URL 폴백
         return getPresignedUrl(value);
     }
