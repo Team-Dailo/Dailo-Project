@@ -75,14 +75,10 @@ public class S3UploadService {
         if (value.startsWith("/")) return value;
         // static/ 접두사가 포함된 키 → 공개 URL로 변환
         if (value.startsWith("static/")) {
-            // R2 등 공개 베이스 URL이 설정된 경우: 절대 URL (CloudFront 없음)
-            if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
-                String base = publicBaseUrl.endsWith("/")
-                        ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1)
-                        : publicBaseUrl;
-                return base + "/" + value;
-            }
-            // 기본(AWS): CloudFront → S3 직접 매칭되는 /static/... 상대경로
+            // 항상 호스트 상대경로(/static/...) 반환. 실제 객체 서빙은 StaticRedirectController가
+            // /static/** → publicBaseUrl(R2)로 302 redirect로 처리한다.
+            // 이렇게 해야 이미 설치된 앱들이 ${API_BASE_URL}+path 로 URL을 만들어도
+            // (절대 R2 URL 이중 연결 없이) 정상 동작한다 — 앱 업데이트 불필요.
             return "/" + value;
         }
         // 레거시 키(접두사 없음) → presigned URL 폴백
