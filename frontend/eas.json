@@ -14,7 +14,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dailoapp.com"
+        "EXPO_PUBLIC_API_URL": "https://dailo.kodeploy.com"
       }
     },
     "production": {
