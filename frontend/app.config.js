@@ -5,9 +5,11 @@ const parsedVersionCode = Number.parseInt(
   10
 );
 const appVersion =
-  process.env.APP_VERSION ?? process.env.ANDROID_VERSION_NAME ?? expo.version;
+  process.env.APP_VERSION?.trim() ||
+  process.env.ANDROID_VERSION_NAME?.trim() ||
+  expo.version;
 const iosBuildNumber =
-  process.env.IOS_BUILD_NUMBER ?? expo.ios?.buildNumber ?? "1";
+  process.env.IOS_BUILD_NUMBER?.trim() || expo.ios?.buildNumber || "1";
 
 module.exports = {
   expo: {
