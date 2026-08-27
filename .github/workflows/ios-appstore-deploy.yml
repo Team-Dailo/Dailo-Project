@@ -1,16 +1,14 @@
-name: "CD: Apple App Store (TestFlight)"
+name: "CD: iOS TestFlight"
 
 on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: "Optional version override"
+        description: "Optional app version override (for example: 4.2.6)"
         required: false
         type: string
   push:
-    branches:
-      - stage
-      - main
+    branches: ["main"]
     paths:
       - "frontend/**"
       - ".github/workflows/ios-appstore-deploy.yml"
@@ -18,13 +16,23 @@ on:
 permissions:
   contents: read
 
+# Never run two App Store builds at the same time. A queued release must not be
+# cancelled because EAS may already have incremented its remote build number.
+concurrency:
+  group: ios-testflight-production
+  cancel-in-progress: false
+
 jobs:
-  deploy-ios:
-    name: Build IPA and Upload to TestFlight
-    runs-on: macos-latest
+  build-and-submit:
+    name: Build with EAS and submit to TestFlight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: ./frontend
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      APP_VERSION: ${{ github.event.inputs.version_name }}
 
     steps:
       - name: Checkout
@@ -37,182 +45,24 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-
-      - name: Install CocoaPods
-        run: sudo gem install cocoapods
-
-      - name: Install npm dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: Set iOS versioning env
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version_name }}" ]; then
-            echo "APP_VERSION=${{ github.event.inputs.version_name }}" >> "$GITHUB_ENV"
-          fi
-          echo "IOS_BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
-
-      - name: Generate iOS project with Expo prebuild
-        run: npx expo prebuild --platform ios --non-interactive
-
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
+      - name: Set up Expo and EAS
+        uses: expo/expo-github-action@v8
         with:
-          path: |
-            frontend/ios/Pods
-            ~/Library/Caches/CocoaPods
-            ~/.cocoapods
-          key: ${{ runner.os }}-pods-${{ hashFiles('frontend/ios/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Install CocoaPods (ios)
-        working-directory: ./frontend/ios
-        run: pod install
-
-      - name: Validate signing secrets
+      - name: Validate deployment configuration
         run: |
-          missing=()
-          [ -z "${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}" ] && missing+=("IOS_BUILD_CERTIFICATE_BASE64")
-          [ -z "${{ secrets.IOS_P12_PASSWORD }}" ] && missing+=("IOS_P12_PASSWORD")
-          [ -z "${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}" ] && missing+=("IOS_PROVISION_PROFILE_BASE64")
-          [ -z "${{ secrets.IOS_KEYCHAIN_PASSWORD }}" ] && missing+=("IOS_KEYCHAIN_PASSWORD")
-          [ -z "${{ secrets.IOS_TEAM_ID }}" ] && missing+=("IOS_TEAM_ID")
-          [ -z "${{ secrets.IOS_PROFILE_NAME }}" ] && missing+=("IOS_PROFILE_NAME")
-          [ -z "${{ secrets.IOS_CODE_SIGN_IDENTITY }}" ] && missing+=("IOS_CODE_SIGN_IDENTITY")
-          [ -z "${{ secrets.APPSTORE_ISSUER_ID }}" ] && missing+=("APPSTORE_ISSUER_ID")
-          [ -z "${{ secrets.APPSTORE_KEY_ID }}" ] && missing+=("APPSTORE_KEY_ID")
-          [ -z "${{ secrets.APPSTORE_PRIVATE_KEY }}" ] && missing+=("APPSTORE_PRIVATE_KEY")
-          if [ ${#missing[@]} -ne 0 ]; then
-            echo "Missing required secrets: ${missing[*]}"
+          test -n "$EXPO_TOKEN" || {
+            echo "Missing GitHub Actions secret: EXPO_TOKEN"
             exit 1
-          fi
+          }
+          test "$(node -p "require('./app.json').expo.ios.bundleIdentifier")" = "com.knut.dailo"
+          test "$(node -p "require('./app.json').expo.ios.supportsTablet")" = "true"
+          test "$(node -p "require('./eas.json').submit.production.ios.ascAppId")" = "6759860699"
 
-      - name: Install the Apple certificate and provisioning profile
-        env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
-          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
-        run: |
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-
-          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
-          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
-          security default-keychain -s "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles
-
-      - name: Verify code signing identities
-        run: |
-          security find-identity -v -p codesigning "$RUNNER_TEMP/app-signing.keychain-db" || true
-
-      - name: Build and Archive iOS app
-        working-directory: ./frontend/ios
-        env:
-          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
-          IOS_PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
-          IOS_CODE_SIGN_IDENTITY: ${{ secrets.IOS_CODE_SIGN_IDENTITY }}
-        run: |
-          WORKSPACE=$(find . -maxdepth 2 -type d -name "*.xcworkspace" -not -path "./Pods/*" -not -path "*.xcodeproj/*" | head -n 1)
-          
-          if [ -n "$WORKSPACE" ]; then
-            SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-            echo " 타겟 스킴이 [$SCHEME] 로 설정되었습니다."
-
-            xcodebuild archive \
-              -workspace "$WORKSPACE" \
-              -scheme "$SCHEME" \
-              -configuration Release \
-              -archivePath "$PWD/build/App.xcarchive" \
-              CODE_SIGN_STYLE=Manual \
-              DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
-              PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
-              CODE_SIGN_IDENTITY="$IOS_CODE_SIGN_IDENTITY"
-            exit 0
-          fi
-
-          # WORKSPACE가 진짜 없을 때만 플랜 B(xcodeproj) 실행
-          PROJECT=$(find . -maxdepth 2 -type d -name "*.xcodeproj" -not -path "./Pods/*" | head -n 1)
-          if [ -z "$PROJECT" ]; then
-            echo "No .xcworkspace or .xcodeproj found in ios/. Did prebuild succeed?"
-            ls -la
-            exit 1
-          fi
-
-          SCHEME=$(basename "$PROJECT" .xcodeproj)
-          echo "(플랜 B) 타겟 스킴이 [$SCHEME] 로 설정되었습니다."
-
-          xcodebuild archive \
-            -project "$PROJECT" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -archivePath "$PWD/build/App.xcarchive" \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
-            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
-            CODE_SIGN_IDENTITY="$IOS_CODE_SIGN_IDENTITY"
-
-      - name: Export IPA
-        working-directory: ./frontend/ios
-        env:
-          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
-          IOS_PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
-        run: |
-          cat > ExportOptions.plist <<PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>teamID</key><string>${IOS_TEAM_ID}</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.knut.dailo</key>
-              <string>${IOS_PROFILE_NAME}</string>
-            </dict>
-            <key>stripSwiftSymbols</key><true/>
-            <key>compileBitcode</key><false/>
-            <key>manageAppVersionAndBuildNumber</key><false/>
-          </dict>
-          </plist>
-          PLIST
-
-          xcodebuild -exportArchive \
-            -archivePath "$PWD/build/App.xcarchive" \
-            -exportOptionsPlist "$PWD/ExportOptions.plist" \
-            -exportPath "$PWD/build"
-
-      - name: Find IPA path
-        id: find-ipa
-        working-directory: ./frontend/ios
-        run: |
-          IPA_PATH=$(find "$PWD/build" -name "*.ipa" -type f | head -n 1)
-          if [ -z "$IPA_PATH" ]; then
-            echo "No IPA file found in build directory"
-            ls -la "$PWD/build"
-            exit 1
-          fi
-          echo "ipa_path=$IPA_PATH" >> "$GITHUB_OUTPUT"
-
-      - name: Upload to TestFlight
-        uses: apple-actions/upload-testflight-build@v1
-        with:
-          app-path: ${{ steps.find-ipa.outputs.ipa_path }}
-          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
-          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
-          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+      - name: Build production IPA and submit to TestFlight
+        run: eas build --platform ios --profile production --auto-submit --non-interactive --no-wait

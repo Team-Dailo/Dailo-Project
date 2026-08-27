@@ -2,7 +2,7 @@
   "expo": {
     "name": "다일로",
     "slug": "app",
-    "version": "4.2.3",
+    "version": "4.2.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "app",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.knut.dailo",
-      "buildNumber": "15",
+      "buildNumber": "24",
       "usesAppleSignIn": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
