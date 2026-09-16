@@ -1,7 +1,6 @@
 <div align="center">
   <h1>
-    <img src="docs/images/dailo-logo.png" width="64" alt="Dailo logo" />
-    <span>Dailo</span>
+    <img src="docs/images/dailo-logo.png" width="120" alt="Dailo logo" />
   </h1>
 
   <p>대학 축제를 지도와 커뮤니티로 탐색하고, 현장 참여를 연결하는 위치 기반 서비스</p>
