@@ -1,12 +1,10 @@
 <div align="center">
+  <h1>
+    <img src="docs/images/dailo-logo.png" width="64" alt="Dailo logo" />
+    <span>Dailo</span>
+  </h1>
 
-
-# Dailo <img src="docs/images/dailo-logo.png" width="120" alt="Dailo logo" />
-
-### 대학 축제를 지도와 커뮤니티로 탐색하고, 현장 참여를 연결하는 위치 기반 서비스
-
-<p><a href="#주요-기능">주요 기능</a> · <a href="#기술-스택">기술 스택</a> · <a href="#실행-방법">실행 방법</a></p>
-
+  <p>대학 축제를 지도와 커뮤니티로 탐색하고, 현장 참여를 연결하는 위치 기반 서비스</p>
 </div>
 
 ---
