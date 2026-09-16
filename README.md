@@ -1,8 +1,7 @@
 <div align="center">
 
-<img src="docs/images/dailo-logo.png" width="120" alt="Dailo logo" />
 
-# Dailo
+# Dailo <img src="docs/images/dailo-logo.png" width="120" alt="Dailo logo" />
 
 ### 대학 축제를 지도와 커뮤니티로 탐색하고, 현장 참여를 연결하는 위치 기반 서비스
 
