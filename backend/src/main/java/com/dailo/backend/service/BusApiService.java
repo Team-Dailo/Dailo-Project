@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -51,16 +53,15 @@ public class BusApiService {
             String response = restTemplate.getForObject(uri, String.class);
             return parseArrivals(response);
         } catch (Exception e) {
-            log.error("버스 도착정보 API 호출 실패 - stopId: {}, error: {}", stopId, e.getMessage());
-            throw new RuntimeException("BUS_API_ERROR");
+            log.warn("버스 도착정보 API 호출 실패 - stopId: {}", stopId);
+            throw upstreamFailure();
         }
     }
 
     private List<BusArrivalResponse.ArrivalItem> parseArrivals(String json) {
         List<BusArrivalResponse.ArrivalItem> result = new ArrayList<>();
         try {
-            JsonNode items = objectMapper.readTree(json)
-                    .path("response").path("body").path("items").path("item");
+            JsonNode items = readBody(json).path("items").path("item");
 
             if (items.isMissingNode() || items.isNull()) return result;
 
@@ -69,7 +70,8 @@ public class BusApiService {
                 result.add(toArrivalItem(item));
             }
         } catch (Exception e) {
-            log.error("버스 도착정보 파싱 실패: {}", e.getMessage());
+            log.warn("버스 도착정보 응답 형식 오류");
+            throw upstreamFailure();
         }
         return result;
     }
@@ -120,7 +122,7 @@ public class BusApiService {
 
             try {
                 String response = restTemplate.getForObject(uri, String.class);
-                JsonNode body = objectMapper.readTree(response).path("response").path("body");
+                JsonNode body = readBody(response);
                 JsonNode items = body.path("items").path("item");
 
                 if (items.isMissingNode() || items.isNull()) break;
@@ -141,8 +143,8 @@ public class BusApiService {
                 if ((long) page * perPage >= totalCount) break;
                 page++;
             } catch (Exception e) {
-                log.error("노선 목록 조회 실패 - cityCode: {}, error: {}", cityCode, e.getMessage());
-                break;
+                log.warn("노선 목록 조회 실패 - cityCode: {}", cityCode);
+                throw upstreamFailure();
             }
         }
 
@@ -172,7 +174,7 @@ public class BusApiService {
 
             try {
                 String response = restTemplate.getForObject(uri, String.class);
-                JsonNode body = objectMapper.readTree(response).path("response").path("body");
+                JsonNode body = readBody(response);
                 JsonNode items = body.path("items").path("item");
 
                 if (items.isMissingNode() || items.isNull()) break;
@@ -192,8 +194,8 @@ public class BusApiService {
                 if ((long) page * perPage >= totalCount) break;
                 page++;
             } catch (Exception e) {
-                log.error("노선 정류장 조회 실패 - routeId: {}, error: {}", routeId, e.getMessage());
-                break;
+                log.warn("노선 정류장 조회 실패 - routeId: {}", routeId);
+                throw upstreamFailure();
             }
         }
 
@@ -220,8 +222,7 @@ public class BusApiService {
         List<BusLocationResponse.BusLocation> result = new ArrayList<>();
         try {
             String response = restTemplate.getForObject(uri, String.class);
-            JsonNode items = objectMapper.readTree(response)
-                    .path("response").path("body").path("items").path("item");
+            JsonNode items = readBody(response).path("items").path("item");
 
             if (items.isMissingNode() || items.isNull()) return result;
 
@@ -236,8 +237,32 @@ public class BusApiService {
                         .build());
             }
         } catch (Exception e) {
-            log.error("버스 위치 조회 실패 - routeId: {}, error: {}", routeId, e.getMessage());
+            log.warn("버스 위치 조회 실패 - routeId: {}", routeId);
+            throw upstreamFailure();
         }
         return result;
+    }
+    private JsonNode readBody(String json) throws Exception {
+        JsonNode response = objectMapper.readTree(json).path("response");
+        if (!"00".equals(response.path("header").path("resultCode").asText())) {
+            throw upstreamFailure();
+        }
+        JsonNode body = response.path("body");
+        if (!body.isObject()) throw upstreamFailure();
+        JsonNode item = body.path("items").path("item");
+        if (item.isMissingNode() || item.isNull()) {
+            if (body.path("totalCount").asInt(-1) != 0) throw upstreamFailure();
+        } else if (!item.isArray() && !item.isObject()) {
+            throw upstreamFailure();
+        } else if (item.isObject() && item.isEmpty()) {
+            throw upstreamFailure();
+        } else if (item.isEmpty() && body.path("totalCount").asInt(-1) != 0) {
+            throw upstreamFailure();
+        }
+        return body;
+    }
+
+    private ResponseStatusException upstreamFailure() {
+        return new ResponseStatusException(HttpStatus.BAD_GATEWAY, "BUS_API_UNAVAILABLE");
     }
 }

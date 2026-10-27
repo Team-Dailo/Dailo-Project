@@ -113,7 +113,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
 
       try {
         const [arrivalsRes, routes] = await Promise.all([
-          getBusArrivals(stopId).catch(() => null),
+          getBusArrivals(stopId),
           getBusRoutesByStop(stopId).catch(() => [] as BusRouteInfo[]),
         ]);
 
@@ -171,11 +171,12 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
           return (a.arrivalMin ?? 999) - (b.arrivalMin ?? 999);
         });
 
+        setError(false);
         setItems(merged);
         setLastUpdated(new Date());
         if (isRefresh) startCooldown();
       } catch {
-        if (!isRefresh) setError(true);
+        setError(true);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -235,7 +236,7 @@ export function BusStopBottomSheet({ stop, onClose }: Props) {
                 {`${Math.floor(cooldown / 60)}:${String(cooldown % 60).padStart(2, "0")} 후 다시 시도`}
               </Text>
             ) : (
-              lastUpdated && <Text style={styles.refreshTime}>방금 갱신</Text>
+              !error && lastUpdated && <Text style={styles.refreshTime}>방금 갱신</Text>
             )}
             <TouchableOpacity
               onPress={() => stop && fetchData(stop.stopId, true)}

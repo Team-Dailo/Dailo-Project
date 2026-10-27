@@ -73,7 +73,8 @@ public class BusStopSyncService {
                                     .build());
                 }
             } catch (Exception e) {
-                log.warn("노선 경유 정류장 조회 실패 - routeId: {}", route.getRouteId());
+                log.warn("노선 경유 정류장 조회 실패, 기존 매핑 유지 - routeId: {}", route.getRouteId());
+                throw e;
             }
         }
 

@@ -9,9 +9,7 @@ import com.dailo.backend.entity.BusStop;
 import com.dailo.backend.repository.BusStopRepository;
 import com.dailo.backend.repository.BusStopRouteRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,11 +27,6 @@ public class BusService {
     private final BusStopRepository busStopRepository;
     private final BusStopRouteRepository busStopRouteRepository;
     private final BusApiService busApiService;
-
-    // @Cacheable 메서드 간 호출 시 프록시를 통해야 캐시가 동작하므로 자기주입 사용
-    @Lazy
-    @Autowired
-    private BusService self;
 
     /**
      * 반경 내 정류장 목록 (DB 조회)
@@ -59,7 +52,7 @@ public class BusService {
 
     /**
      * 정류장 도착 예정 조회 (30초 캐시)
-     * TAGO 도착 API의 arrprevstationcnt를 GPS 실측 위치로 보정
+     * TAGO 도착 시간과 남은 정류장 수를 그대로 반환. 위치 조회는 별도 API에서 처리.
      */
     @Cacheable(value = "busArrivals", key = "#stopId")
     public BusArrivalResponse getArrivals(String stopId) {
@@ -68,70 +61,12 @@ public class BusService {
         String cityCode = stop.getCityCode() != null ? stop.getCityCode() : DEFAULT_CITY_CODE;
 
         List<BusArrivalResponse.ArrivalItem> items = busApiService.getArrivals(cityCode, stopId);
-        List<BusArrivalResponse.ArrivalItem> corrected = items.parallelStream()
-                .map(item -> correctRemainingStops(item, cityCode, stopId))
-                .collect(Collectors.toList());
-
         return BusArrivalResponse.builder()
                 .stopName(stop.getStopName())
                 .cityCode(cityCode)
                 .cachedAt(System.currentTimeMillis())
-                .arrivals(corrected)
+                .arrivals(items)
                 .build();
-    }
-
-    /**
-     * GPS 실시간 위치 기반으로 남은 정거장 수 보정
-     * GPS 데이터가 없거나 현재 정류장을 노선에서 찾지 못하면 원래 값 유지
-     */
-    private BusArrivalResponse.ArrivalItem correctRemainingStops(
-            BusArrivalResponse.ArrivalItem item, String cityCode, String stopId) {
-        if (item.getRouteId() == null || item.getRouteId().isEmpty()) return item;
-        try {
-            BusLocationResponse locRes = self.getBusLocations(cityCode, item.getRouteId());
-            if (locRes.getBuses().isEmpty()) return item;
-
-            List<BusRouteStopResponse> routeStops = self.getRouteStops(cityCode, item.getRouteId());
-            int currentNodeOrder = routeStops.stream()
-                    .filter(s -> stopId.equals(s.getNodeId()))
-                    .mapToInt(BusRouteStopResponse::getNodeOrder)
-                    .findFirst()
-                    .orElse(-1);
-            if (currentNodeOrder < 0) return item;
-
-            int closestNodeOrder = locRes.getBuses().stream()
-                    .mapToInt(BusLocationResponse.BusLocation::getNodeOrder)
-                    .filter(order -> order < currentNodeOrder)
-                    .max()
-                    .orElse(-1);
-            if (closestNodeOrder < 0) return item;
-
-            int correctedRemaining = currentNodeOrder - closestNodeOrder;
-
-            // GPS 보정된 정거장 수 비율로 도착 시간도 재계산
-            Integer correctedArrivalSec = item.getArrivalSec();
-            Integer correctedArrivalMin = item.getArrivalMin();
-            String correctedArrivalMessage = item.getArrivalMessage();
-
-            int originalRemaining = item.getRemainingStops() != null ? item.getRemainingStops() : 0;
-            if (originalRemaining > 0 && correctedArrivalSec != null) {
-                correctedArrivalSec = (int) Math.round((double) correctedRemaining / originalRemaining * correctedArrivalSec);
-                correctedArrivalMin = correctedArrivalSec / 60;
-                correctedArrivalMessage = correctedArrivalMin <= 0 ? "곧 도착" : correctedArrivalMin + "분 후 도착";
-            }
-
-            return BusArrivalResponse.ArrivalItem.builder()
-                    .routeId(item.getRouteId())
-                    .routeNo(item.getRouteNo())
-                    .destination(item.getDestination())
-                    .arrivalSec(correctedArrivalSec)
-                    .arrivalMin(correctedArrivalMin)
-                    .arrivalMessage(correctedArrivalMessage)
-                    .remainingStops(correctedRemaining)
-                    .build();
-        } catch (Exception e) {
-            return item;
-        }
     }
 
     /**
